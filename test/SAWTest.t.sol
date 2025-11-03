@@ -114,8 +114,8 @@ contract SAWTest is Test {
 
         // ===== Charlie buys 2 shares for 2 ETH
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2e18, 0);
-        assertEq(shares.balanceOf(charlie), 2e18, "charlie bought 2");
+        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
+        assertEq(shares.balanceOf(charlie), 2 ether, "charlie bought 2");
 
         // ===== Fund treasury with 10 ETH then Bob ragequits (use full pool)
         vm.deal(address(this), 10 ether);
@@ -246,7 +246,7 @@ contract SAWTest is Test {
 
         // charlie buys 2 shares via ETH
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2e18, 0);
+        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
         assertEq(shares.balanceOf(charlie), 2e18, "charlie=2 shares");
 
         // charlie should have a badge and be able to chat
@@ -534,7 +534,7 @@ contract SAWTest is Test {
 
         // Buy 2e18 shares (cost 2 ETH)
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2e18, 0);
+        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
 
         assertEq(shares.balanceOf(charlie), 2e18, "charlie got shares");
         assertEq(shares.balanceOf(address(saw)), sawBefore - 2e18, "SAW balance reduced");
@@ -1799,7 +1799,7 @@ contract SAWTest is Test {
         assertTrue(okS);
 
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2e18, 0); // should succeed
+        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether); // should succeed
         assertEq(shares.balanceOf(charlie), 2e18, "buy failed under lock");
     }
 

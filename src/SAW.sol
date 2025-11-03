@@ -281,7 +281,7 @@ contract SAW {
         emit FutarchyOpened(h, rewardToken);
     }
 
-    function fundFutarchy(bytes32 h, uint256 amount) public payable {
+    function fundFutarchy(bytes32 h, uint256 amount) public payable nonReentrant {
         FutarchyConfig storage F = futarchy[h];
         if (!F.enabled || F.resolved) revert NotOk();
         if (F.rewardToken == address(0)) {
@@ -289,8 +289,11 @@ contract SAW {
             F.pool += amount;
         } else {
             if (msg.value != 0) revert NotOk();
+            uint256 before = _erc20Balance(F.rewardToken);
             _safeTransferFrom(F.rewardToken, msg.sender, address(this), amount);
-            F.pool += amount;
+            uint256 received = _erc20Balance(F.rewardToken) - before;
+            if (received == 0) revert NotOk();
+            F.pool += received;
         }
         emit FutarchyFunded(h, msg.sender, amount);
     }
@@ -609,6 +612,7 @@ contract SAW {
 
     function pull(address token, address from, uint256 amount) public payable {
         if (msg.sender != address(this)) revert NotOwner();
+        if (token == address(0)) revert NotOk(); // ERC20 only
         _safeTransferFrom(token, from, address(this), amount);
     }
 
@@ -645,7 +649,7 @@ contract SAW {
 
         // Pull funds
         if (payToken == address(0)) {
-            //if (msg.value > maxPay) revert NotOk();
+            if (msg.value > maxPay) revert NotOk();
             if (msg.value != cost) revert NotOk();
         } else {
             if (msg.value != 0) revert NotOk();
@@ -772,22 +776,17 @@ contract SAW {
 
     function _onSharesChanged(address a) internal {
         uint256 bal = shares.balanceOf(a);
-        bool inTop = (topPos[a] != 0);
-
-        uint256 badBal = badge.balanceOf(a);
-
         if (bal == 0) {
-            _removeFromTop(a);
-            if (badBal != 0) badge.burn(a);
+            if (topPos[a] != 0) _removeFromTop(a);
+            if (badge.balanceOf(a) != 0) badge.burn(a);
             return;
         }
-        if (inTop) return; // already in set
+        if (topPos[a] != 0) return; // already in set
 
         if (topCount < 256) {
             _addToTop(a);
-            if (badBal == 0) badge.mint(a);
+            if (badge.balanceOf(a) == 0) badge.mint(a);
         } else {
-            // Replace current min if this holder surpasses it
             uint16 minI = 0;
             uint256 minBal = type(uint256).max;
             for (uint16 i = 0; i < 256; ++i) {
@@ -804,7 +803,6 @@ contract SAW {
                 topPos[a] = minI + 1;
                 topPos[evict] = 0;
 
-                // badges
                 if (badge.balanceOf(evict) != 0) badge.burn(evict);
                 if (badge.balanceOf(a) == 0) badge.mint(a);
             }
