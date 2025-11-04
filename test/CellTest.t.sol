@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.30;
 
-import {IToken, Cell} from "../src/Cell.sol";
+import {IToken, Cell, Cells} from "../src/Cell.sol";
 import {Test} from "../lib/forge-std/src/Test.sol";
 
 contract Sink {

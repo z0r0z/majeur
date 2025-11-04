@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-/// @title Cell Wallet (CellWall.eth)
+/// @title Cell Wallet (Cell/CellWall.eth)
 /// @notice 2-of-2 smart contract wallet,
 /// with a soft guardian 2-of-3 role too.
 contract Cell {
@@ -22,6 +22,7 @@ contract Cell {
     mapping(address token => mapping(address spender => uint256)) public allowance;
     mapping(bytes32 hash => mapping(address spender => uint256 count)) public permits;
 
+    address immutable CREATOR;
     uint256 immutable INITIAL_CHAIN_ID;
     bytes32 immutable INITIAL_DOMAIN_SEPARATOR;
 
@@ -35,6 +36,7 @@ contract Cell {
         (owner0, owner1) = owner1 < owner0 ? (owner1, owner0) : (owner0, owner1);
         emit OwnershipTransferred(owners[0] = owner0, owners[1] = owner1);
 
+        CREATOR = msg.sender;
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = _computeDomainSeparator();
 
@@ -239,7 +241,10 @@ contract Cell {
         bytes calldata data
     ) public payable returns (bool is0, bool byOwner) {
         is0 = (msg.sender == owners[0]);
-        require(is0 || msg.sender == owners[1] || msg.sender == address(this), NotOwner());
+        require(
+            is0 || msg.sender == owners[1] || msg.sender == address(this) || msg.sender == CREATOR,
+            NotOwner()
+        );
         bytes32 hash =
             keccak256(abi.encodePacked(this.execute.selector, to, value, keccak256(data)));
         if (msg.sender != address(this)) byOwner = true;
@@ -257,14 +262,17 @@ contract Cell {
         }
     }
 
-    /// @dev Set allowance for other owner by owner.
+    /// @dev Set allowance for other owner by owner or for spender.
     function setAllowance(address spender, address token, uint256 amount)
         public
         payable
         returns (bool is0, bool byOwner)
     {
         is0 = (msg.sender == owners[0]);
-        require(is0 || msg.sender == owners[1] || msg.sender == address(this), NotOwner());
+        require(
+            is0 || msg.sender == owners[1] || msg.sender == address(this) || msg.sender == CREATOR,
+            NotOwner()
+        );
         if (msg.sender != address(this)) byOwner = true;
         allowance[token][byOwner ? owners[is0 ? 1 : 0] : spender] = amount;
     }
@@ -272,7 +280,8 @@ contract Cell {
     /// @dev Pull token from allowance preset by owner.
     function pullToken(IToken token, address owner, uint256 amount) public payable {
         require(
-            msg.sender == owners[0] || msg.sender == owners[1] || msg.sender == address(this),
+            msg.sender == owners[0] || msg.sender == owners[1] || msg.sender == address(this)
+                || msg.sender == CREATOR,
             NotOwner()
         );
         token.transferFrom(owner, address(this), amount);
@@ -285,7 +294,10 @@ contract Cell {
         returns (bool is0, bool byOwner)
     {
         is0 = (msg.sender == owners[0]);
-        require(is0 || msg.sender == owners[1] || msg.sender == address(this), NotOwner());
+        require(
+            is0 || msg.sender == owners[1] || msg.sender == address(this) || msg.sender == CREATOR,
+            NotOwner()
+        );
         if (msg.sender != address(this)) byOwner = true;
         token.approve(byOwner ? owners[is0 ? 1 : 0] : spender, amount);
     }
@@ -399,9 +411,37 @@ contract Cell {
     }
 }
 
-/// @dev Generalized Cell token interface.
+/// @dev Generalized Cell token admin interface.
 interface IToken {
     function approve(address, uint256) external;
     function transfer(address, uint256) external;
     function transferFrom(address, address, uint256) external;
+}
+
+/// @title Cell Wallet Creator (Cell/CellWall.eth)
+contract Cells {
+    event NewCell(Cell indexed cell);
+    mapping(address owner => Cell[]) public cells;
+
+    /// @dev Construct new Cell with initialization calls.
+    function createCell(
+        address owner0,
+        address owner1,
+        address guardian,
+        bytes32 salt,
+        bytes[] calldata initCalls
+    ) public payable returns (Cell cell, bool[] memory oks, bytes[] memory retDatas) {
+        emit NewCell(cell = new Cell{value: msg.value, salt: salt}(owner0, owner1, guardian));
+        cells[owner0].push(cell);
+        cells[owner1].push(cell);
+        if (guardian != address(0)) cells[guardian].push(cell);
+        uint256 len = initCalls.length;
+        if (len != 0) {
+            oks = new bool[](len);
+            retDatas = new bytes[](len);
+            for (uint256 i; i != len; ++i) {
+                (oks[i], retDatas[i]) = address(cell).call(initCalls[i]);
+            }
+        }
+    }
 }
