@@ -247,7 +247,7 @@ contract Cell {
         );
         bytes32 hash =
             keccak256(abi.encodePacked(this.execute.selector, to, value, keccak256(data)));
-        if (msg.sender != address(this)) byOwner = true;
+        if (msg.sender != address(this) && msg.sender != CREATOR) byOwner = true;
         permits[hash][byOwner ? owners[is0 ? 1 : 0] : spender] = count;
     }
 
@@ -273,7 +273,7 @@ contract Cell {
             is0 || msg.sender == owners[1] || msg.sender == address(this) || msg.sender == CREATOR,
             NotOwner()
         );
-        if (msg.sender != address(this)) byOwner = true;
+        if (msg.sender != address(this) && msg.sender != CREATOR) byOwner = true;
         allowance[token][byOwner ? owners[is0 ? 1 : 0] : spender] = amount;
     }
 
@@ -298,7 +298,7 @@ contract Cell {
             is0 || msg.sender == owners[1] || msg.sender == address(this) || msg.sender == CREATOR,
             NotOwner()
         );
-        if (msg.sender != address(this)) byOwner = true;
+        if (msg.sender != address(this) && msg.sender != CREATOR) byOwner = true;
         token.approve(byOwner ? owners[is0 ? 1 : 0] : spender, amount);
     }
 
@@ -434,7 +434,9 @@ contract Cells {
         emit NewCell(cell = new Cell{value: msg.value, salt: salt}(owner0, owner1, guardian));
         cells[owner0].push(cell);
         cells[owner1].push(cell);
-        if (guardian != address(0)) cells[guardian].push(cell);
+        if (guardian != address(0) && guardian != owner0 && guardian != owner1) {
+            cells[guardian].push(cell);
+        }
         uint256 len = initCalls.length;
         if (len != 0) {
             oks = new bool[](len);
