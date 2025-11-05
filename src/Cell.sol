@@ -187,9 +187,9 @@ contract Cell {
         return keccak256(
             abi.encodePacked(
                 this.batchExecute.selector,
-                keccak256(abi.encode(tos)),
-                keccak256(abi.encode(values)),
-                keccak256(abi.encode(datas)),
+                _hashTos(tos),
+                _hashValues(values),
+                _hashDatas(datas),
                 nonce
             )
         );

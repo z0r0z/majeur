@@ -53,13 +53,13 @@ contract CellTest is Test {
         uint256[] memory values,
         bytes[] memory datas,
         bytes32 nonce
-    ) internal pure returns (bytes32) {
+    ) internal view returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                Cell.batchExecute.selector,
-                keccak256(abi.encode(tos)),
-                keccak256(abi.encode(values)),
-                keccak256(abi.encode(datas)),
+                cell.batchExecute.selector,
+                _hashTos(tos),
+                _hashValues(values),
+                _hashDatas(datas),
                 nonce
             )
         );
