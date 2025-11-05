@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.30;
 
-import {IToken, Cell, Cells} from "../src/Cell.sol";
+import {Cell, Cells} from "../src/Cell.sol";
 import {Test} from "../lib/forge-std/src/Test.sol";
 
 contract Sink {
@@ -22,6 +22,8 @@ contract Sink {
 contract CellTest is Test {
     Cell internal cell;
     Sink internal sink;
+
+    error TransferFromFailed();
 
     // deterministic keys
     uint256 internal pkAlice = uint256(keccak256("alice"));
@@ -750,7 +752,7 @@ contract CellTest is Test {
         // Direct guardian call should revert
         vm.prank(g);
         vm.expectRevert(Cell.NotOwner.selector);
-        cell.pullToken(IToken(address(token)), bob, 5 ether);
+        cell.pullToken(address(token), bob, 5 ether);
 
         // Self-call pullToken(token, from=bob, amt=5)
         bytes memory inner = abi.encodeWithSelector(cell.pullToken.selector, token, bob, 5 ether);
@@ -1389,7 +1391,7 @@ contract CellTest is Test {
         vm.prank(alice);
         cell.execute(address(cell), 0, inner, n);
         vm.prank(bob);
-        vm.expectRevert(bytes("noallow"));
+        vm.expectRevert(TransferFromFailed.selector);
         cell.execute(address(cell), 0, inner, n);
     }
 
@@ -1787,7 +1789,7 @@ contract CellTest is Test {
         ops[0] = abi.encodeWithSelector(cell.getChatCount.selector); // harmless
         ops[1] = abi.encodeWithSelector(
             cell.pullToken.selector,
-            IToken(address(0xBEEF)), // value irrelevant now
+            address(0xBEEF), // value irrelevant now
             alice,
             1
         );

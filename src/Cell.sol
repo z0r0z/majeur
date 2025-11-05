@@ -255,10 +255,9 @@ contract Cell {
     function spendAllowance(address token, uint256 amount) public payable {
         allowance[token][msg.sender] -= amount;
         if (token == address(0)) {
-            (bool ok, bytes memory retData) = msg.sender.call{value: amount}("");
-            if (!ok) _revertWith(retData);
+            safeTransferETH(msg.sender, amount);
         } else {
-            IToken(token).transfer(msg.sender, amount);
+            safeTransfer(token, msg.sender, amount);
         }
     }
 
@@ -278,17 +277,17 @@ contract Cell {
     }
 
     /// @dev Pull token from allowance preset by owner.
-    function pullToken(IToken token, address owner, uint256 amount) public payable {
+    function pullToken(address token, address owner, uint256 amount) public payable {
         require(
             msg.sender == owners[0] || msg.sender == owners[1] || msg.sender == address(this)
                 || msg.sender == CREATOR,
             NotOwner()
         );
-        token.transferFrom(owner, address(this), amount);
+        safeTransferFrom(token, owner, amount);
     }
 
     /// @dev Approve token allowance to another spender by owner.
-    function approveToken(IToken token, address spender, uint256 amount)
+    function approveToken(address token, address spender, uint256 amount)
         public
         payable
         returns (bool is0, bool byOwner)
@@ -299,7 +298,7 @@ contract Cell {
             NotOwner()
         );
         if (msg.sender != address(this) && msg.sender != CREATOR) byOwner = true;
-        token.approve(byOwner ? owners[is0 ? 1 : 0] : spender, amount);
+        safeApprove(token, byOwner ? owners[is0 ? 1 : 0] : spender, amount);
     }
 
     /// @dev Transfer 1/2 Cell sorted ownership slot to new owner.
@@ -407,11 +406,72 @@ contract Cell {
     }
 }
 
-/// @dev Generalized Cell token admin interface.
-interface IToken {
-    function approve(address, uint256) external;
-    function transfer(address, uint256) external;
-    function transferFrom(address, address, uint256) external;
+error ETHTransferFailed();
+
+function safeTransferETH(address to, uint256 amount) {
+    assembly ("memory-safe") {
+        if iszero(call(gas(), to, amount, codesize(), 0x00, codesize(), 0x00)) {
+            mstore(0x00, 0xb12d13eb)
+            revert(0x1c, 0x04)
+        }
+    }
+}
+
+error TransferFailed();
+
+function safeTransfer(address token, address to, uint256 amount) {
+    assembly ("memory-safe") {
+        mstore(0x14, to)
+        mstore(0x34, amount)
+        mstore(0x00, 0xa9059cbb000000000000000000000000)
+        let success := call(gas(), token, 0, 0x10, 0x44, 0x00, 0x20)
+        if iszero(and(eq(mload(0x00), 1), success)) {
+            if iszero(lt(or(iszero(extcodesize(token)), returndatasize()), success)) {
+                mstore(0x00, 0x90b8ec18)
+                revert(0x1c, 0x04)
+            }
+        }
+        mstore(0x34, 0)
+    }
+}
+
+error ApproveFailed();
+
+function safeApprove(address token, address to, uint256 amount) {
+    assembly ("memory-safe") {
+        mstore(0x14, to)
+        mstore(0x34, amount)
+        mstore(0x00, 0x095ea7b3000000000000000000000000)
+        let success := call(gas(), token, 0, 0x10, 0x44, 0x00, 0x20)
+        if iszero(and(eq(mload(0x00), 1), success)) {
+            if iszero(lt(or(iszero(extcodesize(token)), returndatasize()), success)) {
+                mstore(0x00, 0x3e3f8f73)
+                revert(0x1c, 0x04)
+            }
+        }
+        mstore(0x34, 0)
+    }
+}
+
+error TransferFromFailed();
+
+function safeTransferFrom(address token, address from, uint256 amount) {
+    assembly ("memory-safe") {
+        let m := mload(0x40)
+        mstore(0x60, amount)
+        mstore(0x40, address())
+        mstore(0x2c, shl(96, from))
+        mstore(0x0c, 0x23b872dd000000000000000000000000)
+        let success := call(gas(), token, 0, 0x1c, 0x64, 0x00, 0x20)
+        if iszero(and(eq(mload(0x00), 1), success)) {
+            if iszero(lt(or(iszero(extcodesize(token)), returndatasize()), success)) {
+                mstore(0x00, 0x7939f424)
+                revert(0x1c, 0x04)
+            }
+        }
+        mstore(0x60, 0)
+        mstore(0x40, m)
+    }
 }
 
 /// @title Cell Wallet Creator (Cell/CellWall.eth)
