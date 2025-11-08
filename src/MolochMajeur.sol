@@ -1393,6 +1393,7 @@ contract MolochShares {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
+    /// @notice The parent Moloch (SAW) contract.
     address payable public immutable saw;
 
     /* VOTES (ERC20Votes-like minimal) */
@@ -1407,32 +1408,42 @@ contract MolochShares {
         uint32 fromBlock;
         uint224 votes;
     }
-    mapping(address => address) internal _delegates;
-    mapping(address => Checkpoint[]) internal _checkpoints;
-    Checkpoint[] internal _totalSupplyCheckpoints;
+
+    mapping(address => address) internal _delegates; // delegator => primary delegate
+    mapping(address => Checkpoint[]) internal _checkpoints; // delegate  => vote history
+    Checkpoint[] internal _totalSupplyCheckpoints; // total supply history
 
     /* --------- Split (sharded) delegation (non-custodial) --------- */
     struct Split {
         address delegate;
         uint32 bps; // parts per 10_000
     }
+
     uint8 public constant MAX_SPLITS = 4;
     uint32 public constant BPS_DENOM = 10_000;
+
+    // delegator => split config
     mapping(address => Split[]) internal _splits;
 
     event WeightedDelegationSet(address indexed delegator, address[] delegates, uint32[] bps);
 
+    /*//////////////////////////////////////////////////////////////
+                               CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
     constructor(address[] memory to, uint256[] memory amt, address sawAddr) payable {
-        saw = payable(sawAddr);
         if (to.length != amt.length) revert Len();
+        saw = payable(sawAddr);
+
         for (uint256 i = 0; i < to.length; ++i) {
             _mint(to[i], amt[i]); // balances + totalSupply + TS checkpoint
             _autoSelfDelegate(to[i]); // default to self on first sight
-            _applyVotingDelta(to[i], int256(amt[i])); // route initial votes (checkpoint now)
+            _applyVotingDelta(to[i], int256(amt[i])); // route initial votes via split / primary
         }
     }
 
-    // dynamic metadata from SAW
+    /*//////////////////////////////////////////////////////////////
+                           METADATA (FROM SAW)
+    //////////////////////////////////////////////////////////////*/
     function name() public view returns (string memory) {
         return string.concat(MolochMajeur(saw).orgName(), " Shares");
     }
@@ -1451,71 +1462,47 @@ contract MolochShares {
     }
 
     function transfer(address to, uint256 amount) public returns (bool) {
+        // Global transfer lock: only SAW can be src or dst while locked.
         if (MolochMajeur(saw).transfersLocked() && msg.sender != saw && to != saw) revert Locked();
-        balanceOf[msg.sender] -= amount;
-        unchecked {
-            balanceOf[to] += amount;
-        }
-        emit Transfer(msg.sender, to, amount);
 
-        _autoSelfDelegate(to);
-        _autoSelfDelegate(msg.sender);
-
-        // split-aware vote routing
-        _applyVotingDelta(msg.sender, -int256(amount));
-        _applyVotingDelta(to, int256(amount));
-
-        MolochMajeur(saw).onSharesChanged(msg.sender);
-        MolochMajeur(saw).onSharesChanged(to);
+        _moveTokens(msg.sender, to, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
         if (MolochMajeur(saw).transfersLocked() && from != saw && to != saw) revert Locked();
 
-        if (allowance[from][msg.sender] != type(uint256).max) {
-            allowance[from][msg.sender] -= amount;
+        uint256 allowed = allowance[from][msg.sender];
+        if (allowed != type(uint256).max) {
+            allowance[from][msg.sender] = allowed - amount;
         }
 
-        balanceOf[from] -= amount;
-        unchecked {
-            balanceOf[to] += amount;
-        }
-        emit Transfer(from, to, amount);
-
-        _autoSelfDelegate(to);
-        _autoSelfDelegate(from);
-
-        // split-aware vote routing
-        _applyVotingDelta(from, -int256(amount));
-        _applyVotingDelta(to, int256(amount));
-
-        MolochMajeur(saw).onSharesChanged(from);
-        MolochMajeur(saw).onSharesChanged(to);
+        _moveTokens(from, to, amount);
         return true;
     }
 
+    /// @notice Mint new shares; callable only by the SAW (MolochMajeur).
     function mintFromMolochMajeur(address to, uint256 amount) public payable {
         require(msg.sender == saw, "SAW");
         _mint(to, amount);
         _autoSelfDelegate(to);
-        _applyVotingDelta(to, int256(amount)); // route votes via split
+        _applyVotingDelta(to, int256(amount));
         MolochMajeur(saw).onSharesChanged(to);
     }
 
+    /// @notice Burn shares; callable only by the SAW (MolochMajeur).
     function burnFromMolochMajeur(address from, uint256 amount) public payable {
         require(msg.sender == saw, "SAW");
+
         balanceOf[from] -= amount;
         unchecked {
             totalSupply -= amount;
         }
         emit Transfer(from, address(0), amount);
 
-        _autoSelfDelegate(from);
         _writeTotalSupplyCheckpoint();
-
-        _applyVotingDelta(from, -int256(amount)); // route vote removal via split
-
+        _autoSelfDelegate(from);
+        _applyVotingDelta(from, -int256(amount));
         MolochMajeur(saw).onSharesChanged(from);
     }
 
@@ -1526,7 +1513,24 @@ contract MolochShares {
         }
         emit Transfer(address(0), to, amount);
         _writeTotalSupplyCheckpoint();
-        // NOTE: vote movement handled by caller via _applyVotingDelta(...)
+        // votes / delegation handled by caller via _applyVotingDelta(...)
+    }
+
+    function _moveTokens(address from, address to, uint256 amount) internal {
+        balanceOf[from] -= amount;
+        unchecked {
+            balanceOf[to] += amount;
+        }
+        emit Transfer(from, to, amount);
+
+        _autoSelfDelegate(from);
+        _autoSelfDelegate(to);
+
+        _applyVotingDelta(from, -int256(amount));
+        _applyVotingDelta(to, int256(amount));
+
+        MolochMajeur(saw).onSharesChanged(from);
+        MolochMajeur(saw).onSharesChanged(to);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1556,37 +1560,32 @@ contract MolochShares {
         return _checkpointsLookup(_totalSupplyCheckpoints, blockNumber);
     }
 
-    /* ---------- Split delegation public API ---------- */
-
+    /*//////////////////////////////////////////////////////////////
+                          SPLIT / WEIGHTED DELEGATION
+    //////////////////////////////////////////////////////////////*/
+    /// @notice Returns the effective split delegation of an account
+    /// (defaults to 100% self if no splits set).
     function splitDelegationOf(address account)
         external
         view
         returns (address[] memory delegates_, uint32[] memory bps_)
     {
-        Split[] storage sp = _splits[account];
-        if (sp.length == 0) {
-            delegates_ = _singleton(delegates(account));
-            bps_ = _singletonBps();
-            return (delegates_, bps_);
-        }
-        uint256 n = sp.length;
-        delegates_ = new address[](n);
-        bps_ = new uint32[](n);
-        for (uint256 i = 0; i < n; ++i) {
-            delegates_[i] = sp[i].delegate;
-            bps_[i] = sp[i].bps;
-        }
+        return _currentDistribution(account);
     }
 
     function setSplitDelegation(address[] calldata delegates_, uint32[] calldata bps_) external {
         uint256 n = delegates_.length;
         require(n == bps_.length && n > 0 && n <= MAX_SPLITS, "split/len");
-        uint256 sum = 0;
+
+        uint256 sum;
         for (uint256 i = 0; i < n; ++i) {
-            require(delegates_[i] != address(0), "split/zero");
+            address d = delegates_[i];
+            require(d != address(0), "split/zero");
             sum += bps_[i];
+
+            // no duplicate delegates
             for (uint256 j = i + 1; j < n; ++j) {
-                require(delegates_[i] != delegates_[j], "split/dupe");
+                require(d != delegates_[j], "split/dupe");
             }
         }
         require(sum == BPS_DENOM, "split/sum");
@@ -1605,24 +1604,31 @@ contract MolochShares {
 
     function clearSplitDelegation() external {
         if (_splits[msg.sender].length == 0) return;
+
         (address[] memory oldD, uint32[] memory oldB) = _currentDistribution(msg.sender);
         delete _splits[msg.sender];
+
         _repointVotesForHolder(msg.sender, oldD, oldB);
-        emit WeightedDelegationSet(msg.sender, _singleton(delegates(msg.sender)), _singletonBps());
+
+        // now just a single 100% delegate (self or custom primary)
+        address[] memory d = _singleton(delegates(msg.sender));
+        uint32[] memory b = _singletonBps();
+        emit WeightedDelegationSet(msg.sender, d, b);
     }
 
-    /* ---------- Internal voting helpers ---------- */
-
+    /*//////////////////////////////////////////////////////////////
+                        INTERNAL VOTING HELPERS
+    //////////////////////////////////////////////////////////////*/
     function _delegate(address delegator, address delegatee) internal {
         address current = delegates(delegator);
-        if (delegatee == address(0)) delegatee = delegator; // self by default
+        if (delegatee == address(0)) delegatee = delegator; // default to self
 
-        // If unchanged and no splits, no-op
+        // If unchanged and no splits, nothing to do.
         if (_splits[delegator].length == 0 && current == delegatee) return;
 
         (address[] memory oldD, uint32[] memory oldB) = _currentDistribution(delegator);
 
-        delete _splits[delegator]; // switch to single 100%
+        delete _splits[delegator]; // switch to a single 100% delegate
         _delegates[delegator] = delegatee;
 
         emit DelegateChanged(delegator, current, delegatee);
@@ -1634,10 +1640,11 @@ contract MolochShares {
         if (_delegates[account] == address(0)) {
             _delegates[account] = account;
             emit DelegateChanged(account, address(0), account);
-            // NOTE: do NOT write checkpoints here; routing happens via _applyVotingDelta/_repointVotesForHolder
+            // checkpoints are updated only via _applyVotingDelta / _repointVotesForHolder
         }
     }
 
+    /// @dev Returns the current split (or a single 100% primary delegate if unset).
     function _currentDistribution(address account)
         internal
         view
@@ -1649,6 +1656,7 @@ contract MolochShares {
             bps_ = _singletonBps();
             return (delegates_, bps_);
         }
+
         uint256 n = sp.length;
         delegates_ = new address[](n);
         bps_ = new uint32[](n);
@@ -1658,19 +1666,22 @@ contract MolochShares {
         }
     }
 
-    // Apply +/− voting power change for an account according to its split.
+    /// @dev Apply +/- voting power change for an account according to its split.
     function _applyVotingDelta(address account, int256 delta) internal {
         if (delta == 0) return;
+
         (address[] memory D, uint32[] memory B) = _currentDistribution(account);
 
         uint256 abs = delta > 0 ? uint256(delta) : uint256(-delta);
-        uint256 rem = abs;
+        uint256 remaining = abs;
 
         for (uint256 i = 0; i < D.length; ++i) {
             uint256 part = (abs * B[i]) / BPS_DENOM;
-            // give remainder to the last delegate to avoid dust
-            if (i == D.length - 1) part = rem;
-            else rem -= part;
+
+            // give any rounding remainder to the last delegate
+            if (i == D.length - 1) part = remaining;
+            else remaining -= part;
+
             if (part == 0) continue;
 
             if (delta > 0) _moveVotingPower(address(0), D[i], part);
@@ -1678,100 +1689,57 @@ contract MolochShares {
         }
     }
 
-    // Re-route an existing holder's *current* voting power from old distribution to new.
+    /// @dev Re-route an existing holder's current voting power from `old` distribution to current one.
     function _repointVotesForHolder(address holder, address[] memory oldD, uint32[] memory oldB)
         internal
     {
-        (address[] memory newD, uint32[] memory newB) = _currentDistribution(holder);
         uint256 bal = balanceOf[holder];
         if (bal == 0) return;
 
-        // Build diffs in bps per delegate over the union set
-        uint256 maxK = oldD.length + newD.length;
-        address[] memory all = new address[](maxK);
-        int256[] memory diff = new int256[](maxK);
-        uint256 k = 0;
+        (address[] memory newD, uint32[] memory newB) = _currentDistribution(holder);
 
-        // start with +old (will remove if old > new)
-        for (uint256 i = 0; i < oldD.length; ++i) {
-            all[k] = oldD[i];
-            diff[k] = int256(uint256(oldB[i]));
-            ++k;
+        uint256 nOld = oldD.length;
+        uint256 nNew = newD.length;
+
+        // 1) Adjust delegates that existed before (oldD).
+        for (uint256 i = 0; i < nOld; ++i) {
+            address d = oldD[i];
+            uint32 oldBps = oldB[i];
+            uint32 newBps = 0;
+
+            for (uint256 j = 0; j < nNew; ++j) {
+                if (newD[j] == d) {
+                    newBps = newB[j];
+                    break;
+                }
+            }
+
+            if (oldBps == newBps) continue;
+
+            uint256 oldVotes = (bal * oldBps) / BPS_DENOM;
+            uint256 newVotes = (bal * newBps) / BPS_DENOM;
+
+            if (oldVotes > newVotes) {
+                _moveVotingPower(d, address(0), oldVotes - newVotes);
+            } else if (newVotes > oldVotes) {
+                _moveVotingPower(address(0), d, newVotes - oldVotes);
+            }
         }
 
-        // subtract new
-        for (uint256 i = 0; i < newD.length; ++i) {
-            bool found = false;
-            for (uint256 j = 0; j < k; ++j) {
-                if (all[j] == newD[i]) {
-                    diff[j] -= int256(uint256(newB[i]));
+        // 2) Add votes for delegates that are new-only (not in oldD).
+        for (uint256 j = 0; j < nNew; ++j) {
+            address dNew = newD[j];
+            bool found;
+            for (uint256 i = 0; i < nOld; ++i) {
+                if (oldD[i] == dNew) {
                     found = true;
                     break;
                 }
             }
-            if (!found) {
-                all[k] = newD[i];
-                diff[k] = -int256(uint256(newB[i]));
-                ++k;
-            }
-        }
+            if (found) continue;
 
-        uint256 totalRem = 0;
-        uint256 totalAdd = 0;
-
-        // 1) Remove where old > new
-        for (uint256 i = 0; i < k; ++i) {
-            int256 d = diff[i];
-            if (d > 0) {
-                // d is positive here; safe to cast
-                uint256 amt = (bal * uint256(d)) / BPS_DENOM;
-                totalRem += amt;
-                if (amt != 0) _moveVotingPower(all[i], address(0), amt);
-            }
-        }
-
-        // 2) Add where new > old
-        for (uint256 i = 0; i < k; ++i) {
-            int256 d = diff[i];
-            if (d < 0) {
-                // -d is positive here; safe to cast
-                uint256 amt = (bal * uint256(-d)) / BPS_DENOM;
-                totalAdd += amt;
-                if (amt != 0) _moveVotingPower(address(0), all[i], amt);
-            }
-        }
-
-        // 3) Dust fix (at most a few wei): reconcile totals to be exactly equal
-        if (totalRem != totalAdd) {
-            if (totalRem < totalAdd) {
-                // remove the excess from the last-added new delegate
-                uint256 excess = totalAdd - totalRem;
-                for (uint256 i = k; i > 0; --i) {
-                    if (diff[i - 1] < 0) {
-                        _moveVotingPower(all[i - 1], address(0), excess);
-                        break;
-                    }
-                }
-            } else {
-                // add missing to last new delegate (or last old if no new)
-                uint256 missing = totalRem - totalAdd;
-                bool added = false;
-                for (uint256 i = k; i > 0; --i) {
-                    if (diff[i - 1] < 0) {
-                        _moveVotingPower(address(0), all[i - 1], missing);
-                        added = true;
-                        break;
-                    }
-                }
-                if (!added) {
-                    for (uint256 i = k; i > 0; --i) {
-                        if (diff[i - 1] > 0) {
-                            _moveVotingPower(address(0), all[i - 1], missing);
-                            break;
-                        }
-                    }
-                }
-            }
+            uint256 newVotes = (bal * newB[j]) / BPS_DENOM;
+            if (newVotes != 0) _moveVotingPower(address(0), dNew, newVotes);
         }
     }
 
@@ -1779,6 +1747,7 @@ contract MolochShares {
 
     function _moveVotingPower(address src, address dst, uint256 amount) internal {
         if (src == dst || amount == 0) return;
+
         if (src != address(0)) {
             (uint256 oldVal, uint256 newVal) = _writeDelta(_checkpoints[src], false, amount);
             emit DelegateVotesChanged(src, oldVal, newVal);
@@ -1800,33 +1769,37 @@ contract MolochShares {
     }
 
     function _writeCheckpoint(Checkpoint[] storage ckpts, uint256 oldVal, uint256 newVal) internal {
-        if (oldVal == newVal) return; // no-op, save gas
+        if (oldVal == newVal) return;
+
         uint32 blk = toUint32(block.number);
         uint256 len = ckpts.length;
 
         if (len != 0) {
             Checkpoint storage last = ckpts[len - 1];
+
             // If we've already written this block, just update it.
             if (last.fromBlock == blk) {
                 last.votes = toUint224(newVal);
                 return;
             }
-            // If the last checkpoint (previous block) already has this value, skip pushing a duplicate.
+
+            // If the last checkpoint already has this value, skip pushing duplicate.
             if (last.votes == newVal) return;
         }
+
         ckpts.push(Checkpoint({fromBlock: blk, votes: toUint224(newVal)}));
     }
 
     function _writeTotalSupplyCheckpoint() internal {
-        uint256 newVal = totalSupply;
         uint32 blk = toUint32(block.number);
-        if (
-            _totalSupplyCheckpoints.length != 0
-                && _totalSupplyCheckpoints[_totalSupplyCheckpoints.length - 1].fromBlock == blk
-        ) {
-            _totalSupplyCheckpoints[_totalSupplyCheckpoints.length - 1].votes = toUint224(newVal);
+        uint256 len = _totalSupplyCheckpoints.length;
+
+        if (len != 0 && _totalSupplyCheckpoints[len - 1].fromBlock == blk) {
+            _totalSupplyCheckpoints[len - 1].votes = toUint224(totalSupply);
         } else {
-            _totalSupplyCheckpoints.push(Checkpoint({fromBlock: blk, votes: toUint224(newVal)}));
+            _totalSupplyCheckpoints.push(
+                Checkpoint({fromBlock: blk, votes: toUint224(totalSupply)})
+            );
         }
     }
 
@@ -1835,13 +1808,18 @@ contract MolochShares {
         view
         returns (uint256)
     {
-        // binary search in ckpts
         uint256 len = ckpts.length;
         if (len == 0) return 0;
-        // First check most recent
-        if (ckpts[len - 1].fromBlock <= blockNumber) return ckpts[len - 1].votes;
-        // Then earliest
-        if (ckpts[0].fromBlock > blockNumber) return 0;
+
+        // Most recent
+        if (ckpts[len - 1].fromBlock <= blockNumber) {
+            return ckpts[len - 1].votes;
+        }
+
+        // Before first
+        if (ckpts[0].fromBlock > blockNumber) {
+            return 0;
+        }
 
         uint256 low = 0;
         uint256 high = len - 1;
@@ -1864,16 +1842,8 @@ contract MolochShares {
 
     function _singletonBps() internal pure returns (uint32[] memory a) {
         a = new uint32[](1);
-        a[0] = uint32(BPS_DENOM);
+        a[0] = BPS_DENOM;
     }
-}
-
-/* Interfaces used by MolochShares dynamic calls */
-interface IMoloch {
-    function orgName() external view returns (string memory);
-    function orgSymbol() external view returns (string memory);
-    function transfersLocked() external view returns (bool);
-    function onSharesChanged(address a) external;
 }
 
 /*//////////////////////////////////////////////////////////////
