@@ -927,7 +927,7 @@ contract MMTest is Test {
         _voteYes(h, alice); // Bob does NOT vote
 
         // Execution must fail under current semantics with NotOk (falls through to failed call)
-        vm.expectRevert(MolochMajeur.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         moloch.executeByVotes(0, address(target), 0, "", keccak256("min-prop"));
     }
 

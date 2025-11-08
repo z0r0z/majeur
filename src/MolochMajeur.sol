@@ -251,23 +251,17 @@ contract MolochMajeur {
     function openProposal(bytes32 id) public {
         if (snapshotBlock[id] != 0) return; // already opened
 
-        // Foundry often opens your *first* proposal while chain is still at block 1.
-        // Using (block.number - 1) avoids the “not yet determined” revert in OZ.
-        uint32 snap = toUint32(block.number > 0 ? block.number - 1 : 0);
+        // Snapshot at previous block; block.number is never 0 in practice.
+        uint32 snap = toUint32(block.number - 1);
         snapshotBlock[id] = snap;
 
         if (createdAt[id] == 0) {
             createdAt[id] = uint64(block.timestamp);
         }
 
-        uint128 supply;
-        if (snap == 0) {
-            // genesis-fallback: there may be no checkpoint at block 0
-            // so we record current totalSupply for UI purposes
-            supply = uint128(shares.totalSupply());
-        } else {
-            supply = uint128(shares.getPastTotalSupply(snap));
-        }
+        // For snap == 0 (first block in test env), fall back to current supply.
+        uint256 supply = snap == 0 ? shares.totalSupply() : shares.getPastTotalSupply(snap);
+
         supplySnapshot[id] = supply;
 
         emit Opened(id, snap, supply);
@@ -402,15 +396,21 @@ contract MolochMajeur {
         bytes32 nonce
     ) public payable nonReentrant returns (bool ok, bytes memory retData) {
         bytes32 id = _intentHash(op, to, value, data, nonce);
+
+        // Keep explicit AlreadyExecuted error semantics.
+        if (executed[id]) revert AlreadyExecuted();
+
         ProposalState st = state(id);
 
-        if (st == ProposalState.Unopened || st == ProposalState.Active) revert NotApprover();
-        if (st == ProposalState.Expired) revert NotOk();
-        if (executed[id]) revert AlreadyExecuted();
+        // Only Succeeded or Queued proposals are allowed through.
+        if (st != ProposalState.Succeeded && st != ProposalState.Queued) {
+            if (st == ProposalState.Expired) revert NotOk();
+            revert NotApprover(); // also covers Unopened / Active / Defeated
+        }
 
         if (timelockDelay != 0) {
             if (queuedAt[id] == 0) {
-                // First call → queue
+                // First call → queue & return, like before.
                 queuedAt[id] = uint64(block.timestamp);
                 emit Queued(id, queuedAt[id]);
                 return (true, "");
@@ -748,8 +748,7 @@ contract MolochMajeur {
                           SHARES HOOK (TOP-256 + SBT)
     //////////////////////////////////////////////////////////////*/
     address[256] public topHolders;
-    uint16 public topCount; // number of filled slots
-    mapping(address => uint16) public topPos; // 1..256; 0=not present
+    mapping(address => uint16) public topPos;
 
     /// @notice Slot index 1..256 if in top set, else 0 (not strictly sorted by balance).
     function rankOf(address a) public view returns (uint256) {
@@ -763,56 +762,53 @@ contract MolochMajeur {
 
     function _onSharesChanged(address a) internal {
         uint256 bal = shares.balanceOf(a);
+        uint16 pos = topPos[a];
+
+        // If holder has no shares, ensure they are not in the top set and burn badge.
         if (bal == 0) {
-            if (topPos[a] != 0) _removeFromTop(a);
+            if (pos != 0) {
+                topHolders[pos - 1] = address(0);
+                topPos[a] = 0;
+            }
             if (badge.balanceOf(a) != 0) badge.burn(a);
             return;
         }
-        if (topPos[a] != 0) return; // already in set
 
-        if (topCount < 256) {
-            _addToTop(a);
-            if (badge.balanceOf(a) == 0) badge.mint(a);
-        } else {
-            uint16 minI = 0;
-            uint256 minBal = type(uint256).max;
-            for (uint16 i = 0; i < 256; ++i) {
-                address cur = topHolders[i];
-                uint256 cbal = shares.balanceOf(cur);
-                if (cbal < minBal) {
-                    minBal = cbal;
-                    minI = i;
-                }
-            }
-            if (bal > minBal) {
-                address evict = topHolders[minI];
-                topHolders[minI] = a;
-                topPos[a] = minI + 1;
-                topPos[evict] = 0;
+        // Already in top set: nothing else to do (we only track membership, not order).
+        if (pos != 0) return;
 
-                if (badge.balanceOf(evict) != 0) badge.burn(evict);
-                if (badge.balanceOf(a) == 0) badge.mint(a);
-            }
-        }
-    }
-
-    function _addToTop(address a) internal {
+        // Try to insert into any free slot first.
         for (uint16 i = 0; i < 256; ++i) {
             if (topHolders[i] == address(0)) {
                 topHolders[i] = a;
                 topPos[a] = i + 1;
-                topCount++;
+                if (badge.balanceOf(a) == 0) badge.mint(a);
                 return;
             }
         }
-    }
 
-    function _removeFromTop(address a) internal {
-        uint16 p = topPos[a];
-        if (p == 0) return;
-        topHolders[p - 1] = address(0);
-        topPos[a] = 0;
-        if (topCount > 0) topCount--;
+        // No free slot: find the lowest-balance current top holder.
+        uint16 minI;
+        uint256 minBal = type(uint256).max;
+        for (uint16 i = 0; i < 256; ++i) {
+            address cur = topHolders[i];
+            uint256 cbal = shares.balanceOf(cur);
+            if (cbal < minBal) {
+                minBal = cbal;
+                minI = i;
+            }
+        }
+
+        // Only replace if strictly larger than the current minimum.
+        if (bal > minBal) {
+            address evict = topHolders[minI];
+            topHolders[minI] = a;
+            topPos[a] = minI + 1;
+            topPos[evict] = 0;
+
+            if (badge.balanceOf(evict) != 0) badge.burn(evict);
+            if (badge.balanceOf(a) == 0) badge.mint(a);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -838,18 +834,10 @@ contract MolochMajeur {
                               SVG / TOKEN URIs
     //////////////////////////////////////////////////////////////*/
     /// @notice On-chain JSON/SVG card for a proposal id, or routes to receiptURI for vote receipts.
-    /// Heuristics:
-    /// - If it's a 6909 receipt (receiptProposal[id] != 0) → Vote Receipt card.
-    /// - Else if it's a known proposal (opened / has tallies / createdAt) → Proposal card.
-    /// - Else if use6909ForPermits and id maps to a mirrored permit (supply or count) → Permit card.
-    /// - Else → Proposal card (default).
     function tokenURI(uint256 id) public view returns (string memory) {
         // 1) If this id is a vote receipt, delegate to the full receipt renderer.
-        if (receiptProposal[id] != bytes32(0)) {
-            return receiptURI(id);
-        }
+        if (receiptProposal[id] != bytes32(0)) return receiptURI(id);
 
-        // 2) Otherwise, existing permit/proposal logic…
         bytes32 h = bytes32(id);
 
         Tally memory t = tallies[h];
@@ -860,8 +848,7 @@ contract MolochMajeur {
             && (totalSupply[id] != 0 || permits[h] != 0);
 
         if (looksLikePermit) {
-            string memory idHex = _toHex(h);
-            string memory supply = _u2s(totalSupply[id]);
+            // ----- Permit card -----
             string memory cnt = permits[h] == type(uint256).max ? "unlimited" : _u2s(permits[h]);
 
             string memory svgP = string.concat(
@@ -871,10 +858,10 @@ contract MolochMajeur {
                 orgName,
                 " Permit</text>",
                 "<text x='18' y='72' font-family='Courier New, monospace' font-size='12' fill='#fff'>id: ",
-                idHex,
+                _toHex(h),
                 "</text>",
                 "<text x='18' y='92' font-family='Courier New, monospace' font-size='12' fill='#fff'>mirror supply: ",
-                supply,
+                _u2s(totalSupply[id]),
                 "</text>",
                 "<text x='18' y='112' font-family='Courier New, monospace' font-size='12' fill='#fff'>remaining: ",
                 cnt,
@@ -882,27 +869,32 @@ contract MolochMajeur {
                 "</svg>"
             );
 
-            string memory image =
-                string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(svgP)));
-
-            string memory json = string.concat(
+            string memory jsonP = string.concat(
                 '{"name":"Permit","description":"Intent/permit mirror (ERC6909)",',
                 '"image":"',
-                image,
+                DataURI.svg(svgP),
                 '"}'
             );
 
-            return string.concat("data:application/json;base64,", Base64.encode(bytes(json)));
+            return DataURI.json(jsonP);
         }
 
-        // Proposal card
-        string memory idHex2 = _toHex(h);
-        string memory snapStr = _u2s(snapshotBlock[h]);
-        string memory supplyStr = _u2s(supplySnapshot[h]);
-        string memory forStr = _u2s(t.forVotes);
-        string memory agStr = _u2s(t.againstVotes);
-        string memory abStr = _u2s(t.abstainVotes);
-        string memory stStr = _stateStringNoOpen(h);
+        // ----- Proposal card -----
+        string memory stateStr;
+        if (executed[h]) {
+            stateStr = "executed";
+        } else if (snapshotBlock[h] == 0) {
+            stateStr = "unopened";
+        } else if (proposalTTL != 0) {
+            uint64 t0 = createdAt[h];
+            if (t0 != 0 && block.timestamp > t0 + proposalTTL) {
+                stateStr = "expired";
+            } else {
+                stateStr = "open";
+            }
+        } else {
+            stateStr = "open";
+        }
 
         string memory svg = string.concat(
             "<svg xmlns='http://www.w3.org/2000/svg' width='520' height='240'>",
@@ -911,52 +903,52 @@ contract MolochMajeur {
             orgName,
             " Proposal</text>",
             "<text x='18' y='66' font-family='Courier New, monospace' font-size='12' fill='#fff'>id: ",
-            idHex2,
+            _toHex(h),
             "</text>",
             "<text x='18' y='86' font-family='Courier New, monospace' font-size='12' fill='#fff'>snapshot: ",
-            snapStr,
+            _u2s(snapshotBlock[h]),
             " (supply ",
-            supplyStr,
+            _u2s(supplySnapshot[h]),
             ")</text>",
             "<text x='18' y='106' font-family='Courier New, monospace' font-size='12' fill='#fff'>for: ",
-            forStr,
+            _u2s(t.forVotes),
             "  against: ",
-            agStr,
+            _u2s(t.againstVotes),
             "  abstain: ",
-            abStr,
+            _u2s(t.abstainVotes),
             "</text>",
             "<text x='18' y='126' font-family='Courier New, monospace' font-size='12' fill='#fff'>state: ",
-            stStr,
+            stateStr,
             "</text>",
             "</svg>"
         );
 
-        string memory image2 =
-            string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(svg)));
-
-        string memory json2 = string.concat(
+        string memory json = string.concat(
             '{"name":"Proposal","description":"Snapshot-weighted proposal",',
             '"image":"',
-            image2,
+            DataURI.svg(svg),
             '"}'
         );
 
-        return string.concat("data:application/json;base64,", Base64.encode(bytes(json2)));
+        return DataURI.json(json);
     }
 
     /// @notice On-chain JSON/SVG for a vote receipt id (ERC-6909).
     function receiptURI(uint256 id) public view returns (string memory) {
-        // Which side is this receipt for?
         uint8 s = receiptSupport[id]; // 0 = NO, 1 = YES, 2 = ABSTAIN
         bytes32 h = receiptProposal[id]; // proposal hash this receipt belongs to
         FutarchyConfig memory F = futarchy[h];
 
-        string memory stance = (s == 1) ? "YES" : (s == 0) ? "NO" : "ABSTAIN";
-        string memory status = (!F.enabled)
-            ? "plain"
-            : (!F.resolved) ? "open" : ((F.winner == s) ? "winner" : "loser");
+        string memory stance = s == 1 ? "YES" : s == 0 ? "NO" : "ABSTAIN";
 
-        uint256 supply = totalSupply[id];
+        string memory status;
+        if (!F.enabled) {
+            status = "plain";
+        } else if (!F.resolved) {
+            status = "open";
+        } else {
+            status = (F.winner == s) ? "winner" : "loser";
+        }
 
         string memory svg = string.concat(
             "<svg xmlns='http://www.w3.org/2000/svg' width='520' height='220'>",
@@ -964,7 +956,6 @@ contract MolochMajeur {
             "<text x='18' y='38' font-family='Courier New, monospace' font-size='18' fill='#fff'>",
             orgName,
             " Vote Receipt</text>",
-            // Tighter proposal id block (label + wrapped id)
             "<text x='18' y='72' font-family='Courier New, monospace' font-size='12' fill='#fff'>proposal</text>",
             "<text x='18' y='88' font-family='Courier New, monospace' font-size='12' fill='#fff'>",
             _toHex(h),
@@ -976,7 +967,7 @@ contract MolochMajeur {
             status,
             "</text>",
             "<text x='18' y='152' font-family='Courier New, monospace' font-size='12' fill='#fff'>receipt supply: ",
-            _u2s(supply),
+            _u2s(totalSupply[id]),
             "</text>",
             (F.enabled
                     ? string.concat(
@@ -996,16 +987,14 @@ contract MolochMajeur {
             "</svg>"
         );
 
-        string memory image = string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(svg)));
-
         string memory json = string.concat(
             '{"name":"Receipt","description":"SBT-like vote receipt; burn to cash out if winning",',
             '"image":"',
-            image,
+            DataURI.svg(svg),
             '"}'
         );
 
-        return string.concat("data:application/json;base64,", Base64.encode(bytes(json)));
+        return DataURI.json(json);
     }
 
     // Cheap hex for bytes32: "0x" + 64 hex chars.
@@ -1020,28 +1009,6 @@ contract MolochMajeur {
             str[3 + 2 * i] = bytes1(HEX[b & 0x0f]);
         }
         return string(str);
-    }
-
-    // A view-only state string that NEVER writes.
-    function _stateStringNoOpen(bytes32 id) internal view returns (string memory) {
-        if (executed[id]) return "executed";
-        if (snapshotBlock[id] == 0) return "unopened";
-        // Optional TTL display only (no writes)
-        if (proposalTTL != 0) {
-            uint64 t0 = createdAt[id];
-            if (t0 != 0 && block.timestamp > t0 + proposalTTL) return "expired";
-        }
-        return "open";
-    }
-
-    function _stateString(ProposalState s) internal pure returns (string memory) {
-        if (s == ProposalState.Unopened) return "unopened";
-        if (s == ProposalState.Active) return "active";
-        if (s == ProposalState.Queued) return "queued";
-        if (s == ProposalState.Succeeded) return "succeeded";
-        if (s == ProposalState.Defeated) return "defeated";
-        if (s == ProposalState.Expired) return "expired";
-        return "executed";
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1853,74 +1820,63 @@ contract MolochBadge {
     /* ERC721-ish */
     event Transfer(address indexed from, address indexed to, uint256 indexed id);
 
-    address payable public immutable saw;
+    // Parent Moloch (SAW)
+    address payable public immutable mol;
 
-    mapping(uint256 => address) internal _ownerOf;
-    mapping(address => uint256) internal _balanceOf;
+    // Holder => count (0 or 1 in practice)
+    mapping(address => uint256) public balanceOf;
 
     constructor() payable {
-        saw = payable(msg.sender);
+        mol = payable(msg.sender);
     }
 
     // dynamic metadata from SAW
     function name() public view returns (string memory) {
-        return string.concat(MolochMajeur(saw).orgName(), " Badge");
+        return string.concat(MolochMajeur(mol).orgName(), " Badge");
     }
 
     function symbol() public view returns (string memory) {
-        return string.concat(MolochMajeur(saw).orgSymbol(), "B");
+        return string.concat(MolochMajeur(mol).orgSymbol(), "B");
     }
 
     function ownerOf(uint256 id) public view returns (address o) {
-        require((o = _ownerOf[id]) != address(0), "NOT_MINTED");
-    }
-
-    function balanceOf(address o) public view returns (uint256) {
-        require(o != address(0), "ZERO");
-        return _balanceOf[o];
+        o = address(uint160(id));
+        require(balanceOf[o] != 0, "NOT_MINTED");
     }
 
     function tokenURI(uint256 id) public view returns (string memory) {
         address holder = address(uint160(id));
-        MolochShares sh = MolochMajeur(saw).shares();
+        MolochShares sh = MolochMajeur(mol).shares();
+
         uint256 bal = sh.balanceOf(holder);
         uint256 ts = sh.totalSupply();
-        uint256 rk = MolochMajeur(saw).rankOf(holder); // 0 if not in top set
+        uint256 rk = MolochMajeur(mol).rankOf(holder); // 0 if not in top set
+        string memory rankStr = rk == 0 ? "-" : _u2s(rk);
 
-        string memory addr = _addrHex(holder);
-        string memory pct = _percent(bal, ts);
-        string memory rank = rk == 0 ? "-" : _u2s(rk);
-
-        // Build SVG (kept identical in content; now we'll base64 it)
+        // Simple on-chain SVG card
         string memory svg = string.concat(
-            "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420'>",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='220'>",
             "<rect width='100%' height='100%' fill='#111'/>",
-            "<text x='20' y='60'  font-family='Courier New, monospace' font-size='18' fill='#fff'>",
+            "<text x='20' y='50'  font-family='Courier New, monospace' font-size='18' fill='#fff'>",
             name(),
             "</text>",
-            "<text x='20' y='100' font-family='Courier New, monospace' font-size='12' fill='#fff' letter-spacing='1'>",
-            addr,
+            "<text x='20' y='90'  font-family='Courier New, monospace' font-size='12' fill='#fff'>id: ",
+            _u2s(id),
             "</text>",
-            "<text x='20' y='130' font-family='Courier New, monospace' font-size='12' fill='#fff'>balance: ",
+            "<text x='20' y='110' font-family='Courier New, monospace' font-size='12' fill='#fff'>balance: ",
             _u2s(bal),
             "</text>",
-            "<text x='20' y='150' font-family='Courier New, monospace' font-size='12' fill='#fff'>supply: ",
+            "<text x='20' y='130' font-family='Courier New, monospace' font-size='12' fill='#fff'>supply: ",
             _u2s(ts),
             "</text>",
-            "<text x='20' y='170' font-family='Courier New, monospace' font-size='12' fill='#fff'>percent: ",
-            pct,
-            "</text>",
-            "<text x='20' y='190' font-family='Courier New, monospace' font-size='12' fill='#fff'>rank: ",
-            rank,
+            "<text x='20' y='150' font-family='Courier New, monospace' font-size='12' fill='#fff'>rank: ",
+            rankStr,
             "</text>",
             "</svg>"
         );
 
-        // data:image/svg+xml;base64,<...>
         string memory image = string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(svg)));
 
-        // Keep JSON fields static to avoid needing a JSON escaper for dynamic strings.
-        // data:application/json;base64,<...>
         string memory json = string.concat(
             '{"name":"Badge","description":"Top-256 holder badge (slot rank)",',
             '"image":"',
@@ -1935,43 +1891,23 @@ contract MolochBadge {
         revert("SBT");
     }
 
-    function mint(address to) public payable {
-        require(msg.sender == saw, "SAW");
-        uint256 id = uint256(uint160(to));
-        require(to != address(0) && _ownerOf[id] == address(0), "MINTED");
-        _ownerOf[id] = to;
-        unchecked {
-            _balanceOf[to]++;
-        }
-        emit Transfer(address(0), to, id);
+    function mint(address to) public {
+        require(msg.sender == mol, "SAW");
+        require(to != address(0) && balanceOf[to] == 0, "MINTED");
+
+        balanceOf[to] = 1;
+        emit Transfer(address(0), to, uint256(uint160(to)));
     }
 
-    function burn(address from) public payable {
-        require(msg.sender == saw, "SAW");
-        uint256 id = uint256(uint160(from));
-        require(_ownerOf[id] == from, "OWN");
-        _ownerOf[id] = address(0);
-        unchecked {
-            _balanceOf[from]--;
-        }
-        emit Transfer(from, address(0), id);
+    function burn(address from) public {
+        require(msg.sender == mol, "SAW");
+        require(balanceOf[from] != 0, "OWN");
+
+        balanceOf[from] = 0;
+        emit Transfer(from, address(0), uint256(uint160(from)));
     }
 
     /* utils */
-    function _addrHex(address a) internal pure returns (string memory s) {
-        bytes20 b = bytes20(a);
-        bytes16 H = 0x30313233343536373839616263646566;
-        bytes memory out = new bytes(42);
-        out[0] = "0";
-        out[1] = "x";
-        for (uint256 i = 0; i < 20; ++i) {
-            uint8 v = uint8(b[i]);
-            out[2 + 2 * i] = bytes1(H[v >> 4]);
-            out[3 + 2 * i] = bytes1(H[v & 0x0f]);
-        }
-        s = string(out);
-    }
-
     function _u2s(uint256 x) internal pure returns (string memory) {
         if (x == 0) return "0";
         uint256 temp = x;
@@ -1987,13 +1923,5 @@ contract MolochBadge {
             x /= 10;
         }
         return string(buffer);
-    }
-
-    function _percent(uint256 a, uint256 b) internal pure returns (string memory) {
-        if (b == 0) return "0.00%";
-        uint256 p = a * 10000 / b;
-        uint256 i = p / 100;
-        uint256 d = p % 100;
-        return string.concat(_u2s(i), ".", d < 10 ? "0" : "", _u2s(d), "%");
     }
 }
