@@ -2,12 +2,12 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
-import {SAW, SAWShares, SAWBadge} from "../src/SAW.sol";
+import {MolochMajeur, MolochShares, MolochBadge} from "../src/MolochMajeur.sol";
 
-contract SAWTest is Test {
-    SAW internal saw;
-    SAWShares internal shares;
-    SAWBadge internal badge;
+contract MMTest is Test {
+    MolochMajeur internal moloch;
+    MolochShares internal shares;
+    MolochBadge internal badge;
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0x0B0B);
@@ -34,9 +34,9 @@ contract SAWTest is Test {
         initialAmounts[1] = 40e18;
 
         // quorumBps = 50%, ragequit enabled
-        saw = new SAW("Neo Org", "NEO", 5000, true, initialHolders, initialAmounts);
-        shares = saw.shares();
-        badge = saw.badge();
+        moloch = new MolochMajeur("Neo Org", "NEO", 5000, true, initialHolders, initialAmounts);
+        shares = moloch.shares();
+        badge = moloch.badge();
 
         assertEq(shares.balanceOf(alice), 60e18, "alice shares");
         assertEq(shares.balanceOf(bob), 40e18, "bob shares");
@@ -55,11 +55,11 @@ contract SAWTest is Test {
         view
         returns (bytes32)
     {
-        return saw.proposalId(op, to, val, data, nonce);
+        return moloch.proposalId(op, to, val, data, nonce);
     }
 
     function _open(bytes32 h) internal {
-        saw.openProposal(h);
+        moloch.openProposal(h);
         // Ensure we’re strictly after the snapshot for ERC5805/5805
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
@@ -67,7 +67,7 @@ contract SAWTest is Test {
 
     function _voteYes(bytes32 h, address voter) internal {
         vm.prank(voter);
-        saw.castVote(h, 1); // YES
+        moloch.castVote(h, 1); // YES
     }
 
     function _openAndPass(uint8 op, address to, uint256 val, bytes memory data, bytes32 nonce)
@@ -78,7 +78,7 @@ contract SAWTest is Test {
         _open(h);
         _voteYes(h, alice);
         _voteYes(h, bob);
-        (ok,) = saw.executeByVotes(op, to, val, data, nonce);
+        (ok,) = moloch.executeByVotes(op, to, val, data, nonce);
         assertTrue(ok, "execute ok");
     }
 
@@ -97,60 +97,61 @@ contract SAWTest is Test {
             (bytes32 h1, bool ok1) = _openAndPass(op, to, val, data, nonce);
             assertTrue(ok1, "exec #1 ok");
             assertEq(target.stored(), 42, "stored 42");
-            assertTrue(saw.executed(h1), "h1 executed");
+            assertTrue(moloch.executed(h1), "h1 executed");
         }
 
         // ===== Proposal #2: setSale(ETH, price=1 wei per share, cap=10e18, minting=true, active=true)
         {
             address payToken = address(0);
             bytes memory data = abi.encodeWithSelector(
-                SAW.setSale.selector, payToken, uint256(1), 10e18, true, true
+                moloch.setSale.selector, payToken, uint256(1), 10e18, true, true
             );
 
-            (bytes32 h2, bool ok2) = _openAndPass(0, address(saw), 0, data, keccak256("proposal-2"));
+            (bytes32 h2, bool ok2) =
+                _openAndPass(0, address(moloch), 0, data, keccak256("proposal-2"));
             assertTrue(ok2, "exec #2 ok");
-            assertTrue(saw.executed(h2), "h2 executed");
+            assertTrue(moloch.executed(h2), "h2 executed");
         }
 
         // ===== Charlie buys 2 shares for 2 ETH
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
+        moloch.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
         assertEq(shares.balanceOf(charlie), 2 ether, "charlie bought 2");
 
         // ===== Fund treasury with 10 ETH then Bob ragequits (use full pool)
         vm.deal(address(this), 10 ether);
-        (bool sent,) = payable(address(saw)).call{value: 10 ether}("");
-        assertTrue(sent, "fund SAW");
+        (bool sent,) = payable(address(moloch)).call{value: 10 ether}("");
+        assertTrue(sent, "fund moloch");
 
         uint256 bobBefore = bob.balance;
         uint256 tsBefore = shares.totalSupply(); // 102e18
         uint256 bobShares = shares.balanceOf(bob); // 40e18
-        uint256 poolBefore = address(saw).balance; // 2 + 10 ETH
+        uint256 poolBefore = address(moloch).balance; // 2 + 10 ETH
 
         address[] memory toks = new address[](1);
         toks[0] = address(0);
 
         vm.prank(bob);
-        saw.rageQuit(toks);
+        moloch.rageQuit(toks);
 
         uint256 expected = (poolBefore * bobShares) / tsBefore;
         assertEq(bob.balance - bobBefore, expected, "rageQuit payout");
 
         // ===== Chat gating (badge holders only)
-        vm.expectRevert(SAW.NotApprover.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         vm.prank(bob);
-        saw.chat("gm");
+        moloch.chat("gm");
 
         assertEq(badge.balanceOf(alice), 1, "alice still has badge");
         vm.prank(alice);
-        saw.chat("hello, world");
-        assertEq(saw.getMessageCount(), 1, "one chat message");
+        moloch.chat("hello, world");
+        assertEq(moloch.getMessageCount(), 1, "one chat message");
 
         // ===== Permits: set a single-use permit then spend it
         bytes memory dataCall = abi.encodeWithSelector(Target.store.selector, 99);
         bytes32 nonceX = keccak256("permit-1");
         bytes memory data3 = abi.encodeWithSelector(
-            SAW.setPermit.selector,
+            moloch.setPermit.selector,
             uint8(0),
             address(target),
             uint256(0),
@@ -160,12 +161,12 @@ contract SAWTest is Test {
             true
         );
 
-        (bytes32 h3, bool ok3) = _openAndPass(0, address(saw), 0, data3, keccak256("proposal-3"));
+        (bytes32 h3, bool ok3) = _openAndPass(0, address(moloch), 0, data3, keccak256("proposal-3"));
         assertTrue(ok3, "setPermit ok");
-        assertTrue(saw.executed(h3));
+        assertTrue(moloch.executed(h3));
 
         vm.prank(charlie);
-        (bool ok4,) = saw.permitExecute(0, address(target), 0, dataCall, nonceX);
+        (bool ok4,) = moloch.permitExecute(0, address(target), 0, dataCall, nonceX);
         assertTrue(ok4, "permitExecute ok");
         assertEq(target.stored(), 99, "stored 99");
     }
@@ -174,9 +175,9 @@ contract SAWTest is Test {
                       RAGEQUIT POOLS (ERC20 / MIXED)
     //////////////////////////////////////////////////////////////*/
     function test_rageQuit_withERC20_pool() public {
-        tkn.mint(address(saw), 1000e18);
+        tkn.mint(address(moloch), 1000e18);
 
-        uint256 poolBefore = tkn.balanceOf(address(saw));
+        uint256 poolBefore = tkn.balanceOf(address(moloch));
         uint256 tsBefore = shares.totalSupply();
         uint256 bobShares = shares.balanceOf(bob);
 
@@ -186,25 +187,25 @@ contract SAWTest is Test {
         uint256 bobBefore = tkn.balanceOf(bob);
 
         vm.prank(bob);
-        saw.rageQuit(toks);
+        moloch.rageQuit(toks);
 
         uint256 expected = (poolBefore * bobShares) / tsBefore;
         assertEq(tkn.balanceOf(bob) - bobBefore, expected, "erc20 ragequit payout");
     }
 
     function test_rageQuit_bothPools_ETH_and_ERC20() public {
-        // Fund SAW with 5 ETH.
+        // Fund moloch with 5 ETH.
         vm.deal(address(this), 5 ether);
-        (bool sent,) = payable(address(saw)).call{value: 5 ether}("");
-        assertTrue(sent, "fund SAW ETH");
+        (bool sent,) = payable(address(moloch)).call{value: 5 ether}("");
+        assertTrue(sent, "fund moloch ETH");
 
-        // Fund SAW with 300 TKN (MockERC20)
-        tkn.mint(address(saw), 300e18);
+        // Fund moloch with 300 TKN (MockERC20)
+        tkn.mint(address(moloch), 300e18);
 
         uint256 tsBefore = shares.totalSupply(); // 100e18
         uint256 bobShares = shares.balanceOf(bob); // 40e18
-        uint256 poolEth = address(saw).balance; // 5 ether
-        uint256 poolTkn = tkn.balanceOf(address(saw)); // 300e18
+        uint256 poolEth = address(moloch).balance; // 5 ether
+        uint256 poolTkn = tkn.balanceOf(address(moloch)); // 300e18
 
         uint256 bobEthBefore = bob.balance;
         uint256 bobTknBefore = tkn.balanceOf(bob);
@@ -215,7 +216,7 @@ contract SAWTest is Test {
         toks[1] = address(tkn);
 
         vm.prank(bob);
-        saw.rageQuit(toks);
+        moloch.rageQuit(toks);
 
         uint256 expectedEth = (poolEth * bobShares) / tsBefore; // 2 ETH
         uint256 expectedTkn = (poolTkn * bobShares) / tsBefore; // 120e18
@@ -226,9 +227,9 @@ contract SAWTest is Test {
         assertEq(shares.balanceOf(bob), 0, "bob shares burned");
         assertEq(badge.balanceOf(bob), 0, "bob badge burned");
 
-        vm.expectRevert(SAW.NotApprover.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         vm.prank(bob);
-        saw.chat("gm after quit");
+        moloch.chat("gm after quit");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -236,24 +237,25 @@ contract SAWTest is Test {
     //////////////////////////////////////////////////////////////*/
     function test_badgeChurn_and_replayPrevention() public {
         // Sale so charlie can enter top set & get a badge
-        bytes memory data2 =
-            abi.encodeWithSelector(SAW.setSale.selector, address(0), uint256(1), 10e18, true, true);
+        bytes memory data2 = abi.encodeWithSelector(
+            moloch.setSale.selector, address(0), uint256(1), 10e18, true, true
+        );
 
         (bytes32 h2, bool ok2) =
-            _openAndPass(0, address(saw), 0, data2, keccak256("sale-eth-simple"));
+            _openAndPass(0, address(moloch), 0, data2, keccak256("sale-eth-simple"));
         assertTrue(ok2, "setSale ok");
-        assertTrue(saw.executed(h2));
+        assertTrue(moloch.executed(h2));
 
         // charlie buys 2 shares via ETH
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
+        moloch.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
         assertEq(shares.balanceOf(charlie), 2e18, "charlie=2 shares");
 
         // charlie should have a badge and be able to chat
         assertEq(badge.balanceOf(charlie), 1, "charlie badge minted");
         vm.prank(charlie);
-        saw.chat("charlie here!");
-        assertEq(saw.getMessageCount(), 1, "chat count=1");
+        moloch.chat("charlie here!");
+        assertEq(moloch.getMessageCount(), 1, "chat count=1");
 
         // transfer all charlie's shares away -> should burn his badge
         uint256 charlieBal = shares.balanceOf(charlie);
@@ -264,9 +266,9 @@ contract SAWTest is Test {
         assertEq(badge.balanceOf(charlie), 0, "charlie badge burned");
 
         // chat now gated
-        vm.expectRevert(SAW.NotApprover.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         vm.prank(charlie);
-        saw.chat("should fail");
+        moloch.chat("should fail");
 
         // replay prevention: execute same call twice should fail
         uint8 op1 = 0; // call
@@ -280,11 +282,11 @@ contract SAWTest is Test {
         _open(h1);
         _voteYes(h1, alice);
         _voteYes(h1, bob);
-        (bool ok1,) = saw.executeByVotes(op1, to1, val1, data1, nonce1);
+        (bool ok1,) = moloch.executeByVotes(op1, to1, val1, data1, nonce1);
         assertTrue(ok1, "first exec ok");
 
-        vm.expectRevert(SAW.AlreadyExecuted.selector);
-        saw.executeByVotes(op1, to1, val1, data1, nonce1);
+        vm.expectRevert(MolochMajeur.AlreadyExecuted.selector);
+        moloch.executeByVotes(op1, to1, val1, data1, nonce1);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -297,7 +299,7 @@ contract SAWTest is Test {
 
         // Governance call: set unlimited permit
         bytes memory dataSet = abi.encodeWithSelector(
-            SAW.setPermit.selector,
+            moloch.setPermit.selector,
             uint8(0),
             address(target),
             uint256(0),
@@ -308,27 +310,27 @@ contract SAWTest is Test {
         );
 
         (bytes32 hGov, bool ok) =
-            _openAndPass(0, address(saw), 0, dataSet, keccak256("permit-unlimited-proposal"));
+            _openAndPass(0, address(moloch), 0, dataSet, keccak256("permit-unlimited-proposal"));
         assertTrue(ok, "setPermit ok");
-        assertTrue(saw.executed(hGov));
+        assertTrue(moloch.executed(hGov));
 
         // Compute permit hash to check counter stays MAX
         bytes32 hPermit = _id(0, address(target), 0, dataCall, nonceX);
-        assertEq(saw.permits(hPermit), type(uint256).max, "permit is MAX");
+        assertEq(moloch.permits(hPermit), type(uint256).max, "permit is MAX");
 
         // Spend it twice (unlimited)
         vm.prank(charlie);
-        (bool ok1,) = saw.permitExecute(0, address(target), 0, dataCall, nonceX);
+        (bool ok1,) = moloch.permitExecute(0, address(target), 0, dataCall, nonceX);
         assertTrue(ok1, "first permit exec");
 
-        assertTrue(saw.executed(hPermit), "executed latch set");
-        assertEq(saw.permits(hPermit), type(uint256).max, "still MAX after first");
+        assertTrue(moloch.executed(hPermit), "executed latch set");
+        assertEq(moloch.permits(hPermit), type(uint256).max, "still MAX after first");
 
         vm.prank(bob);
-        (bool ok2,) = saw.permitExecute(0, address(target), 0, dataCall, nonceX);
+        (bool ok2,) = moloch.permitExecute(0, address(target), 0, dataCall, nonceX);
         assertTrue(ok2, "second permit exec");
         assertEq(target.stored(), 777, "target updated");
-        assertEq(saw.permits(hPermit), type(uint256).max, "still MAX after second");
+        assertEq(moloch.permits(hPermit), type(uint256).max, "still MAX after second");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -336,13 +338,13 @@ contract SAWTest is Test {
     //////////////////////////////////////////////////////////////*/
     function test_setTransfersLocked_blocks_user_transfers() public {
         // Proposal to lock transfers
-        bytes memory dataLock = abi.encodeWithSelector(SAW.setTransfersLocked.selector, true);
+        bytes memory dataLock = abi.encodeWithSelector(moloch.setTransfersLocked.selector, true);
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dataLock, keccak256("lock-transfers"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dataLock, keccak256("lock-transfers"));
         assertTrue(ok, "locked");
 
-        // Now any user-to-user share transfer reverts with SAWShares.Locked
-        vm.expectRevert(SAWShares.Locked.selector);
+        // Now any user-to-user share transfer reverts with MolochShares.Locked
+        vm.expectRevert(MolochShares.Locked.selector);
         vm.prank(bob);
         shares.transfer(alice, 1);
     }
@@ -353,30 +355,30 @@ contract SAWTest is Test {
 
         // Sale in ERC20
         bytes memory dataSale = abi.encodeWithSelector(
-            SAW.setSale.selector, address(tkn), uint256(1), uint256(3e18), true, true
+            moloch.setSale.selector, address(tkn), uint256(1), uint256(3e18), true, true
         );
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dataSale, keccak256("erc20-sale"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dataSale, keccak256("erc20-sale"));
         assertTrue(ok, "sale set");
 
         // cost = 2e18 * 1 = 2e18 token wei
         uint256 cost = 2e18;
         vm.prank(charlie);
-        tkn.approve(address(saw), type(uint256).max);
+        tkn.approve(address(moloch), type(uint256).max);
 
         // Too-low maxPay should revert
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(charlie);
-        saw.buyShares(address(tkn), 2e18, cost - 1);
+        moloch.buyShares(address(tkn), 2e18, cost - 1);
 
         // Correct maxPay → success
         vm.prank(charlie);
-        saw.buyShares(address(tkn), 2e18, cost);
+        moloch.buyShares(address(tkn), 2e18, cost);
         assertEq(shares.balanceOf(charlie), 2e18, "got shares");
-        assertEq(tkn.balanceOf(address(saw)), cost, "SAW got tokens");
+        assertEq(tkn.balanceOf(address(moloch)), cost, "moloch got tokens");
 
         // Cap decremented: 3e18 - 2e18 = 1e18
-        (uint256 price, uint256 cap,, bool active) = saw.sales(address(tkn));
+        (uint256 price, uint256 cap,, bool active) = moloch.sales(address(tkn));
         assertEq(price, 1);
         assertEq(cap, 1e18);
         assertTrue(active);
@@ -386,47 +388,47 @@ contract SAWTest is Test {
                         ALLOWANCES (ETH / ERC20)
     //////////////////////////////////////////////////////////////*/
     function test_allowance_set_and_claim_ETH_and_ERC20() public {
-        // Fund SAW pools it will pay out from
+        // Fund moloch pools it will pay out from
         vm.deal(address(this), 3 ether);
-        (bool sent,) = payable(address(saw)).call{value: 3 ether}("");
+        (bool sent,) = payable(address(moloch)).call{value: 3 ether}("");
         assertTrue(sent, "fund ETH");
-        tkn.mint(address(saw), 100e18);
+        tkn.mint(address(moloch), 100e18);
 
         // Allow Alice: 1 ETH
         bytes memory d1 =
-            abi.encodeWithSelector(SAW.setAllowanceTo.selector, address(0), alice, 1 ether);
+            abi.encodeWithSelector(moloch.setAllowanceTo.selector, address(0), alice, 1 ether);
         // And 60 TKN
         bytes memory d2 =
-            abi.encodeWithSelector(SAW.setAllowanceTo.selector, address(tkn), alice, 60e18);
+            abi.encodeWithSelector(moloch.setAllowanceTo.selector, address(tkn), alice, 60e18);
 
-        (, bool ok1) = _openAndPass(0, address(saw), 0, d1, keccak256("allow-eth"));
+        (, bool ok1) = _openAndPass(0, address(moloch), 0, d1, keccak256("allow-eth"));
         assertTrue(ok1, "allow eth set");
 
-        (, bool ok2) = _openAndPass(0, address(saw), 0, d2, keccak256("allow-tkn"));
+        (, bool ok2) = _openAndPass(0, address(moloch), 0, d2, keccak256("allow-tkn"));
         assertTrue(ok2, "allow tkn set");
 
         // Alice claims partial ETH then remaining
         uint256 ethBefore = alice.balance;
         vm.prank(alice);
-        saw.claimAllowance(address(0), 0.4 ether);
+        moloch.claimAllowance(address(0), 0.4 ether);
         assertEq(alice.balance, ethBefore + 0.4 ether);
-        assertEq(saw.allowance(address(0), alice), 0.6 ether);
+        assertEq(moloch.allowance(address(0), alice), 0.6 ether);
 
         vm.prank(alice);
-        saw.claimAllowance(address(0), 0.6 ether);
-        assertEq(saw.allowance(address(0), alice), 0);
+        moloch.claimAllowance(address(0), 0.6 ether);
+        assertEq(moloch.allowance(address(0), alice), 0);
 
         // Alice claims ERC20 (partial)
         uint256 tknBefore = tkn.balanceOf(alice);
         vm.prank(alice);
-        saw.claimAllowance(address(tkn), 50e18);
+        moloch.claimAllowance(address(tkn), 50e18);
         assertEq(tkn.balanceOf(alice) - tknBefore, 50e18);
-        assertEq(saw.allowance(address(tkn), alice), 10e18);
+        assertEq(moloch.allowance(address(tkn), alice), 10e18);
 
         // Over-claim should revert (underflow)
         vm.expectRevert();
         vm.prank(alice);
-        saw.claimAllowance(address(tkn), 20e18);
+        moloch.claimAllowance(address(tkn), 20e18);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -434,8 +436,8 @@ contract SAWTest is Test {
     //////////////////////////////////////////////////////////////*/
     function test_quorum_enforcement_raise_then_lower() public {
         // Raise quorum to 80%
-        bytes memory dUp = abi.encodeWithSelector(SAW.setQuorumBps.selector, uint16(8000));
-        (, bool okUp) = _openAndPass(0, address(saw), 0, dUp, keccak256("th-up"));
+        bytes memory dUp = abi.encodeWithSelector(moloch.setQuorumBps.selector, uint16(8000));
+        (, bool okUp) = _openAndPass(0, address(moloch), 0, dUp, keccak256("th-up"));
         assertTrue(okUp, "quorum raised");
 
         // Proposal where only Alice votes (60% turnout) -> below 80% quorum => cannot execute
@@ -445,16 +447,16 @@ contract SAWTest is Test {
         _open(hCall);
         _voteYes(hCall, alice);
 
-        vm.expectRevert(SAW.NotApprover.selector);
-        saw.executeByVotes(0, address(target), 0, dataCall, keccak256("tcall"));
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
+        moloch.executeByVotes(0, address(target), 0, dataCall, keccak256("tcall"));
 
         // Lower back to 50%
-        bytes memory dDown = abi.encodeWithSelector(SAW.setQuorumBps.selector, uint16(5000));
-        (, bool okDown) = _openAndPass(0, address(saw), 0, dDown, keccak256("th-down"));
+        bytes memory dDown = abi.encodeWithSelector(moloch.setQuorumBps.selector, uint16(5000));
+        (, bool okDown) = _openAndPass(0, address(moloch), 0, dDown, keccak256("th-down"));
         assertTrue(okDown, "quorum lowered");
 
         // Now the same proposal should execute at 50% quorum (60% turnout)
-        (bool okCall,) = saw.executeByVotes(0, address(target), 0, dataCall, keccak256("tcall"));
+        (bool okCall,) = moloch.executeByVotes(0, address(target), 0, dataCall, keccak256("tcall"));
         assertTrue(okCall, "call passed at 50%");
         assertEq(target.stored(), 1, "target set to 1");
     }
@@ -467,46 +469,46 @@ contract SAWTest is Test {
         bytes memory dataCall = abi.encodeWithSelector(Target.store.selector, 7);
         bytes32 nonceX = keccak256("bump-permit-nonce");
         bytes memory dSet = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, dataCall, nonceX, 1, true
+            moloch.setPermit.selector, 0, address(target), 0, dataCall, nonceX, 1, true
         );
-        (, bool okSet) = _openAndPass(0, address(saw), 0, dSet, keccak256("bump-set"));
+        (, bool okSet) = _openAndPass(0, address(moloch), 0, dSet, keccak256("bump-set"));
         assertTrue(okSet, "permit installed");
 
         // Bump config through governance
-        bytes memory dBump = abi.encodeWithSelector(SAW.bumpConfig.selector);
-        (, bool okBump) = _openAndPass(0, address(saw), 0, dBump, keccak256("bump-cfg"));
+        bytes memory dBump = abi.encodeWithSelector(moloch.bumpConfig.selector);
+        (, bool okBump) = _openAndPass(0, address(moloch), 0, dBump, keccak256("bump-cfg"));
         assertTrue(okBump, "config bumped");
 
         // Permit should no longer be spendable under new config hash
-        vm.expectRevert(SAW.NotApprover.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         vm.prank(charlie);
-        saw.permitExecute(0, address(target), 0, dataCall, nonceX);
+        moloch.permitExecute(0, address(target), 0, dataCall, nonceX);
     }
 
     function test_buyShares_overflow_guard() public {
         // price = max uint, cap unlimited, minting = true
         bytes memory dSale = abi.encodeWithSelector(
-            SAW.setSale.selector, address(0), type(uint256).max, 0, true, true
+            MolochMajeur.setSale.selector, address(0), type(uint256).max, 0, true, true
         );
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dSale, keccak256("overflow-sale"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dSale, keccak256("overflow-sale"));
         assertTrue(ok, "sale set");
 
         // 2e18 * MAX overflows under Solidity 0.8 → generic revert (panic 0x11).
         vm.expectRevert();
         vm.prank(charlie);
-        saw.buyShares{value: 0}(address(0), 2e18, 0);
+        moloch.buyShares{value: 0}(address(0), 2e18, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
                           MISC / RECEIVERS / URIs
     //////////////////////////////////////////////////////////////*/
     function test_onERC_receivers_return_selectors() public view {
-        bytes4 erc721 = saw.onERC721Received(address(0), address(0), 123, "");
-        assertEq(erc721, saw.onERC721Received.selector, "erc721 selector");
+        bytes4 erc721 = moloch.onERC721Received(address(0), address(0), 123, "");
+        assertEq(erc721, moloch.onERC721Received.selector, "erc721 selector");
 
-        bytes4 erc1155 = saw.onERC1155Received(address(0), address(0), 1, 2, "");
-        assertEq(erc1155, saw.onERC1155Received.selector, "erc1155 selector");
+        bytes4 erc1155 = moloch.onERC1155Received(address(0), address(0), 1, 2, "");
+        assertEq(erc1155, moloch.onERC1155Received.selector, "erc1155 selector");
     }
 
     function test_tokenURI_nonempty() public {
@@ -514,78 +516,80 @@ contract SAWTest is Test {
         bytes32 h = _id(0, address(this), 0, "", keccak256("uri-prop"));
         _open(h);
 
-        string memory vuri = saw.tokenURI(uint256(h));
+        string memory vuri = moloch.tokenURI(uint256(h));
         assertTrue(bytes(vuri).length > 0, "proposal tokenURI");
     }
 
-    function test_buyShares_non_minting_consumes_SAW_balance() public {
-        // Preload SAW with 3e18 shares via a direct transfer from Alice
+    function test_buyShares_non_minting_consumes_moloch_balance() public {
+        // Preload moloch with 3e18 shares via a direct transfer from Alice
         vm.prank(alice);
-        shares.transfer(address(saw), 3e18);
-        uint256 sawBefore = shares.balanceOf(address(saw));
-        assertEq(sawBefore, 3e18, "SAW preloaded");
+        shares.transfer(address(moloch), 3e18);
+        uint256 molochBefore = shares.balanceOf(address(moloch));
+        assertEq(molochBefore, 3e18, "moloch preloaded");
 
         // Sale: ETH price=1, cap=2e18, minting=false, active
-        bytes memory dSale =
-            abi.encodeWithSelector(SAW.setSale.selector, address(0), uint256(1), 2e18, false, true);
+        bytes memory dSale = abi.encodeWithSelector(
+            moloch.setSale.selector, address(0), uint256(1), 2e18, false, true
+        );
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dSale, keccak256("nonmint-sale"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dSale, keccak256("nonmint-sale"));
         assertTrue(ok, "sale set");
 
         // Buy 2e18 shares (cost 2 ETH)
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
+        moloch.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether);
 
         assertEq(shares.balanceOf(charlie), 2e18, "charlie got shares");
-        assertEq(shares.balanceOf(address(saw)), sawBefore - 2e18, "SAW balance reduced");
+        assertEq(shares.balanceOf(address(moloch)), molochBefore - 2e18, "moloch balance reduced");
     }
 
     function test_chat_multiple_messages() public {
-        uint256 before = saw.getMessageCount();
+        uint256 before = moloch.getMessageCount();
         vm.prank(alice);
-        saw.chat("hi from alice");
+        moloch.chat("hi from alice");
         vm.prank(bob);
-        saw.chat("hi from bob");
-        assertEq(saw.getMessageCount(), before + 2, "two messages added");
+        moloch.chat("hi from bob");
+        assertEq(moloch.getMessageCount(), before + 2, "two messages added");
     }
 
     function test_claimAllowance_eth_insufficient_balance_reverts() public {
-        // Fund SAW with only 1 ETH
+        // Fund moloch with only 1 ETH
         vm.deal(address(this), 1 ether);
-        (bool sent,) = payable(address(saw)).call{value: 1 ether}("");
+        (bool sent,) = payable(address(moloch)).call{value: 1 ether}("");
         assertTrue(sent, "funded 1 ETH");
 
         // Set allowance to 10 ETH for Alice
         bytes memory d =
-            abi.encodeWithSelector(SAW.setAllowanceTo.selector, address(0), alice, 10 ether);
+            abi.encodeWithSelector(moloch.setAllowanceTo.selector, address(0), alice, 10 ether);
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, d, keccak256("allow-large"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, d, keccak256("allow-large"));
         assertTrue(ok, "allow set");
 
-        // Claiming more than SAW's ETH balance should revert NotOk
-        vm.expectRevert(SAW.NotOk.selector);
+        // Claiming more than moloch's ETH balance should revert NotOk
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(alice);
-        saw.claimAllowance(address(0), 10 ether);
+        moloch.claimAllowance(address(0), 10 ether);
     }
 
     function test_buyShares_eth_wrong_msgvalue_reverts() public {
         // Sale: price=1 wei per share, cap=1e18, minting=true
-        bytes memory dSale =
-            abi.encodeWithSelector(SAW.setSale.selector, address(0), uint256(1), 1e18, true, true);
+        bytes memory dSale = abi.encodeWithSelector(
+            moloch.setSale.selector, address(0), uint256(1), 1e18, true, true
+        );
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dSale, keccak256("price-1wei"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dSale, keccak256("price-1wei"));
         assertTrue(ok, "sale set");
 
         // Need 1e18 wei for 1e18 shares; send wrong value
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(charlie);
-        saw.buyShares{value: 123}(address(0), 1e18, 0);
+        moloch.buyShares{value: 123}(address(0), 1e18, 0);
     }
 
     function test_castVote_reverts_if_id_already_executed() public {
         // Build proposal
         bytes32 salt = keccak256("exec-1");
-        bytes32 id = saw.proposalId(
+        bytes32 id = moloch.proposalId(
             0, // op
             address(this), // target
             1, // value (1 wei)
@@ -594,25 +598,25 @@ contract SAWTest is Test {
         );
 
         // Open, advance, vote FOR by both holders
-        saw.openProposal(id);
+        moloch.openProposal(id);
         vm.roll(2);
         vm.warp(2);
 
         vm.prank(alice);
-        saw.castVote(id, 1);
+        moloch.castVote(id, 1);
         vm.prank(bob);
-        saw.castVote(id, 1);
+        moloch.castVote(id, 1);
 
-        // FUND SAW so it can send 1 wei to target during execution
-        vm.deal(address(saw), 1);
+        // FUND moloch so it can send 1 wei to target during execution
+        vm.deal(address(moloch), 1);
 
         // Execute (should succeed and mark proposal executed)
-        saw.executeByVotes(0, address(this), 1, bytes(""), salt);
+        moloch.executeByVotes(0, address(this), 1, bytes(""), salt);
 
         // Further voting must revert with AlreadyExecuted
         vm.prank(alice);
-        vm.expectRevert(SAW.AlreadyExecuted.selector);
-        saw.castVote(id, 1);
+        vm.expectRevert(MolochMajeur.AlreadyExecuted.selector);
+        moloch.castVote(id, 1);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -621,51 +625,52 @@ contract SAWTest is Test {
     function test_inactive_sale_reverts_buy() public {
         // Set sale inactive from the start
         bytes memory dataSale = abi.encodeWithSelector(
-            SAW.setSale.selector, address(0), uint256(1), 10e18, true, false
+            moloch.setSale.selector, address(0), uint256(1), 10e18, true, false
         );
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dataSale, keccak256("inactive-sale"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dataSale, keccak256("inactive-sale"));
         assertTrue(ok, "sale set inactive");
 
         // Attempt to buy → NotApprover (inactive)
-        vm.expectRevert(SAW.NotApprover.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         vm.prank(charlie);
-        saw.buyShares{value: 1 ether}(address(0), 1e18, 0);
+        moloch.buyShares{value: 1 ether}(address(0), 1e18, 0);
     }
 
     function test_pull_erc20_via_governance_only() public {
-        // Bob holds tokens and approves SAW
+        // Bob holds tokens and approves moloch
         tkn.mint(bob, 50e18);
         vm.prank(bob);
-        tkn.approve(address(saw), 50e18);
+        tkn.approve(address(moloch), 50e18);
 
         // Direct call should revert (NotOwner)
-        vm.expectRevert(SAW.NotOwner.selector);
-        saw.pull(address(tkn), bob, 20e18);
+        vm.expectRevert(MolochMajeur.NotOwner.selector);
+        moloch.pull(address(tkn), bob, 20e18);
 
         // Do it via governance
-        bytes memory dataPull = abi.encodeWithSelector(SAW.pull.selector, address(tkn), bob, 20e18);
+        bytes memory dataPull =
+            abi.encodeWithSelector(MolochMajeur.pull.selector, address(tkn), bob, 20e18);
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dataPull, keccak256("pull-tkn"));
-        assertTrue(ok, "pull executed by SAW");
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dataPull, keccak256("pull-tkn"));
+        assertTrue(ok, "pull executed by moloch");
 
-        assertEq(tkn.balanceOf(address(saw)), 20e18, "SAW received");
+        assertEq(tkn.balanceOf(address(moloch)), 20e18, "moloch received");
         assertEq(tkn.balanceOf(bob), 30e18, "bob debited");
     }
 
     function test_rageQuit_disabled_blocks() public {
         // Disable ragequit via governance
-        bytes memory dataOff = abi.encodeWithSelector(SAW.setRagequittable.selector, false);
+        bytes memory dataOff = abi.encodeWithSelector(MolochMajeur.setRagequittable.selector, false);
 
-        (, bool ok) = _openAndPass(0, address(saw), 0, dataOff, keccak256("rq-off"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dataOff, keccak256("rq-off"));
         assertTrue(ok, "ragequit disabled");
 
         address[] memory toks = new address[](1);
         toks[0] = address(0);
 
-        vm.expectRevert(SAW.NotApprover.selector);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
         vm.prank(bob);
-        saw.rageQuit(toks);
+        moloch.rageQuit(toks);
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -690,23 +695,23 @@ contract SAWTest is Test {
 
     function _voteYes(bytes32 h) internal {
         // Ensure snapshot is fixed to a past block
-        saw.openProposal(h);
+        moloch.openProposal(h);
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
         vm.prank(bob);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
     }
 
     /*───────────────────────────────────────────────────────────────────*
      * 1) Proposal tokenURI returns non-empty JSON/SVG (no OOG)
      *───────────────────────────────────────────────────────────────────*/
     function test_tokenURI_proposal_basic_json_svg_nonempty() public {
-        bytes32 h = saw.proposalId(0, address(this), 0, bytes(""), bytes32("T1"));
+        bytes32 h = moloch.proposalId(0, address(this), 0, bytes(""), bytes32("T1"));
         _voteYes(h);
 
-        string memory uri = saw.tokenURI(uint256(h));
+        string memory uri = moloch.tokenURI(uint256(h));
         assertTrue(bytes(uri).length > 0, "uri empty");
         assertTrue(_contains(uri, "Proposal"), "missing Proposal label");
         assertTrue(_contains(uri, "data:image/svg+xml;utf8,"), "missing SVG data URI");
@@ -716,35 +721,35 @@ contract SAWTest is Test {
      * 2) tokenURI switches to receipt view when a receipt id is used
      *───────────────────────────────────────────────────────────────────*/
     function test_tokenURI_receipt_switch_after_vote() public {
-        bytes32 h = saw.proposalId(0, address(this), 0, bytes(""), bytes32("R1"));
+        bytes32 h = moloch.proposalId(0, address(this), 0, bytes(""), bytes32("R1"));
         _voteYes(h);
 
         // YES receipt id for the proposal
-        uint256 rid = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
-        assertEq(saw.receiptProposal(rid), h, "receiptProposal mismatch");
+        uint256 rid = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
+        assertEq(moloch.receiptProposal(rid), h, "receiptProposal mismatch");
 
         // tokenURI should dispatch to the receipt view
-        string memory uri = saw.tokenURI(rid);
+        string memory uri = moloch.tokenURI(rid);
         assertTrue(bytes(uri).length > 0, "receipt uri empty");
         assertTrue(_contains(uri, "Vote Receipt"), "not a receipt card");
         assertTrue(_contains(uri, "proposal: 0x"), "proposal hash missing");
         assertTrue(_contains(uri, "stance: YES"), "stance missing");
 
         // Optional: ensure unified path equals direct receiptURI
-        assertEq(uri, saw.receiptURI(rid), "dispatch mismatch");
+        assertEq(uri, moloch.receiptURI(rid), "dispatch mismatch");
     }
 
     /*───────────────────────────────────────────────────────────────────*
      * 3) tokenURI must NOT mutate unopened proposals (no auto-open)
      *───────────────────────────────────────────────────────────────────*/
     function test_tokenURI_unopened_does_not_write_state() public view {
-        bytes32 h = saw.proposalId(0, address(this), 0, bytes(""), bytes32("NOOPEN"));
-        assertEq(saw.snapshotBlock(h), 0, "precondition");
+        bytes32 h = moloch.proposalId(0, address(this), 0, bytes(""), bytes32("NOOPEN"));
+        assertEq(moloch.snapshotBlock(h), 0, "precondition");
         // Call tokenURI for an unopened id
-        string memory uri = saw.tokenURI(uint256(h));
+        string memory uri = moloch.tokenURI(uint256(h));
         assertTrue(bytes(uri).length > 0, "uri empty");
         // Still unopened afterwards
-        assertEq(saw.snapshotBlock(h), 0, "tokenURI should not open");
+        assertEq(moloch.snapshotBlock(h), 0, "tokenURI should not open");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -755,15 +760,15 @@ contract SAWTest is Test {
         vm.roll(10);
         vm.warp(10);
 
-        bytes32 h = saw.proposalId(0, address(this), 0, bytes(""), bytes32("SNAP"));
-        saw.openProposal(h);
+        bytes32 h = moloch.proposalId(0, address(this), 0, bytes(""), bytes32("SNAP"));
+        moloch.openProposal(h);
 
-        uint256 snap = saw.snapshotBlock(h);
+        uint256 snap = moloch.snapshotBlock(h);
         assertEq(snap, block.number - 1, "snapshot should be previous block");
 
         // Supply snapshot should be consistent with totalSupply at snap
         uint256 tsAtSnap = shares.getPastTotalSupply(uint32(snap));
-        assertEq(saw.supplySnapshot(h), tsAtSnap, "supply snapshot mismatch");
+        assertEq(moloch.supplySnapshot(h), tsAtSnap, "supply snapshot mismatch");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -772,15 +777,16 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_tokenURI_permit_card_when_use6909_enabled() public {
         // A) enable use6909ForPermits via self-call governance
-        bytes memory dataA = abi.encodeWithSelector(saw.setUse6909ForPermits.selector, true);
+        bytes memory dataA =
+            abi.encodeWithSelector(MolochMajeur.setUse6909ForPermits.selector, true);
         bytes32 na = bytes32("A");
-        bytes32 hA = saw.proposalId(0, address(saw), 0, dataA, na);
+        bytes32 hA = moloch.proposalId(0, address(moloch), 0, dataA, na);
         _voteYes(hA);
 
         // Do NOT expect a specific first log; setUse6909ForPermits emits before Executed.
-        (bool okA,) = saw.executeByVotes(0, address(saw), 0, dataA, na);
+        (bool okA,) = moloch.executeByVotes(0, address(moloch), 0, dataA, na);
         assertTrue(okA, "execute setUse6909ForPermits");
-        assertTrue(saw.use6909ForPermits(), "flag should be on");
+        assertTrue(moloch.use6909ForPermits(), "flag should be on");
 
         // B) set a permit (count=3) and ensure tokenURI renders a Permit card
         uint8 opB = 0;
@@ -790,22 +796,22 @@ contract SAWTest is Test {
         bytes32 nb = bytes32("B");
 
         // this is the 6909 id (same as the intent hash)
-        bytes32 permitHash = saw.proposalId(opB, toB, valB, datB, nb);
+        bytes32 permitHash = moloch.proposalId(opB, toB, valB, datB, nb);
 
         bytes memory dataB = abi.encodeWithSelector(
-            saw.setPermit.selector, opB, toB, valB, datB, nb, uint256(3), true
+            moloch.setPermit.selector, opB, toB, valB, datB, nb, uint256(3), true
         );
-        bytes32 hB = saw.proposalId(0, address(saw), 0, dataB, bytes32("B-call"));
+        bytes32 hB = moloch.proposalId(0, address(moloch), 0, dataB, bytes32("B-call"));
         _voteYes(hB);
-        (bool okB,) = saw.executeByVotes(0, address(saw), 0, dataB, bytes32("B-call"));
+        (bool okB,) = moloch.executeByVotes(0, address(moloch), 0, dataB, bytes32("B-call"));
         assertTrue(okB, "execute setPermit");
 
         // mirror checks
-        assertEq(saw.permits(permitHash), 3, "permit count");
-        assertEq(saw.totalSupply(uint256(permitHash)), 3, "6909 supply mirrored");
+        assertEq(moloch.permits(permitHash), 3, "permit count");
+        assertEq(moloch.totalSupply(uint256(permitHash)), 3, "6909 supply mirrored");
 
         // tokenURI should present a Permit card with a count
-        string memory uri = saw.tokenURI(uint256(permitHash));
+        string memory uri = moloch.tokenURI(uint256(permitHash));
         assertTrue(_contains(uri, "Permit"), "expected Permit card");
         assertTrue(_contains(uri, "count"), "should display count");
     }
@@ -814,11 +820,11 @@ contract SAWTest is Test {
      * 6) receiptURI returns non-empty JSON for a cast vote
      *───────────────────────────────────────────────────────────────────*/
     function test_receiptURI_nonempty_after_vote() public {
-        bytes32 h = saw.proposalId(0, address(this), 0, bytes(""), bytes32("REC"));
+        bytes32 h = moloch.proposalId(0, address(this), 0, bytes(""), bytes32("REC"));
         _voteYes(h);
 
-        uint256 rid = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
-        string memory uri = saw.receiptURI(rid);
+        uint256 rid = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
+        string memory uri = moloch.receiptURI(rid);
         assertTrue(bytes(uri).length > 0, "receiptURI empty");
         assertTrue(_contains(uri, "Vote Receipt"), "missing receipt heading");
     }
@@ -828,8 +834,9 @@ contract SAWTest is Test {
     *───────────────────────────────────────────────────────────────────*/
     function test_timelock_queue_and_execute_after_delay() public {
         // Install a 1-hour timelock
-        bytes memory setDelay = abi.encodeWithSelector(SAW.setTimelockDelay.selector, uint64(3600));
-        (, bool okDelay) = _openAndPass(0, address(saw), 0, setDelay, keccak256("set-delay"));
+        bytes memory setDelay =
+            abi.encodeWithSelector(MolochMajeur.setTimelockDelay.selector, uint64(3600));
+        (, bool okDelay) = _openAndPass(0, address(moloch), 0, setDelay, keccak256("set-delay"));
         assertTrue(okDelay, "timelock set");
 
         // Build a passing proposal
@@ -840,19 +847,21 @@ contract SAWTest is Test {
         _voteYes(h, bob);
 
         // First execute queues and returns early
-        (bool queued,) = saw.executeByVotes(0, address(target), 0, callData, keccak256("tl-prop"));
+        (bool queued,) =
+            moloch.executeByVotes(0, address(target), 0, callData, keccak256("tl-prop"));
         assertTrue(queued, "queued");
-        uint64 qAt = saw.queuedAt(h);
+        uint64 qAt = moloch.queuedAt(h);
         assertTrue(qAt != 0, "queuedAt set");
 
         // Before delay elapses, a second execute MUST revert (accept any revert for robustness)
         vm.warp(uint256(qAt) + 1);
         vm.expectRevert();
-        saw.executeByVotes(0, address(target), 0, callData, keccak256("tl-prop"));
+        moloch.executeByVotes(0, address(target), 0, callData, keccak256("tl-prop"));
 
         // After delay, it should execute successfully
         vm.warp(uint256(qAt) + 3600 + 1);
-        (bool okExec,) = saw.executeByVotes(0, address(target), 0, callData, keccak256("tl-prop"));
+        (bool okExec,) =
+            moloch.executeByVotes(0, address(target), 0, callData, keccak256("tl-prop"));
         assertTrue(okExec, "executed after delay");
         assertEq(target.stored(), 5, "effect applied");
     }
@@ -861,22 +870,24 @@ contract SAWTest is Test {
      * TTL expiry blocks voting and execution; state=Expired
      *───────────────────────────────────────────────────────────────────*/
     function test_proposalTTL_expiry_blocks_vote_and_execute() public {
-        bytes memory d = abi.encodeWithSelector(SAW.setProposalTTL.selector, uint64(2));
-        (, bool ok) = _openAndPass(0, address(saw), 0, d, keccak256("ttl-2"));
+        bytes memory d = abi.encodeWithSelector(MolochMajeur.setProposalTTL.selector, uint64(2));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, d, keccak256("ttl-2"));
         assertTrue(ok, "TTL set");
 
         bytes32 h = _id(0, address(target), 0, "", keccak256("ttl-prop"));
-        saw.openProposal(h);
+        moloch.openProposal(h);
         vm.warp(block.timestamp + 3); // past TTL
 
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
-        assertEq(uint256(saw.state(h)), uint256(SAW.ProposalState.Expired), "state=Expired");
+        assertEq(
+            uint256(moloch.state(h)), uint256(MolochMajeur.ProposalState.Expired), "state=Expired"
+        );
 
-        vm.expectRevert(SAW.NotOk.selector);
-        saw.executeByVotes(0, address(target), 0, "", keccak256("ttl-prop"));
+        vm.expectRevert(MolochMajeur.NotOk.selector);
+        moloch.executeByVotes(0, address(target), 0, "", keccak256("ttl-prop"));
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -885,17 +896,17 @@ contract SAWTest is Test {
     function test_genesis_snapshot_vote_path_mints_receipts() public {
         // Foundry starts at block 1 → open now => snapshotBlock=0
         bytes32 h = _id(0, address(this), 0, "", bytes32("GEN"));
-        saw.openProposal(h);
-        assertEq(saw.snapshotBlock(h), 0, "snap=0");
+        moloch.openProposal(h);
+        assertEq(moloch.snapshotBlock(h), 0, "snap=0");
 
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
         vm.prank(bob);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
-        uint256 ridYes = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
-        assertEq(saw.totalSupply(ridYes), 100e18, "receipt supply = 60e18 + 40e18");
-        assertEq(saw.receiptProposal(ridYes), h, "receipt->proposal");
+        uint256 ridYes = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
+        assertEq(moloch.totalSupply(ridYes), 100e18, "receipt supply = 60e18 + 40e18");
+        assertEq(moloch.receiptProposal(ridYes), h, "receipt->proposal");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -903,8 +914,9 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_minYesVotesAbsolute_defeats_if_below_floor() public {
         // Set an absolute YES floor to 70e18 (above Alice's 60e18 vote)
-        bytes memory d = abi.encodeWithSelector(SAW.setMinYesVotesAbsolute.selector, uint256(70e18));
-        (, bool ok) = _openAndPass(0, address(saw), 0, d, keccak256("floor-70"));
+        bytes memory d =
+            abi.encodeWithSelector(MolochMajeur.setMinYesVotesAbsolute.selector, uint256(70e18));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, d, keccak256("floor-70"));
         assertTrue(ok, "floor set");
 
         // Open a proposal and only Alice votes YES (60e18 < 70e18)
@@ -913,8 +925,8 @@ contract SAWTest is Test {
         _voteYes(h, alice); // Bob does NOT vote
 
         // Execution must fail under current semantics with NotOk (falls through to failed call)
-        vm.expectRevert(SAW.NotOk.selector);
-        saw.executeByVotes(0, address(target), 0, "", keccak256("min-prop"));
+        vm.expectRevert(MolochMajeur.NotOk.selector);
+        moloch.executeByVotes(0, address(target), 0, "", keccak256("min-prop"));
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -922,8 +934,8 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_quorumAbsolute_blocks_even_with_majority() public {
         uint256 req = shares.totalSupply() + 1; // unreachable
-        bytes memory d = abi.encodeWithSelector(SAW.setQuorumAbsolute.selector, req);
-        (, bool ok) = _openAndPass(0, address(saw), 0, d, keccak256("qabs"));
+        bytes memory d = abi.encodeWithSelector(MolochMajeur.setQuorumAbsolute.selector, req);
+        (, bool ok) = _openAndPass(0, address(moloch), 0, d, keccak256("qabs"));
         assertTrue(ok, "abs quorum set");
 
         bytes32 h = _id(0, address(target), 0, "", keccak256("qabs-prop"));
@@ -931,9 +943,11 @@ contract SAWTest is Test {
         _voteYes(h, alice);
         _voteYes(h, bob);
 
-        assertEq(uint256(saw.state(h)), uint256(SAW.ProposalState.Active), "still Active");
-        vm.expectRevert(SAW.NotApprover.selector);
-        saw.executeByVotes(0, address(target), 0, "", keccak256("qabs-prop"));
+        assertEq(
+            uint256(moloch.state(h)), uint256(MolochMajeur.ProposalState.Active), "still Active"
+        );
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
+        moloch.executeByVotes(0, address(target), 0, "", keccak256("qabs-prop"));
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -941,31 +955,31 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_permit_mirror_decrements_on_spend() public {
         // enable 6909 mirroring for permits
-        bytes memory en = abi.encodeWithSelector(SAW.setUse6909ForPermits.selector, true);
-        (, bool ok) = _openAndPass(0, address(saw), 0, en, keccak256("perm-mirror-on"));
+        bytes memory en = abi.encodeWithSelector(MolochMajeur.setUse6909ForPermits.selector, true);
+        (, bool ok) = _openAndPass(0, address(moloch), 0, en, keccak256("perm-mirror-on"));
         assertTrue(ok, "mirror on");
 
         // set a 2-use permit for target.store(8)
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 8);
         bytes32 nz = keccak256("perm-2");
         bytes memory set = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, call, nz, 2, true
+            MolochMajeur.setPermit.selector, 0, address(target), 0, call, nz, 2, true
         );
-        (, bool ok2) = _openAndPass(0, address(saw), 0, set, keccak256("perm-set"));
+        (, bool ok2) = _openAndPass(0, address(moloch), 0, set, keccak256("perm-set"));
         assertTrue(ok2, "permit set");
 
         bytes32 hPermit = _id(0, address(target), 0, call, nz);
         uint256 id = uint256(hPermit);
 
-        assertEq(saw.permits(hPermit), 2, "count=2");
-        assertEq(saw.totalSupply(id), 2, "mirror=2");
+        assertEq(moloch.permits(hPermit), 2, "count=2");
+        assertEq(moloch.totalSupply(id), 2, "mirror=2");
 
         // spend once → both on-chain permit and mirror drop by 1
         vm.prank(alice);
-        saw.permitExecute(0, address(target), 0, call, nz);
+        moloch.permitExecute(0, address(target), 0, call, nz);
 
-        assertEq(saw.permits(hPermit), 1, "count=1");
-        assertEq(saw.totalSupply(id), 1, "mirror=1");
+        assertEq(moloch.permits(hPermit), 1, "count=1");
+        assertEq(moloch.totalSupply(id), 1, "mirror=1");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -975,41 +989,42 @@ contract SAWTest is Test {
         // futarchy-enabled proposal h (self-call to openFutarchy)
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 123);
         bytes32 h = _id(0, address(target), 0, call, keccak256("FY"));
-        bytes memory dOpen = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(0));
-        (, bool ok) = _openAndPass(0, address(saw), 0, dOpen, keccak256("openFut-eth"));
+        bytes memory dOpen =
+            abi.encodeWithSelector(MolochMajeur.openFutarchy.selector, h, address(0));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dOpen, keccak256("openFut-eth"));
         assertTrue(ok, "futarchy opened");
 
         // vote YES both
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
         vm.prank(bob);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
         // fund with ETH (100e18) → payout/unit = 1
         vm.deal(address(this), 100 ether);
-        saw.fundFutarchy{value: 100e18}(h, 100e18);
+        moloch.fundFutarchy{value: 100e18}(h, 100e18);
 
         // execute call → YES wins and resolves
-        (bool exec,) = saw.executeByVotes(0, address(target), 0, call, keccak256("FY"));
+        (bool exec,) = moloch.executeByVotes(0, address(target), 0, call, keccak256("FY"));
         assertTrue(exec, "executed");
         assertEq(target.stored(), 123, "target updated");
 
-        (,,, bool resolved, uint8 winner,, uint256 ppu) = saw.futarchy(h);
+        (,,, bool resolved, uint8 winner,, uint256 ppu) = moloch.futarchy(h);
         assertTrue(resolved, "resolved");
         assertEq(winner, 1, "YES winner");
         assertEq(ppu, 1, "payout/unit=1");
 
-        uint256 ridYes = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
-        uint256 balBefore = saw.balanceOf(alice, ridYes);
+        uint256 ridYes = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
+        uint256 balBefore = moloch.balanceOf(alice, ridYes);
         uint256 ethBefore = alice.balance;
 
         vm.prank(alice);
         uint256 burnAmt = 10e18;
-        uint256 paid = saw.cashOutFutarchy(h, burnAmt);
+        uint256 paid = moloch.cashOutFutarchy(h, burnAmt);
 
         assertEq(paid, burnAmt * ppu, "paid amount");
         assertEq(alice.balance, ethBefore + paid, "ETH received");
-        assertEq(saw.balanceOf(alice, ridYes), balBefore - burnAmt, "receipts burned");
+        assertEq(moloch.balanceOf(alice, ridYes), balBefore - burnAmt, "receipts burned");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1017,45 +1032,46 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_futarchy_no_erc20_cashout_after_expiry() public {
         // short TTL so we can expire quickly
-        bytes memory dTTL = abi.encodeWithSelector(SAW.setProposalTTL.selector, uint64(2));
-        (, bool okTTL) = _openAndPass(0, address(saw), 0, dTTL, keccak256("ttl-2"));
+        bytes memory dTTL = abi.encodeWithSelector(MolochMajeur.setProposalTTL.selector, uint64(2));
+        (, bool okTTL) = _openAndPass(0, address(moloch), 0, dTTL, keccak256("ttl-2"));
         assertTrue(okTTL, "TTL set");
 
         // futarchy-enabled proposal h with ERC20 reward
         bytes32 h = _id(0, address(this), 0, "", keccak256("FN"));
-        bytes memory dOpen = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(tkn));
-        (, bool ok) = _openAndPass(0, address(saw), 0, dOpen, keccak256("openFut-erc20"));
+        bytes memory dOpen =
+            abi.encodeWithSelector(MolochMajeur.openFutarchy.selector, h, address(tkn));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dOpen, keccak256("openFut-erc20"));
         assertTrue(ok, "futarchy opened (ERC20)");
 
         // vote AGAINST both so NO side has supply
         vm.prank(alice);
-        saw.castVote(h, 0);
+        moloch.castVote(h, 0);
         vm.prank(bob);
-        saw.castVote(h, 0);
+        moloch.castVote(h, 0);
 
         // fund ERC20 pool (100e18) → payout/unit = 1
         tkn.mint(address(this), 100e18);
-        tkn.approve(address(saw), 100e18);
-        saw.fundFutarchy(h, 100e18);
+        tkn.approve(address(moloch), 100e18);
+        moloch.fundFutarchy(h, 100e18);
 
         // let TTL pass and resolve NO
         vm.warp(block.timestamp + 3);
-        saw.resolveFutarchyNo(h);
+        moloch.resolveFutarchyNo(h);
 
-        (,,, bool resolved, uint8 winner,, uint256 ppu) = saw.futarchy(h);
+        (,,, bool resolved, uint8 winner,, uint256 ppu) = moloch.futarchy(h);
         assertTrue(resolved, "resolved");
         assertEq(winner, 0, "NO winner");
         assertEq(ppu, 1, "payout/unit=1");
 
-        uint256 ridNo = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(0))));
-        uint256 balNoBefore = saw.balanceOf(alice, ridNo);
+        uint256 ridNo = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(0))));
+        uint256 balNoBefore = moloch.balanceOf(alice, ridNo);
 
         vm.prank(alice);
-        uint256 paid = saw.cashOutFutarchy(h, 15e18);
+        uint256 paid = moloch.cashOutFutarchy(h, 15e18);
         assertEq(paid, 15e18, "ERC20 paid");
 
         assertEq(tkn.balanceOf(alice), 15e18, "TKN received");
-        assertEq(saw.balanceOf(alice, ridNo), balNoBefore - 15e18, "receipts burned");
+        assertEq(moloch.balanceOf(alice, ridNo), balNoBefore - 15e18, "receipts burned");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1066,23 +1082,23 @@ contract SAWTest is Test {
         _open(h);
 
         // support out of range -> NotOk
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(alice);
-        saw.castVote(h, 3);
+        moloch.castVote(h, 3);
 
         // first vote ok
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
         // second vote same voter -> NotOk
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
         // no-weight voter -> NotOk
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(charlie); // has 0 shares
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
     }
 
     function test_execute_unopened_reverts() public {
@@ -1090,11 +1106,11 @@ contract SAWTest is Test {
             0, address(target), 0, abi.encodeWithSelector(Target.store.selector, 1), bytes32("x")
         );
         // unopened -> NotApprover
-        vm.expectRevert(SAW.NotApprover.selector);
-        saw.executeByVotes(
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
+        moloch.executeByVotes(
             0, address(target), 0, abi.encodeWithSelector(Target.store.selector, 1), bytes32("x")
         );
-        assertEq(saw.snapshotBlock(h), 0, "still unopened");
+        assertEq(moloch.snapshotBlock(h), 0, "still unopened");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1104,9 +1120,9 @@ contract SAWTest is Test {
         vm.roll(1);
         vm.warp(1);
         bytes32 h = _id(0, address(this), 0, "", keccak256("genesis"));
-        saw.openProposal(h);
-        assertEq(saw.snapshotBlock(h), 0, "snap at block 0");
-        assertEq(saw.supplySnapshot(h), shares.totalSupply(), "fallback supply recorded");
+        moloch.openProposal(h);
+        assertEq(moloch.snapshotBlock(h), 0, "snap at block 0");
+        assertEq(moloch.supplySnapshot(h), shares.totalSupply(), "fallback supply recorded");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1121,10 +1137,10 @@ contract SAWTest is Test {
         _voteYes(h, bob);
 
         // should not revert, and queuedAt stays zero
-        saw.queue(h);
-        assertEq(saw.queuedAt(h), 0, "no timelock => queue no-op");
+        moloch.queue(h);
+        assertEq(moloch.queuedAt(h), 0, "no timelock => queue no-op");
 
-        (bool ok,) = saw.executeByVotes(0, address(target), 0, callData, keccak256("q-no-tl"));
+        (bool ok,) = moloch.executeByVotes(0, address(target), 0, callData, keccak256("q-no-tl"));
         assertTrue(ok, "exec ok");
         assertEq(target.stored(), 123);
     }
@@ -1133,15 +1149,16 @@ contract SAWTest is Test {
      * SALES EDGE: NON-MINTING WITHOUT INVENTORY REVERTS
      *───────────────────────────────────────────────────────────────────*/
     function test_buyShares_non_minting_without_inventory_reverts() public {
-        // Set sale: minting=false but SAW has no shares preloaded
-        bytes memory d =
-            abi.encodeWithSelector(SAW.setSale.selector, address(0), uint256(1), 2e18, false, true);
-        (, bool ok) = _openAndPass(0, address(saw), 0, d, keccak256("nonmint-noinv"));
+        // Set sale: minting=false but moloch has no shares preloaded
+        bytes memory d = abi.encodeWithSelector(
+            MolochMajeur.setSale.selector, address(0), uint256(1), 2e18, false, true
+        );
+        (, bool ok) = _openAndPass(0, address(moloch), 0, d, keccak256("nonmint-noinv"));
         assertTrue(ok, "sale set");
 
-        vm.expectRevert(); // underflow in SAWShares.transfer from SAW
+        vm.expectRevert(); // underflow in MolochShares.transfer from moloch
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2e18, 0);
+        moloch.buyShares{value: 2 ether}(address(0), 2e18, 0);
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1149,9 +1166,9 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_permit_mirror_unlimited_does_not_mint_supply() public {
         // turn on mirroring
-        bytes memory a = abi.encodeWithSelector(saw.setUse6909ForPermits.selector, true);
-        (, bool okA) = _openAndPass(0, address(saw), 0, a, keccak256("6909-on"));
-        assertTrue(okA && saw.use6909ForPermits(), "6909 on");
+        bytes memory a = abi.encodeWithSelector(MolochMajeur.setUse6909ForPermits.selector, true);
+        (, bool okA) = _openAndPass(0, address(moloch), 0, a, keccak256("6909-on"));
+        assertTrue(okA && moloch.use6909ForPermits(), "6909 on");
 
         // set MAX permit (replace)
         uint8 op = 0;
@@ -1161,22 +1178,22 @@ contract SAWTest is Test {
         bytes32 h = _id(op, to, 0, dataCall, n);
 
         bytes memory setMax = abi.encodeWithSelector(
-            SAW.setPermit.selector, op, to, 0, dataCall, n, type(uint256).max, true
+            MolochMajeur.setPermit.selector, op, to, 0, dataCall, n, type(uint256).max, true
         );
-        (, bool okM) = _openAndPass(0, address(saw), 0, setMax, keccak256("set-max"));
+        (, bool okM) = _openAndPass(0, address(moloch), 0, setMax, keccak256("set-max"));
         assertTrue(okM, "set MAX");
 
         // mirror supply should remain zero for MAX
-        assertEq(saw.totalSupply(uint256(h)), 0, "no mirror for MAX");
+        assertEq(moloch.totalSupply(uint256(h)), 0, "no mirror for MAX");
 
         // add more (no mirror mint because it's already MAX)
         bytes memory add = abi.encodeWithSelector(
-            SAW.setPermit.selector, op, to, 0, dataCall, n, uint256(5), false
+            MolochMajeur.setPermit.selector, op, to, 0, dataCall, n, uint256(5), false
         );
-        (, bool okAdd) = _openAndPass(0, address(saw), 0, add, keccak256("add-to-max"));
+        (, bool okAdd) = _openAndPass(0, address(moloch), 0, add, keccak256("add-to-max"));
         assertTrue(okAdd, "add ignored for mirror");
-        assertEq(saw.totalSupply(uint256(h)), 0, "still no mirror");
-        assertEq(saw.permits(h), type(uint256).max, "still MAX");
+        assertEq(moloch.totalSupply(uint256(h)), 0, "still no mirror");
+        assertEq(moloch.permits(h), type(uint256).max, "still MAX");
     }
 
     function test_permit_no_mirror_when_flag_off() public {
@@ -1188,12 +1205,12 @@ contract SAWTest is Test {
         bytes32 h = _id(op, to, 0, dataCall, n);
 
         bytes memory set2 = abi.encodeWithSelector(
-            SAW.setPermit.selector, op, to, 0, dataCall, n, uint256(2), true
+            MolochMajeur.setPermit.selector, op, to, 0, dataCall, n, uint256(2), true
         );
-        (, bool ok) = _openAndPass(0, address(saw), 0, set2, keccak256("set2"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, set2, keccak256("set2"));
         assertTrue(ok, "setPermit ok");
-        assertEq(saw.permits(h), 2);
-        assertEq(saw.totalSupply(uint256(h)), 0, "no mirror when off");
+        assertEq(moloch.permits(h), 2);
+        assertEq(moloch.totalSupply(uint256(h)), 0, "no mirror when off");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1203,16 +1220,16 @@ contract SAWTest is Test {
         bytes32 h = _id(0, address(this), 0, "", keccak256("rx"));
         _open(h);
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
         vm.prank(bob);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
-        uint256 ridYes = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
-        uint256 ridNo = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(0))));
+        uint256 ridYes = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
+        uint256 ridNo = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(0))));
 
         // YES supply = 60e18 + 40e18
-        assertEq(saw.totalSupply(ridYes), 100e18, "yes supply");
-        assertEq(saw.totalSupply(ridNo), 0, "no supply");
+        assertEq(moloch.totalSupply(ridYes), 100e18, "yes supply");
+        assertEq(moloch.totalSupply(ridNo), 0, "no supply");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1225,40 +1242,41 @@ contract SAWTest is Test {
         bytes32 h = _id(0, address(target), 0, callData, nonce);
 
         // enable futarchy for h (ETH reward)
-        bytes memory openF = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(0));
-        (, bool okOpen) = _openAndPass(0, address(saw), 0, openF, keccak256("f-yes-open"));
+        bytes memory openF =
+            abi.encodeWithSelector(MolochMajeur.openFutarchy.selector, h, address(0));
+        (, bool okOpen) = _openAndPass(0, address(moloch), 0, openF, keccak256("f-yes-open"));
         assertTrue(okOpen, "futarchy opened");
 
         // fund 100 ETH
         vm.deal(address(this), 100 ether);
-        saw.fundFutarchy{value: 100 ether}(h, 100 ether);
+        moloch.fundFutarchy{value: 100 ether}(h, 100 ether);
 
         // vote YES by both
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
         vm.prank(bob);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
         // execute → resolves YES side
-        (bool ok,) = saw.executeByVotes(0, address(target), 0, callData, nonce);
+        (bool ok,) = moloch.executeByVotes(0, address(target), 0, callData, nonce);
         assertTrue(ok, "executed");
         assertEq(target.stored(), 11);
 
         // payout per unit = 100e18 / 100e18 = 1 wei
-        (,,, bool resolved, uint8 winner,, uint256 ppu) = saw.futarchy(h);
+        (,,, bool resolved, uint8 winner,, uint256 ppu) = moloch.futarchy(h);
         assertTrue(resolved && winner == 1 && ppu == 1, "resolved YES, ppu=1");
 
-        uint256 ridYes = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
+        uint256 ridYes = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
         uint256 aliceBefore = alice.balance;
 
         // cash out 10e18 units -> 10e18 wei
         vm.prank(alice);
-        uint256 payout = saw.cashOutFutarchy(h, 10e18);
+        uint256 payout = moloch.cashOutFutarchy(h, 10e18);
         assertEq(payout, 10e18, "payout matched");
         assertEq(alice.balance - aliceBefore, 10e18, "ETH received");
-        assertEq(saw.balanceOf(alice, ridYes), 60e18 - 10e18, "receipts burned");
+        assertEq(moloch.balanceOf(alice, ridYes), 60e18 - 10e18, "receipts burned");
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1266,8 +1284,8 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────────*/
     function test_futarchy_no_resolve_after_TTL_and_cashout_erc20() public {
         // set TTL small (10s)
-        bytes memory setTTL = abi.encodeWithSelector(SAW.setProposalTTL.selector, uint64(10));
-        (, bool okTTL) = _openAndPass(0, address(saw), 0, setTTL, keccak256("ttl10"));
+        bytes memory setTTL = abi.encodeWithSelector(moloch.setProposalTTL.selector, uint64(10));
+        (, bool okTTL) = _openAndPass(0, address(moloch), 0, setTTL, keccak256("ttl10"));
         assertTrue(okTTL, "ttl set");
 
         // intent h
@@ -1276,33 +1294,33 @@ contract SAWTest is Test {
         bytes32 h = _id(0, address(target), 0, callData, nonce);
 
         // open futarchy with ERC20 reward
-        bytes memory openF = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(tkn));
-        (, bool okOpen) = _openAndPass(0, address(saw), 0, openF, keccak256("f-no-open"));
+        bytes memory openF = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(tkn));
+        (, bool okOpen) = _openAndPass(0, address(moloch), 0, openF, keccak256("f-no-open"));
         assertTrue(okOpen, "futarchy opened");
 
         // fund 1000 TKN from this test contract
         tkn.mint(address(this), 1000e18);
-        tkn.approve(address(saw), type(uint256).max);
-        saw.fundFutarchy(h, 1000e18);
+        tkn.approve(address(moloch), type(uint256).max);
+        moloch.fundFutarchy(h, 1000e18);
 
         // vote AGAINST by both → proposal never executes
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
         vm.prank(alice);
-        saw.castVote(h, 0);
+        moloch.castVote(h, 0);
         vm.prank(bob);
-        saw.castVote(h, 0);
+        moloch.castVote(h, 0);
 
         // cannot resolve before TTL
-        vm.expectRevert(SAW.NotOk.selector);
-        saw.resolveFutarchyNo(h);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
+        moloch.resolveFutarchyNo(h);
 
         // after TTL, resolve NO
         vm.warp(block.timestamp + 11);
-        saw.resolveFutarchyNo(h);
+        moloch.resolveFutarchyNo(h);
 
         (,, uint256 pool, bool resolved, uint8 winner, uint256 winSupply, uint256 ppu) =
-            saw.futarchy(h);
+            moloch.futarchy(h);
         assertTrue(resolved && winner == 0, "resolved NO");
         // pool=1000e18, winSupply=100e18 -> ppu=10
         assertEq(pool, 1000e18);
@@ -1312,7 +1330,7 @@ contract SAWTest is Test {
         // Bob cashes out 20e18 units -> 200e18 TKN
         uint256 bobBefore = tkn.balanceOf(bob);
         vm.prank(bob);
-        uint256 payout = saw.cashOutFutarchy(h, 20e18);
+        uint256 payout = moloch.cashOutFutarchy(h, 20e18);
         assertEq(payout, 200e18, "erc20 payout");
         assertEq(tkn.balanceOf(bob) - bobBefore, 200e18, "tokens received");
     }
@@ -1327,34 +1345,34 @@ contract SAWTest is Test {
         bytes32 h = _id(0, address(target), 0, callData, nonce);
 
         // open futarchy (ETH)
-        bytes memory openF = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(0));
-        (, bool okOpen) = _openAndPass(0, address(saw), 0, openF, keccak256("f-open"));
+        bytes memory openF = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(0));
+        (, bool okOpen) = _openAndPass(0, address(moloch), 0, openF, keccak256("f-open"));
         assertTrue(okOpen);
 
         // fund and vote YES
         vm.deal(address(this), 1 ether);
-        saw.fundFutarchy{value: 1 ether}(h, 1 ether);
+        moloch.fundFutarchy{value: 1 ether}(h, 1 ether);
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
         vm.prank(alice);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
         vm.prank(bob);
-        saw.castVote(h, 1);
+        moloch.castVote(h, 1);
 
-        uint256 ridYes = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
-        uint256 ridNo = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(0))));
+        uint256 ridYes = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
+        uint256 ridNo = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(0))));
 
         // before execution → "status: open"
-        string memory u1 = saw.receiptURI(ridYes);
+        string memory u1 = moloch.receiptURI(ridYes);
         assertTrue(_contains(u1, "status: open"), "should be open");
 
         // execute -> YES wins
-        (bool ok,) = saw.executeByVotes(0, address(target), 0, callData, nonce);
+        (bool ok,) = moloch.executeByVotes(0, address(target), 0, callData, nonce);
         assertTrue(ok, "exec");
 
         // after execution → YES: winner, NO: loser + payout/unit present
-        string memory uy = saw.receiptURI(ridYes);
-        string memory un = saw.receiptURI(ridNo);
+        string memory uy = moloch.receiptURI(ridYes);
+        string memory un = moloch.receiptURI(ridNo);
         assertTrue(_contains(uy, "winner"), "yes winner");
         assertTrue(_contains(un, "loser"), "no loser");
         assertTrue(_contains(uy, "payout/unit:"), "ppu present");
@@ -1379,23 +1397,23 @@ contract SAWTest is Test {
     }
 
     function test_rageQuit_reentrancy_blocked() public {
-        // Deploy reentrant token and fund SAW
+        // Deploy reentrant token and fund moloch
         ReentrantERC20 rtkn = new ReentrantERC20("R", "R", 18);
-        rtkn.mint(address(saw), 1_000e18);
+        rtkn.mint(address(moloch), 1_000e18);
 
         // Holder that will rageQuit
-        RageQuitHook hook = new RageQuitHook(saw, address(rtkn));
+        RageQuitHook hook = new RageQuitHook(moloch, address(rtkn));
 
         // Give hook some shares so it can rageQuit
         vm.prank(alice);
         shares.transfer(address(hook), 1e18);
 
         // Arm token to attempt reentry during transfer
-        rtkn.arm(saw, address(hook));
+        rtkn.arm(moloch, address(hook));
 
         // Call rageQuit: OUTER CALL SHOULD SUCCEED (inner reentry will revert)
         vm.prank(address(hook));
-        saw.rageQuit(_array(address(rtkn)));
+        moloch.rageQuit(_array(address(rtkn)));
 
         // Assert: the reentry was attempted and blocked
         assertTrue(rtkn.reenterAttempted(), "reentry was not attempted");
@@ -1418,63 +1436,65 @@ contract SAWTest is Test {
         uint256 val = 0;
         bytes memory callData = "";
         bytes32 nonce = keccak256("fut-permit");
-        bytes32 h = saw.proposalId(op, to, val, callData, nonce);
+        bytes32 h = moloch.proposalId(op, to, val, callData, nonce);
 
         // ===== Governance: open futarchy on h via self-call proposal
-        bytes memory openData = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(0));
-        bytes32 openH = saw.proposalId(0, address(saw), 0, openData, keccak256("open-fut"));
+        bytes memory openData = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(0));
+        bytes32 openH = moloch.proposalId(0, address(moloch), 0, openData, keccak256("open-fut"));
 
         vm.startPrank(alice);
         // Ensure snapshot block for openH is non-zero so state() won't treat it as Unopened.
         vm.roll(block.number + 2);
-        saw.castVote(openH, 1); // auto-opens at (block.number - 1) >= 1, gives Alice 60e18 YES
-        (bool ok1,) = saw.executeByVotes(0, address(saw), 0, openData, keccak256("open-fut"));
+        moloch.castVote(openH, 1); // auto-opens at (block.number - 1) >= 1, gives Alice 60e18 YES
+        (bool ok1,) = moloch.executeByVotes(0, address(moloch), 0, openData, keccak256("open-fut"));
         assertTrue(ok1, "openFutarchy executed");
 
         // Fund futarchy pool with 1 wei (enough to make payout path defined)
-        saw.fundFutarchy{value: 1}(h, 1);
+        moloch.fundFutarchy{value: 1}(h, 1);
         vm.stopPrank();
 
         // ===== YES receipts on h so winning supply > 0
         vm.roll(block.number + 1);
         vm.prank(bob);
-        saw.castVote(h, 1); // Bob votes YES (auto-opens h with non-zero snapshot)
+        moloch.castVote(h, 1); // Bob votes YES (auto-opens h with non-zero snapshot)
 
         // ===== Set a single-use PERMIT for the same tuple via governance
         bytes memory setPermitData = abi.encodeWithSelector(
-            SAW.setPermit.selector, op, to, val, callData, nonce, uint256(1), true
+            moloch.setPermit.selector, op, to, val, callData, nonce, uint256(1), true
         );
         bytes32 permitH =
-            saw.proposalId(0, address(saw), 0, setPermitData, keccak256("set-permit-fut"));
+            moloch.proposalId(0, address(moloch), 0, setPermitData, keccak256("set-permit-fut"));
 
         vm.startPrank(alice);
         vm.roll(block.number + 1);
-        saw.castVote(permitH, 1);
-        (ok1,) = saw.executeByVotes(0, address(saw), 0, setPermitData, keccak256("set-permit-fut"));
+        moloch.castVote(permitH, 1);
+        (ok1,) = moloch.executeByVotes(
+            0, address(moloch), 0, setPermitData, keccak256("set-permit-fut")
+        );
         assertTrue(ok1, "permit set");
         vm.stopPrank();
 
-        // ===== Spend the permit (permitExecute should also resolve futarchy YES inside SAW.permitExecute)
+        // ===== Spend the permit (permitExecute should also resolve futarchy YES inside moloch.permitExecute)
         vm.prank(charlie);
-        (bool ok2,) = saw.permitExecute(op, to, val, callData, nonce);
+        (bool ok2,) = moloch.permitExecute(op, to, val, callData, nonce);
         assertTrue(ok2, "permit exec");
 
         // ===== Futarchy should now be resolved with YES winning
-        (bool en,, SAW.FutarchyConfig memory F) = _getFutarchy(saw, h);
+        (bool en,, MolochMajeur.FutarchyConfig memory F) = _getFutarchy(moloch, h);
         assertTrue(en, "enabled");
         assertTrue(F.resolved, "resolved");
         assertEq(F.winner, 1, "YES wins");
     }
 
     // Helper to read futarchy config in a struct-friendly way.
-    function _getFutarchy(SAW s, bytes32 h)
+    function _getFutarchy(MolochMajeur s, bytes32 h)
         internal
         view
-        returns (bool enabled, uint8 winner, SAW.FutarchyConfig memory F)
+        returns (bool enabled, uint8 winner, MolochMajeur.FutarchyConfig memory F)
     {
         (bool en, address rt, uint256 pool, bool res, uint8 win, uint256 fws, uint256 ppu) =
             s.futarchy(h);
-        F = SAW.FutarchyConfig({
+        F = MolochMajeur.FutarchyConfig({
             enabled: en,
             rewardToken: rt,
             pool: pool,
@@ -1488,9 +1508,9 @@ contract SAWTest is Test {
     }
 
     /*───────────────────────────────────────────────────────────────────*
-     * A) Non-SAW spender cannot “drain” by sending to SAW repeatedly
+     * A) Non-moloch spender cannot “drain” by sending to moloch repeatedly
      *───────────────────────────────────────────────────────────────────*/
-    function test_shares_transferFrom_toSAW_decrements_for_nonSAW() public {
+    function test_shares_transferFrom_tomoloch_decrements_for_nonmoloch() public {
         address mallory = address(0xBADD);
         vm.label(mallory, "MALLORY");
 
@@ -1498,15 +1518,15 @@ contract SAWTest is Test {
         vm.prank(bob);
         shares.approve(mallory, 1e18);
 
-        // First transferFrom to SAW succeeds and MUST decrement allowance
+        // First transferFrom to moloch succeeds and MUST decrement allowance
         vm.prank(mallory);
-        shares.transferFrom(bob, address(saw), 6e17);
-        assertEq(shares.allowance(bob, mallory), 4e17, "allowance must decrement for non-SAW");
+        shares.transferFrom(bob, address(moloch), 6e17);
+        assertEq(shares.allowance(bob, mallory), 4e17, "allowance must decrement for non-moloch");
 
         // Second oversized spend should revert due to insufficient allowance
         vm.expectRevert(); // underflow on allowance
         vm.prank(mallory);
-        shares.transferFrom(bob, address(saw), 5e17);
+        shares.transferFrom(bob, address(moloch), 5e17);
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1515,9 +1535,9 @@ contract SAWTest is Test {
     function test_top256_eviction_removes_true_min_balance() public {
         // Make minting sale (price=0) so we can cheaply fill the set
         bytes memory dSale = abi.encodeWithSelector(
-            SAW.setSale.selector, address(0), uint256(0), type(uint256).max, true, true
+            moloch.setSale.selector, address(0), uint256(0), type(uint256).max, true, true
         );
-        (, bool ok) = _openAndPass(0, address(saw), 0, dSale, keccak256("free-sale"));
+        (, bool ok) = _openAndPass(0, address(moloch), 0, dSale, keccak256("free-sale"));
         assertTrue(ok, "free sale enabled");
 
         // Fill up to 255 holders with 2e18 each (Alice/Bob already in set)
@@ -1525,7 +1545,7 @@ contract SAWTest is Test {
             address w = vm.addr(uint256(keccak256(abi.encode("W", i))));
             vm.deal(w, 1 ether);
             vm.prank(w);
-            saw.buyShares{value: 0}(address(0), 2e18, 0);
+            moloch.buyShares{value: 0}(address(0), 2e18, 0);
             assertEq(badge.balanceOf(w), 1, "badge minted on entry");
         }
 
@@ -1533,19 +1553,19 @@ contract SAWTest is Test {
         address minnee = vm.addr(uint256(keccak256("MINNEE")));
         vm.deal(minnee, 1 ether);
         vm.prank(minnee);
-        saw.buyShares{value: 0}(address(0), 1e18, 0);
+        moloch.buyShares{value: 0}(address(0), 1e18, 0);
         assertEq(badge.balanceOf(minnee), 1, "minnee entered top set");
 
         // Newcomer with 3e18 should evict the TRUE minimum (minnee)
         address newcomer = vm.addr(uint256(keccak256("NEWCOMER")));
         vm.deal(newcomer, 1 ether);
         vm.prank(newcomer);
-        saw.buyShares{value: 0}(address(0), 3e18, 0);
+        moloch.buyShares{value: 0}(address(0), 3e18, 0);
 
         // After fix: minnee evicted, newcomer in; before fix: random slot (often 255) evicted
-        assertEq(saw.rankOf(minnee), 0, "true minimum was evicted");
+        assertEq(moloch.rankOf(minnee), 0, "true minimum was evicted");
         assertEq(badge.balanceOf(minnee), 0, "minnee badge burned");
-        assertTrue(saw.rankOf(newcomer) != 0, "newcomer admitted");
+        assertTrue(moloch.rankOf(newcomer) != 0, "newcomer admitted");
         assertEq(badge.balanceOf(newcomer), 1, "newcomer badge minted");
     }
 
@@ -1559,8 +1579,8 @@ contract SAWTest is Test {
         bytes32 h = _id(0, address(this), 0, dcall, nonce);
 
         // Enable futarchy on the proposal via governance
-        bytes memory dOpen = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(0));
-        (, bool okOpen) = _openAndPass(0, address(saw), 0, dOpen, keccak256("F-ETH-open"));
+        bytes memory dOpen = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(0));
+        (, bool okOpen) = _openAndPass(0, address(moloch), 0, dOpen, keccak256("F-ETH-open"));
         assertTrue(okOpen, "openFutarchy set");
 
         // Open & vote YES by both holders (mint YES receipts)
@@ -1570,10 +1590,10 @@ contract SAWTest is Test {
 
         // Fund pool in ETH (big enough for non-zero payoutPerUnit)
         vm.deal(address(this), 200 ether);
-        saw.fundFutarchy{value: 200 ether}(h, 200 ether);
+        moloch.fundFutarchy{value: 200 ether}(h, 200 ether);
 
         // Execute proposal to trigger _resolveFutarchyYes
-        (bool okExec,) = saw.executeByVotes(0, address(this), 0, dcall, nonce);
+        (bool okExec,) = moloch.executeByVotes(0, address(this), 0, dcall, nonce);
         assertTrue(okExec, "exec ok");
 
         (
@@ -1584,7 +1604,7 @@ contract SAWTest is Test {
             uint8 winner,
             uint256 finalSupply,
             uint256 ppu
-        ) = saw.futarchy(h);
+        ) = moloch.futarchy(h);
         assertTrue(enabled && resolved, "futarchy not resolved");
         assertEq(rTok, address(0), "reward token != ETH");
         assertEq(pool, 200 ether);
@@ -1593,14 +1613,14 @@ contract SAWTest is Test {
         assertGt(ppu, 0, "zero ppu");
 
         // Cash out a tiny portion of Alice’s YES receipts
-        uint256 ridYes = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(1))));
+        uint256 ridYes = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
         uint256 aliceBalBefore = alice.balance;
-        uint256 aliceYesBefore = saw.balanceOf(alice, ridYes);
+        uint256 aliceYesBefore = moloch.balanceOf(alice, ridYes);
 
         vm.prank(alice);
-        saw.cashOutFutarchy(h, 1e18); // burn 1e18 receipt units
+        moloch.cashOutFutarchy(h, 1e18); // burn 1e18 receipt units
 
-        assertEq(saw.balanceOf(alice, ridYes), aliceYesBefore - 1e18, "receipt not burned");
+        assertEq(moloch.balanceOf(alice, ridYes), aliceYesBefore - 1e18, "receipt not burned");
         assertEq(alice.balance - aliceBalBefore, ppu * 1e18, "wrong ETH payout");
     }
 
@@ -1609,8 +1629,8 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────*/
     function test_futarchy_erc20_no_resolve_after_ttl_and_cashout() public {
         // Set a short TTL via governance
-        bytes memory dTTL = abi.encodeWithSelector(SAW.setProposalTTL.selector, uint64(2));
-        (, bool okT) = _openAndPass(0, address(saw), 0, dTTL, keccak256("ttl=2s"));
+        bytes memory dTTL = abi.encodeWithSelector(moloch.setProposalTTL.selector, uint64(2));
+        (, bool okT) = _openAndPass(0, address(moloch), 0, dTTL, keccak256("ttl=2s"));
         assertTrue(okT, "ttl set");
 
         // Proposal hash & enable futarchy with ERC20 reward
@@ -1621,46 +1641,46 @@ contract SAWTest is Test {
         // Funder preps ERC20 and funds the pool
         tkn.mint(alice, 1_000e18);
         vm.prank(alice);
-        tkn.approve(address(saw), 1_000e18);
+        tkn.approve(address(moloch), 1_000e18);
 
-        bytes memory dOpen = abi.encodeWithSelector(SAW.openFutarchy.selector, h, address(tkn));
-        (, bool okOpen) = _openAndPass(0, address(saw), 0, dOpen, keccak256("F-ERC20-open"));
+        bytes memory dOpen = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(tkn));
+        (, bool okOpen) = _openAndPass(0, address(moloch), 0, dOpen, keccak256("F-ERC20-open"));
         assertTrue(okOpen, "openFutarchy set");
 
         _open(h);
         vm.prank(alice); // NO
-        saw.castVote(h, 0);
+        moloch.castVote(h, 0);
         vm.prank(bob); // NO
-        saw.castVote(h, 0);
+        moloch.castVote(h, 0);
 
         // Fund after votes (ok either way)
         vm.prank(alice);
-        saw.fundFutarchy(h, 500e18);
+        moloch.fundFutarchy(h, 500e18);
 
         // Before resolution, cashOut should revert
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(alice);
-        saw.cashOutFutarchy(h, 1e18);
+        moloch.cashOutFutarchy(h, 1e18);
 
         // After TTL -> resolve NO
         vm.warp(block.timestamp + 3);
-        saw.resolveFutarchyNo(h);
+        moloch.resolveFutarchyNo(h);
 
-        (,, uint256 pool, bool resolved, uint8 winner,, uint256 ppu) = saw.futarchy(h);
+        (,, uint256 pool, bool resolved, uint8 winner,, uint256 ppu) = moloch.futarchy(h);
         assertTrue(resolved, "not resolved");
         assertEq(winner, 0, "NO should win");
         assertEq(pool, 500e18);
         assertGt(ppu, 0, "zero ppu");
 
         // Alice cashes out a portion of NO receipts
-        uint256 ridNo = uint256(keccak256(abi.encodePacked("SAW:receipt", h, uint8(0))));
-        uint256 aliceNoBefore = saw.balanceOf(alice, ridNo);
+        uint256 ridNo = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(0))));
+        uint256 aliceNoBefore = moloch.balanceOf(alice, ridNo);
         uint256 tknBefore = tkn.balanceOf(alice);
 
         vm.prank(alice);
-        saw.cashOutFutarchy(h, 1e18);
+        moloch.cashOutFutarchy(h, 1e18);
 
-        assertEq(saw.balanceOf(alice, ridNo), aliceNoBefore - 1e18, "NO receipt not burned");
+        assertEq(moloch.balanceOf(alice, ridNo), aliceNoBefore - 1e18, "NO receipt not burned");
         assertEq(tkn.balanceOf(alice) - tknBefore, ppu * 1e18, "wrong ERC20 payout");
     }
 
@@ -1669,8 +1689,9 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────*/
     function test_permit_mirror_replace_burns_supply() public {
         // Turn on mirroring
-        bytes memory dFlag = abi.encodeWithSelector(SAW.setUse6909ForPermits.selector, true);
-        (, bool okF) = _openAndPass(0, address(saw), 0, dFlag, keccak256("6909-on"));
+        bytes memory dFlag =
+            abi.encodeWithSelector(MolochMajeur.setUse6909ForPermits.selector, true);
+        (, bool okF) = _openAndPass(0, address(moloch), 0, dFlag, keccak256("6909-on"));
         assertTrue(okF);
 
         // Create a permit with count=5 (replace)
@@ -1678,7 +1699,7 @@ contract SAWTest is Test {
             0, address(target), 0, abi.encodeWithSelector(Target.store.selector, 1), bytes32("PM")
         );
         bytes memory dSet5 = abi.encodeWithSelector(
-            SAW.setPermit.selector,
+            MolochMajeur.setPermit.selector,
             0,
             address(target),
             0,
@@ -1687,14 +1708,14 @@ contract SAWTest is Test {
             uint256(5),
             true
         );
-        (, bool ok1) = _openAndPass(0, address(saw), 0, dSet5, keccak256("set-5"));
+        (, bool ok1) = _openAndPass(0, address(moloch), 0, dSet5, keccak256("set-5"));
         assertTrue(ok1);
-        assertEq(saw.permits(pHash), 5);
-        assertEq(saw.totalSupply(uint256(pHash)), 5);
+        assertEq(moloch.permits(pHash), 5);
+        assertEq(moloch.totalSupply(uint256(pHash)), 5);
 
         // Replace with 0 -> should burn all mirrored supply
         bytes memory dZero = abi.encodeWithSelector(
-            SAW.setPermit.selector,
+            moloch.setPermit.selector,
             0,
             address(target),
             0,
@@ -1703,16 +1724,17 @@ contract SAWTest is Test {
             uint256(0),
             true
         );
-        (, bool ok2) = _openAndPass(0, address(saw), 0, dZero, keccak256("set-0"));
+        (, bool ok2) = _openAndPass(0, address(moloch), 0, dZero, keccak256("set-0"));
         assertTrue(ok2);
-        assertEq(saw.permits(pHash), 0);
-        assertEq(saw.totalSupply(uint256(pHash)), 0, "mirror supply not burned");
+        assertEq(moloch.permits(pHash), 0);
+        assertEq(moloch.totalSupply(uint256(pHash)), 0, "mirror supply not burned");
     }
 
     function test_permit_mirror_burn_on_spend() public {
         // Enable mirror + set count=3
-        bytes memory dFlag = abi.encodeWithSelector(SAW.setUse6909ForPermits.selector, true);
-        (, bool okF) = _openAndPass(0, address(saw), 0, dFlag, keccak256("6909-on-2"));
+        bytes memory dFlag =
+            abi.encodeWithSelector(MolochMajeur.setUse6909ForPermits.selector, true);
+        (, bool okF) = _openAndPass(0, address(moloch), 0, dFlag, keccak256("6909-on-2"));
         assertTrue(okF);
 
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 123);
@@ -1720,18 +1742,18 @@ contract SAWTest is Test {
         bytes32 pHash = _id(0, address(target), 0, call, nonceX);
 
         bytes memory dSet3 = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, call, nonceX, uint256(3), true
+            MolochMajeur.setPermit.selector, 0, address(target), 0, call, nonceX, uint256(3), true
         );
-        (, bool okS) = _openAndPass(0, address(saw), 0, dSet3, keccak256("set-3"));
+        (, bool okS) = _openAndPass(0, address(moloch), 0, dSet3, keccak256("set-3"));
         assertTrue(okS);
-        assertEq(saw.totalSupply(uint256(pHash)), 3);
+        assertEq(moloch.totalSupply(uint256(pHash)), 3);
 
         // Spend one → mirrored supply & permits decrease
         vm.prank(charlie);
-        (bool ok,) = saw.permitExecute(0, address(target), 0, call, nonceX);
+        (bool ok,) = moloch.permitExecute(0, address(target), 0, call, nonceX);
         assertTrue(ok);
-        assertEq(saw.permits(pHash), 2);
-        assertEq(saw.totalSupply(uint256(pHash)), 2, "mirror supply should decrease by 1");
+        assertEq(moloch.permits(pHash), 2);
+        assertEq(moloch.totalSupply(uint256(pHash)), 2, "mirror supply should decrease by 1");
     }
 
     /*───────────────────────────────────────────────────────────────*
@@ -1744,75 +1766,77 @@ contract SAWTest is Test {
         _open(hE);
         _voteYes(hE, alice);
         _voteYes(hE, bob);
-        (bool ok,) = saw.executeByVotes(0, address(this), 0, dcall, bytes32("EXEC"));
+        (bool ok,) = moloch.executeByVotes(0, address(this), 0, dcall, bytes32("EXEC"));
         assertTrue(ok);
-        string memory u1 = saw.tokenURI(uint256(hE));
+        string memory u1 = moloch.tokenURI(uint256(hE));
         assertTrue(_contains(u1, "state: executed"), "executed state missing");
 
         // Expired
-        bytes memory dTTL = abi.encodeWithSelector(SAW.setProposalTTL.selector, uint64(1));
-        (, bool okT) = _openAndPass(0, address(saw), 0, dTTL, keccak256("ttl-1"));
+        bytes memory dTTL = abi.encodeWithSelector(MolochMajeur.setProposalTTL.selector, uint64(1));
+        (, bool okT) = _openAndPass(0, address(moloch), 0, dTTL, keccak256("ttl-1"));
         assertTrue(okT);
 
         bytes32 hX = _id(0, address(this), 0, "", bytes32("EXPIRE"));
-        saw.openProposal(hX);
+        moloch.openProposal(hX);
         vm.warp(block.timestamp + 2); // after createdAt + TTL
-        string memory u2 = saw.tokenURI(uint256(hX));
+        string memory u2 = moloch.tokenURI(uint256(hX));
         assertTrue(_contains(u2, "expired"), "expired state missing");
     }
 
     /*───────────────────────────────────────────────────────────────*
      * Access control guards for governance-only functions
      *───────────────────────────────────────────────────────────────*/
-    function test_access_controls_onlySAW_calls() public {
+    function test_access_controls_onlymoloch_calls() public {
         bytes32 h = _id(0, address(this), 0, "", bytes32("AC"));
         // Direct external calls should revert NotOwner
-        vm.expectRevert(SAW.NotOwner.selector);
-        saw.openFutarchy(h, address(0));
+        vm.expectRevert(MolochMajeur.NotOwner.selector);
+        moloch.openFutarchy(h, address(0));
 
-        vm.expectRevert(SAW.NotOwner.selector);
-        saw.setUse6909ForPermits(true);
+        vm.expectRevert(MolochMajeur.NotOwner.selector);
+        moloch.setUse6909ForPermits(true);
 
-        vm.expectRevert(SAW.NotOwner.selector);
-        saw.setQuorumAbsolute(123);
+        vm.expectRevert(MolochMajeur.NotOwner.selector);
+        moloch.setQuorumAbsolute(123);
     }
 
     /*───────────────────────────────────────────────────────────────*
      * Non-minting sale:
-     *  (a) still works when transfers are locked (SAW is exempt)
-     *  (b) reverts if SAW lacks share balance
+     *  (a) still works when transfers are locked (moloch is exempt)
+     *  (b) reverts if moloch lacks share balance
      *───────────────────────────────────────────────────────────────*/
     function test_nonminting_sale_works_when_locked() public {
-        // Preload SAW with shares
+        // Preload moloch with shares
         vm.prank(alice);
-        shares.transfer(address(saw), 3e18);
+        shares.transfer(address(moloch), 3e18);
 
         // Lock transfers globally
-        bytes memory dLock = abi.encodeWithSelector(SAW.setTransfersLocked.selector, true);
-        (, bool okL) = _openAndPass(0, address(saw), 0, dLock, keccak256("lock"));
+        bytes memory dLock = abi.encodeWithSelector(MolochMajeur.setTransfersLocked.selector, true);
+        (, bool okL) = _openAndPass(0, address(moloch), 0, dLock, keccak256("lock"));
         assertTrue(okL);
 
         // Non-minting sale: cap 2e18
-        bytes memory dSale =
-            abi.encodeWithSelector(SAW.setSale.selector, address(0), uint256(1), 2e18, false, true);
-        (, bool okS) = _openAndPass(0, address(saw), 0, dSale, keccak256("sale-nonmint"));
+        bytes memory dSale = abi.encodeWithSelector(
+            MolochMajeur.setSale.selector, address(0), uint256(1), 2e18, false, true
+        );
+        (, bool okS) = _openAndPass(0, address(moloch), 0, dSale, keccak256("sale-nonmint"));
         assertTrue(okS);
 
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether); // should succeed
+        moloch.buyShares{value: 2 ether}(address(0), 2 ether, 2 ether); // should succeed
         assertEq(shares.balanceOf(charlie), 2e18, "buy failed under lock");
     }
 
-    function test_nonminting_sale_insufficient_SAW_balance_reverts() public {
-        // SAW has 0 shares; set a non-minting sale for 2e18
-        bytes memory dSale =
-            abi.encodeWithSelector(SAW.setSale.selector, address(0), uint256(1), 2e18, false, true);
-        (, bool okS) = _openAndPass(0, address(saw), 0, dSale, keccak256("sale-noinv"));
+    function test_nonminting_sale_insufficient_moloch_balance_reverts() public {
+        // moloch has 0 shares; set a non-minting sale for 2e18
+        bytes memory dSale = abi.encodeWithSelector(
+            moloch.setSale.selector, address(0), uint256(1), 2e18, false, true
+        );
+        (, bool okS) = _openAndPass(0, address(moloch), 0, dSale, keccak256("sale-noinv"));
         assertTrue(okS);
 
-        vm.expectRevert(); // arithmetic underflow in SAWShares.transfer()
+        vm.expectRevert(); // arithmetic underflow in MolochShares.transfer()
         vm.prank(charlie);
-        saw.buyShares{value: 2 ether}(address(0), 2e18, 0);
+        moloch.buyShares{value: 2 ether}(address(0), 2e18, 0);
     }
 
     /*───────────────────────────────────────────────────────────────*
@@ -1820,35 +1844,37 @@ contract SAWTest is Test {
      *───────────────────────────────────────────────────────────────*/
     function test_claimAllowance_badERC20_transfer_false_reverts() public {
         BadERC20False bad = new BadERC20False();
-        bad.mint(address(saw), 100e18);
+        bad.mint(address(moloch), 100e18);
 
         // Allow Alice 10 BAD via governance
-        bytes memory d =
-            abi.encodeWithSelector(SAW.setAllowanceTo.selector, address(bad), alice, 10e18);
-        (, bool okA) = _openAndPass(0, address(saw), 0, d, keccak256("allow-bad"));
+        bytes memory d = abi.encodeWithSelector(
+            MolochMajeur.setAllowanceTo.selector, address(bad), alice, 10e18
+        );
+        (, bool okA) = _openAndPass(0, address(moloch), 0, d, keccak256("allow-bad"));
         assertTrue(okA);
 
-        vm.expectRevert(SAW.NotOk.selector);
+        vm.expectRevert(MolochMajeur.NotOk.selector);
         vm.prank(alice);
-        saw.claimAllowance(address(bad), 1e18);
+        moloch.claimAllowance(address(bad), 1e18);
     }
 
     function test_pull_badERC20_transferFrom_false_reverts() public {
         BadERC20False bad = new BadERC20False();
         bad.mint(bob, 50e18);
         vm.prank(bob);
-        bad.approve(address(saw), 50e18);
+        bad.approve(address(moloch), 50e18);
 
         // Try to pull via governance -> inner call returns false -> NotOk
-        bytes memory dPull = abi.encodeWithSelector(SAW.pull.selector, address(bad), bob, 10e18);
-        bytes32 h = _id(0, address(saw), 0, dPull, keccak256("pull-bad"));
+        bytes memory dPull =
+            abi.encodeWithSelector(MolochMajeur.pull.selector, address(bad), bob, 10e18);
+        bytes32 h = _id(0, address(moloch), 0, dPull, keccak256("pull-bad"));
 
         // Open & pass, but expect execute to revert NotOk
         _open(h);
         _voteYes(h, alice);
         _voteYes(h, bob);
-        vm.expectRevert(SAW.NotOk.selector);
-        saw.executeByVotes(0, address(saw), 0, dPull, keccak256("pull-bad"));
+        vm.expectRevert(MolochMajeur.NotOk.selector);
+        moloch.executeByVotes(0, address(moloch), 0, dPull, keccak256("pull-bad"));
     }
 
     /*───────────────────────────────────────────────────────────────────*
@@ -1857,89 +1883,100 @@ contract SAWTest is Test {
 
     function test_permit_bypassesTimelock_immediate_execution() public {
         // Turn timelock on
-        bytes memory dTL = abi.encodeWithSelector(SAW.setTimelockDelay.selector, uint64(3600));
-        (, bool okTL) = _openAndPass(0, address(saw), 0, dTL, keccak256("tl-on-permit-1"));
+        bytes memory dTL =
+            abi.encodeWithSelector(MolochMajeur.setTimelockDelay.selector, uint64(3600));
+        (, bool okTL) = _openAndPass(0, address(moloch), 0, dTL, keccak256("tl-on-permit-1"));
         assertTrue(okTL);
 
         // Queue setPermit under timelock
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 11);
         bytes32 nonce = keccak256("permit-bypass-one");
         bytes memory dSet = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, call, nonce, 1, true
+            MolochMajeur.setPermit.selector, 0, address(target), 0, call, nonce, 1, true
         );
-        bytes32 h = _id(0, address(saw), 0, dSet, keccak256("queue-setPermit-1"));
+        bytes32 h = _id(0, address(moloch), 0, dSet, keccak256("queue-setPermit-1"));
         _open(h);
         _voteYes(h, alice);
         _voteYes(h, bob);
 
         (bool queued,) =
-            saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-1"));
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-1"));
         assertTrue(queued, "queued setPermit");
 
         // Precisely expect Timelocked(untilWhen)
-        uint64 until = uint64(saw.queuedAt(h)) + 3600;
-        vm.expectRevert(abi.encodeWithSelector(SAW.Timelocked.selector, until));
-        saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-1"));
+        uint64 until = uint64(moloch.queuedAt(h)) + 3600;
+        vm.expectRevert(abi.encodeWithSelector(MolochMajeur.Timelocked.selector, until));
+        moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-1"));
 
         // Finish delay, execute install, then permit bypasses timelock
         vm.warp(until + 1);
         vm.roll(block.number + 1);
         (bool execOk,) =
-            saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-1"));
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-1"));
         assertTrue(execOk, "setPermit executed");
 
-        (bool okP,) = saw.permitExecute(0, address(target), 0, call, nonce);
+        (bool okP,) = moloch.permitExecute(0, address(target), 0, call, nonce);
         assertTrue(okP);
         assertEq(target.stored(), 11);
     }
 
     function test_permit_unlimited_still_ignoresTimelock_and_allows_multiple() public {
         // Enable timelock
-        bytes memory dTL = abi.encodeWithSelector(SAW.setTimelockDelay.selector, uint64(7200));
-        (, bool okTL) = _openAndPass(0, address(saw), 0, dTL, keccak256("tl-on-permit-2"));
+        bytes memory dTL =
+            abi.encodeWithSelector(MolochMajeur.setTimelockDelay.selector, uint64(7200));
+        (, bool okTL) = _openAndPass(0, address(moloch), 0, dTL, keccak256("tl-on-permit-2"));
         assertTrue(okTL);
 
         // Queue + execute an unlimited permit installation
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 22);
         bytes32 nonce = keccak256("permit-bypass-unlimited-1");
         bytes memory dSet = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, call, nonce, type(uint256).max, true
+            MolochMajeur.setPermit.selector,
+            0,
+            address(target),
+            0,
+            call,
+            nonce,
+            type(uint256).max,
+            true
         );
 
-        bytes32 hSet = _id(0, address(saw), 0, dSet, keccak256("queue-setPermit-2"));
+        bytes32 hSet = _id(0, address(moloch), 0, dSet, keccak256("queue-setPermit-2"));
         _open(hSet);
         _voteYes(hSet, alice);
         _voteYes(hSet, bob);
 
-        (bool q,) = saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-2"));
+        (bool q,) =
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-2"));
         assertTrue(q, "queued");
         vm.warp(block.timestamp + 7200 + 1);
         vm.roll(block.number + 1);
         (bool execOk,) =
-            saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-2"));
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-2"));
         assertTrue(execOk, "setPermit executed");
 
         // Confirm unlimited installed
         bytes32 hIntent = _id(0, address(target), 0, call, nonce);
-        assertEq(saw.permits(hIntent), type(uint256).max, "unlimited installed");
+        assertEq(moloch.permits(hIntent), type(uint256).max, "unlimited installed");
 
         // Execute twice immediately (bypass still true)
-        (bool ok1,) = saw.permitExecute(0, address(target), 0, call, nonce);
+        (bool ok1,) = moloch.permitExecute(0, address(target), 0, call, nonce);
         assertTrue(ok1);
         assertEq(target.stored(), 22);
 
-        (bool ok2,) = saw.permitExecute(0, address(target), 0, call, nonce);
+        (bool ok2,) = moloch.permitExecute(0, address(target), 0, call, nonce);
         assertTrue(ok2);
         assertEq(target.stored(), 22, "same payload reapplied");
 
         // Counter remains MAX
-        assertEq(saw.permits(hIntent), type(uint256).max, "still MAX");
+        assertEq(moloch.permits(hIntent), type(uint256).max, "still MAX");
     }
 
     function test_vote_path_respectsTimelock_while_permit_bypasses() public {
         // Timelock on
-        bytes memory dTL = abi.encodeWithSelector(SAW.setTimelockDelay.selector, uint64(1800));
-        (, bool okTL) = _openAndPass(0, address(saw), 0, dTL, keccak256("tl-on-contrast"));
+        bytes memory dTL =
+            abi.encodeWithSelector(MolochMajeur.setTimelockDelay.selector, uint64(1800));
+        (, bool okTL) = _openAndPass(0, address(moloch), 0, dTL, keccak256("tl-on-contrast"));
         assertTrue(okTL);
 
         // Vote path queues, then Timelocked on second call
@@ -1950,81 +1987,86 @@ contract SAWTest is Test {
         _voteYes(hVote, alice);
         _voteYes(hVote, bob);
 
-        (bool q1,) = saw.executeByVotes(0, address(target), 0, dataCall, nVote);
+        (bool q1,) = moloch.executeByVotes(0, address(target), 0, dataCall, nVote);
         assertTrue(q1, "queued");
 
-        uint64 until = uint64(saw.queuedAt(hVote)) + 1800;
-        vm.expectRevert(abi.encodeWithSelector(SAW.Timelocked.selector, until));
-        saw.executeByVotes(0, address(target), 0, dataCall, nVote);
+        uint64 until = uint64(moloch.queuedAt(hVote)) + 1800;
+        vm.expectRevert(abi.encodeWithSelector(MolochMajeur.Timelocked.selector, until));
+        moloch.executeByVotes(0, address(target), 0, dataCall, nVote);
 
         // Install a one-shot permit under timelock, then show bypass
         bytes memory callP = abi.encodeWithSelector(Target.store.selector, 34);
         bytes32 nPermit = keccak256("permit-tl-contrast-1");
         bytes memory dSet = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, callP, nPermit, 1, true
+            MolochMajeur.setPermit.selector, 0, address(target), 0, callP, nPermit, 1, true
         );
-        bytes32 hSet = _id(0, address(saw), 0, dSet, keccak256("queue-setPermit-3"));
+        bytes32 hSet = _id(0, address(moloch), 0, dSet, keccak256("queue-setPermit-3"));
         _open(hSet);
         _voteYes(hSet, alice);
         _voteYes(hSet, bob);
-        (bool q2,) = saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-3"));
+        (bool q2,) =
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-3"));
         assertTrue(q2);
-        vm.warp(uint64(saw.queuedAt(hSet)) + 1800 + 1);
+        vm.warp(uint64(moloch.queuedAt(hSet)) + 1800 + 1);
         vm.roll(block.number + 1);
         (bool execOk,) =
-            saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-3"));
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-3"));
         assertTrue(execOk);
 
-        (bool okP,) = saw.permitExecute(0, address(target), 0, callP, nPermit);
+        (bool okP,) = moloch.permitExecute(0, address(target), 0, callP, nPermit);
         assertTrue(okP);
         assertEq(target.stored(), 34);
     }
 
     function test_permit_single_use_consumes_and_then_blocks_even_with_timelock_enabled() public {
         // Timelock on (doesn't affect permit exec by design)
-        bytes memory dTL = abi.encodeWithSelector(SAW.setTimelockDelay.selector, uint64(900));
-        (, bool okTL) = _openAndPass(0, address(saw), 0, dTL, keccak256("tl-on-one-shot"));
+        bytes memory dTL =
+            abi.encodeWithSelector(MolochMajeur.setTimelockDelay.selector, uint64(900));
+        (, bool okTL) = _openAndPass(0, address(moloch), 0, dTL, keccak256("tl-on-one-shot"));
         assertTrue(okTL);
 
         // Queue + execute one-shot permit installation
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 44);
         bytes32 nonce = keccak256("permit-one-shot-setup");
         bytes memory dSet = abi.encodeWithSelector(
-            SAW.setPermit.selector, 0, address(target), 0, call, nonce, 1, true
+            MolochMajeur.setPermit.selector, 0, address(target), 0, call, nonce, 1, true
         );
 
-        bytes32 hSet = _id(0, address(saw), 0, dSet, keccak256("queue-setPermit-4"));
+        bytes32 hSet = _id(0, address(moloch), 0, dSet, keccak256("queue-setPermit-4"));
         _open(hSet);
         _voteYes(hSet, alice);
         _voteYes(hSet, bob);
 
-        (bool q,) = saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-4"));
+        (bool q,) =
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-4"));
         assertTrue(q);
         vm.warp(block.timestamp + 900 + 1);
         vm.roll(block.number + 1);
         (bool execOk,) =
-            saw.executeByVotes(0, address(saw), 0, dSet, keccak256("queue-setPermit-4"));
+            moloch.executeByVotes(0, address(moloch), 0, dSet, keccak256("queue-setPermit-4"));
         assertTrue(execOk, "setPermit executed");
 
         // First permit execute succeeds immediately
-        (bool ok1,) = saw.permitExecute(0, address(target), 0, call, nonce);
+        (bool ok1,) = moloch.permitExecute(0, address(target), 0, call, nonce);
         assertTrue(ok1);
         assertEq(target.stored(), 44);
 
         // Second attempt should revert (count consumed)
-        vm.expectRevert(SAW.NotApprover.selector);
-        saw.permitExecute(0, address(target), 0, call, nonce);
+        vm.expectRevert(MolochMajeur.NotApprover.selector);
+        moloch.permitExecute(0, address(target), 0, call, nonce);
     }
 
     function test_queued_then_TTL_expires_but_executes_after_timelock() public {
         // TTL = 2s, Timelock = 5s (TTL < timelock to stress the edge)
         {
-            bytes memory dTTL = abi.encodeWithSelector(SAW.setProposalTTL.selector, uint64(2));
-            (, bool ok1) = _openAndPass(0, address(saw), 0, dTTL, keccak256("ttl=2s"));
+            bytes memory dTTL =
+                abi.encodeWithSelector(MolochMajeur.setProposalTTL.selector, uint64(2));
+            (, bool ok1) = _openAndPass(0, address(moloch), 0, dTTL, keccak256("ttl=2s"));
             assertTrue(ok1, "ttl set");
 
-            bytes memory dTL = abi.encodeWithSelector(SAW.setTimelockDelay.selector, uint64(5));
-            (, bool ok2) = _openAndPass(0, address(saw), 0, dTL, keccak256("timelock=5s"));
+            bytes memory dTL =
+                abi.encodeWithSelector(MolochMajeur.setTimelockDelay.selector, uint64(5));
+            (, bool ok2) = _openAndPass(0, address(moloch), 0, dTL, keccak256("timelock=5s"));
             assertTrue(ok2, "timelock set");
         }
 
@@ -2039,30 +2081,38 @@ contract SAWTest is Test {
         _voteYes(h, bob);
 
         // First execute queues (must happen before TTL deadline)
-        (bool queued,) = saw.executeByVotes(0, address(target), 0, callData, nonce);
+        (bool queued,) = moloch.executeByVotes(0, address(target), 0, callData, nonce);
         assertTrue(queued, "queued");
-        uint64 qAt = saw.queuedAt(h);
+        uint64 qAt = moloch.queuedAt(h);
         assertTrue(qAt != 0, "queuedAt set");
-        assertEq(uint256(saw.state(h)), uint256(SAW.ProposalState.Queued), "state=Queued");
+        assertEq(
+            uint256(moloch.state(h)), uint256(MolochMajeur.ProposalState.Queued), "state=Queued"
+        );
 
         // Let TTL elapse *while queued* (but not the timelock)
-        uint64 t0 = saw.createdAt(h);
+        uint64 t0 = moloch.createdAt(h);
         vm.warp(uint256(t0) + 3); // > TTL(2s) elapsed
-        assertEq(uint256(saw.state(h)), uint256(SAW.ProposalState.Queued), "still Queued after TTL");
+        assertEq(
+            uint256(moloch.state(h)),
+            uint256(MolochMajeur.ProposalState.Queued),
+            "still Queued after TTL"
+        );
 
         // After timelock elapses, it should be ready and execute successfully
         vm.warp(uint256(qAt) + 5 + 1); // timelock(5s) + epsilon
         assertEq(
-            uint256(saw.state(h)), uint256(SAW.ProposalState.Succeeded), "ready after timelock"
+            uint256(moloch.state(h)),
+            uint256(MolochMajeur.ProposalState.Succeeded),
+            "ready after timelock"
         );
 
-        (bool okExec,) = saw.executeByVotes(0, address(target), 0, callData, nonce);
+        (bool okExec,) = moloch.executeByVotes(0, address(target), 0, callData, nonce);
         assertTrue(okExec, "executed after timelock");
         assertEq(target.stored(), 123, "effect applied");
     }
 
     /*───────────────────────────────────────────────────────────────────*
-    * FRACTIONAL DELEGATION (SAWShares)
+    * FRACTIONAL DELEGATION (molochShares)
     *───────────────────────────────────────────────────────────────────*/
     /*
     function test_fractionalDelegation_basicSplit_updatesVotes_andPast() public {
@@ -2328,7 +2378,7 @@ contract BadERC20False {
  * C) RageQuit is nonReentrant (reentrancy attempt causes revert)
  *───────────────────────────────────────────────────────────────────*/
 contract ReentrantERC20 is MockERC20 {
-    SAW public saw;
+    MolochMajeur public moloch;
     address public reenterCaller;
     bool internal entered;
 
@@ -2337,14 +2387,14 @@ contract ReentrantERC20 is MockERC20 {
 
     constructor(string memory n, string memory s, uint8 d) payable MockERC20(n, s, d) {}
 
-    function arm(SAW _saw, address _caller) public {
-        saw = _saw;
+    function arm(MolochMajeur _moloch, address _caller) public {
+        moloch = _moloch;
         reenterCaller = _caller;
     }
 
     function transfer(address to, uint256 amt) public override returns (bool) {
         bool ok = super.transfer(to, amt);
-        if (!entered && to == reenterCaller && address(saw) != address(0)) {
+        if (!entered && to == reenterCaller && address(moloch) != address(0)) {
             entered = true;
 
             // Try to reenter via the hook; it should REVERT due to nonReentrant.
@@ -2361,18 +2411,18 @@ contract ReentrantERC20 is MockERC20 {
 }
 
 contract RageQuitHook {
-    SAW public saw;
+    MolochMajeur public moloch;
     address[] public toks;
 
-    constructor(SAW _saw, address tkn) payable {
-        saw = _saw;
+    constructor(MolochMajeur _moloch, address tkn) payable {
+        moloch = _moloch;
         toks = new address[](1);
         toks[0] = tkn;
     }
 
     function reenterRageQuit() public {
         // This runs during ERC20.transfer() → must hit nonReentrant
-        saw.rageQuit(toks);
+        moloch.rageQuit(toks);
     }
 }
 

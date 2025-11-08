@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 /**
- * @title SAW — Snapshot-Weighted Multisig/DAO (no-custody), with ERC-6909 vote receipts, futarchy (optional),
+ * @title Moloch (Majeur) — Snapshot-Weighted Multisig/DAO (no-custody), with ERC-6909 vote receipts, futarchy (optional),
  *         timelock, permits, allowances/pull, token sales, ragequit, and SBT-gated chat.
  *
  * Design goals:
@@ -13,7 +13,7 @@ pragma solidity ^0.8.30;
  * - ERC6909 receipts (non-transferable) minted on vote; can be burned for futarchy payouts if enabled.
  * - Minimal external deps. All code in one file, readable and auditable.
  */
-contract SAW {
+contract MolochMajeur {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -57,8 +57,8 @@ contract SAW {
     /*//////////////////////////////////////////////////////////////
                       TOKENS: SHARES (ERC20) / BADGE (SBT)
     //////////////////////////////////////////////////////////////*/
-    SAWShares public shares;
-    SAWBadge public badge;
+    MolochShares public shares;
+    MolochBadge public badge;
 
     event SharesDeployed(address token);
     event BadgeDeployed(address badge);
@@ -220,9 +220,9 @@ contract SAW {
         ragequittable = _ragequittable;
 
         // Deploy Shares + Badge; names/symbols are pulled from SAW.
-        shares = new SAWShares(initialHolders, initialAmounts, address(this));
+        shares = new MolochShares(initialHolders, initialAmounts, address(this));
         emit SharesDeployed(address(shares));
-        badge = new SAWBadge();
+        badge = new MolochBadge();
         emit BadgeDeployed(address(badge));
 
         // Seed top-256 via hook.
@@ -659,7 +659,7 @@ contract SAW {
 
         // Issue shares
         if (s.minting) {
-            shares.mintFromSAW(msg.sender, shareAmount);
+            shares.mintFromMolochMajeur(msg.sender, shareAmount);
         } else {
             shares.transfer(msg.sender, shareAmount); // SAW must hold enough
         }
@@ -676,7 +676,7 @@ contract SAW {
         if (amt == 0) revert NotOk();
 
         uint256 ts = shares.totalSupply();
-        shares.burnFromSAW(msg.sender, amt);
+        shares.burnFromMolochMajeur(msg.sender, amt);
 
         address prev = address(0);
         for (uint256 i = 0; i < tokens.length; ++i) {
@@ -832,7 +832,7 @@ contract SAW {
                              ERC6909 INTERNALS
     //////////////////////////////////////////////////////////////*/
     function _receiptId(bytes32 h, uint8 support) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked("SAW:receipt", h, support)));
+        return uint256(keccak256(abi.encodePacked("Moloch:receipt", h, support)));
     }
 
     function _mint6909(address to, uint256 id, uint256 amount) internal {
@@ -1376,7 +1376,7 @@ interface IToken {
 /*//////////////////////////////////////////////////////////////
              ERC20 SHARES WITH LIGHTWEIGHT SNAPSHOTS/DELEGATION
 //////////////////////////////////////////////////////////////*/
-contract SAWShares {
+contract MolochShares {
     /* ERRORS */
     error Len();
     error Locked();
@@ -1432,11 +1432,11 @@ contract SAWShares {
 
     // dynamic metadata from SAW
     function name() public view returns (string memory) {
-        return string.concat(SAW(saw).orgName(), " Shares");
+        return string.concat(MolochMajeur(saw).orgName(), " Shares");
     }
 
     function symbol() public view returns (string memory) {
-        return SAW(saw).orgSymbol();
+        return MolochMajeur(saw).orgSymbol();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1449,7 +1449,7 @@ contract SAWShares {
     }
 
     function transfer(address to, uint256 amount) public returns (bool) {
-        if (SAW(saw).transfersLocked() && msg.sender != saw && to != saw) revert Locked();
+        if (MolochMajeur(saw).transfersLocked() && msg.sender != saw && to != saw) revert Locked();
         balanceOf[msg.sender] -= amount;
         unchecked {
             balanceOf[to] += amount;
@@ -1463,13 +1463,13 @@ contract SAWShares {
         _applyVotingDelta(msg.sender, -int256(amount));
         _applyVotingDelta(to, int256(amount));
 
-        SAW(saw).onSharesChanged(msg.sender);
-        SAW(saw).onSharesChanged(to);
+        MolochMajeur(saw).onSharesChanged(msg.sender);
+        MolochMajeur(saw).onSharesChanged(to);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
-        if (SAW(saw).transfersLocked() && from != saw && to != saw) revert Locked();
+        if (MolochMajeur(saw).transfersLocked() && from != saw && to != saw) revert Locked();
 
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
@@ -1488,20 +1488,20 @@ contract SAWShares {
         _applyVotingDelta(from, -int256(amount));
         _applyVotingDelta(to, int256(amount));
 
-        SAW(saw).onSharesChanged(from);
-        SAW(saw).onSharesChanged(to);
+        MolochMajeur(saw).onSharesChanged(from);
+        MolochMajeur(saw).onSharesChanged(to);
         return true;
     }
 
-    function mintFromSAW(address to, uint256 amount) public payable {
+    function mintFromMolochMajeur(address to, uint256 amount) public payable {
         require(msg.sender == saw, "SAW");
         _mint(to, amount);
         _autoSelfDelegate(to);
         _applyVotingDelta(to, int256(amount)); // NEW: route votes via split
-        SAW(saw).onSharesChanged(to);
+        MolochMajeur(saw).onSharesChanged(to);
     }
 
-    function burnFromSAW(address from, uint256 amount) public payable {
+    function burnFromMolochMajeur(address from, uint256 amount) public payable {
         require(msg.sender == saw, "SAW");
         balanceOf[from] -= amount;
         unchecked {
@@ -1514,7 +1514,7 @@ contract SAWShares {
 
         _applyVotingDelta(from, -int256(amount)); // NEW: route vote removal via split
 
-        SAW(saw).onSharesChanged(from);
+        MolochMajeur(saw).onSharesChanged(from);
     }
 
     function _mint(address to, uint256 amount) internal {
@@ -1867,8 +1867,8 @@ contract SAWShares {
     }
 }
 
-/* Interfaces used by SAWShares dynamic calls */
-interface ISAW {
+/* Interfaces used by MolochShares dynamic calls */
+interface IMoloch {
     function orgName() external view returns (string memory);
     function orgSymbol() external view returns (string memory);
     function transfersLocked() external view returns (bool);
@@ -1878,7 +1878,7 @@ interface ISAW {
 /*//////////////////////////////////////////////////////////////
    Non-transferable top-256 vanity badge (SBT). ID = holder address.
 //////////////////////////////////////////////////////////////*/
-contract SAWBadge {
+contract MolochBadge {
     /* ERC721-ish */
     event Transfer(address indexed from, address indexed to, uint256 indexed id);
 
@@ -1893,11 +1893,11 @@ contract SAWBadge {
 
     // dynamic metadata from SAW
     function name() public view returns (string memory) {
-        return string.concat(SAW(saw).orgName(), " Badge");
+        return string.concat(MolochMajeur(saw).orgName(), " Badge");
     }
 
     function symbol() public view returns (string memory) {
-        return string.concat(SAW(saw).orgSymbol(), "B");
+        return string.concat(MolochMajeur(saw).orgSymbol(), "B");
     }
 
     function ownerOf(uint256 id) public view returns (address o) {
@@ -1911,10 +1911,10 @@ contract SAWBadge {
 
     function tokenURI(uint256 id) public view returns (string memory) {
         address holder = address(uint160(id));
-        SAWShares sh = SAW(saw).shares();
+        MolochShares sh = MolochMajeur(saw).shares();
         uint256 bal = sh.balanceOf(holder);
         uint256 ts = sh.totalSupply();
-        uint256 rk = SAW(saw).rankOf(holder); // 0 if not in top set
+        uint256 rk = MolochMajeur(saw).rankOf(holder); // 0 if not in top set
 
         string memory addr = _addrHex(holder);
         string memory pct = _percent(bal, ts);
