@@ -42,24 +42,17 @@ contract MolochMajeur {
     /*//////////////////////////////////////////////////////////////
                            GOVERNANCE CONFIG
     //////////////////////////////////////////////////////////////*/
-    // Dynamic quorum relative to snapshot supply (0 = disabled)
-    uint16 public quorumBps;
+    // Absolute vote thresholds (0 = disabled)
+    uint256 public minYesVotesAbsolute; // minimum YES (FOR) votes
+    uint256 public quorumAbsolute; // minimum total turnout (FOR+AGAINST+ABSTAIN)
 
-    // Absolute minimum YES (FOR) votes required (0 = disabled)
-    uint256 public minYesVotesAbsolute;
+    // Time-based settings (seconds; 0 = off)
+    uint64 public proposalTTL; // proposal expiry
+    uint64 public timelockDelay; // delay between success and execution
 
-    // Optional absolute turnout (FOR + AGAINST + ABSTAIN) (0 = disabled)
-    uint256 public quorumAbsolute;
-
-    // Optional proposal expiry (seconds; 0 = no expiry)
-    uint64 public proposalTTL;
-
-    // Optional timelock delay before execution (seconds; 0 = no timelock)
-    uint64 public timelockDelay;
-
-    // Governance "bump" salt to invalidate prior proposal ids/permits
-    uint64 public config;
-
+    // Governance versioning / dynamic quorum / global flags
+    uint64 public config; // bump salt to invalidate old ids/permits
+    uint16 public quorumBps; // dynamic quorum vs snapshot supply (BPS, 0 = off)
     bool public ragequittable;
     bool public transfersLocked; // global Shares transfer lock
 
