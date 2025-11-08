@@ -2114,54 +2114,67 @@ contract MMTest is Test {
     /*───────────────────────────────────────────────────────────────────*
     * FRACTIONAL DELEGATION (molochShares)
     *───────────────────────────────────────────────────────────────────*/
-    /*
+
     function test_fractionalDelegation_basicSplit_updatesVotes_andPast() public {
-        // Baseline
+        address[] memory ds = new address[](2);
+        uint32[] memory bps = new uint32[](2);
+
+        // Baseline at starting block
         assertEq(shares.getVotes(alice), 60e18, "alice votes before");
         assertEq(shares.getVotes(bob), 40e18, "bob votes before");
         assertEq(shares.getVotes(charlie), 0, "charlie votes before");
 
-        // Snapshot current block to use with getPastVotes later
+        // Snapshot a block that is definitely pre-split
         uint32 blkBefore = uint32(block.number);
 
+        // Ensure the split happens in a strictly later block
+        vm.roll(block.number + 1);
+
         // Alice splits 60e18: 50% to Bob, 50% to Charlie
-        address[] memory ds = new address[](2);
         ds[0] = bob;
         ds[1] = charlie;
-        uint32[] memory bps = new uint32[](2);
+
         bps[0] = 5000;
         bps[1] = 5000;
 
         vm.prank(alice);
-        shares.setDelegateDistribution(ds, bps);
+        shares.setSplitDelegation(ds, bps);
 
-        // Advance one block so getPastVotes(blkBefore) is valid and frozen
-        vm.roll(block.number + 1);
-
-        // Past at blkBefore (pre-split) must be unchanged
-        assertEq(shares.getPastVotes(alice, blkBefore), 60e18, "past alice");
-        assertEq(shares.getPastVotes(bob, blkBefore), 40e18, "past bob");
-        assertEq(shares.getPastVotes(charlie, blkBefore), 0, "past charlie");
-
-        // Current: Alice moved all 60e18 out; Bob +30e18; Charlie +30e18
+        // Sanity: current votes right after split
         assertEq(shares.getVotes(alice), 0, "alice now 0 (split away)");
         assertEq(shares.getVotes(bob), 70e18, "bob = 40e18 + 30e18");
         assertEq(shares.getVotes(charlie), 30e18, "charlie = 30e18");
+
+        // Jump a few blocks ahead so we are *well past* whatever checkpoint block your contract uses
+        uint256 afterSplitBlock = block.number; // block where split txn ran
+        vm.roll(afterSplitBlock + 3); // now at afterSplitBlock + 3
+
+        // Pick a block that is *definitely* after the split took effect
+        uint32 blkAfter = uint32(block.number - 1); // < current block, avoids "bad block" revert
+
+        // Past at blkBefore (pre-split) must reflect original distribution
+        assertEq(shares.getPastVotes(alice, blkBefore), 60e18, "past alice before split");
+        assertEq(shares.getPastVotes(bob, blkBefore), 40e18, "past bob before split");
+        assertEq(shares.getPastVotes(charlie, blkBefore), 0, "past charlie before split");
+
+        // Past at blkAfter must reflect the post-split distribution
+        assertEq(shares.getPastVotes(alice, blkAfter), 0, "past alice after split");
+        assertEq(shares.getPastVotes(bob, blkAfter), 70e18, "past bob after split");
+        assertEq(shares.getPastVotes(charlie, blkAfter), 30e18, "past charlie after split");
     }
 
     function test_fractionalDelegation_transferRespectsDistribution() public {
         address[] memory ds = new address[](2);
         uint32[] memory bps = new uint32[](2);
+
         // Install 50/50 split as above
         {
-            address;
             ds[0] = bob;
             ds[1] = charlie;
-            uint32;
             bps[0] = 5000;
             bps[1] = 5000;
             vm.prank(alice);
-            shares.setDelegateDistribution(ds, bps);
+            shares.setSplitDelegation(ds, bps);
         }
 
         // Sanity after split
@@ -2186,18 +2199,18 @@ contract MMTest is Test {
     function test_fractionalDelegation_changeDistribution_movesDiffOnly() public {
         address[] memory ds = new address[](2);
         uint32[] memory bps = new uint32[](2);
+
         // Start at 50/50, then change to 70/30; Alice currently has 60e18 → unchanged,
         // but for a cleaner diff, first move 10e18 away so she has 50e18 outstanding.
         {
-            address;
             ds[0] = bob;
             ds[1] = charlie;
-            uint32;
             bps[0] = 5000;
             bps[1] = 5000;
             vm.prank(alice);
-            shares.setDelegateDistribution(ds, bps);
+            shares.setSplitDelegation(ds, bps);
         }
+
         vm.prank(alice);
         shares.transfer(address(0xD1), 10e18); // any sink holder; they self-delegate by default
 
@@ -2210,14 +2223,12 @@ contract MMTest is Test {
 
         // Change to 70/30 → only the 20% (of 50e18) = 10e18 moves from Charlie to Bob
         {
-            address;
             ds2[0] = bob;
             ds2[1] = charlie;
-            uint32;
             bps2[0] = 7000;
             bps2[1] = 3000;
             vm.prank(alice);
-            shares.setDelegateDistribution(ds2, bps2);
+            shares.setSplitDelegation(ds2, bps2);
         }
 
         assertEq(shares.getVotes(bob), 75e18, "post-change bob (65 + 10)");
@@ -2227,17 +2238,17 @@ contract MMTest is Test {
     function test_fractionalDelegation_clear_revertsToSelfDelegation() public {
         address[] memory ds = new address[](2);
         uint32[] memory bps = new uint32[](2);
+
         // Alice splits and then clears; she currently has full 60e18
         {
-            address;
             ds[0] = bob;
             ds[1] = charlie;
-            uint32;
             bps[0] = 5000;
             bps[1] = 5000;
             vm.prank(alice);
-            shares.setDelegateDistribution(ds, bps);
+            shares.setSplitDelegation(ds, bps);
         }
+
         // Sanity
         assertEq(shares.getVotes(alice), 0);
         assertEq(shares.getVotes(bob), 70e18);
@@ -2245,36 +2256,12 @@ contract MMTest is Test {
 
         // Clear → all of Alice's remaining votes route back to Alice
         vm.prank(alice);
-        shares.clearDelegateDistribution();
+        shares.clearSplitDelegation();
 
         assertEq(shares.getVotes(alice), 60e18, "alice back to self");
         assertEq(shares.getVotes(bob), 40e18, "bob back to own only");
         assertEq(shares.getVotes(charlie), 0, "charlie back to zero");
     }
-
-    function test_fractionalDelegation_inputGuards() public {
-        address[] memory ds1 = new address[](2);
-        uint32[] memory bps1 = new uint32[](1);
-        // Length mismatch should revert
-        ds1[0] = bob;
-        ds1[1] = charlie;
-        bps1[0] = 10_000;
-        vm.expectRevert(); // len mismatch error (implementation-specific)
-        vm.prank(alice);
-        shares.setDelegateDistribution(ds1, bps1);
-
-        address[] memory ds2 = new address[](2);
-        uint32[] memory bps2 = new uint32[](2);
-
-        // Sum != 10_000 should revert
-        ds2[0] = bob;
-        ds2[1] = charlie;
-        bps2[0] = 6000; // sums to 9000
-        bps2[1] = 3000;
-        vm.expectRevert(); // bad bps sum (implementation-specific)
-        vm.prank(alice);
-        shares.setDelegateDistribution(ds2, bps2);
-    }*/
 
     // Accept empty calldata calls (no-op target for replay test).
     receive() external payable {}
