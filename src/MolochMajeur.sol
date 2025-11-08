@@ -1851,23 +1851,29 @@ contract MolochBadge {
         uint256 bal = sh.balanceOf(holder);
         uint256 ts = sh.totalSupply();
         uint256 rk = MolochMajeur(mol).rankOf(holder); // 0 if not in top set
+
+        string memory addr = _addrHex(holder);
+        string memory pct = _percent(bal, ts);
         string memory rankStr = rk == 0 ? "-" : _u2s(rk);
 
-        // Simple on-chain SVG card
+        // On-chain SVG card
         string memory svg = string.concat(
             "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='220'>",
             "<rect width='100%' height='100%' fill='#111'/>",
-            "<text x='20' y='50'  font-family='Courier New, monospace' font-size='18' fill='#fff'>",
+            "<text x='20' y='40'  font-family='Courier New, monospace' font-size='18' fill='#fff'>",
             name(),
             "</text>",
-            "<text x='20' y='90'  font-family='Courier New, monospace' font-size='12' fill='#fff'>id: ",
-            _u2s(id),
+            "<text x='20' y='70'  font-family='Courier New, monospace' font-size='12' fill='#fff'>holder: ",
+            addr,
             "</text>",
-            "<text x='20' y='110' font-family='Courier New, monospace' font-size='12' fill='#fff'>balance: ",
+            "<text x='20' y='90'  font-family='Courier New, monospace' font-size='12' fill='#fff'>balance: ",
             _u2s(bal),
             "</text>",
-            "<text x='20' y='130' font-family='Courier New, monospace' font-size='12' fill='#fff'>supply: ",
+            "<text x='20' y='110' font-family='Courier New, monospace' font-size='12' fill='#fff'>supply: ",
             _u2s(ts),
+            "</text>",
+            "<text x='20' y='130' font-family='Courier New, monospace' font-size='12' fill='#fff'>percent: ",
+            pct,
             "</text>",
             "<text x='20' y='150' font-family='Courier New, monospace' font-size='12' fill='#fff'>rank: ",
             rankStr,
@@ -1875,16 +1881,14 @@ contract MolochBadge {
             "</svg>"
         );
 
-        string memory image = string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(svg)));
-
         string memory json = string.concat(
             '{"name":"Badge","description":"Top-256 holder badge (slot rank)",',
             '"image":"',
-            image,
+            DataURI.svg(svg),
             '"}'
         );
 
-        return string.concat("data:application/json;base64,", Base64.encode(bytes(json)));
+        return DataURI.json(json);
     }
 
     function transferFrom(address, address, uint256) public pure {
@@ -1908,6 +1912,22 @@ contract MolochBadge {
     }
 
     /* utils */
+
+    // 0x + 40 hex chars
+    function _addrHex(address a) internal pure returns (string memory s) {
+        bytes20 b = bytes20(a);
+        bytes16 H = 0x30313233343536373839616263646566; // "0123456789abcdef"
+        bytes memory out = new bytes(42);
+        out[0] = "0";
+        out[1] = "x";
+        for (uint256 i = 0; i < 20; ++i) {
+            uint8 v = uint8(b[i]);
+            out[2 + 2 * i] = bytes1(H[v >> 4]);
+            out[3 + 2 * i] = bytes1(H[v & 0x0f]);
+        }
+        s = string(out);
+    }
+
     function _u2s(uint256 x) internal pure returns (string memory) {
         if (x == 0) return "0";
         uint256 temp = x;
@@ -1923,5 +1943,13 @@ contract MolochBadge {
             x /= 10;
         }
         return string(buffer);
+    }
+
+    function _percent(uint256 a, uint256 b) internal pure returns (string memory) {
+        if (b == 0) return "0.00%";
+        uint256 p = a * 10000 / b; // basis points
+        uint256 i = p / 100;
+        uint256 d = p % 100;
+        return string.concat(_u2s(i), ".", d < 10 ? "0" : "", _u2s(d), "%");
     }
 }
