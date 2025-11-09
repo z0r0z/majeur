@@ -282,14 +282,11 @@ contract MolochMajeur {
         if (!F.enabled || F.resolved) revert NotOk();
         if (F.rewardToken == address(0)) {
             if (msg.value != amount) revert NotOk();
-            F.pool += msg.value;
+            F.pool += amount;
         } else {
             if (msg.value != 0) revert NotOk();
-            uint256 before = _erc20Balance(F.rewardToken);
             _safeTransferFrom(F.rewardToken, msg.sender, address(this), amount);
-            uint256 received = _erc20Balance(F.rewardToken) - before;
-            if (received == 0) revert NotOk();
-            F.pool += received;
+            F.pool += amount;
         }
         emit FutarchyFunded(id, msg.sender, amount);
     }

@@ -3780,21 +3780,6 @@ contract MMTest is Test {
         moloch.fundFutarchy{value: 1 ether}(h, 1 ether);
     }
 
-    function test_fundFutarchy_erc20_zero_received_reverts() public {
-        // Use a token that returns success but transfers 0
-        ZeroTransferToken ztt = new ZeroTransferToken();
-        ztt.mint(address(this), 100e18);
-        ztt.approve(address(moloch), 100e18);
-
-        bytes32 h = _id(0, address(this), 0, "", keccak256("zero-transfer"));
-        bytes memory dOpen = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(ztt));
-        (, bool ok) = _openAndPass(0, address(moloch), 0, dOpen, keccak256("f-zero"));
-        assertTrue(ok);
-
-        vm.expectRevert(MolochMajeur.NotOk.selector);
-        moloch.fundFutarchy(h, 10e18);
-    }
-
     function test_openFutarchy_already_enabled_reverts() public {
         bytes32 h = _id(0, address(this), 0, "", keccak256("double-open"));
 
@@ -4216,24 +4201,6 @@ contract MMTest is Test {
 
         (,, uint256 pool,,,,) = moloch.futarchy(h);
         assertEq(pool, 100 ether, "accumulated pool");
-    }
-
-    function test_futarchy_erc20_transfer_with_fee_token() public {
-        // Use a token with transfer fee
-        FeeToken ft = new FeeToken();
-        ft.mint(address(this), 1000e18);
-        ft.approve(address(moloch), 1000e18);
-
-        bytes32 h = _id(0, address(this), 0, "", keccak256("fee-token"));
-        bytes memory dOpen = abi.encodeWithSelector(moloch.openFutarchy.selector, h, address(ft));
-        (, bool ok) = _openAndPass(0, address(moloch), 0, dOpen, keccak256("f-fee"));
-        assertTrue(ok);
-
-        // Fund with fee token (1% fee)
-        moloch.fundFutarchy(h, 100e18);
-
-        (,, uint256 pool,,,,) = moloch.futarchy(h);
-        assertEq(pool, 99e18, "pool after 1% fee"); // Only 99 received due to fee
     }
 
     /*───────────────────────────────────────────────────────────────────*
