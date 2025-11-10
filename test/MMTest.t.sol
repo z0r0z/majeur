@@ -36,7 +36,8 @@ contract MMTest is Test {
         initialAmounts[1] = 40e18;
 
         // quorumBps = 50%, ragequit enabled
-        moloch = new MolochMajeur("Neo Org", "NEO", 5000, true, initialHolders, initialAmounts);
+        moloch =
+            new MolochMajeur("Neo Org", "NEO", "NEO", 5000, true, initialHolders, initialAmounts);
         shares = moloch.shares();
         badge = moloch.badge();
 
@@ -4247,8 +4248,8 @@ contract MMTest is Test {
 
         uint256 rid = uint256(keccak256(abi.encodePacked("Moloch:receipt", h, uint8(1))));
 
-        assertEq(moloch.name(rid), moloch.orgName(), "name matches");
-        assertEq(moloch.symbol(rid), moloch.orgSymbol(), "symbol matches");
+        assertEq(moloch.name(rid), moloch.name(0), "name matches");
+        assertEq(moloch.symbol(rid), moloch.symbol(0), "symbol matches");
     }
 
     function test_receipt_balanceOf_tracks_votes() public {
@@ -5348,7 +5349,8 @@ contract MMTest is Test {
         amounts[0] = 1;
         amounts[1] = 1;
 
-        MolochMajeur multisig = new MolochMajeur("Multisig", "MS", 10000, false, owners, amounts);
+        MolochMajeur multisig =
+            new MolochMajeur("Multisig", "MS", "MS", 10000, false, owners, amounts);
 
         // Both must vote to pass
         bytes memory call = abi.encodeWithSelector(Target.store.selector, 123);
@@ -5704,7 +5706,8 @@ contract MMTest is Test {
             amounts[i] = 1;
         }
 
-        MolochMajeur multisig = new MolochMajeur("3of5", "3/5", 6000, false, signers, amounts);
+        MolochMajeur multisig =
+            new MolochMajeur("3of5", "3/5", "3/5", 6000, false, signers, amounts);
 
         // Fund it
         vm.deal(address(multisig), 10 ether);

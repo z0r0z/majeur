@@ -8,9 +8,6 @@ pragma solidity ^0.8.30;
  * @dev Proposals pass when FOR > AGAINST and quorum met. Snapshots at block N-1.
  */
 contract MolochMajeur {
-    /*//////////////////////////////////////////////////////////////
-                                ERRORS
-    //////////////////////////////////////////////////////////////*/
     error NotOk();
     error NotOwner();
     error NotApprover();
@@ -18,51 +15,32 @@ contract MolochMajeur {
     error LengthMismatch();
     error Timelocked(uint64 untilWhen);
 
-    /*//////////////////////////////////////////////////////////////
-                               MODIFIERS
-    //////////////////////////////////////////////////////////////*/
-    /// @dev Restricts a function to be callable only by the Moloch contract itself.
     modifier onlySelf() {
-        if (msg.sender != address(this)) revert NotOwner();
+        require(msg.sender == address(this), NotOwner());
         _;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              ORG / METADATA
-    //////////////////////////////////////////////////////////////*/
-    string public orgName;
-    string public orgSymbol;
+    string _orgName;
+    string _orgSymbol;
 
-    /*//////////////////////////////////////////////////////////////
-                           GOVERNANCE CONFIG
-    //////////////////////////////////////////////////////////////*/
-    // Absolute vote thresholds (0 = disabled)
+    /// @dev Absolute vote thresholds (0 = disabled):
     uint256 public minYesVotesAbsolute; // minimum YES (FOR) votes
     uint256 public quorumAbsolute; // minimum total turnout (FOR+AGAINST+ABSTAIN)
 
-    // Time-based settings (seconds; 0 = off)
+    /// @dev Time-based settings (seconds; 0 = off):
     uint64 public proposalTTL; // proposal expiry
     uint64 public timelockDelay; // delay between success and execution
 
-    // Governance versioning / dynamic quorum / global flags
+    /// @dev Governance versioning / dynamic quorum / global flags:
     uint64 public config; // bump salt to invalidate old ids/permits
     uint16 public quorumBps; // dynamic quorum vs snapshot supply (BPS, 0 = off)
-    bool public ragequittable;
+    bool public ragequittable; // `true` if owners can ragequit shares
     bool public transfersLocked; // global Shares transfer lock
 
-    /*//////////////////////////////////////////////////////////////
-                      TOKENS: SHARES (ERC20) / BADGE (SBT)
-    //////////////////////////////////////////////////////////////*/
     MolochShares public immutable shares;
     MolochBadge public immutable badge;
 
-    event SharesDeployed(address token);
-    event BadgeDeployed(address badge);
-
-    /*//////////////////////////////////////////////////////////////
-                           PROPOSAL / STATE TRACKING
-    //////////////////////////////////////////////////////////////*/
-    // Proposal id = keccak(address(this), op, to, value, keccak(data), nonce, config)
+    /// @dev Proposal id = keccak(address(this), op, to, value, keccak(data), nonce, config):
     mapping(bytes32 => bool) public executed; // executed latch
     mapping(bytes32 => uint64) public createdAt; // first open/vote time
     mapping(bytes32 => uint256) public snapshotBlock; // block.number - 1
@@ -76,7 +54,7 @@ contract MolochMajeur {
     }
     mapping(bytes32 => Tally) public tallies;
 
-    // hasVoted[id][voter] = 0 = not, 1 = FOR, 2 = AGAINST, 3 = ABSTAIN
+    /// @dev hasVoted[id][voter] = 0 = not, 1 = FOR, 2 = AGAINST, 3 = ABSTAIN:
     mapping(bytes32 => mapping(address => uint8)) public hasVoted;
 
     enum ProposalState {
@@ -94,30 +72,21 @@ contract MolochMajeur {
     event Queued(bytes32 indexed id, uint64 when);
     event Executed(bytes32 indexed id, address indexed by, uint8 op, address to, uint256 value);
 
-    /*//////////////////////////////////////////////////////////////
-                           PERMITS (FIXED SPEND)
-    //////////////////////////////////////////////////////////////*/
     mapping(bytes32 => uint256) public permits; // remaining uses (max=unlimited)
     event PermitSet(bytes32 indexed hash, uint256 newCount, bool replaced);
     event PermitSpent(
         bytes32 indexed hash, address indexed by, uint8 op, address to, uint256 value
     );
 
-    /*//////////////////////////////////////////////////////////////
-                           ALLOWANCES / PULL
-    //////////////////////////////////////////////////////////////*/
     mapping(address token => mapping(address spender => uint256 amount)) public allowance;
 
-    /*//////////////////////////////////////////////////////////////
-                           TREASURY SALES (SHARES)
-    //////////////////////////////////////////////////////////////*/
     struct Sale {
         uint256 pricePerShare; // in payToken units (wei for ETH)
         uint256 cap; // remaining shares (0 = unlimited)
-        bool minting; // true=mint, false=transfer SAW-held
+        bool minting; // true=mint, false=transfer Moloch-held
         bool active;
     }
-    mapping(address => Sale) public sales; // payToken => Sale
+    mapping(address payToken => Sale) public sales;
 
     event SaleUpdated(
         address indexed payToken, uint256 price, uint256 cap, bool minting, bool active
@@ -126,16 +95,10 @@ contract MolochMajeur {
         address indexed buyer, address indexed payToken, uint256 shares, uint256 paid
     );
 
-    /*//////////////////////////////////////////////////////////////
-                              SBT-GATED CHAT
-    //////////////////////////////////////////////////////////////*/
     string[] public messages;
     event Message(address indexed from, uint256 indexed index, string text);
 
-    /*//////////////////////////////////////////////////////////////
-                      ERC6909 RECEIPTS (NON-TRANSFERABLE)
-    //////////////////////////////////////////////////////////////*/
-    // ERC6909 metadata: org name/symbol (shared across ids)
+    /// @dev ERC6909 metadata: org name/symbol (shared across ids):
     function name(
         uint256 /*id*/
     )
@@ -143,7 +106,7 @@ contract MolochMajeur {
         view
         returns (string memory)
     {
-        return orgName;
+        return _orgName;
     }
 
     function symbol(
@@ -153,25 +116,23 @@ contract MolochMajeur {
         view
         returns (string memory)
     {
-        return orgSymbol;
+        return _orgSymbol;
     }
+
+    /// @dev The contract-level URI:
+    string public contractURI;
 
     event Transfer(
         address caller, address indexed from, address indexed to, uint256 indexed id, uint256 amount
     );
 
-    // holder => id => amount
-    mapping(address => mapping(uint256 => uint256)) public balanceOf;
-    // id => total supply
-    mapping(uint256 => uint256) public totalSupply;
+    mapping(address owner => mapping(uint256 id => uint256)) public balanceOf;
+    mapping(uint256 id => uint256) public totalSupply;
 
-    // decode helpers for SVGs & futarchy validation
-    mapping(uint256 => uint8) public receiptSupport; // 0=Against, 1=For, 2=Abstain
-    mapping(uint256 => bytes32) public receiptProposal; // which proposal this receipt belongs to
+    /// @dev Decode helpers for SVGs & futarchy validation:
+    mapping(uint256 id => uint8) public receiptSupport; // 0=Against, 1=For, 2=Abstain
+    mapping(uint256 id => bytes32) public receiptProposal; // which proposal this receipt belongs to
 
-    /*//////////////////////////////////////////////////////////////
-                             FUTARCHY (OPTIONAL)
-    //////////////////////////////////////////////////////////////*/
     struct FutarchyConfig {
         bool enabled; // futarchy mode for this proposal
         address rewardToken; // address(0) = ETH, else ERC20
@@ -192,40 +153,34 @@ contract MolochMajeur {
         bytes32 indexed id, address indexed claimer, uint256 burned, uint256 payout
     );
 
-    /*//////////////////////////////////////////////////////////////
-                               CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
     constructor(
-        string memory _orgName,
-        string memory _orgSymbol,
+        string memory orgName,
+        string memory orgSymbol,
+        string memory _contractURI,
         uint16 _quorumBps, // e.g. 5000 = 50% turnout of snapshot supply
         bool _ragequittable,
         address[] memory initialHolders,
         uint256[] memory initialAmounts
     ) payable {
-        if (initialHolders.length != initialAmounts.length) {
-            revert LengthMismatch();
-        }
+        require(initialHolders.length == initialAmounts.length, LengthMismatch());
 
-        orgName = _orgName;
-        orgSymbol = _orgSymbol;
+        _orgName = orgName;
+        _orgSymbol = orgSymbol;
+        contractURI = _contractURI;
         quorumBps = _quorumBps;
         ragequittable = _ragequittable;
 
-        shares = new MolochShares(initialHolders, initialAmounts);
-        emit SharesDeployed(address(shares));
-        badge = new MolochBadge();
-        emit BadgeDeployed(address(badge));
+        bytes32 salt = bytes32(bytes20(address(this)));
 
-        // Seed top-256 via hook.
+        shares = new MolochShares{salt: salt}(initialHolders, initialAmounts);
+        badge = new MolochBadge{salt: salt}();
+
+        // seed top-256 via hook
         for (uint256 i; i != initialHolders.length; ++i) {
             _onSharesChanged(initialHolders[i]);
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                         PROPOSAL ID / SNAPSHOT
-    //////////////////////////////////////////////////////////////*/
     function proposalId(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
         public
         view
@@ -234,21 +189,19 @@ contract MolochMajeur {
         return _intentHash(op, to, value, data, nonce);
     }
 
-    /// @notice Explicitly open a proposal (fix snapshot to previous block).
+    /// @dev Explicitly open a proposal (fix snapshot to previous block).
     /// Snapshot at a strictly *past* block so OZ checkpoints are valid.
-    /// Also record createdAt and (optionally) supplyAtSnapshot for UX.
+    /// Also record createdAt and (optionally) supplyAtSnapshot for UX:
     function openProposal(bytes32 id) public {
         if (snapshotBlock[id] != 0) return; // already opened
 
-        // Snapshot at previous block; block.number is never 0 in practice.
+        // snapshot at previous block; block.number is never 0 in practice
         uint32 snap = toUint32(block.number - 1);
         snapshotBlock[id] = snap;
 
-        if (createdAt[id] == 0) {
-            createdAt[id] = uint64(block.timestamp);
-        }
+        if (createdAt[id] == 0) createdAt[id] = uint64(block.timestamp);
 
-        // For snap == 0 (first block in test env), fall back to current supply.
+        // for snap == 0 (first block in test env), fall back to current supply
         uint256 supply = snap == 0 ? shares.totalSupply() : shares.getPastTotalSupply(snap);
 
         supplySnapshot[id] = supply;
@@ -256,7 +209,7 @@ contract MolochMajeur {
         emit Opened(id, snap, supply);
     }
 
-    /// @notice Open & set futarchy settings (governance).
+    /// @dev Open & set futarchy settings (governance):
     function openFutarchy(bytes32 id, address rewardToken) public payable onlySelf {
         openProposal(id);
         FutarchyConfig storage F = futarchy[id];
@@ -268,31 +221,26 @@ contract MolochMajeur {
 
     function fundFutarchy(bytes32 id, uint256 amount) public payable nonReentrant {
         FutarchyConfig storage F = futarchy[id];
-        if (!F.enabled || F.resolved) revert NotOk();
-
+        if (!F.enabled || F.resolved || amount == 0) revert NotOk();
         if (F.rewardToken == address(0)) {
             if (msg.value != amount) revert NotOk();
         } else {
             if (msg.value != 0) revert NotOk();
             safeTransferFrom(F.rewardToken, amount);
         }
-
         F.pool += amount;
         emit FutarchyFunded(id, msg.sender, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              VOTING (SNAPSHOT)
-    //////////////////////////////////////////////////////////////*/
-    /// @notice support: 0 = AGAINST, 1 = FOR, 2 = ABSTAIN
+    /// @dev support: 0 = AGAINST, 1 = FOR, 2 = ABSTAIN:
     function castVote(bytes32 id, uint8 support) public {
         if (executed[id]) revert AlreadyExecuted();
         if (support > 2) revert NotOk();
 
-        // Auto-open on first vote if unopened
+        // auto-open on first vote if unopened
         if (snapshotBlock[id] == 0) openProposal(id);
 
-        // Optional expiry gating
+        // optional expiry gating
         if (proposalTTL != 0) {
             uint64 t0 = createdAt[id];
             if (t0 == 0) revert NotOk();
@@ -308,14 +256,14 @@ contract MolochMajeur {
 
         if (weight == 0) revert NotOk();
 
-        // Tally
+        // tally
         if (support == 1) tallies[id].forVotes += weight;
         else if (support == 0) tallies[id].againstVotes += weight;
         else tallies[id].abstainVotes += weight;
 
         hasVoted[id][msg.sender] = support + 1;
 
-        // Mint ERC6909 receipt (non-transferable)
+        // mint ERC6909 receipt
         uint256 rid = _receiptId(id, support);
         receiptSupport[rid] = support;
         receiptProposal[rid] = id;
@@ -324,9 +272,6 @@ contract MolochMajeur {
         emit Voted(id, msg.sender, support, weight);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                       PROPOSAL STATE / RULES / QUEUE+EXEC
-    //////////////////////////////////////////////////////////////*/
     function state(bytes32 id) public view returns (ProposalState) {
         if (executed[id]) return ProposalState.Executed;
 
@@ -334,25 +279,20 @@ contract MolochMajeur {
 
         uint64 queued = queuedAt[id];
 
-        // If already queued, TTL no longer applies.
+        // if already queued, TTL no longer applies
         if (queued != 0) {
             uint64 delay = timelockDelay;
-            // If delay is zero, this condition is always false once block.timestamp >= queued,
-            // which matches the original behavior (queuedAt is only set when delay != 0).
-            if (delay != 0 && block.timestamp < queued + delay) {
-                return ProposalState.Queued;
-            }
+            // if delay is zero, this condition is always false once block.timestamp >= queued
+            if (delay != 0 && block.timestamp < queued + delay) return ProposalState.Queued;
         } else {
             uint64 ttl = proposalTTL;
             if (ttl != 0) {
                 uint64 t0 = createdAt[id];
-                if (t0 != 0 && block.timestamp > t0 + ttl) {
-                    return ProposalState.Expired;
-                }
+                if (t0 != 0 && block.timestamp > t0 + ttl) return ProposalState.Expired;
             }
         }
 
-        // Evaluate gates
+        // evaluate gates
         uint256 ts = supplySnapshot[id];
         if (ts == 0) return ProposalState.Active;
 
@@ -363,17 +303,17 @@ contract MolochMajeur {
 
         uint256 totalCast = forVotes + againstVotes + abstainVotes;
 
-        // Absolute quorum
+        // absolute quorum
         uint256 absQuorum = quorumAbsolute;
         if (absQuorum != 0 && totalCast < absQuorum) return ProposalState.Active;
 
-        // Dynamic quorum (BPS)
+        // dynamic quorum (BPS)
         uint16 bps = quorumBps;
         if (bps != 0 && totalCast < mulDiv(uint256(bps), ts, 10000)) {
             return ProposalState.Active;
         }
 
-        // Absolute YES floor
+        // absolute YES floor
         uint256 minYes = minYesVotesAbsolute;
         if (minYes != 0 && forVotes < minYes) return ProposalState.Defeated;
 
@@ -382,7 +322,7 @@ contract MolochMajeur {
         return ProposalState.Succeeded;
     }
 
-    /// @notice Queue a passing proposal (sets timelock countdown). If no timelock, this is a no-op.
+    /// @dev Queue a passing proposal (sets timelock countdown). If no timelock, this is a no-op:
     function queue(bytes32 id) public {
         if (state(id) != ProposalState.Succeeded) revert NotApprover();
         if (timelockDelay == 0) return;
@@ -392,7 +332,7 @@ contract MolochMajeur {
         }
     }
 
-    /// @notice Execute when the proposal is ready (handles immediate or timelocked).
+    /// @dev Execute when the proposal is ready (handles immediate or timelocked):
     function executeByVotes(
         uint8 op, // 0 = call, 1 = delegatecall
         address to,
@@ -402,12 +342,11 @@ contract MolochMajeur {
     ) public payable nonReentrant returns (bool ok, bytes memory retData) {
         bytes32 id = _intentHash(op, to, value, data, nonce);
 
-        // Keep explicit AlreadyExecuted error semantics.
         if (executed[id]) revert AlreadyExecuted();
 
         ProposalState st = state(id);
 
-        // Only Succeeded or Queued proposals are allowed through.
+        // only Succeeded or Queued proposals are allowed through
         if (st != ProposalState.Succeeded && st != ProposalState.Queued) {
             if (st == ProposalState.Expired) revert NotOk();
             revert NotApprover(); // also covers Unopened / Active / Defeated
@@ -415,7 +354,6 @@ contract MolochMajeur {
 
         if (timelockDelay != 0) {
             if (queuedAt[id] == 0) {
-                // First call → queue & return, like before.
                 queuedAt[id] = uint64(block.timestamp);
                 emit Queued(id, queuedAt[id]);
                 return (true, "");
@@ -428,15 +366,12 @@ contract MolochMajeur {
 
         (ok, retData) = _execute(op, to, value, data);
 
-        // Futarchy: YES (FOR) side wins upon success
+        // futarchy: YES (FOR) side wins upon success
         _resolveFutarchyYes(id);
 
         emit Executed(id, msg.sender, op, to, value);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                             FUTARCHY RESOLUTION
-    //////////////////////////////////////////////////////////////*/
     function resolveFutarchyNo(bytes32 id) public {
         FutarchyConfig storage F = futarchy[id];
         if (!F.enabled || F.resolved || executed[id]) revert NotOk();
@@ -497,9 +432,6 @@ contract MolochMajeur {
         emit FutarchyResolved(id, winner, pool, winSupply, ppu);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                  PERMITS
-    //////////////////////////////////////////////////////////////*/
     function setPermit(
         uint8 op,
         address to,
@@ -548,7 +480,7 @@ contract MolochMajeur {
         }
     }
 
-    /// @notice Spend a permit to execute without votes.
+    /// @dev Spend a permit to execute without votes:
     function permitExecute(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
         public
         payable
@@ -575,9 +507,6 @@ contract MolochMajeur {
         emit PermitSpent(id, msg.sender, op, to, value);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                           ALLOWANCES / PULL
-    //////////////////////////////////////////////////////////////*/
     function setAllowanceTo(address token, address to, uint256 amount) public payable onlySelf {
         allowance[token][to] = amount;
     }
@@ -587,9 +516,6 @@ contract MolochMajeur {
         _payout(token, msg.sender, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              SALES (ETH / ERC20)
-    //////////////////////////////////////////////////////////////*/
     function setSale(
         address payToken,
         uint256 pricePerShare,
@@ -624,16 +550,15 @@ contract MolochMajeur {
             }
         }
 
-        // Pull funds
+        // pull funds
         if (payToken == address(0)) {
-            // Same logic: require(msg.value <= maxPay && msg.value == cost)
             if (msg.value != cost || msg.value > maxPay) revert NotOk();
         } else {
             if (msg.value != 0 || (maxPay != 0 && cost > maxPay)) revert NotOk();
             safeTransferFrom(payToken, cost);
         }
 
-        // Issue shares
+        // issue shares
         if (s.minting) {
             shares.mintFromMolochMajeur(msg.sender, shareAmount);
         } else {
@@ -643,9 +568,6 @@ contract MolochMajeur {
         emit SharesPurchased(msg.sender, payToken, shareAmount, cost);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                               RAGE-QUIT
-    //////////////////////////////////////////////////////////////*/
     function rageQuit(address[] calldata tokens) public nonReentrant {
         if (!ragequittable) revert NotApprover();
 
@@ -658,7 +580,7 @@ contract MolochMajeur {
         uint256 len = tokens.length;
         address prev;
 
-        for (uint256 i; i < len; ++i) {
+        for (uint256 i; i != len; ++i) {
             address tk = tokens[i];
             if (i != 0 && tk <= prev) revert NotOk();
             prev = tk;
@@ -671,24 +593,18 @@ contract MolochMajeur {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        SBT-GATED CHAT
-    //////////////////////////////////////////////////////////////*/
     function getMessageCount() public view returns (uint256) {
         return messages.length;
     }
 
     function chat(string calldata text) public payable {
-        // Only badge holders (top-256) can post
         if (badge.balanceOf(msg.sender) == 0) revert NotApprover();
         messages.push(text);
         emit Message(msg.sender, messages.length - 1, text);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                             GOV HELPERS (SELF)
-    //////////////////////////////////////////////////////////////*/
     function setQuorumBps(uint16 bps) public payable onlySelf {
+        if (bps > 10_000) revert NotOk();
         quorumBps = bps;
     }
 
@@ -716,40 +632,45 @@ contract MolochMajeur {
         transfersLocked = on;
     }
 
-    /// @notice Governance "bump" to invalidate pre-bump proposal hashes.
+    function setMetadata(string calldata _name, string calldata _symbol, string calldata _uri)
+        public
+        payable
+        onlySelf
+    {
+        (_orgName, _orgSymbol, contractURI) = (_name, _symbol, _uri);
+    }
+
+    /// @dev Governance "bump" to invalidate pre-bump proposal hashes:
     function bumpConfig() public payable onlySelf {
         unchecked {
             ++config;
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                          SHARES HOOK (TOP-256 + SBT)
-    //////////////////////////////////////////////////////////////*/
     address[256] public topHolders;
     mapping(address => uint16) public topPos;
 
-    /// @notice Slot index 1..256 if in top set, else 0 (not strictly sorted by balance).
+    /// @dev Slot index 1..256 if in top set, else 0 (not strictly sorted by balance):
     function rankOf(address a) public view returns (uint256) {
         return topPos[a];
     }
 
-    function onSharesChanged(address a) public {
-        if (msg.sender != address(shares)) revert NotOwner();
+    function onSharesChanged(address a) public payable {
+        require(msg.sender == address(shares), NotOwner());
         _onSharesChanged(a);
     }
 
-    /// Maintains a sticky top-256 set.
+    /// @dev Maintains a sticky top-256 set:
     /// - A holder keeps their slot as long as their balance is non-zero.
     /// - We only consider demotion when:
     ///   (a) a non-member's balance changes and exceeds the current minimum, or
     ///   (b) a member's balance falls to zero.
-    /// - This means the set may diverge from the true mathematical top-256.
+    /// - This means the set may diverge from the true mathematical top-256:
     function _onSharesChanged(address a) internal {
         uint256 bal = shares.balanceOf(a);
         uint16 pos = topPos[a];
 
-        // 1) Zero balance → drop from top set and burn badge if currently in.
+        // 1) zero balance → drop from top set and burn badge if currently in
         if (bal == 0) {
             if (pos != 0) {
                 unchecked {
@@ -761,10 +682,10 @@ contract MolochMajeur {
             return;
         }
 
-        // 2) Already in top set → keep slot; we don't rebalance / re-rank.
+        // 2) already in top set → keep slot; we don't rebalance / re-rank
         if (pos != 0) return;
 
-        // 3) Not in top set, non-zero balance: try to fill a free slot first.
+        // 3) not in top set, non-zero balance: try to fill a free slot first
         uint256 len = 256;
         for (uint16 i; i != len; ++i) {
             if (topHolders[i] == address(0)) {
@@ -777,7 +698,7 @@ contract MolochMajeur {
             }
         }
 
-        // 4) Full set: find the lowest-balance current top holder.
+        // 4) full set: find the lowest-balance current top holder
         uint16 minI;
         uint256 minBal = type(uint256).max;
 
@@ -791,7 +712,7 @@ contract MolochMajeur {
             }
         }
 
-        // 5) Only replace if strictly larger than the current minimum.
+        // 5) only replace if strictly larger than the current minimum
         if (bal > minBal) {
             address evict = topHolders[minI];
 
@@ -806,9 +727,6 @@ contract MolochMajeur {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                             ERC6909 INTERNALS
-    //////////////////////////////////////////////////////////////*/
     function _mint6909(address to, uint256 id, uint256 amount) internal {
         totalSupply[id] += amount;
         balanceOf[to][id] += amount;
@@ -821,12 +739,9 @@ contract MolochMajeur {
         emit Transfer(msg.sender, from, address(0), id, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            PROPOSAL CARD URI
-    //////////////////////////////////////////////////////////////*/
-    /// @notice On-chain JSON/SVG card for a proposal id, or routes to receiptURI for vote receipts.
+    /// @dev On-chain JSON/SVG card for a proposal id, or routes to receiptURI for vote receipts.
     function tokenURI(uint256 id) public view returns (string memory) {
-        // 1) If this id is a vote receipt, delegate to the full receipt renderer.
+        // 1) of this id is a vote receipt, delegate to the full receipt renderer
         if (receiptProposal[id] != bytes32(0)) return receiptURI(id);
 
         bytes32 h = bytes32(id);
@@ -835,7 +750,7 @@ contract MolochMajeur {
         bool touchedTallies = (t.forVotes | t.againstVotes | t.abstainVotes) != 0;
 
         uint256 snap = snapshotBlock[h];
-        bool opened = snap != 0;
+        bool opened = snap != 0 || createdAt[h] != 0;
 
         bool looksLikePermit =
             !opened && !touchedTallies && (totalSupply[id] != 0 || permits[h] != 0);
@@ -866,17 +781,17 @@ contract MolochMajeur {
 
         string memory svg = _svgCardBase();
 
-        // Title
+        // title
         svg = string.concat(
             svg,
             "<text x='210' y='55' class='garamond-bold' font-size='18' fill='#fff' text-anchor='middle' letter-spacing='3'>",
-            orgName,
+            _orgName,
             "</text>",
             "<text x='210' y='75' class='garamond' font-size='11' fill='#fff' text-anchor='middle' letter-spacing='2'>PROPOSAL</text>",
             "<line x1='40' y1='90' x2='380' y2='90' stroke='#fff' stroke-width='1'/>"
         );
 
-        // ASCII Eye (minimalist)
+        // ASCII eye (minimalist)
         svg = string.concat(
             svg,
             "<text x='210' y='155' class='mono' font-size='9' fill='#fff' text-anchor='middle'>.---------.</text>",
@@ -885,7 +800,7 @@ contract MolochMajeur {
             "<line x1='40' y1='220' x2='380' y2='220' stroke='#fff' stroke-width='1'/>"
         );
 
-        // Data section
+        // data section
         svg = string.concat(
             svg,
             "<text x='60' y='255' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>ID</text>",
@@ -894,7 +809,7 @@ contract MolochMajeur {
             "</text>"
         );
 
-        // Snapshot data (only if opened)
+        // snapshot data (only if opened)
         if (opened) {
             svg = string.concat(
                 svg,
@@ -908,7 +823,7 @@ contract MolochMajeur {
             );
         }
 
-        // Tally section (only if votes exist)
+        // tally section (only if votes exist)
         if (touchedTallies) {
             svg = string.concat(
                 svg,
@@ -925,7 +840,7 @@ contract MolochMajeur {
             );
         }
 
-        // Status
+        // status
         svg = string.concat(
             svg,
             "<text x='210' y='465' class='garamond' font-size='12' fill='#fff' text-anchor='middle' letter-spacing='2'>",
@@ -936,13 +851,10 @@ contract MolochMajeur {
         );
 
         return _jsonImage(
-            string.concat(orgName, " Proposal"), "Snapshot-weighted governance proposal", svg
+            string.concat(_orgName, " Proposal"), "Snapshot-weighted governance proposal", svg
         );
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            VOTE RECEIPT CARD URI
-    //////////////////////////////////////////////////////////////*/
     function receiptURI(uint256 id) public view returns (string memory) {
         uint8 s = receiptSupport[id]; // 0 = NO, 1 = YES, 2 = ABSTAIN
         bytes32 h = receiptProposal[id];
@@ -961,11 +873,11 @@ contract MolochMajeur {
 
         string memory svg = _svgCardBase();
 
-        // Title
+        // title
         svg = string.concat(
             svg,
             "<text x='210' y='55' class='garamond-bold' font-size='18' fill='#fff' text-anchor='middle' letter-spacing='3'>",
-            orgName,
+            _orgName,
             "</text>",
             "<text x='210' y='75' class='garamond' font-size='11' fill='#fff' text-anchor='middle' letter-spacing='2'>VOTE RECEIPT</text>",
             "<line x1='40' y1='90' x2='380' y2='90' stroke='#fff' stroke-width='1'/>"
@@ -1014,7 +926,7 @@ contract MolochMajeur {
             svg, "<line x1='40' y1='240' x2='380' y2='240' stroke='#fff' stroke-width='1'/>"
         );
 
-        // Data
+        // data
         svg = string.concat(
             svg,
             "<text x='60' y='275' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Proposal</text>",
@@ -1031,7 +943,7 @@ contract MolochMajeur {
             " votes</text>"
         );
 
-        // Futarchy info (only if enabled)
+        // futarchy info (only if enabled)
         if (F.enabled) {
             svg = string.concat(
                 svg,
@@ -1052,7 +964,7 @@ contract MolochMajeur {
             }
         }
 
-        // Status
+        // status
         svg = string.concat(
             svg,
             "<text x='210' y='510' class='garamond' font-size='12' fill='#fff' text-anchor='middle' letter-spacing='2'>",
@@ -1069,9 +981,10 @@ contract MolochMajeur {
         );
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            PERMIT CARD URI
-    //////////////////////////////////////////////////////////////*/
+    function _receiptId(bytes32 id, uint8 support) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked("Moloch:receipt", id, support)));
+    }
+
     function _permitCardURI(bytes32 h, uint256 id) internal view returns (string memory) {
         string memory usesStr;
         uint256 p = permits[h];
@@ -1083,17 +996,17 @@ contract MolochMajeur {
 
         string memory svg = _svgCardBase();
 
-        // Title
+        // title
         svg = string.concat(
             svg,
             "<text x='210' y='55' class='garamond-bold' font-size='18' fill='#fff' text-anchor='middle' letter-spacing='3'>",
-            orgName,
+            _orgName,
             "</text>",
             "<text x='210' y='75' class='garamond' font-size='11' fill='#fff' text-anchor='middle' letter-spacing='2'>PERMIT</text>",
             "<line x1='40' y1='90' x2='380' y2='90' stroke='#fff' stroke-width='1'/>"
         );
 
-        // ASCII Key
+        // ASCII key
         svg = string.concat(
             svg,
             "<text x='210' y='140' class='mono' font-size='9' fill='#fff' text-anchor='middle'>___</text>",
@@ -1107,7 +1020,7 @@ contract MolochMajeur {
             "<line x1='40' y1='245' x2='380' y2='245' stroke='#fff' stroke-width='1'/>"
         );
 
-        // Data
+        // data
         svg = string.concat(
             svg,
             "<text x='60' y='280' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Intent ID</text>",
@@ -1120,7 +1033,7 @@ contract MolochMajeur {
             "</text>"
         );
 
-        // Mirror supply (if any finite permits are mirrored)
+        // mirror supply (if any finite permits are mirrored)
         if (totalSupply[id] > 0) {
             svg = string.concat(
                 svg,
@@ -1131,7 +1044,7 @@ contract MolochMajeur {
             );
         }
 
-        // Status
+        // status
         svg = string.concat(
             svg,
             "<text x='210' y='480' class='garamond' font-size='12' fill='#fff' text-anchor='middle' letter-spacing='2'>ACTIVE</text>",
@@ -1142,12 +1055,12 @@ contract MolochMajeur {
         return _jsonImage("Permit", "Pre-approved execution permit", svg);
     }
 
-    /// @dev Shortened hex: 0xabcd...1234
+    /// @dev Shortened hex: 0xabcd...1234:
     function _shortHex(bytes32 data) internal pure returns (string memory) {
         return _shortHexDisplay(_toHex(data));
     }
 
-    // Cheap hex for bytes32: "0x" + 64 hex chars.
+    /// @dev Cheap hex for bytes32: "0x" + 64 hex chars:
     function _toHex(bytes32 data) internal pure returns (string memory) {
         bytes memory str = new bytes(66);
         str[0] = "0";
@@ -1164,9 +1077,6 @@ contract MolochMajeur {
         return string(str);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                             RECEIVE / ERCs
-    //////////////////////////////////////////////////////////////*/
     receive() external payable {}
 
     function onERC721Received(address, address, uint256, bytes calldata)
@@ -1185,10 +1095,7 @@ contract MolochMajeur {
         return this.onERC1155Received.selector;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                               INTERNALS
-    //////////////////////////////////////////////////////////////*/
-    /// @dev Shared low-level executor for call / delegatecall.
+    /// @dev Shared low-level executor for call / delegatecall:
     function _execute(uint8 op, address to, uint256 value, bytes calldata data)
         internal
         returns (bool ok, bytes memory retData)
@@ -1217,9 +1124,6 @@ contract MolochMajeur {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            REENTRANCY GUARD
-    //////////////////////////////////////////////////////////////*/
     /*──────── reentrancy ─*/
     error Reentrancy();
 
@@ -1240,15 +1144,17 @@ contract MolochMajeur {
     }
 }
 
-/*//////////////////////////////////////////////////////////////
-             ERC20 SHARES WITH LIGHTWEIGHT SNAPSHOTS/DELEGATION
-//////////////////////////////////////////////////////////////*/
 contract MolochShares {
     /* ERRORS */
     error Len();
     error Locked();
     error BadBlock();
     error Unauthorized();
+
+    error SplitLen();
+    error SplitSum();
+    error SplitZero();
+    error SplitDupe();
 
     /* ERC20 */
     event Approval(address indexed from, address indexed to, uint256 amount);
@@ -1260,7 +1166,7 @@ contract MolochShares {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
-    // Parent Moloch (Majeur)
+    /* Parent Moloch (Majeur) */
     address payable public immutable mol = payable(msg.sender);
 
     modifier onlyMol() {
@@ -1281,8 +1187,8 @@ contract MolochShares {
         uint224 votes;
     }
 
-    mapping(address => address) internal _delegates; // delegator => primary delegate
-    mapping(address => Checkpoint[]) internal _checkpoints; // delegate  => vote history
+    mapping(address delegator => address primaryDelegate) internal _delegates;
+    mapping(address delegate => Checkpoint[] voteHistory) internal _checkpoints;
     Checkpoint[] internal _totalSupplyCheckpoints; // total supply history
 
     /* --------- Split (sharded) delegation (non-custodial) --------- */
@@ -1294,14 +1200,10 @@ contract MolochShares {
     uint8 public constant MAX_SPLITS = 4;
     uint32 public constant BPS_DENOM = 10_000;
 
-    // delegator => split config
-    mapping(address => Split[]) internal _splits;
+    mapping(address delegator => Split[] splitConfig) internal _splits;
 
     event WeightedDelegationSet(address indexed delegator, address[] delegates, uint32[] bps);
 
-    /*//////////////////////////////////////////////////////////////
-                               CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
     constructor(address[] memory to, uint256[] memory amt) payable {
         if (to.length != amt.length) revert Len();
 
@@ -1312,20 +1214,14 @@ contract MolochShares {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                           METADATA (FROM SAW)
-    //////////////////////////////////////////////////////////////*/
     function name() public view returns (string memory) {
-        return string.concat(MolochMajeur(mol).orgName(), " Shares");
+        return string.concat(MolochMajeur(mol).name(0), " Shares");
     }
 
     function symbol() public view returns (string memory) {
-        return MolochMajeur(mol).orgSymbol();
+        return MolochMajeur(mol).symbol(0);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                  ERC20
-    //////////////////////////////////////////////////////////////*/
     function approve(address to, uint256 amount) public returns (bool) {
         allowance[msg.sender][to] = amount;
         emit Approval(msg.sender, to, amount);
@@ -1342,22 +1238,18 @@ contract MolochShares {
         _checkUnlocked(from, to);
 
         uint256 allowed = allowance[from][msg.sender];
-        if (allowed != type(uint256).max) {
-            allowance[from][msg.sender] = allowed - amount;
-        }
+        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
 
         _moveTokens(from, to, amount);
         return true;
     }
 
-    /// @notice Mint new shares; callable only by the Moloch (MolochMajeur).
     function mintFromMolochMajeur(address to, uint256 amount) public payable onlyMol {
         _mint(to, amount);
         _autoSelfDelegate(to);
         _afterVotingBalanceChange(to, int256(amount));
     }
 
-    /// @notice Burn shares; callable only by the Moloch (MolochMajeur).
     function burnFromMolochMajeur(address from, uint256 amount) public payable onlyMol {
         balanceOf[from] -= amount;
         unchecked {
@@ -1404,6 +1296,7 @@ contract MolochShares {
         uint256 len = ckpts.length;
         uint256 oldVal = len == 0 ? 0 : ckpts[len - 1].votes;
         uint256 newVal = add ? oldVal + amount : oldVal - amount;
+        if (oldVal == newVal) return;
 
         _writeCheckpoint(ckpts, oldVal, newVal);
         emit DelegateVotesChanged(delegate_, oldVal, newVal);
@@ -1415,9 +1308,6 @@ contract MolochShares {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                 VOTING
-    //////////////////////////////////////////////////////////////*/
     function delegates(address account) public view returns (address) {
         address del = _delegates[account];
         return del == address(0) ? account : del; // default to self
@@ -1442,30 +1332,22 @@ contract MolochShares {
         return _checkpointsLookup(_totalSupplyCheckpoints, blockNumber);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                          SPLIT / WEIGHTED DELEGATION
-    //////////////////////////////////////////////////////////////*/
-    /// @notice Returns the effective split delegation of an account
-    /// (defaults to 100% self if no splits set).
+    /// @dev Returns the effective split delegation of an account
+    /// (defaults to 100% self if no splits set):
     function splitDelegationOf(address account)
-        external
+        public
         view
         returns (address[] memory delegates_, uint32[] memory bps_)
     {
         return _currentDistribution(account);
     }
 
-    error SplitLen();
-    error SplitZero();
-    error SplitDupe();
-    error SplitSum();
-
-    function setSplitDelegation(address[] calldata delegates_, uint32[] calldata bps_) external {
+    function setSplitDelegation(address[] calldata delegates_, uint32[] calldata bps_) public {
         address account = msg.sender;
         uint256 n = delegates_.length;
         require(n == bps_.length && n > 0 && n <= MAX_SPLITS, SplitLen());
 
-        // Capture the current effective distribution BEFORE we mutate storage.
+        // capture the current effective distribution BEFORE we mutate storage
         (address[] memory oldD, uint32[] memory oldB) = _currentDistribution(account);
 
         uint256 sum;
@@ -1482,74 +1364,68 @@ contract MolochShares {
         }
         require(sum == BPS_DENOM, SplitSum());
 
-        // Ensure the account has a primary delegate line (defaults to self once).
+        // ensure the account has a primary delegate line (defaults to self once)
         _autoSelfDelegate(account);
 
-        // Write the new split set.
+        // write the new split set.
         delete _splits[account];
         for (uint256 i; i != n; ++i) {
             _splits[account].push(Split({delegate: delegates_[i], bps: bps_[i]}));
         }
 
-        // Move only the difference in voting power from the old distribution to the new one.
+        // move only the difference in voting power from the old distribution to the new one
         _repointVotesForHolder(account, oldD, oldB);
 
         emit WeightedDelegationSet(account, delegates_, bps_);
     }
 
-    function clearSplitDelegation() external {
+    function clearSplitDelegation() public {
         address account = msg.sender;
 
-        if (_splits[account].length == 0) {
-            // Already single-delegate mode; nothing to do.
-            return;
-        }
+        // already single-delegate mode; nothing to do
+        if (_splits[account].length == 0) return;
 
-        // Capture the current split BEFORE we mutate storage.
+        // capture the current split BEFORE we mutate storage
         (address[] memory oldD, uint32[] memory oldB) = _currentDistribution(account);
 
-        // Collapse to single 100% delegate (primary; defaults to self).
+        // collapse to single 100% delegate (primary; defaults to self)
         delete _splits[account];
         _autoSelfDelegate(account);
 
-        // Repoint existing votes from the old split back to the single delegate.
+        // repoint existing votes from the old split back to the single delegate
         _repointVotesForHolder(account, oldD, oldB);
 
-        // Emit the canonical 100% distribution for tooling/UX.
+        // emit the canonical 100% distribution for tooling/UX
         address[] memory d = _singleton(delegates(account));
         uint32[] memory b = _singletonBps();
         emit WeightedDelegationSet(account, d, b);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        INTERNAL VOTING HELPERS
-    //////////////////////////////////////////////////////////////*/
     function _delegate(address delegator, address delegatee) internal {
         address account = delegator;
         if (delegatee == address(0)) delegatee = account;
 
-        // Inline `delegates(account)` to avoid extra call:
+        // inline `delegates(account)` to avoid extra call
         address current = _delegates[account];
         if (current == address(0)) current = account;
 
         Split[] storage sp = _splits[account];
         uint256 splitsLen = sp.length;
 
-        // If no change and no split configured, nothing to do.
+        // if no change and no split configured, nothing to do
         if (splitsLen == 0 && current == delegatee) return;
 
-        // Capture the current effective distribution BEFORE we mutate storage.
+        // capture the current effective distribution BEFORE we mutate storage
         (address[] memory oldD, uint32[] memory oldB) = _currentDistribution(account);
 
-        // Collapse any existing split and set the new primary delegate.
-        if (splitsLen != 0) {
-            delete _splits[account];
-        }
+        // collapse any existing split and set the new primary delegate
+        if (splitsLen != 0) delete _splits[account];
+
         _delegates[account] = delegatee;
 
         emit DelegateChanged(account, current, delegatee);
 
-        // Repoint the holder’s current voting power from old distribution to the new single delegate.
+        // repoint the holder’s current voting power from old distribution to the new single delegate
         _repointVotesForHolder(account, oldD, oldB);
     }
 
@@ -1561,7 +1437,7 @@ contract MolochShares {
         }
     }
 
-    /// @dev Returns the current split (or a single 100% primary delegate if unset).
+    /// @dev Returns the current split (or a single 100% primary delegate if unset):
     function _currentDistribution(address account)
         internal
         view
@@ -1571,7 +1447,7 @@ contract MolochShares {
         uint256 n = sp.length;
 
         if (n == 0) {
-            // Stack allocation for single element
+            // stack allocation for single element
             delegates_ = new address[](1);
             delegates_[0] = delegates(account);
             bps_ = new uint32[](1);
@@ -1579,7 +1455,7 @@ contract MolochShares {
             return (delegates_, bps_);
         }
 
-        // Pre-sized allocation
+        // pre-sized allocation
         delegates_ = new address[](n);
         bps_ = new uint32[](n);
         for (uint256 i; i != n; ++i) {
@@ -1593,7 +1469,7 @@ contract MolochShares {
         MolochMajeur(mol).onSharesChanged(account);
     }
 
-    /// @dev Apply +/- voting power change for an account according to its split.
+    /// @dev Apply +/- voting power change for an account according to its split:
     function _applyVotingDelta(address account, int256 delta) internal {
         if (delta == 0) return;
 
@@ -1623,7 +1499,7 @@ contract MolochShares {
         }
     }
 
-    /// @dev Re-route an existing holder's current voting power from `old` distribution to current one.
+    /// @dev Re-route an existing holder's current voting power from `old` distribution to current one:
     function _repointVotesForHolder(address holder, address[] memory oldD, uint32[] memory oldB)
         internal
     {
@@ -1635,7 +1511,7 @@ contract MolochShares {
         uint256 nOld = oldD.length;
         uint256 nNew = newD.length;
 
-        // 1) Adjust delegates that existed before (oldD).
+        // 1) adjust delegates that existed before (oldD)
         for (uint256 i; i != nOld; ++i) {
             address d = oldD[i];
             uint32 oldBps = oldB[i];
@@ -1660,7 +1536,7 @@ contract MolochShares {
             }
         }
 
-        // 2) Add votes for delegates that are new-only (not in oldD).
+        // 2) add votes for delegates that are new-only (not in oldD)
         for (uint256 j; j != nNew; ++j) {
             address dNew = newD[j];
             bool found;
@@ -1681,13 +1557,8 @@ contract MolochShares {
 
     function _moveVotingPower(address src, address dst, uint256 amount) internal {
         if (src == dst || amount == 0) return;
-
-        if (src != address(0)) {
-            _updateDelegateVotes(src, _checkpoints[src], false, amount);
-        }
-        if (dst != address(0)) {
-            _updateDelegateVotes(dst, _checkpoints[dst], true, amount);
-        }
+        if (src != address(0)) _updateDelegateVotes(src, _checkpoints[src], false, amount);
+        if (dst != address(0)) _updateDelegateVotes(dst, _checkpoints[dst], true, amount);
     }
 
     function _writeCheckpoint(Checkpoint[] storage ckpts, uint256 oldVal, uint256 newVal) internal {
@@ -1699,13 +1570,13 @@ contract MolochShares {
         if (len != 0) {
             Checkpoint storage last = ckpts[len - 1];
 
-            // If we've already written this block, just update it.
+            // if we've already written this block, just update it
             if (last.fromBlock == blk) {
                 last.votes = toUint224(newVal);
                 return;
             }
 
-            // If the last checkpoint already has this value, skip pushing duplicate.
+            // if the last checkpoint already has this value, skip pushing duplicate
             if (last.votes == newVal) return;
         }
 
@@ -1730,13 +1601,13 @@ contract MolochShares {
         uint256 len = ckpts.length;
         if (len == 0) return 0;
 
-        // Most recent
+        // most recent
         Checkpoint storage last = ckpts[len - 1];
         if (last.fromBlock <= blockNumber) {
             return last.votes;
         }
 
-        // Before first
+        // before first
         if (ckpts[0].fromBlock > blockNumber) {
             return 0;
         }
@@ -1755,6 +1626,7 @@ contract MolochShares {
     }
 
     /* ---------- tiny array helpers ---------- */
+
     function _singleton(address d) internal pure returns (address[] memory a) {
         a = new address[](1);
         a[0] = d;
@@ -1766,9 +1638,6 @@ contract MolochShares {
     }
 }
 
-/*//////////////////////////////////////////////////////////////
-   Non-transferable top-256 vanity badge (SBT). ID = holder address.
-//////////////////////////////////////////////////////////////*/
 contract MolochBadge {
     /* ERC721-ish */
     event Transfer(address indexed from, address indexed to, uint256 indexed id);
@@ -1776,7 +1645,6 @@ contract MolochBadge {
     // Parent Moloch (Majeur)
     address payable public immutable mol = payable(msg.sender);
 
-    // Holder => count (0 or 1 in practice)
     mapping(address owner => uint256) public balanceOf;
 
     modifier onlyMol() {
@@ -1793,11 +1661,11 @@ contract MolochBadge {
 
     // dynamic metadata from Moloch
     function name() public view returns (string memory) {
-        return string.concat(MolochMajeur(mol).orgName(), " Badge");
+        return string.concat(MolochMajeur(mol).name(0), " Badge");
     }
 
     function symbol() public view returns (string memory) {
-        return string.concat(MolochMajeur(mol).orgSymbol(), "B");
+        return string.concat(MolochMajeur(mol).symbol(0), "B");
     }
 
     function ownerOf(uint256 id) public view returns (address o) {
@@ -1805,8 +1673,7 @@ contract MolochBadge {
         require(balanceOf[o] != 0, NotMinted());
     }
 
-    /// Top-256 badge (seat index, not sorted by balance).
-    /// @notice Enhanced minimalist badge card
+    /// @dev Top-256 badge (seat index, not sorted by balance):
     function tokenURI(uint256 id) public view returns (string memory) {
         address holder = address(uint160(id));
         MolochShares sh = MolochMajeur(mol).shares();
@@ -1821,7 +1688,7 @@ contract MolochBadge {
 
         string memory svg = _svgCardBase();
 
-        // Title
+        // title
         svg = string.concat(
             svg,
             "<text x='210' y='55' class='garamond-bold' font-size='18' fill='#fff' text-anchor='middle' letter-spacing='3'>",
@@ -1831,7 +1698,7 @@ contract MolochBadge {
             "<line x1='40' y1='90' x2='380' y2='90' stroke='#fff' stroke-width='1'/>"
         );
 
-        // ASCII Crown
+        // ASCII crown
         svg = string.concat(
             svg,
             "<text x='210' y='135' class='mono' font-size='9' fill='#fff' text-anchor='middle'>*    *    *</text>",
@@ -1845,7 +1712,7 @@ contract MolochBadge {
             "<line x1='40' y1='240' x2='380' y2='240' stroke='#fff' stroke-width='1'/>"
         );
 
-        // Data
+        // data
         svg = string.concat(
             svg,
             "<text x='60' y='275' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Address</text>",
@@ -1858,7 +1725,7 @@ contract MolochBadge {
             "</text>"
         );
 
-        // Balance
+        // balance
         svg = string.concat(
             svg,
             "<text x='60' y='378' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Balance</text>",
@@ -1867,7 +1734,7 @@ contract MolochBadge {
             " shares</text>"
         );
 
-        // Ownership
+        // ownership
         svg = string.concat(
             svg,
             "<text x='60' y='428' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Ownership</text>",
@@ -1876,7 +1743,7 @@ contract MolochBadge {
             "</text>"
         );
 
-        // Status (only show if in top 256)
+        // status (only show if in top 256)
         if (rk != 0) {
             svg = string.concat(
                 svg,
@@ -1898,14 +1765,14 @@ contract MolochBadge {
         revert SBT();
     }
 
-    function mint(address to) public onlyMol {
+    function mint(address to) public payable onlyMol {
         require(to != address(0) && balanceOf[to] == 0, Minted());
 
         balanceOf[to] = 1;
         emit Transfer(address(0), to, uint256(uint160(to)));
     }
 
-    function burn(address from) public onlyMol {
+    function burn(address from) public payable onlyMol {
         require(balanceOf[from] != 0, NotMinted());
 
         delete balanceOf[from];
@@ -1914,14 +1781,13 @@ contract MolochBadge {
 
     /* utils */
 
-    /// @dev Shortened address: 0xabcd...1234
+    /// @dev Shortened address: 0xabcd...1234:
     function _shortAddr(address a) internal pure returns (string memory) {
         return _shortHexDisplay(_addrHex(a));
     }
 
-    // 0x + 40 hex chars
+    /// @dev 0x + 40 hex chars:
     function _addrHex(address a) internal pure returns (string memory s) {
-        // 0x + 40 hex chars
         bytes20 b = bytes20(a);
         bytes16 H = 0x30313233343536373839616263646566; // "0123456789abcdef"
         bytes memory out = new bytes(42);
@@ -1932,7 +1798,6 @@ contract MolochBadge {
         for (uint256 i; i != 20; ++i) {
             unchecked {
                 uint8 v = uint8(b[i]); // byte at position i
-
                 // high nibble, then low nibble
                 out[2 + 2 * i] = bytes1(H[v >> 4]);
                 out[3 + 2 * i] = bytes1(H[v & 0x0f]);
@@ -1951,9 +1816,6 @@ contract MolochBadge {
     }
 }
 
-/*//////////////////////////////////////////////////////////////
-                         MINIMAL INTERNALS
-//////////////////////////////////////////////////////////////*/
 library DataURI {
     function json(string memory raw) internal pure returns (string memory) {
         return string.concat("data:application/json;base64,", Base64.encode(bytes(raw)));
@@ -2037,7 +1899,7 @@ function _shortHexDisplay(string memory fullHex) pure returns (string memory) {
 
     // last 4 hex chars (works for both 0x + 40 and 0x + 64)
     uint256 len = full.length;
-    for (uint256 i = 0; i < 4; ++i) {
+    for (uint256 i = 0; i != 4; ++i) {
         result[9 + i] = full[len - 4 + i];
     }
 
@@ -2127,10 +1989,6 @@ library Base64 {
     function encode(bytes memory data) internal pure returns (string memory result) {
         result = encode(data, false, false);
     }
-}
-
-function _receiptId(bytes32 id, uint8 support) pure returns (uint256) {
-    return uint256(keccak256(abi.encodePacked("Moloch:receipt", id, support)));
 }
 
 error Overflow();
