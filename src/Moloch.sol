@@ -231,11 +231,6 @@ contract Moloch {
         loot = Loot(_loot = _init(lootImpl, _salt));
         Loot(_loot).init();
 
-        // seed top-256 via hook
-        for (uint256 i; i != initHolders.length; ++i) {
-            _onSharesChanged(initHolders[i]);
-        }
-
         // initialization calls
         for (uint256 i; i != initCalls.length; ++i) {
             (bool ok,) = initCalls[i].target.call{value: initCalls[i].value}(initCalls[i].data);
@@ -679,6 +674,7 @@ contract Moloch {
         payable
         nonReentrant
     {
+        if (shareAmount == 0) revert NotOk();
         Sale storage s = sales[payToken];
         if (!s.active) revert NotOk();
 
@@ -726,6 +722,7 @@ contract Moloch {
     }
 
     /* RAGEQUIT */
+    /* @todo - check if we need to move share delegation stuff on burn */
     function ragequit(address[] calldata tokens, uint256 sharesToBurn, uint256 lootToBurn)
         public
         nonReentrant
@@ -825,7 +822,7 @@ contract Moloch {
 
     /// @dev Default reward token for futarchy pools:
     /// rewardToken: 0 = ETH, address(this) = minted shares, address(shares) = treasury shares,
-    /// auto-earmark always uses minted shares if rewardToken is ETH; manual fundFutarchy can still use ETH.
+    /// auto-earmark always uses minted shares if rewardToken is ETH; manual fundFutarchy can still use ETH:
     function setFutarchyRewardToken(address _rewardToken) public payable onlySelf {
         if (
             _rewardToken != address(0) && _rewardToken != address(this)
@@ -863,13 +860,42 @@ contract Moloch {
         }
     }
 
-    /* HOLDERS */
-    address[256] public topHolders;
-    mapping(address => uint16) public topPos;
+    /* HOLDERS (seat bitmap) */
+    uint256 occupied; // bit i set => seat i (0..255) used
+
+    struct Seat {
+        address holder; // 32 bytes (20B + 12B)
+        uint96 bal;
+    }
+    Seat[256] seats;
+
+    uint16 minSlot; // 0..255
+    uint96 minBal; // cutline (use uint128 if your totals can exceed 2^96-1)
+
+    mapping(address => uint16) public topPos; // 1..256 if in top set, else 0
 
     /// @dev Slot index 1..256 if in top set, else 0 (not strictly sorted by balance):
     function rankOf(address a) public view returns (uint256) {
         return topPos[a];
+    }
+
+    function getSeats() public view returns (Seat[] memory out) {
+        uint256 m = occupied;
+        uint256 s;
+        unchecked {
+            while (m != 0) m &= (m - 1);
+            ++s;
+        }
+
+        out = new Seat[](s);
+        m = occupied;
+        uint256 n;
+        while (m != 0) {
+            uint256 lsb = m & (~m + 1);
+            uint16 i = _ctz256(lsb);
+            out[n++] = seats[i];
+            m &= (m - 1);
+        }
     }
 
     function onSharesChanged(address a) public payable {
@@ -878,72 +904,141 @@ contract Moloch {
     }
 
     /// @dev Maintains a sticky top-256 set:
-    /// - A holder keeps their slot as long as their balance is non-zero.
+    /// - A holder keeps their slot as long as their balance is non-zero
     /// - We only consider demotion when:
     ///   (a) a non-member's balance changes and exceeds the current minimum, or
-    ///   (b) a member's balance falls to zero.
+    ///   (b) a member's balance falls to zero
     /// - This means the set may diverge from the true mathematical top-256:
     function _onSharesChanged(address a) internal {
         Shares _shares = shares;
-        uint256 bal = _shares.balanceOf(a);
-        uint16 pos = topPos[a];
 
-        // 1) zero balance → drop from top set and burn badge if currently in
+        uint256 bal256 = _shares.balanceOf(a);
+        require(bal256 <= type(uint96).max, Overflow());
+        uint96 bal = uint96(bal256);
+
+        uint16 pos = topPos[a]; // 0 => not seated; else seat = pos-1
+
+        // 1) zero balance => drop seat if seated
         if (bal == 0) {
             if (pos != 0) {
-                unchecked {
-                    topHolders[pos - 1] = address(0);
-                }
+                uint16 slot = pos - 1;
+
+                seats[slot] = Seat({holder: address(0), bal: 0});
+                _setFree(slot);
                 delete topPos[a];
-                badge.burn(a);
+
+                badge.burnSeat(slot + 1);
+
+                if (slot == minSlot) _recomputeMin();
             }
             return;
         }
 
-        // 2) already in top set → keep slot; we don't rebalance / re-rank
-        if (pos != 0) return;
+        // 2) already seated => update cached balance, keep seat (sticky)
+        if (pos != 0) {
+            uint16 slot = pos - 1;
+            seats[slot].bal = bal;
 
-        // 3) not in top set, non-zero balance: try to fill a free slot first
-        uint256 len = 256;
-        for (uint16 i; i != len; ++i) {
-            if (topHolders[i] == address(0)) {
-                topHolders[i] = a;
-                unchecked {
-                    topPos[a] = i + 1;
-                }
-                badge.mint(a);
-                return;
+            if (slot == minSlot) {
+                if (bal > minBal) _recomputeMin(); // old min grew; find new min
+                else minBal = bal; // still the min
+            } else if (minBal == 0 || bal < minBal) {
+                minSlot = slot; // new cutline
+                minBal = bal;
             }
+            return;
         }
 
-        // 4) full set: find the lowest-balance current top holder
-        uint16 minI;
-        uint256 minBal = type(uint256).max;
-
-        for (uint16 i; i != len; ++i) {
-            address cur = topHolders[i];
-            uint256 cbal = (cur == address(0)) ? 0 : _shares.balanceOf(cur);
-
-            if (cbal < minBal) {
-                minBal = cbal;
-                minI = i;
-            }
-        }
-
-        // 5) only replace if strictly larger than the current minimum
-        if (bal > minBal) {
-            Badge _badge = badge;
-            address evict = topHolders[minI];
-
-            topHolders[minI] = a;
+        // 3) not seated, non-zero balance => insert
+        (uint16 freeSlot, bool ok) = _firstFree();
+        if (ok) {
+            seats[freeSlot] = Seat({holder: a, bal: bal});
+            _setUsed(freeSlot);
             unchecked {
-                topPos[a] = minI + 1;
+                topPos[a] = freeSlot + 1;
             }
-            delete topPos[evict];
+            badge.mintSeat(a, freeSlot + 1);
 
-            _badge.burn(evict);
-            _badge.mint(a);
+            if (minBal == 0 || bal < minBal) {
+                minSlot = freeSlot;
+                minBal = bal;
+            }
+            return;
         }
+
+        // 4) full => compare to cutline; evict min if strictly larger
+        if (bal > minBal) {
+            uint16 slot = minSlot;
+            address evict = seats[slot].holder;
+
+            delete topPos[evict];
+            badge.burnSeat(slot + 1);
+
+            seats[slot] = Seat({holder: a, bal: bal});
+            unchecked {
+                topPos[a] = slot + 1;
+            }
+
+            badge.mintSeat(a, slot + 1);
+
+            _recomputeMin(); // rare
+        }
+        // else: newcomer didn’t beat the cutline => do nothing (sticky)
+    }
+
+    function _ctz256(uint256 x) internal pure returns (uint16 n) {
+        // x != 0 is expected by callers
+        unchecked {
+            n = 0;
+            if ((x & type(uint128).max) == 0) n += 128;
+            x >>= 128;
+            if ((x & type(uint64).max) == 0) n += 64;
+            x >>= 64;
+            if ((x & 0xFFFFFFFF) == 0) n += 32;
+            x >>= 32;
+            if ((x & 0xFFFF) == 0) n += 16;
+            x >>= 16;
+            if ((x & 0xFF) == 0) n += 8;
+            x >>= 8;
+            if ((x & 0xF) == 0) n += 4;
+            x >>= 4;
+            if ((x & 0x3) == 0) n += 2;
+            x >>= 2;
+            if ((x & 0x1) == 0) n += 1;
+        }
+    }
+
+    function _firstFree() internal view returns (uint16 slot, bool ok) {
+        uint256 free = ~occupied;
+        if (free == 0) return (0, false);
+        uint256 lsb = free & (~free + 1);
+        return (_ctz256(lsb), true); // 0..255
+    }
+
+    function _setUsed(uint16 i) internal {
+        occupied |= (uint256(1) << i);
+    }
+
+    function _setFree(uint16 i) internal {
+        occupied &= ~(uint256(1) << i);
+    }
+
+    function _recomputeMin() internal {
+        uint16 ms = 0;
+        uint96 mb = type(uint96).max;
+
+        for (uint256 m = occupied; m != 0; m &= (m - 1)) {
+            uint256 lsb = m & (~m + 1);
+            uint16 i = _ctz256(lsb);
+            uint96 b = seats[i].bal;
+            if (b != 0 && b < mb) {
+                mb = b;
+                ms = i;
+            }
+        }
+
+        minSlot = ms;
+        minBal = (mb == type(uint96).max) ? 0 : mb;
     }
 
     function _mint6909(address to, uint256 id, uint256 amount) internal {
@@ -971,7 +1066,7 @@ contract Moloch {
         // cache dynamic bits
         string memory orgName = bytes(_orgName).length != 0 ? _orgName : "UNNAMED DAO";
         string memory orgSymbol = bytes(_orgSymbol).length != 0 ? _orgSymbol : "N/A";
-        string memory orgShort = _shortHex(uint256(uint160(address(this))));
+        string memory orgShort = Display.shortAddr4(address(this)); // "0xAbCd...1234"
 
         // supplies
         uint256 shareSupply = shares.totalSupply();
@@ -1037,7 +1132,7 @@ contract Moloch {
             svg,
             "<text x='60' y='261' class='garamond' font-size='9' fill='#aaa'>Share Supply</text>",
             "<text x='60' y='274' class='mono' font-size='8' fill='#fff'>",
-            _formatNumber(shareSupply / 1e18),
+            Display.fmtComma(shareSupply / 1e18),
             "</text>"
         );
 
@@ -1046,7 +1141,7 @@ contract Moloch {
                 svg,
                 "<text x='220' y='261' class='garamond' font-size='9' fill='#aaa'>Loot Supply</text>",
                 "<text x='220' y='274' class='mono' font-size='8' fill='#fff'>",
-                _formatNumber(lootSupply / 1e18),
+                Display.fmtComma(lootSupply / 1e18),
                 "</text>"
             );
         }
@@ -1091,7 +1186,7 @@ contract Moloch {
             svg = string.concat(
                 svg,
                 "<text x='210' y='",
-                _u2s(nextY),
+                Display.toString(nextY),
                 "' class='covenant' text-anchor='middle'>Loot transfers are ",
                 lootTransfersLocked ? "DISABLED" : "ENABLED",
                 ".</text>"
@@ -1104,7 +1199,7 @@ contract Moloch {
         svg = string.concat(
             svg,
             "<text x='210' y='",
-            _u2s(nextY),
+            Display.toString(nextY),
             "' class='covenant' text-anchor='middle'>This Covenant is amendable by DAO vote.</text>"
         );
 
@@ -1112,10 +1207,10 @@ contract Moloch {
         svg = string.concat(
             svg,
             "<text x='210' y='",
-            _u2s(nextY + 20),
+            Display.toString(nextY + 20),
             "' class='covenant' text-anchor='middle'>No warranty, express or implied. Members participate at</text>",
             "<text x='210' y='",
-            _u2s(nextY + 30),
+            Display.toString(nextY + 30),
             "' class='covenant' text-anchor='middle'>own risk. Not legal, tax, or investment advice.</text>"
         );
 
@@ -1129,7 +1224,7 @@ contract Moloch {
         );
 
         // final JSON with embedded image
-        return _jsonImage(
+        return Display.jsonImage(
             string.concat(bytes(_orgName).length != 0 ? _orgName : "DAO", " DUNA Covenant"),
             "Wyoming Decentralized Unincorporated Nonprofit Association operating charter and member agreement",
             svg
@@ -1149,9 +1244,7 @@ contract Moloch {
 
         bool looksLikePermit = !opened && !touchedTallies && totalSupply[id] != 0;
 
-        if (looksLikePermit) {
-            return _permitCardURI(id);
-        }
+        if (looksLikePermit) return _permitCardURI(id);
 
         // ----- Proposal Card -----
         string memory stateStr;
@@ -1173,7 +1266,7 @@ contract Moloch {
             stateStr = "EXECUTED";
         }
 
-        string memory svg = _svgCardBase();
+        string memory svg = Display.svgCardBase();
 
         // title
         svg = string.concat(
@@ -1199,7 +1292,7 @@ contract Moloch {
             svg,
             "<text x='60' y='255' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>ID</text>",
             "<text x='60' y='272' class='mono' font-size='9' fill='#fff'>",
-            _shortHex(id),
+            Display.shortDec(id, 4, 4), // decimal "1234...5678" if long
             "</text>"
         );
 
@@ -1209,10 +1302,10 @@ contract Moloch {
                 svg,
                 "<text x='60' y='305' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Snapshot</text>",
                 "<text x='60' y='322' class='mono' font-size='9' fill='#fff'>Block ",
-                _u2s(snap),
+                Display.toString(snap),
                 "</text>",
                 "<text x='60' y='335' class='mono' font-size='9' fill='#fff'>Supply ",
-                _formatNumber(supplySnapshot[id] / 1e18),
+                Display.fmtComma(supplySnapshot[id] / 1e18),
                 "</text>"
             );
         }
@@ -1223,13 +1316,13 @@ contract Moloch {
                 svg,
                 "<text x='60' y='368' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Tally</text>",
                 "<text x='60' y='385' class='mono' font-size='9' fill='#fff'>For      ",
-                _formatNumber(t.forVotes / 1e18),
+                Display.fmtComma(t.forVotes / 1e18),
                 "</text>",
                 "<text x='60' y='398' class='mono' font-size='9' fill='#fff'>Against  ",
-                _formatNumber(t.againstVotes / 1e18),
+                Display.fmtComma(t.againstVotes / 1e18),
                 "</text>",
                 "<text x='60' y='411' class='mono' font-size='9' fill='#fff'>Abstain  ",
-                _formatNumber(t.abstainVotes / 1e18),
+                Display.fmtComma(t.abstainVotes / 1e18),
                 "</text>"
             );
         }
@@ -1244,7 +1337,7 @@ contract Moloch {
             "</svg>"
         );
 
-        return _jsonImage(
+        return Display.jsonImage(
             string.concat(_orgName, " Proposal"), "Snapshot-weighted governance proposal", svg
         );
     }
@@ -1266,7 +1359,7 @@ contract Moloch {
             status = (F.winner == s) ? "REDEEMABLE" : "SEALED";
         }
 
-        string memory svg = _svgCardBase();
+        string memory svg = Display.svgCardBase();
 
         // title
         svg = string.concat(
@@ -1326,7 +1419,7 @@ contract Moloch {
             svg,
             "<text x='60' y='275' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Proposal</text>",
             "<text x='60' y='292' class='mono' font-size='9' fill='#fff'>",
-            _shortHex(proposalId_),
+            Display.shortDec(proposalId_, 4, 4), // e.g. 1234...5678
             "</text>",
             "<text x='60' y='325' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Stance</text>",
             "<text x='60' y='345' class='garamond-bold' font-size='14' fill='#fff'>",
@@ -1334,7 +1427,7 @@ contract Moloch {
             "</text>",
             "<text x='60' y='378' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Weight</text>",
             "<text x='60' y='395' class='mono' font-size='9' fill='#fff'>",
-            _formatNumber(totalSupply[id] / 1e18),
+            Display.fmtComma(totalSupply[id] / 1e18),
             " votes</text>"
         );
 
@@ -1344,7 +1437,7 @@ contract Moloch {
                 svg,
                 "<text x='60' y='428' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Futarchy</text>",
                 "<text x='60' y='445' class='mono' font-size='9' fill='#fff'>Pool ",
-                _formatNumber(F.pool / 1e18),
+                Display.fmtComma(F.pool / 1e18),
                 F.rewardToken == address(0) ? " ETH" : " shares",
                 "</text>"
             );
@@ -1353,7 +1446,7 @@ contract Moloch {
                 svg = string.concat(
                     svg,
                     "<text x='60' y='458' class='mono' font-size='9' fill='#fff'>Payout ",
-                    _formatNumber(F.payoutPerUnit / 1e18),
+                    Display.fmtComma(F.payoutPerUnit / 1e18),
                     "/vote</text>"
                 );
             }
@@ -1369,7 +1462,7 @@ contract Moloch {
             "</svg>"
         );
 
-        return _jsonImage(
+        return Display.jsonImage(
             "Vote Receipt",
             string.concat(stance, " vote receipt - burn to claim rewards if winner"),
             svg
@@ -1384,13 +1477,9 @@ contract Moloch {
         string memory usesStr;
         uint256 supply = totalSupply[id];
 
-        if (supply == 0) {
-            usesStr = "NONE"; // no permits issued
-        } else {
-            usesStr = _formatNumber(supply);
-        }
+        usesStr = (supply == 0) ? "NONE" : Display.fmtComma(supply);
 
-        string memory svg = _svgCardBase();
+        string memory svg = Display.svgCardBase();
 
         // title
         svg = string.concat(
@@ -1421,7 +1510,7 @@ contract Moloch {
             svg,
             "<text x='60' y='280' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Intent ID</text>",
             "<text x='60' y='297' class='mono' font-size='9' fill='#fff'>",
-            _shortHex(id),
+            Display.shortDec(id, 4, 4), // e.g. 1234...5678
             "</text>",
             "<text x='60' y='330' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Total Supply</text>", // ← Changed label
             "<text x='60' y='350' class='garamond-bold' font-size='14' fill='#fff'>",
@@ -1437,29 +1526,7 @@ contract Moloch {
             "</svg>"
         );
 
-        return _jsonImage("Permit", "Pre-approved execution permit", svg);
-    }
-
-    /// @dev Shortened hex: 0xabcd...1234:
-    function _shortHex(uint256 data) internal pure returns (string memory) {
-        return _shortHexDisplay(_toHex(data));
-    }
-
-    /// @dev Cheap hex for bytes32: "0x" + 64 hex chars:
-    function _toHex(uint256 data) internal pure returns (string memory) {
-        bytes memory str = new bytes(66);
-        str[0] = "0";
-        str[1] = "x";
-
-        assembly {
-            let _hex := "0123456789abcdef"
-            for { let i := 0 } lt(i, 32) { i := add(i, 1) } {
-                let b := byte(i, data)
-                mstore8(add(add(str, 32), add(mul(i, 2), 2)), byte(shr(4, b), _hex))
-                mstore8(add(add(str, 32), add(mul(i, 2), 3)), byte(and(b, 0x0f), _hex))
-            }
-        }
-        return string(str);
+        return Display.jsonImage("Permit", "Pre-approved execution permit", svg);
     }
 
     /* RECEIVERS */
@@ -1573,7 +1640,7 @@ contract Shares {
 
     struct Checkpoint {
         uint48 fromBlock;
-        uint208 votes;
+        uint96 votes;
     }
 
     mapping(address delegator => address primaryDelegate) internal _delegates;
@@ -1865,7 +1932,7 @@ contract Shares {
     }
 
     /// @dev Apply +/- voting power change for an account according to its split,
-    ///      in a *path-independent* way based on old vs new target allocations.
+    ///      in a *path-independent* way based on old vs new target allocations:
     function _applyVotingDelta(address account, int256 delta) internal {
         if (delta == 0) return;
 
@@ -1906,7 +1973,7 @@ contract Shares {
 
     /// @dev Re-route an existing holder's current voting power from `old` distribution to
     ///      the holder's *current* distribution (as returned by _currentDistribution),
-    ///      in a path-independent way based on old vs new target allocations.
+    ///      in a path-independent way based on old vs new target allocations:
     function _repointVotesForHolder(address holder, address[] memory oldD, uint32[] memory oldB)
         internal
     {
@@ -2018,7 +2085,7 @@ contract Shares {
 
             // if we've already written this block, just update it
             if (last.fromBlock == blk) {
-                last.votes = toUint208(newVal);
+                last.votes = toUint96(newVal);
                 return;
             }
 
@@ -2026,7 +2093,7 @@ contract Shares {
             if (last.votes == newVal) return;
         }
 
-        ckpts.push(Checkpoint({fromBlock: blk, votes: toUint208(newVal)}));
+        ckpts.push(Checkpoint({fromBlock: blk, votes: toUint96(newVal)}));
     }
 
     function _writeTotalSupplyCheckpoint() internal {
@@ -2182,7 +2249,10 @@ contract Badge {
     /* MAJEUR */
     address payable public DAO;
 
-    mapping(address owner => uint256) public balanceOf;
+    // tokenId (seat 1..256) => owner
+    mapping(uint256 => address) _ownerOf;
+    mapping(address => uint256) public seatOf;
+    mapping(address => uint256) public balanceOf;
 
     modifier onlyDAO() {
         require(msg.sender == DAO, Unauthorized());
@@ -2210,25 +2280,26 @@ contract Badge {
     }
 
     function ownerOf(uint256 id) public view returns (address o) {
-        o = address(uint160(id));
-        require(balanceOf[o] != 0, NotMinted());
+        o = _ownerOf[id];
+        require(o != address(0), NotMinted());
     }
 
-    /// @dev Top-256 badge (seat index, not sorted by balance):
+    /// @dev Top-256 badge (seat index; tokenId == seat, not sorted by balance):
     function tokenURI(uint256 id) public view returns (string memory) {
-        address holder = address(uint160(id));
-        Shares sh = Moloch(DAO).shares();
+        // reverts if the seat token isn't minted; guarantees we're seated
+        address holder = ownerOf(id);
 
+        Shares sh = Moloch(DAO).shares();
         uint256 bal = sh.balanceOf(holder);
         uint256 balInTokens = bal / 1e18;
         uint256 ts = sh.totalSupply();
-        uint256 rk = Moloch(DAO).rankOf(holder);
 
-        string memory addr = _shortAddr(holder);
-        string memory pct = _percent(bal, ts);
-        string memory rankStr = rk == 0 ? "UNSEATED" : _u2s(rk);
+        // seat string comes straight from tokenId; no rankOf() needed
+        string memory addr = Display.shortAddr4(holder);
+        string memory pct = Display.percent2(bal, ts);
+        string memory seatStr = Display.toString(id);
 
-        string memory svg = _svgCardBase();
+        string memory svg = Display.svgCardBase();
 
         // title
         svg = string.concat(
@@ -2263,7 +2334,7 @@ contract Badge {
             "</text>",
             "<text x='60' y='325' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Seat</text>",
             "<text x='60' y='345' class='garamond-bold' font-size='16' fill='#fff'>",
-            rankStr,
+            seatStr,
             "</text>"
         );
 
@@ -2272,7 +2343,7 @@ contract Badge {
             svg,
             "<text x='60' y='378' class='garamond' font-size='10' fill='#aaa' letter-spacing='1'>Balance</text>",
             "<text x='60' y='395' class='mono' font-size='9' fill='#fff'>",
-            _formatNumber(balInTokens),
+            Display.fmtComma(balInTokens), // 123,456,789
             " shares</text>"
         );
 
@@ -2285,13 +2356,13 @@ contract Badge {
             "</text>"
         );
 
-        // status (only show if in top 256)
-        if (rk != 0) {
-            svg = string.concat(
-                svg,
-                "<text x='210' y='500' class='garamond' font-size='12' fill='#fff' text-anchor='middle' letter-spacing='2'>TOP 256</text>"
-            );
-        }
+        // status — token exists only for top-256, so always show the banner
+        svg = string.concat(
+            svg,
+            "<text x='210' y='500' class='garamond' font-size='12' fill='#fff' text-anchor='middle' letter-spacing='2'>TOP 256 - SEAT ",
+            seatStr,
+            "</text>"
+        );
 
         svg = string.concat(
             svg,
@@ -2300,253 +2371,386 @@ contract Badge {
             "</svg>"
         );
 
-        return _jsonImage("Badge", "Top-256 holder badge (SBT)", svg);
+        return Display.jsonImage("Badge", "Top-256 holder badge (SBT)", svg);
     }
 
     function transferFrom(address, address, uint256) public pure {
         revert SBT();
     }
 
-    function mint(address to) public payable onlyDAO {
-        require(to != address(0) && balanceOf[to] == 0, Minted());
-
+    // seat: 1..256
+    function mintSeat(address to, uint16 seat) public payable onlyDAO {
+        uint256 id = uint256(seat);
+        require(seat >= 1 && seat <= 256, NotMinted());
+        require(to != address(0) && _ownerOf[id] == address(0) && balanceOf[to] == 0, Minted());
+        _ownerOf[id] = to;
         balanceOf[to] = 1;
-        emit Transfer(address(0), to, uint256(uint160(to)));
+        seatOf[to] = id;
+        emit Transfer(address(0), to, id);
     }
 
-    function burn(address from) public payable onlyDAO {
-        require(balanceOf[from] != 0, NotMinted());
-
+    function burnSeat(uint16 seat) public payable onlyDAO {
+        uint256 id = uint256(seat);
+        address from = _ownerOf[id];
+        require(from != address(0), NotMinted());
+        delete _ownerOf[id];
+        delete seatOf[from];
         delete balanceOf[from];
-        emit Transfer(from, address(0), uint256(uint160(from)));
-    }
-
-    /* utils */
-
-    /// @dev Shortened address: 0xabcd...1234:
-    function _shortAddr(address a) internal pure returns (string memory) {
-        return _shortHexDisplay(_addrHex(a));
-    }
-
-    /// @dev 0x + 40 hex chars:
-    function _addrHex(address a) internal pure returns (string memory s) {
-        bytes20 b = bytes20(a);
-        bytes16 H = 0x30313233343536373839616263646566; // "0123456789abcdef"
-        bytes memory out = new bytes(42);
-
-        out[0] = "0";
-        out[1] = "x";
-
-        for (uint256 i; i != 20; ++i) {
-            unchecked {
-                uint8 v = uint8(b[i]); // byte at position i
-                // high nibble, then low nibble
-                out[2 + 2 * i] = bytes1(H[v >> 4]);
-                out[3 + 2 * i] = bytes1(H[v & 0x0f]);
-            }
-        }
-
-        s = string(out);
-    }
-
-    function _percent(uint256 a, uint256 b) internal pure returns (string memory) {
-        if (b == 0) return "0.00%";
-        uint256 p = a * 10000 / b; // basis points
-        uint256 i = p / 100;
-        uint256 d = p % 100;
-        return string.concat(_u2s(i), ".", d < 10 ? "0" : "", _u2s(d), "%");
+        emit Transfer(from, address(0), id);
     }
 }
 
-library DataURI {
-    function json(string memory raw) internal pure returns (string memory) {
-        return string.concat("data:application/json;base64,", Base64.encode(bytes(raw)));
+/// @dev Display — minimal helpers for on-chain SVG / string rendering:
+library Display {
+    /*──────────────────────  DATA URIs  ─────────────────────*/
+
+    function jsonDataURI(string memory raw) internal pure returns (string memory) {
+        return string.concat("data:application/json;base64,", _b64(bytes(raw)));
     }
 
-    function svg(string memory raw) internal pure returns (string memory) {
-        return string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(raw)));
-    }
-}
-
-function _formatNumber(uint256 n) pure returns (string memory) {
-    if (n == 0) return "0";
-
-    uint256 temp = n;
-    uint256 digits;
-    while (temp != 0) {
-        digits++;
-        temp /= 10;
+    function svgDataURI(string memory raw) internal pure returns (string memory) {
+        return string.concat("data:image/svg+xml;base64,", _b64(bytes(raw)));
     }
 
-    uint256 commas = (digits - 1) / 3;
-    bytes memory buffer = new bytes(digits + commas);
+    function jsonImage(string memory name_, string memory description_, string memory svg_)
+        internal
+        pure
+        returns (string memory)
+    {
+        return jsonDataURI(
+            string.concat(
+                '{"name":"',
+                name_,
+                '","description":"',
+                description_,
+                '","image":"',
+                svgDataURI(svg_),
+                '"}'
+            )
+        );
+    }
 
-    uint256 i = digits + commas;
-    uint256 digitCount = 0;
+    /*──────────────────────  SVG BASE  ─────────────────────*/
 
-    while (n != 0) {
-        if (digitCount > 0 && digitCount % 3 == 0) {
-            unchecked {
-                --i;
-            }
-            buffer[i] = ",";
-        }
+    function svgCardBase() internal pure returns (string memory) {
+        return string.concat(
+            "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='600'>",
+            "<defs><style>",
+            ".garamond{font-family:'EB Garamond',serif;font-weight:400;}",
+            ".garamond-bold{font-family:'EB Garamond',serif;font-weight:600;}",
+            ".mono{font-family:'Courier Prime',monospace;}",
+            "</style></defs>",
+            "<rect width='420' height='600' fill='#000'/>",
+            "<rect x='20' y='20' width='380' height='560' fill='none' stroke='#fff' stroke-width='1'/>"
+        );
+    }
+
+    /*──────────────────────  DECIMAL IDs  ─────────────────────*/
+
+    /// @dev "1234...5678" from a big decimal id - if short already, returns full:
+    function shortDec(uint256 v, uint8 head, uint8 tail) internal pure returns (string memory) {
+        string memory s = toString(v);
+        uint256 n = bytes(s).length;
         unchecked {
-            --i;
+            if (n <= uint256(head) + uint256(tail) + 3) return s;
+            return string.concat(slice(s, 0, head), "...", slice(s, n - tail, n));
         }
-        buffer[i] = bytes1(uint8(48 + (n % 10)));
-        n /= 10;
-        digitCount++;
     }
 
-    return string(buffer);
-}
+    /*──────────────────────  ADDRESSES  ─────────────────────*/
 
-function _u2s(uint256 x) pure returns (string memory) {
-    if (x == 0) return "0";
+    /// @dev "0xAbCd...1234" (EIP-55). `head`/`tail` are nibbles after "0x":
+    function shortAddr(address a, uint8 head, uint8 tail) internal pure returns (string memory) {
+        string memory full = _toHexStringChecksummed(a); // 42 chars
+        uint256 n = bytes(full).length;
+        unchecked {
+            if (2 + head > n) head = uint8(n > 2 ? n - 2 : 0);
+            if (tail > n) tail = uint8(n);
+            return string.concat(slice(full, 0, 2 + head), "...", slice(full, n - tail, n));
+        }
+    }
 
-    uint256 temp = x;
-    uint256 digits;
-    unchecked {
+    /// @dev Convenience: 0x + 4 nibbles ... 4 nibbles:
+    function shortAddr4(address a) internal pure returns (string memory) {
+        return shortAddr(a, 4, 4);
+    }
+
+    /*──────────────────────  HEX (optional)  ─────────────────────*/
+
+    /// @dev Minimal 0x-hex for uint, shortened to "0x12...34":
+    function shortHexUint(uint256 v, uint8 head, uint8 tail) internal pure returns (string memory) {
+        string memory full = _toMinimalHexString(v);
+        uint256 n = bytes(full).length;
+        if (n <= 2 + head + tail + 3) return full;
+        unchecked {
+            return string.concat(slice(full, 0, 2 + head), "...", slice(full, n - tail, n));
+        }
+    }
+
+    /*──────────────────────  NUMBERS  ─────────────────────*/
+
+    /// @dev Decimal with commas: 123_456_789 => "123,456,789":
+    function fmtComma(uint256 n) internal pure returns (string memory) {
+        if (n == 0) return "0";
+        uint256 temp = n;
+        uint256 digits;
         while (temp != 0) {
-            ++digits;
-            temp /= 10;
+            unchecked {
+                ++digits;
+                temp /= 10;
+            }
         }
-    }
+        uint256 commas = (digits - 1) / 3;
+        bytes memory buf = new bytes(digits + commas);
 
-    bytes memory buffer = new bytes(digits);
-    unchecked {
-        while (x != 0) {
-            --digits;
-            buffer[digits] = bytes1(uint8(48 + (x % 10)));
-            x /= 10;
+        uint256 i = buf.length;
+        uint256 dcount;
+        while (n != 0) {
+            if (dcount != 0 && dcount % 3 == 0) {
+                unchecked {
+                    buf[--i] = ",";
+                }
+            }
+            unchecked {
+                buf[--i] = bytes1(uint8(48 + (n % 10)));
+                n /= 10;
+                ++dcount;
+            }
         }
-    }
-    return string(buffer);
-}
-
-function _shortHexDisplay(string memory fullHex) pure returns (string memory) {
-    bytes memory full = bytes(fullHex);
-    bytes memory result = new bytes(13);
-
-    // "0x" + first 4 hex chars
-    for (uint256 i = 0; i < 6; ++i) {
-        result[i] = full[i];
+        return string(buf);
     }
 
-    // "..."
-    result[6] = ".";
-    result[7] = ".";
-    result[8] = ".";
-
-    // last 4 hex chars (works for both 0x + 40 and 0x + 64)
-    uint256 len = full.length;
-    for (uint256 i = 0; i != 4; ++i) {
-        result[9 + i] = full[len - 4 + i];
+    /// @dev Percent with 2 decimals from a/b, e.g. 1234/10000 => "12.34%":
+    function percent2(uint256 a, uint256 b) internal pure returns (string memory) {
+        if (b == 0) return "0.00%";
+        uint256 p = (a * 10000) / b; // basis points
+        uint256 whole = p / 100;
+        uint256 frac = p % 100;
+        return string.concat(toString(whole), ".", (frac < 10) ? "0" : "", toString(frac), "%");
     }
 
-    return string(result);
-}
+    /*──────────────────────  ESCAPE  ─────────────────────*/
 
-function _svgCardBase() pure returns (string memory) {
-    return string.concat(
-        "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='600'>",
-        "<defs>",
-        "<style>",
-        ".garamond{font-family:'EB Garamond',serif;font-weight:400;}",
-        ".garamond-bold{font-family:'EB Garamond',serif;font-weight:600;}",
-        ".mono{font-family:'Courier Prime',monospace;}",
-        "</style>",
-        "</defs>",
-        "<rect width='420' height='600' fill='#000'/>",
-        "<rect x='20' y='20' width='380' height='560' fill='none' stroke='#fff' stroke-width='1'/>"
-    );
-}
-
-function _jsonImage(string memory name_, string memory description_, string memory svg)
-    pure
-    returns (string memory)
-{
-    return DataURI.json(
-        string.concat(
-            '{"name":"',
-            name_,
-            '","description":"',
-            description_,
-            '","image":"',
-            DataURI.svg(svg),
-            '"}'
-        )
-    );
-}
-
-library Base64 {
-    function encode(bytes memory data) internal pure returns (string memory result) {
+    /// @dev Escape for embedding inside SVG/HTML.
+    function esc(string memory s) internal pure returns (string memory result) {
         assembly ("memory-safe") {
-            let dataLength := mload(data)
+            result := mload(0x40)
+            let end := add(s, mload(s))
+            let o := add(result, 0x20)
+            // packed offsets/strides for replacements; and the replacement blob:
+            mstore(0x1f, 0x900094)
+            mstore(0x08, 0xc0000000a6ab)
+            mstore(0x00, shl(64, 0x2671756f743b26616d703b262333393b266c743b2667743b)) // "&quot;&amp;&#39;&lt;&gt;"
+            for {} iszero(eq(s, end)) {} {
+                s := add(s, 1)
+                let c := and(mload(s), 0xff)
+                // if c ∉ ["\"","'","&","<",">"], write raw
+                if iszero(and(shl(c, 1), 0x500000c400000000)) {
+                    mstore8(o, c)
+                    o := add(o, 1)
+                    continue
+                }
+                let t := shr(248, mload(c))
+                mstore(o, mload(and(t, 0x1f)))
+                o := add(o, shr(5, t))
+            }
+            mstore(o, 0)
+            mstore(result, sub(o, add(result, 0x20)))
+            mstore(0x40, add(o, 0x20))
+        }
+    }
 
-            if dataLength {
-                let encodedLength := shl(2, div(add(dataLength, 2), 3))
+    /*──────────────────────  MINI STRING PRIMS  ─────────────────────*/
 
+    /// @dev uint256 → decimal string (Solady-style, trimmed).
+    function toString(uint256 value) internal pure returns (string memory result) {
+        assembly ("memory-safe") {
+            result := add(mload(0x40), 0x80)
+            mstore(0x40, add(result, 0x20))
+            mstore(result, 0)
+            let end := result
+            for { let temp := value } 1 {} {
+                result := add(result, not(0)) // -1
+                mstore8(result, add(48, mod(temp, 10)))
+                temp := div(temp, 10)
+                if iszero(temp) { break }
+            }
+            let n := sub(end, result)
+            result := sub(result, 0x20)
+            mstore(result, n)
+        }
+    }
+
+    /// @dev slice string [start,end). Byte offsets.
+    function slice(string memory subject, uint256 start, uint256 end)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string(_slice(bytes(subject), start, end));
+    }
+
+    /// @dev bytes slice [start,end): byte offsets:
+    function _slice(bytes memory subject, uint256 start, uint256 end)
+        internal
+        pure
+        returns (bytes memory result)
+    {
+        assembly ("memory-safe") {
+            let l := mload(subject)
+            if iszero(gt(l, end)) { end := l }
+            if iszero(gt(l, start)) { start := l }
+            if lt(start, end) {
+                result := mload(0x40)
+                let n := sub(end, start)
+                let i := add(subject, start)
+                let w := not(0x1f)
+                for { let j := and(add(n, 0x1f), w) } 1 {} {
+                    mstore(add(result, j), mload(add(i, j)))
+                    j := add(j, w)
+                    if iszero(j) { break }
+                }
+                let o := add(add(result, 0x20), n)
+                mstore(o, 0)
+                mstore(0x40, add(o, 0x20))
+                mstore(result, n)
+            }
+        }
+    }
+
+    /*──────────────────────  MINI HEX PRIMS  ─────────────────────*/
+
+    /// @dev address => "0x" + 40 hex (lowercase):
+    function _toHexString(address value) private pure returns (string memory result) {
+        assembly ("memory-safe") {
+            result := mload(0x40)
+            mstore(0x40, add(result, 0x80))
+            mstore(result, 42)
+            let o := add(result, 0x20)
+            mstore(o, 0x3078) // "0x"
+            o := add(o, 2)
+            mstore(add(o, 40), 0) // zero after
+            value := shl(96, value)
+            mstore(0x0f, 0x30313233343536373839616263646566)
+            for { let i := 0 } 1 {} {
+                let p := add(o, add(i, i))
+                let b := byte(i, value)
+                mstore8(add(p, 1), mload(and(b, 15)))
+                mstore8(p, mload(shr(4, b)))
+                i := add(i, 1)
+                if eq(i, 20) { break }
+            }
+        }
+    }
+
+    /// @dev address => EIP-55 checksummed "0x..." (conditional uppercase):
+    function _toHexStringChecksummed(address a) private pure returns (string memory result) {
+        result = _toHexString(a);
+        assembly ("memory-safe") {
+            let mask := shl(6, div(not(0), 255))
+            let o := add(result, 0x22) // skip length(32) + "0x"(2)
+            // keccak of the 40 lowercase hex chars
+            let hashed := and(keccak256(o, 40), mul(34, mask))
+            let t := shl(240, 136)
+            // build a 32-byte mask for uppercasing (Solady trick)
+            for { let i := 0 } 1 {} {
+                mstore(add(i, i), mul(t, byte(i, hashed)))
+                i := add(i, 1)
+                if eq(i, 20) { break }
+            }
+            mstore(o, xor(mload(o), shr(1, and(mload(0x00), and(mload(o), mask)))))
+            o := add(o, 0x20)
+            mstore(o, xor(mload(o), shr(1, and(mload(0x20), and(mload(o), mask)))))
+        }
+    }
+
+    /// @dev uint => minimal "0x..." (no redundant leading zero nibble):
+    function _toMinimalHexString(uint256 value) private pure returns (string memory result) {
+        assembly ("memory-safe") {
+            result := add(mload(0x40), 0x80)
+            mstore(0x40, add(result, 0x20))
+            mstore(result, 0)
+            let end := result
+            mstore(0x0f, 0x30313233343536373839616263646566)
+            for { let temp := value } 1 {} {
+                result := add(result, not(1)) // -2
+                mstore8(add(result, 1), mload(and(temp, 15)))
+                mstore8(result, mload(and(shr(4, temp), 15)))
+                temp := shr(8, temp)
+                if iszero(temp) { break }
+            }
+            // add "0x" and length (handle leading zero nibble)
+            let n := sub(end, result)
+            let leadZero := eq(byte(0, mload(add(result, 0x20))), 0x30)
+            let total := add(n, 2)
+            mstore(sub(add(result, leadZero), 2), 0x3078) // "0x"
+            result := sub(add(result, leadZero), 2)
+            mstore(result, sub(total, leadZero))
+        }
+    }
+
+    /*──────────────────────  MINI BASE64  ─────────────────────*/
+
+    function _b64(bytes memory data) private pure returns (string memory result) {
+        assembly ("memory-safe") {
+            let len := mload(data)
+            if len {
+                let encLen := shl(2, div(add(len, 2), 3))
                 result := mload(0x40)
                 mstore(0x1f, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef")
                 mstore(0x3f, "ghijklmnopqrstuvwxyz0123456789+/")
-
                 let ptr := add(result, 0x20)
-                let end := add(ptr, encodedLength)
-                let dataEnd := add(add(0x20, data), dataLength)
-                let dataEndValue := mload(dataEnd)
-                mstore(dataEnd, 0x00)
-
+                let end := add(ptr, encLen)
+                let dataEnd := add(add(data, 0x20), len)
+                let tail := mload(dataEnd)
+                mstore(dataEnd, 0)
                 for {} 1 {} {
                     data := add(data, 3)
                     let input := mload(data)
-
                     mstore8(0, mload(and(shr(18, input), 0x3F)))
                     mstore8(1, mload(and(shr(12, input), 0x3F)))
                     mstore8(2, mload(and(shr(6, input), 0x3F)))
                     mstore8(3, mload(and(input, 0x3F)))
                     mstore(ptr, mload(0x00))
-
                     ptr := add(ptr, 4)
                     if iszero(lt(ptr, end)) { break }
                 }
-
-                mstore(dataEnd, dataEndValue)
+                mstore(dataEnd, tail)
                 mstore(0x40, add(end, 0x20))
-
-                let o := div(2, mod(dataLength, 3))
-                mstore(sub(ptr, o), shl(240, 0x3d3d))
-
+                let pad := div(2, mod(len, 3))
+                mstore(sub(ptr, pad), shl(240, 0x3d3d)) // '=' padding
                 mstore(ptr, 0)
-                mstore(result, encodedLength)
+                mstore(result, encLen)
             }
         }
     }
 }
 
+// Call structure:
 struct Call {
     address target;
     uint256 value;
     bytes data;
 }
 
-error LengthMismatch();
-
-error Unauthorized();
-
-error Overflow();
-
+// Global errors:
 error Locked();
+error Overflow();
+error Unauthorized();
+error LengthMismatch();
+error TransferFailed();
+error ETHTransferFailed();
+error TransferFromFailed();
 
+// Safe cast utils:
 function toUint48(uint256 x) pure returns (uint48) {
     if (x >= 1 << 48) _revertOverflow();
     return uint48(x);
 }
 
-function toUint208(uint256 x) pure returns (uint208) {
-    if (x >= 1 << 208) _revertOverflow();
-    return uint208(x);
+function toUint96(uint256 x) pure returns (uint96) {
+    if (x >= 1 << 96) _revertOverflow();
+    return uint96(x);
 }
 
 function _revertOverflow() pure {
@@ -2556,6 +2760,7 @@ function _revertOverflow() pure {
     }
 }
 
+// Math utils:
 error MulDivFailed();
 
 function mulDiv(uint256 x, uint256 y, uint256 d) pure returns (uint256 z) {
@@ -2569,6 +2774,7 @@ function mulDiv(uint256 x, uint256 y, uint256 d) pure returns (uint256 z) {
     }
 }
 
+// Safe token utils:
 function balanceOfThis(address token) view returns (uint256 amount) {
     assembly ("memory-safe") {
         mstore(0x14, address())
@@ -2580,8 +2786,6 @@ function balanceOfThis(address token) view returns (uint256 amount) {
     }
 }
 
-error ETHTransferFailed();
-
 function safeTransferETH(address to, uint256 amount) {
     assembly ("memory-safe") {
         if iszero(call(gas(), to, amount, codesize(), 0x00, codesize(), 0x00)) {
@@ -2590,8 +2794,6 @@ function safeTransferETH(address to, uint256 amount) {
         }
     }
 }
-
-error TransferFailed();
 
 function safeTransfer(address token, address to, uint256 amount) {
     assembly ("memory-safe") {
@@ -2608,8 +2810,6 @@ function safeTransfer(address token, address to, uint256 amount) {
         mstore(0x34, 0)
     }
 }
-
-error TransferFromFailed();
 
 function safeTransferFrom(address token, uint256 amount) {
     assembly ("memory-safe") {
@@ -2632,7 +2832,7 @@ function safeTransferFrom(address token, uint256 amount) {
 
 /// @title Moloch Majeur Summoner
 contract Summoner {
-    event NewDAO(address indexed creator, Moloch indexed dao);
+    event NewDAO(address indexed summoner, Moloch indexed dao);
 
     Moloch[] public daos;
 

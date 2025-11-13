@@ -96,15 +96,15 @@ contract ContractURITest is Test {
         console2.log("  DUNA COVENANT WITH LOOT");
         console2.log("========================================\n");
 
-        // Enable loot sale to add loot supply
+        // Enable LOOT sale (isLoot = true)
         bytes memory lootData = abi.encodeWithSelector(
             Moloch.setSale.selector,
-            address(0),
-            0,
-            100e18,
-            true,
-            true,
-            true // isLoot
+            address(0), // payment token (native)
+            0, // price
+            100e18, // cap
+            true, // active
+            true, // transferrable
+            true // <-- isLoot
         );
 
         uint256 h = moloch.proposalId(0, address(moloch), 0, lootData, keccak256("loot-sale"));
@@ -117,12 +117,22 @@ contract ContractURITest is Test {
         vm.prank(bob);
         moloch.castVote(h, 1);
 
+        // ✅ ensure voting/grace are over:
+        vm.roll(block.number + 10);
+        vm.warp(block.timestamp + 8 days);
+
         moloch.executeByVotes(0, address(moloch), 0, lootData, keccak256("loot-sale"));
 
-        // Mint some loot
+        // Mint some LOOT (was buyShares before -> caused Minted() revert)
         address charlie = address(0xCAFE);
+        vm.deal(charlie, 100 ether);
+
+        uint256 beforeLoot = loot.totalSupply();
         vm.prank(charlie);
         moloch.buyShares{value: 0}(address(0), 50e18, 0);
+
+        // Assert mint happened
+        assertEq(loot.totalSupply(), beforeLoot + 50e18, "loot not minted");
 
         string memory uri = moloch.contractURI();
 
@@ -157,6 +167,10 @@ contract ContractURITest is Test {
         vm.prank(bob);
         moloch.castVote(h, 1);
 
+        // ✅ past voting/grace:
+        vm.roll(block.number + 10);
+        vm.warp(block.timestamp + 8 days);
+
         moloch.executeByVotes(0, address(moloch), 0, customData, keccak256("custom-uri"));
 
         string memory uri = moloch.contractURI();
@@ -174,7 +188,7 @@ contract ContractURITest is Test {
         console2.log("  DUNA COVENANT - TRANSFERS LOCKED");
         console2.log("========================================\n");
 
-        // Deploy new DAO with locked transfers
+        // Deploy new DAO with ragequit disabled
         address[] memory holders = new address[](1);
         holders[0] = alice;
         uint256[] memory amounts = new uint256[](1);
@@ -192,8 +206,6 @@ contract ContractURITest is Test {
             new Call[](0)
         );
 
-        // Lock transfers via init or immediately after
-        // For this test, we'll just check the default state
         string memory uri = lockedDao.contractURI();
 
         console2.log("Full URI:");
