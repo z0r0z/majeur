@@ -206,11 +206,11 @@ contract Moloch {
         uint16 _quorumBps, // e.g. 5000 = 50% turnout of snapshot supply
         bool _ragequittable,
         address[] calldata initHolders,
-        uint256[] calldata initAmounts,
+        uint256[] calldata initShares,
         Call[] calldata initCalls
     ) public payable {
         require(msg.sender == SUMMONER, Unauthorized());
-        require(initHolders.length == initAmounts.length, LengthMismatch());
+        require(initHolders.length == initShares.length, LengthMismatch());
 
         _orgName = orgName;
         _orgSymbol = orgSymbol;
@@ -218,15 +218,15 @@ contract Moloch {
         if (_quorumBps != 0) quorumBps = _quorumBps;
         if (_ragequittable) ragequittable = _ragequittable;
 
+        address _badge;
         address _shares;
         address _loot;
-        address _badge;
         bytes32 _salt = bytes32(bytes20(address(this)));
 
-        shares = Shares(_shares = _init(sharesImpl, _salt));
-        Shares(_shares).init(initHolders, initAmounts);
         badge = Badge(_badge = _init(badgeImpl, _salt));
         Badge(_badge).init();
+        shares = Shares(_shares = _init(sharesImpl, _salt));
+        Shares(_shares).init(initHolders, initShares);
         loot = Loot(_loot = _init(lootImpl, _salt));
         Loot(_loot).init();
 
@@ -323,13 +323,7 @@ contract Moloch {
         if (support > 2) revert NotOk();
 
         // auto-open on first vote if unopened
-        if (createdAt[id] == 0) {
-            if (proposalThreshold != 0) {
-                // threshold should always use CURRENT votes (not snapshot)
-                if (shares.getVotes(msg.sender) < proposalThreshold) revert NotOk();
-            }
-            openProposal(id);
-        }
+        if (createdAt[id] == 0) openProposal(id);
 
         // expiry gating
         if (proposalTTL != 0) {
@@ -1713,14 +1707,14 @@ contract Shares {
 
     constructor() payable {}
 
-    function init(address[] memory to, uint256[] memory amt) public payable {
+    function init(address[] memory initHolders, uint256[] memory initShares) public payable {
         require(DAO == address(0), Unauthorized());
         DAO = payable(msg.sender);
 
-        for (uint256 i; i != to.length; ++i) {
-            _mint(to[i], amt[i]); // balances + totalSupply + TS checkpoint
-            _autoSelfDelegate(to[i]); // default to self on first sight
-            _applyVotingDelta(to[i], int256(amt[i])); // route initial
+        for (uint256 i; i != initHolders.length; ++i) {
+            _mint(initHolders[i], initShares[i]);
+            _autoSelfDelegate(initHolders[i]);
+            _afterVotingBalanceChange(initHolders[i], int256(initShares[i]));
         }
     }
 
@@ -2848,10 +2842,10 @@ contract Summoner {
         bool _ragequittable,
         bytes32 salt,
         address[] calldata initHolders,
-        uint256[] calldata initAmounts,
+        uint256[] calldata initShares,
         Call[] calldata initCalls
     ) public payable returns (Moloch dao) {
-        bytes32 _salt = keccak256(abi.encode(initHolders, initAmounts, salt));
+        bytes32 _salt = keccak256(abi.encode(initHolders, initShares, salt));
         Moloch _implementation = implementation;
         assembly ("memory-safe") {
             mstore(0x24, 0x5af43d5f5f3e6029573d5ffd5b3d5ff3)
@@ -2871,7 +2865,7 @@ contract Summoner {
             _quorumBps,
             _ragequittable,
             initHolders,
-            initAmounts,
+            initShares,
             initCalls
         );
         daos.push(dao);
