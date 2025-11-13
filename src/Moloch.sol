@@ -881,7 +881,7 @@ contract Moloch {
         m = occupied;
         uint256 n;
         while (m != 0) {
-            uint16 i = uint16(ffs(m)); // 0..255, because m != 0
+            uint16 i = uint16(_ffs(m)); // 0..255, because m != 0
             out[n++] = seats[i];
             m &= (m - 1);
         }
@@ -980,8 +980,8 @@ contract Moloch {
         uint256 z = ~occupied;
         if (z == 0) return (0, false); // full
 
-        // z != 0 => ffs(z) in [0, 255] for 256-bit mask.
-        return (uint16(ffs(z)), true);
+        // z != 0 => _ffs(z) in [0, 255] for 256-bit mask.
+        return (uint16(_ffs(z)), true);
     }
 
     function _setUsed(uint16 slot) internal {
@@ -997,7 +997,7 @@ contract Moloch {
         uint96 mb = type(uint96).max;
 
         for (uint256 m = occupied; m != 0; m &= (m - 1)) {
-            uint16 i = uint16(ffs(m));
+            uint16 i = uint16(_ffs(m));
             uint96 b = seats[i].bal;
             if (b != 0 && b < mb) {
                 mb = b;
@@ -1009,7 +1009,7 @@ contract Moloch {
         minBal = (mb == type(uint96).max) ? 0 : mb;
     }
 
-    function ffs(uint256 x) internal pure returns (uint256 r) {
+    function _ffs(uint256 x) internal pure returns (uint256 r) {
         assembly ("memory-safe") {
             x := and(x, add(not(x), 1))
             r := shl(
@@ -1039,22 +1039,6 @@ contract Moloch {
                 )
             )
         }
-    }
-
-    function _mint6909(address to, uint256 id, uint256 amount) internal {
-        totalSupply[id] += amount;
-        unchecked {
-            balanceOf[to][id] += amount;
-        }
-        emit Transfer(msg.sender, address(0), to, id, amount);
-    }
-
-    function _burn6909(address from, uint256 id, uint256 amount) internal {
-        balanceOf[from][id] -= amount;
-        unchecked {
-            totalSupply[id] -= amount;
-        }
-        emit Transfer(msg.sender, from, address(0), id, amount);
     }
 
     /* URI-SVG */
@@ -1475,10 +1459,6 @@ contract Moloch {
         );
     }
 
-    function _receiptId(uint256 id, uint8 support) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked("Moloch:receipt", id, support)));
-    }
-
     function _permitCardURI(uint256 id) internal view returns (string memory) {
         string memory usesStr;
         uint256 supply = totalSupply[id];
@@ -1567,6 +1547,26 @@ contract Moloch {
             (ok, retData) = to.delegatecall(data);
         }
         if (!ok) revert NotOk();
+    }
+
+    function _mint6909(address to, uint256 id, uint256 amount) internal {
+        totalSupply[id] += amount;
+        unchecked {
+            balanceOf[to][id] += amount;
+        }
+        emit Transfer(msg.sender, address(0), to, id, amount);
+    }
+
+    function _burn6909(address from, uint256 id, uint256 amount) internal {
+        balanceOf[from][id] -= amount;
+        unchecked {
+            totalSupply[id] -= amount;
+        }
+        emit Transfer(msg.sender, from, address(0), id, amount);
+    }
+
+    function _receiptId(uint256 id, uint8 support) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked("Moloch:receipt", id, support)));
     }
 
     function _intentHashId(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
