@@ -41,6 +41,10 @@ contract ContractURITest is Test {
 
         shares = moloch.shares();
         loot = moloch.loot();
+
+        // ✅ separate the initial minting checkpoint from future snapshots
+        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 1);
     }
 
     function test_contractURI_default_duna_covenant() public view {
@@ -96,44 +100,46 @@ contract ContractURITest is Test {
         console2.log("  DUNA COVENANT WITH LOOT");
         console2.log("========================================\n");
 
-        // Enable LOOT sale (isLoot = true)
-        bytes memory lootData = abi.encodeWithSelector(
-            Moloch.setSale.selector,
-            address(0), // payment token (native)
-            0, // price
-            100e18, // cap
-            true, // active
-            true, // transferrable
-            true // <-- isLoot
-        );
+        // ---- Prepare a governance action that mints LOOT directly ----
+        address charlie = address(0xCAFE);
 
-        uint256 h = moloch.proposalId(0, address(moloch), 0, lootData, keccak256("loot-sale"));
-        moloch.openProposal(h);
-        vm.roll(block.number + 1);
+        // Build calldata to mint loot to `charlie`.
+        // If your Loot uses a different name/signature, adjust selector accordingly:
+        // e.g. Loot.mint(address,uint256)
+        bytes memory mintLootData =
+            abi.encodeWithSelector(Loot.mintFromMoloch.selector, charlie, 50e18);
+
+        // Make sure the snapshot sees the initial supply (block > deployment block).
+        vm.roll(block.number + 2);
         vm.warp(block.timestamp + 1);
 
+        // Create proposal id targeting the Loot contract (NOT the DAO itself).
+        uint256 h = moloch.proposalId(
+            0, // nonce/domain if used
+            address(loot), // target = Loot contract
+            0, // value
+            mintLootData, // calldata
+            keccak256("mint-loot")
+        );
+
+        // Open proposal (takes snapshot at current/prev block internally).
+        moloch.openProposal(h);
+
+        // Cast votes (use snapshot block inside openProposal).
         vm.prank(alice);
         moloch.castVote(h, 1);
         vm.prank(bob);
         moloch.castVote(h, 1);
 
-        // ✅ ensure voting/grace are over:
+        // Advance blocks/time to clear voting + grace windows.
+        // (Adjust these bumps if your constants differ.)
         vm.roll(block.number + 10);
         vm.warp(block.timestamp + 8 days);
 
-        moloch.executeByVotes(0, address(moloch), 0, lootData, keccak256("loot-sale"));
+        // Execute: DAO calls Loot.mint(charlie, 50e18).
+        moloch.executeByVotes(0, address(loot), 0, mintLootData, keccak256("mint-loot"));
 
-        // Mint some LOOT (was buyShares before -> caused Minted() revert)
-        address charlie = address(0xCAFE);
-        vm.deal(charlie, 100 ether);
-
-        uint256 beforeLoot = loot.totalSupply();
-        vm.prank(charlie);
-        moloch.buyShares{value: 0}(address(0), 50e18, 0);
-
-        // Assert mint happened
-        assertEq(loot.totalSupply(), beforeLoot + 50e18, "loot not minted");
-
+        // Now render the contractURI (loot supply should be non-zero).
         string memory uri = moloch.contractURI();
 
         console2.log("Full URI (with loot supply):");

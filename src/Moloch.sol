@@ -986,41 +986,87 @@ contract Moloch {
         // else: newcomer didn’t beat the cutline => do nothing (sticky)
     }
 
+    // Returns (slot, ok). ok=false means no free slot.
+    function _firstFree() internal view returns (uint16 slot, bool ok) {
+        uint256 z = ~occupied; // free = zero bits in occupied
+        if (z == 0) return (0, false); // full
+        uint256 lsb = z & (~z + 1); // isolate lowest set bit among the FREE mask
+        return (uint16(_ctz256(lsb)), true);
+    }
+
     function _ctz256(uint256 x) internal pure returns (uint16 n) {
         // x != 0 is expected by callers
         unchecked {
             n = 0;
-            if ((x & type(uint128).max) == 0) n += 128;
-            x >>= 128;
-            if ((x & type(uint64).max) == 0) n += 64;
-            x >>= 64;
-            if ((x & 0xFFFFFFFF) == 0) n += 32;
-            x >>= 32;
-            if ((x & 0xFFFF) == 0) n += 16;
-            x >>= 16;
-            if ((x & 0xFF) == 0) n += 8;
-            x >>= 8;
-            if ((x & 0xF) == 0) n += 4;
-            x >>= 4;
-            if ((x & 0x3) == 0) n += 2;
-            x >>= 2;
-            if ((x & 0x1) == 0) n += 1;
+
+            uint256 t = x & type(uint128).max;
+            if (t == 0) {
+                n += 128;
+                x >>= 128;
+            } else {
+                x = t;
+            }
+
+            t = x & type(uint64).max;
+            if (t == 0) {
+                n += 64;
+                x >>= 64;
+            } else {
+                x = t;
+            }
+
+            t = x & 0xFFFFFFFF; // 32 bits
+            if (t == 0) {
+                n += 32;
+                x >>= 32;
+            } else {
+                x = t;
+            }
+
+            t = x & 0xFFFF; // 16 bits
+            if (t == 0) {
+                n += 16;
+                x >>= 16;
+            } else {
+                x = t;
+            }
+
+            t = x & 0xFF; // 8 bits
+            if (t == 0) {
+                n += 8;
+                x >>= 8;
+            } else {
+                x = t;
+            }
+
+            t = x & 0xF; // 4 bits
+            if (t == 0) {
+                n += 4;
+                x >>= 4;
+            } else {
+                x = t;
+            }
+
+            t = x & 0x3; // 2 bits
+            if (t == 0) {
+                n += 2;
+                x >>= 2;
+            } else {
+                x = t;
+            }
+
+            if ((x & 0x1) == 0) {
+                n += 1;
+            }
         }
     }
 
-    function _firstFree() internal view returns (uint16 slot, bool ok) {
-        uint256 free = ~occupied;
-        if (free == 0) return (0, false);
-        uint256 lsb = free & (~free + 1);
-        return (_ctz256(lsb), true); // 0..255
+    function _setUsed(uint16 slot) internal {
+        occupied |= (uint256(1) << slot);
     }
 
-    function _setUsed(uint16 i) internal {
-        occupied |= (uint256(1) << i);
-    }
-
-    function _setFree(uint16 i) internal {
-        occupied &= ~(uint256(1) << i);
+    function _setFree(uint16 slot) internal {
+        occupied &= ~(uint256(1) << slot);
     }
 
     function _recomputeMin() internal {
