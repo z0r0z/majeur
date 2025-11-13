@@ -59,9 +59,9 @@ contract Moloch {
     mapping(uint256 id => uint64) public queuedAt; // timelock queue time (0 = not queued)
 
     struct Tally {
-        uint256 forVotes;
-        uint256 againstVotes;
-        uint256 abstainVotes;
+        uint96 forVotes;
+        uint96 againstVotes;
+        uint96 abstainVotes;
     }
     mapping(uint256 id => Tally) public tallies;
 
@@ -335,7 +335,7 @@ contract Moloch {
         if (hasVoted[id][msg.sender] != 0) revert NotOk();
 
         uint48 snap = snapshotBlock[id];
-        uint256 weight = shares.getPastVotes(msg.sender, snap);
+        uint96 weight = uint96(shares.getPastVotes(msg.sender, snap));
         if (weight == 0) revert NotOk();
 
         // tally
@@ -362,7 +362,7 @@ contract Moloch {
         uint8 support = hv - 1;
 
         uint256 rid = _receiptId(id, support);
-        uint256 weight = balanceOf[msg.sender][rid];
+        uint96 weight = uint96(balanceOf[msg.sender][rid]);
         if (weight == 0) revert NotOk();
 
         _burn6909(msg.sender, rid, weight);
