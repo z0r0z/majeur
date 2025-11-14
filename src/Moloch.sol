@@ -10,7 +10,9 @@ pragma solidity ^0.8.30;
 contract Moloch {
     /* ERRORS */
     error NotOk();
+    error Expired();
     error TooEarly();
+    error AlreadyVoted();
     error LengthMismatch();
     error AlreadyExecuted();
     error Timelocked(uint64 untilWhen);
@@ -44,11 +46,11 @@ contract Moloch {
 
     address immutable SUMMONER = msg.sender;
     address immutable sharesImpl;
-    address immutable badgeImpl;
+    address immutable badgesImpl;
     address immutable lootImpl;
 
     Shares public shares;
-    Badge public badge;
+    Badges public badges;
     Loot public loot;
 
     /// @dev Proposal id = keccak(address(this), op, to, value, keccak(data), nonce, config):
@@ -66,7 +68,7 @@ contract Moloch {
     mapping(uint256 id => Tally) public tallies;
 
     uint256[] public proposalIds;
-    mapping(uint256 => address) public proposerOf;
+    mapping(uint256 id => address) public proposerOf;
 
     /// @dev hasVoted[id][voter] = 0 = not, 1 = FOR, 2 = AGAINST, 3 = ABSTAIN:
     mapping(uint256 id => mapping(address voter => uint8)) public hasVoted;
@@ -91,7 +93,7 @@ contract Moloch {
     /**
      * PERMIT STATE
      */
-    event PermitSet(address spender, uint256 indexed hash, uint256 newCount);
+    event PermitSet(address spender, uint256 indexed id, uint256 newCount);
     event PermitSpent(uint256 indexed id, address indexed by, uint8 op, address to, uint256 value);
 
     mapping(address token => mapping(address spender => uint256 amount)) public allowance;
@@ -174,7 +176,7 @@ contract Moloch {
         uint256 finalWinningSupply;
         uint256 payoutPerUnit; // pool / finalWinningSupply (floor)
     }
-    mapping(uint256 => FutarchyConfig) public futarchy;
+    mapping(uint256 id => FutarchyConfig) public futarchy;
     // 0 = off
     // 1..10_000 = BPS of snapshot supply per proposal
     // >10_000   = absolute amount (18 dp)
@@ -195,7 +197,7 @@ contract Moloch {
     constructor() payable {
         bytes32 _salt = bytes32(bytes20(address(this)));
         sharesImpl = address(new Shares{salt: _salt}());
-        badgeImpl = address(new Badge{salt: _salt}());
+        badgesImpl = address(new Badges{salt: _salt}());
         lootImpl = address(new Loot{salt: _salt}());
     }
 
@@ -218,13 +220,13 @@ contract Moloch {
         if (_quorumBps != 0) quorumBps = _quorumBps;
         if (_ragequittable) ragequittable = _ragequittable;
 
-        address _badge;
+        address _badges;
         address _shares;
         address _loot;
         bytes32 _salt = bytes32(bytes20(address(this)));
 
-        badge = Badge(_badge = _init(badgeImpl, _salt));
-        Badge(_badge).init();
+        badges = Badges(_badges = _init(badgesImpl, _salt));
+        Badges(_badges).init();
         shares = Shares(_shares = _init(sharesImpl, _salt));
         Shares(_shares).init(initHolders, initShares);
         loot = Loot(_loot = _init(lootImpl, _salt));
@@ -329,26 +331,29 @@ contract Moloch {
         if (proposalTTL != 0) {
             uint64 t0 = createdAt[id];
             if (t0 == 0) revert NotOk();
-            if (block.timestamp >= t0 + proposalTTL) revert NotOk();
+            if (block.timestamp >= t0 + proposalTTL) revert Expired();
         }
 
-        if (hasVoted[id][msg.sender] != 0) revert NotOk();
+        if (hasVoted[id][msg.sender] != 0) revert AlreadyVoted();
 
         uint48 snap = snapshotBlock[id];
         uint96 weight = uint96(shares.getPastVotes(msg.sender, snap));
-        if (weight == 0) revert NotOk();
+        if (weight == 0) revert Unauthorized();
 
         // tally
-        if (support == 1) tallies[id].forVotes += weight;
-        else if (support == 0) tallies[id].againstVotes += weight;
-        else tallies[id].abstainVotes += weight;
+        unchecked {
+            if (support == 1) tallies[id].forVotes += weight;
+            else if (support == 0) tallies[id].againstVotes += weight;
+            else tallies[id].abstainVotes += weight;
+            hasVoted[id][msg.sender] = support + 1;
+        }
 
-        hasVoted[id][msg.sender] = support + 1;
-
-        // mint ERC6909 receipt
+        // mint ERC6909 receipt and tag
         uint256 rid = _receiptId(id, support);
-        receiptSupport[rid] = support;
-        receiptProposal[rid] = id;
+        if (receiptProposal[rid] == 0) {
+            receiptSupport[rid] = support;
+            receiptProposal[rid] = id;
+        }
         _mint6909(msg.sender, rid, weight);
 
         emit Voted(id, msg.sender, support, weight);
@@ -363,14 +368,16 @@ contract Moloch {
 
         uint256 rid = _receiptId(id, support);
         uint96 weight = uint96(balanceOf[msg.sender][rid]);
-        if (weight == 0) revert NotOk();
+        if (weight == 0) revert Unauthorized();
 
         _burn6909(msg.sender, rid, weight);
 
-        Tally storage t = tallies[id];
-        if (support == 1) t.forVotes -= weight;
-        else if (support == 0) t.againstVotes -= weight;
-        else t.abstainVotes -= weight;
+        unchecked {
+            Tally storage t = tallies[id];
+            if (support == 1) t.forVotes -= weight;
+            else if (support == 0) t.againstVotes -= weight;
+            else t.abstainVotes -= weight;
+        }
 
         delete hasVoted[id][msg.sender];
 
@@ -378,7 +385,7 @@ contract Moloch {
     }
 
     function cancelProposal(uint256 id) public {
-        if (proposerOf[id] != msg.sender) revert Unauthorized();
+        require(msg.sender == proposerOf[id], Unauthorized());
         if (state(id) != ProposalState.Active) revert NotOk();
         if (queuedAt[id] != 0) revert NotOk();
 
@@ -494,7 +501,7 @@ contract Moloch {
     function fundFutarchy(uint256 id, address token, uint256 amount) public payable nonReentrant {
         if (amount == 0) revert NotOk();
         if (token != address(0) && token != address(this) && token != address(shares)) {
-            revert NotOk();
+            revert Unauthorized();
         }
 
         FutarchyConfig storage F = futarchy[id];
@@ -756,10 +763,12 @@ contract Moloch {
         return messages.length;
     }
 
-    function chat(string calldata text) public payable {
-        if (badge.balanceOf(msg.sender) == 0) revert NotOk();
-        messages.push(text);
-        emit Message(msg.sender, messages.length - 1, text);
+    function chat(string calldata message) public payable {
+        unchecked {
+            require(badges.balanceOf(msg.sender) != 0, Unauthorized());
+            messages.push(message);
+            emit Message(msg.sender, messages.length - 1, message);
+        }
     }
 
     /* SETTINGS */
@@ -809,8 +818,7 @@ contract Moloch {
     /// @dev param: 0=off; 1..10_000=BPS of snapshot supply; >10_000=absolute (18 dp),
     ///      cap: hard per-proposal maximum after param calculation (0 = no cap):
     function setAutoFutarchy(uint256 param, uint256 cap) public payable onlyDAO {
-        autoFutarchyParam = param;
-        autoFutarchyCap = cap;
+        (autoFutarchyParam, autoFutarchyCap) = (param, cap);
     }
 
     /// @dev Default reward token for futarchy pools:
@@ -916,7 +924,7 @@ contract Moloch {
                 _setFree(slot);
                 delete seatOf[a];
 
-                badge.burnSeat(slot + 1);
+                badges.burnSeat(slot + 1);
 
                 if (slot == minSlot) _recomputeMin();
             }
@@ -946,7 +954,7 @@ contract Moloch {
             unchecked {
                 seatOf[a] = freeSlot + 1;
             }
-            badge.mintSeat(a, freeSlot + 1);
+            badges.mintSeat(a, freeSlot + 1);
 
             if (minBal == 0 || bal < minBal) {
                 minSlot = freeSlot;
@@ -961,14 +969,14 @@ contract Moloch {
             address evict = seats[slot].holder;
 
             delete seatOf[evict];
-            badge.burnSeat(slot + 1);
+            badges.burnSeat(slot + 1);
 
             seats[slot] = Seat({holder: a, bal: bal});
             unchecked {
                 seatOf[a] = slot + 1;
             }
 
-            badge.mintSeat(a, slot + 1);
+            badges.mintSeat(a, slot + 1);
 
             _recomputeMin(); // rare
         }
@@ -980,7 +988,7 @@ contract Moloch {
         uint256 z = ~occupied;
         if (z == 0) return (0, false); // full
 
-        // z != 0 => _ffs(z) in [0, 255] for 256-bit mask.
+        // z != 0 => _ffs(z) in [0, 255] for 256-bit mask
         return (uint16(_ffs(z)), true);
     }
 
@@ -2257,7 +2265,7 @@ contract Loot {
     }
 }
 
-contract Badge {
+contract Badges {
     /* ERC721-ish */
     event Transfer(address indexed from, address indexed to, uint256 indexed id);
 
@@ -2286,7 +2294,7 @@ contract Badge {
 
     /// @dev Dynamic metadata from Majeur:
     function name() public view returns (string memory) {
-        return string.concat(Moloch(DAO).name(0), " Badge");
+        return string.concat(Moloch(DAO).name(0), " Badges");
     }
 
     function symbol() public view returns (string memory) {
@@ -2390,7 +2398,7 @@ contract Badge {
             "</svg>"
         );
 
-        return Display.jsonImage("Badge", "Top-256 holder badge (SBT)", svg);
+        return Display.jsonImage("Badges", "Top-256 holder badge (SBT)", svg);
     }
 
     function transferFrom(address, address, uint256) public pure {
@@ -2429,8 +2437,10 @@ struct Call {
 // Global errors:
 error Locked();
 error Overflow();
+error MulDivFailed();
 error Unauthorized();
 error TransferFailed();
+error DeploymentFailed();
 error ETHTransferFailed();
 error TransferFromFailed();
 
@@ -2453,8 +2463,6 @@ function _revertOverflow() pure {
 }
 
 // Math utils:
-error MulDivFailed();
-
 function mulDiv(uint256 x, uint256 y, uint256 d) pure returns (uint256 z) {
     assembly ("memory-safe") {
         z := mul(x, y)
@@ -2522,7 +2530,7 @@ function safeTransferFrom(address token, uint256 amount) {
     }
 }
 
-/// @dev Display — minimal helpers for on-chain SVG / string rendering:
+/// @dev Display — Solady helpers for on-chain SVG / string rendering:
 library Display {
     /*──────────────────────  DATA URIs  ─────────────────────*/
 
@@ -2763,13 +2771,11 @@ library Display {
                 for {} 1 {} {
                     data := add(data, 3)
                     let input := mload(data)
-
                     mstore8(0, mload(and(shr(18, input), 0x3F)))
                     mstore8(1, mload(and(shr(12, input), 0x3F)))
                     mstore8(2, mload(and(shr(6, input), 0x3F)))
                     mstore8(3, mload(and(input, 0x3F)))
                     mstore(ptr, mload(0x00))
-
                     ptr := add(ptr, 4)
                     if iszero(lt(ptr, end)) { break }
                 }
@@ -2784,14 +2790,12 @@ library Display {
     }
 }
 
-/// @title Moloch Majeur Summoner
+/// @title Moloch (Majeur) Summoner
 contract Summoner {
     event NewDAO(address indexed summoner, Moloch indexed dao);
 
     Moloch[] public daos;
     Moloch immutable implementation;
-
-    error DeploymentFailed();
 
     constructor() payable {
         emit NewDAO(address(this), implementation = new Moloch{salt: bytes32(0)}());
@@ -2802,8 +2806,8 @@ contract Summoner {
         string calldata orgName,
         string calldata orgSymbol,
         string calldata orgURI,
-        uint16 _quorumBps, // e.g. 5000 = 50% turnout of snapshot supply
-        bool _ragequittable,
+        uint16 quorumBps, // e.g. 5000 = 50% turnout of snapshot supply
+        bool ragequittable,
         bytes32 salt,
         address[] calldata initHolders,
         uint256[] calldata initShares,
@@ -2823,14 +2827,7 @@ contract Summoner {
             mstore(0x24, 0)
         }
         dao.init(
-            orgName,
-            orgSymbol,
-            orgURI,
-            _quorumBps,
-            _ragequittable,
-            initHolders,
-            initShares,
-            initCalls
+            orgName, orgSymbol, orgURI, quorumBps, ragequittable, initHolders, initShares, initCalls
         );
         daos.push(dao);
         emit NewDAO(msg.sender, dao);

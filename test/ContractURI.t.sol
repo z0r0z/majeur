@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
-import {Moloch, Shares, Loot, Badge, Summoner, Call} from "../src/Moloch.sol";
+import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract ContractURITest is Test {
     Summoner internal summoner;

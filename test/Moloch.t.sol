@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
-import {Moloch, Shares, Loot, Badge, Summoner, Call} from "../src/Moloch.sol";
+import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract Target {
     uint256 public value;
@@ -24,7 +24,7 @@ contract MolochTest is Test {
     Moloch internal moloch;
     Shares internal shares;
     Loot internal loot;
-    Badge internal badge;
+    Badges internal badge;
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0x0B0B);
@@ -93,7 +93,7 @@ contract MolochTest is Test {
 
         shares = moloch.shares();
         loot = moloch.loot();
-        badge = moloch.badge();
+        badge = moloch.badges();
 
         // Manually mint shares to avoid badge conflicts
         vm.startPrank(address(moloch));
@@ -125,7 +125,7 @@ contract MolochTest is Test {
         assertEq(loot.symbol(), "TEST");
         assertEq(loot.totalSupply(), 0);
 
-        assertEq(badge.name(), "Test DAO Badge");
+        assertEq(badge.name(), "Test DAO Badges");
         assertEq(badge.symbol(), "TESTB");
     }
 
@@ -333,7 +333,7 @@ contract MolochTest is Test {
 
         // Cannot vote on expired proposal
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        vm.expectRevert(abi.encodeWithSignature("Expired()"));
         moloch.castVote(id, 1);
     }
 
@@ -903,7 +903,7 @@ contract MolochTest is Test {
 
         // Charlie has no badge, cannot chat
         vm.prank(charlie);
-        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
         moloch.chat("Hello from Charlie");
 
         // Alice should have badge, can chat
@@ -958,7 +958,7 @@ contract MolochTest is Test {
         assertEq(shares.symbol(), "NEW");
         assertEq(loot.name(), "New DAO Loot");
         assertEq(loot.symbol(), "NEW");
-        assertEq(badge.name(), "New DAO Badge");
+        assertEq(badge.name(), "New DAO Badges");
         assertEq(badge.symbol(), "NEWB");
     }
 
@@ -1220,7 +1220,7 @@ contract MolochTest is Test {
 
         // Charlie doesn't have shares at snapshot
         vm.prank(charlie);
-        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
         moloch.castVote(id, 0);
 
         // Bob votes with his snapshot balance
@@ -1296,7 +1296,7 @@ contract MolochTest is Test {
 
         // Can't vote on expired proposal
         vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        vm.expectRevert(abi.encodeWithSignature("Expired()"));
         moloch.castVote(id, 1);
     }
 
@@ -1423,7 +1423,7 @@ contract MolochTest is Test {
     }
 
     function test_BadgeName() public view {
-        assertEq(badge.name(), "Test DAO Badge");
+        assertEq(badge.name(), "Test DAO Badges");
     }
 
     function test_BadgeSymbol() public view {
@@ -1485,7 +1485,7 @@ contract MolochTest is Test {
 
         // Try to vote again
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        vm.expectRevert(abi.encodeWithSignature("AlreadyVoted()"));
         moloch.castVote(id, 0);
     }
 
@@ -1503,5 +1503,837 @@ contract MolochTest is Test {
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSignature("AlreadyExecuted()"));
         moloch.castVote(id, 1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                 VOTING / DELEGATION INVARIANTS & SNAPSHOTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SplitDelegation_FuzzAllocationsMatchVotes(
+        uint32 a,
+        uint32 b,
+        uint32 c,
+        uint32 d,
+        uint8 splits
+    ) public {
+        // Number of splits: 1–4
+        uint256 n = bound(uint256(splits), 1, 4);
+
+        // Raw, unnormalized BPS input
+        uint32[4] memory raw = [a, b, c, d];
+
+        uint256 total;
+        for (uint256 i = 0; i < n; ++i) {
+            total += raw[i];
+        }
+
+        // Avoid degenerate case where all raw BPS are zero
+        vm.assume(total > 0);
+
+        // Normalize to sum exactly 10_000 BPS
+        uint32[] memory bps = new uint32[](n);
+        uint256 accum;
+        for (uint256 i = 0; i < n; ++i) {
+            if (i == n - 1) {
+                // Last entry gets the remainder so sum == 10_000
+                bps[i] = uint32(10_000 - accum);
+            } else {
+                uint32 norm = uint32((uint256(raw[i]) * 10_000) / total);
+                bps[i] = norm;
+                accum += norm;
+            }
+        }
+
+        // Delegates: first N of {alice, bob, charlie, dave} – no duplicates
+        address[] memory delegates = new address[](n);
+        delegates[0] = alice;
+        if (n > 1) delegates[1] = bob;
+        if (n > 2) delegates[2] = charlie;
+        if (n > 3) delegates[3] = dave;
+
+        // Baseline votes for Bob before we modify Alice's delegation
+        uint256 bobBase = shares.getVotes(bob); // should be 40e18 in this fixture
+
+        // Apply fuzzy split delegation for Alice
+        vm.prank(alice);
+        shares.setSplitDelegation(delegates, bps);
+
+        uint256 aliceBal = shares.balanceOf(alice);
+        uint256[] memory alloc = _computeAlloc(aliceBal, bps);
+
+        // Check that each split delegate sees the allocation we expect
+        for (uint256 i = 0; i < n; ++i) {
+            uint256 expected = alloc[i];
+
+            // If Bob is one of Alice's split delegates, add his own baseline votes
+            if (delegates[i] == bob) {
+                expected += bobBase;
+            }
+
+            assertEq(
+                shares.getVotes(delegates[i]),
+                expected,
+                "delegate votes mismatch vs expected allocation"
+            );
+        }
+
+        // Global invariant: sum of votes == totalSupply for our known addresses
+        address[] memory addrs = new address[](4);
+        addrs[0] = alice;
+        addrs[1] = bob;
+        addrs[2] = charlie;
+        addrs[3] = dave;
+        assertEq(_sumVotes(addrs), shares.totalSupply(), "sum of votes != total supply");
+    }
+
+    function test_SplitDelegation_BurnKeepsVotesInSync() public {
+        // Alice splits 25/25/50 between herself, Charlie, and Dave
+        address[] memory delegates = new address[](3);
+        delegates[0] = alice;
+        delegates[1] = charlie;
+        delegates[2] = dave;
+
+        uint32[] memory bps = new uint32[](3);
+        bps[0] = 2500;
+        bps[1] = 2500;
+        bps[2] = 5000;
+
+        uint256 bobBase = shares.getVotes(bob); // 40e18
+
+        vm.prank(alice);
+        shares.setSplitDelegation(delegates, bps);
+
+        // Burn half of Alice's shares via Moloch
+        vm.prank(address(moloch));
+        shares.burnFromMoloch(alice, 30e18);
+
+        uint256 aliceBal = shares.balanceOf(alice);
+        assertEq(aliceBal, 30e18);
+
+        uint256[] memory alloc = _computeAlloc(aliceBal, bps);
+
+        for (uint256 i = 0; i < delegates.length; ++i) {
+            uint256 expected = alloc[i];
+            if (delegates[i] == bob) {
+                expected += bobBase;
+            }
+
+            assertEq(shares.getVotes(delegates[i]), expected, "delegate votes mismatch after burn");
+        }
+
+        // Sum of votes still equals totalSupply
+        address[] memory addrs = new address[](4);
+        addrs[0] = alice;
+        addrs[1] = bob;
+        addrs[2] = charlie;
+        addrs[3] = dave;
+        assertEq(_sumVotes(addrs), shares.totalSupply(), "sum of votes != supply after burn");
+    }
+
+    function test_SplitDelegation_TransferKeepsVotesInSync() public {
+        // Alice splits 50/50 between herself and Charlie
+        address[] memory delegates = new address[](2);
+        delegates[0] = alice;
+        delegates[1] = charlie;
+
+        uint32[] memory bps = new uint32[](2);
+        bps[0] = 5000;
+        bps[1] = 5000;
+
+        vm.prank(alice);
+        shares.setSplitDelegation(delegates, bps);
+
+        // Transfer 20e18 from Alice to Dave
+        vm.prank(alice);
+        shares.transfer(dave, 20e18);
+
+        // Balances after transfer
+        assertEq(shares.balanceOf(alice), 40e18);
+        assertEq(shares.balanceOf(dave), 20e18);
+
+        // Expected votes:
+        // - Alice: 20e18
+        // - Charlie: 20e18
+        // - Dave: 20e18 (self-delegated on receive)
+        // - Bob: 40e18 (his own shares)
+        assertEq(shares.getVotes(alice), 20e18);
+        assertEq(shares.getVotes(charlie), 20e18);
+        assertEq(shares.getVotes(dave), 20e18);
+        assertEq(shares.getVotes(bob), 40e18);
+
+        address[] memory addrs = new address[](4);
+        addrs[0] = alice;
+        addrs[1] = bob;
+        addrs[2] = charlie;
+        addrs[3] = dave;
+        assertEq(_sumVotes(addrs), shares.totalSupply(), "sum of votes != supply after transfer");
+    }
+
+    function test_Snapshot_IgnoresSameBlockMint() public {
+        // Create a simple proposal
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 123);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Alice opens the proposal -> snapshot at block.number - 1
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        uint48 snap = moloch.snapshotBlock(id);
+        uint256 supplyAtSnap = moloch.supplySnapshot(id);
+
+        assertEq(uint256(snap), block.number - 1);
+        assertEq(supplyAtSnap, 100e18); // initial supply
+
+        // In the SAME block, DAO mints more shares to Alice
+        vm.prank(address(moloch));
+        shares.mintFromMoloch(alice, 10e18);
+
+        assertEq(shares.balanceOf(alice), 70e18);
+        assertEq(shares.totalSupply(), 110e18);
+        assertEq(shares.getVotes(alice), 70e18); // current votes include the mint
+
+        // When voting on this proposal, Alice's weight should still be based on the snapshot
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        (uint256 forVotes,,) = moloch.tallies(id);
+        // Uses getPastVotes(alice, snap) => 60e18, ignoring the same-block mint
+        assertEq(forVotes, 60e18);
+    }
+
+    function test_DelegationChangeAfterSnapshot_DoesNotAffectSnapshotVotes() public {
+        // Create proposal and open it to take a snapshot
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 321);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        uint48 snap = moloch.snapshotBlock(id);
+
+        // Snapshot is in the previous block
+        assertEq(uint256(snap), block.number - 1);
+
+        // Alice's votes at snapshot
+        uint256 aliceVotesAtSnap = shares.getPastVotes(alice, snap);
+        assertEq(aliceVotesAtSnap, 60e18);
+
+        // In the SAME block, Alice delegates her current votes to Bob
+        vm.prank(alice);
+        shares.delegate(bob);
+
+        // Live votes now:
+        assertEq(shares.getVotes(alice), 0);
+        assertEq(shares.getVotes(bob), shares.totalSupply());
+
+        // When Alice votes on this proposal, she still uses the snapshot value (60e18)
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        (uint256 forVotes,,) = moloch.tallies(id);
+        assertEq(forVotes, aliceVotesAtSnap);
+
+        // Double-check snapshot is still correct
+        assertEq(shares.getPastVotes(alice, snap), aliceVotesAtSnap);
+    }
+
+    function test_GetPastVotesAndSupplyCheckpoint() public {
+        // Move into a fresh block so we're not sharing the block with setUp() mints
+        vm.roll(block.number + 1);
+
+        // Alice: 70/30 split between herself and Charlie
+        address[] memory aliceDelegates = new address[](2);
+        aliceDelegates[0] = alice;
+        aliceDelegates[1] = charlie;
+
+        uint32[] memory aliceBps = new uint32[](2);
+        aliceBps[0] = 7000;
+        aliceBps[1] = 3000;
+
+        vm.prank(alice);
+        shares.setSplitDelegation(aliceDelegates, aliceBps);
+
+        // Bob delegates to Dave
+        vm.prank(bob);
+        shares.delegate(dave);
+
+        // Alice transfers 10e18 to Dave
+        vm.prank(alice);
+        shares.transfer(dave, 10e18);
+
+        // Store the current block as our snapshot point (this is where checkpoints were written)
+        uint48 snapshotBlock = uint48(block.number);
+        uint256 totalSupplyNow = shares.totalSupply();
+
+        // Known delegate set
+        address[] memory addrs = new address[](4);
+        addrs[0] = alice;
+        addrs[1] = bob;
+        addrs[2] = charlie;
+        addrs[3] = dave;
+
+        // Record live votes for each delegate at current block
+        uint256[] memory liveVotes = new uint256[](4);
+        for (uint256 i; i != addrs.length; ++i) {
+            liveVotes[i] = shares.getVotes(addrs[i]);
+        }
+
+        // Sanity: live sum-of-votes matches current totalSupply
+        assertEq(_sumVotes(addrs), totalSupplyNow, "live sum of votes != totalSupply");
+
+        // Move to the NEXT block (block 4 if we're currently at block 3)
+        vm.roll(snapshotBlock + 1); // <-- This is the key fix: roll to snapshotBlock + 1
+
+        // NOW we can query past votes at snapshotBlock (which is block 3)
+        // Total supply snapshot is preserved
+        assertEq(
+            shares.getPastTotalSupply(snapshotBlock), totalSupplyNow, "past totalSupply mismatch"
+        );
+
+        // Each delegate's past votes at snapshotBlock match what we recorded
+        for (uint256 i = 0; i < addrs.length; ++i) {
+            assertEq(
+                shares.getPastVotes(addrs[i], snapshotBlock),
+                liveVotes[i],
+                "past votes mismatch for delegate"
+            );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                 HELPERS
+    //////////////////////////////////////////////////////////////*/
+
+    function _computeAlloc(uint256 balance, uint32[] memory bps)
+        internal
+        pure
+        returns (uint256[] memory alloc)
+    {
+        uint256 len = bps.length;
+        alloc = new uint256[](len);
+
+        uint256 remaining = balance;
+        for (uint256 i = 0; i < len; ++i) {
+            if (i == len - 1) {
+                // Last delegate gets the remainder so the sum matches exactly
+                alloc[i] = remaining;
+            } else {
+                uint256 part = (balance * uint256(bps[i])) / 10_000;
+                alloc[i] = part;
+                remaining -= part;
+            }
+        }
+    }
+
+    function _sumVotes(address[] memory addrs) internal view returns (uint256 sum) {
+        for (uint256 i = 0; i < addrs.length; ++i) {
+            sum += shares.getVotes(addrs[i]);
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        ADDITIONAL COVERAGE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ExecuteByVotes_AlreadyExecuted() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 999);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Execute once
+        vm.prank(alice);
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        // Try to execute again
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("AlreadyExecuted()"));
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+    }
+
+    function test_ExecuteByVotes_NotSucceeded() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 888);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Open but don't vote (stays Active)
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Try to execute while Active
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+    }
+
+    function test_Queue_NotSucceeded() public {
+        vm.prank(address(moloch));
+        moloch.setTimelockDelay(1 days);
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 777);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Try to queue while Active
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.queue(id);
+    }
+
+    function test_Queue_NoTimelockNoOp() public {
+        // No timelock set (default)
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 666);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Queue should be no-op when no timelock
+        moloch.queue(id);
+        assertEq(moloch.queuedAt(id), 0);
+    }
+
+    function test_CancelVote_NotActive() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 555);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Execute to move past Active
+        vm.prank(alice);
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        // Try to cancel vote on executed proposal
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.cancelVote(id);
+    }
+
+    function test_CancelVote_NotVoted() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 444);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Try to cancel without having voted
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.cancelVote(id);
+    }
+
+    function test_CancelProposal_WithVotes() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 333);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Vote on it
+        vm.prank(bob);
+        moloch.castVote(id, 1);
+
+        // Can't cancel with votes
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.cancelProposal(id);
+    }
+
+    function test_CancelProposal_WithFutarchyFunding() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 222);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Fund futarchy
+        vm.prank(alice);
+        moloch.fundFutarchy{value: 1 ether}(id, address(0), 1 ether);
+
+        // Can't cancel with funded futarchy
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.cancelProposal(id);
+    }
+
+    function test_ResolveFutarchyNo_NotEnabled() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 111);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.resolveFutarchyNo(id);
+    }
+
+    function test_ResolveFutarchyNo_AlreadyExecuted() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 999);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Fund futarchy
+        vm.prank(alice);
+        moloch.fundFutarchy{value: 1 ether}(id, address(0), 1 ether);
+
+        // Vote and execute
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        vm.prank(alice);
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        // Can't resolve NO after execution
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.resolveFutarchyNo(id);
+    }
+
+    function test_ResolveFutarchyNo_StillActive() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 888);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Fund futarchy
+        vm.prank(alice);
+        moloch.fundFutarchy{value: 1 ether}(id, address(0), 1 ether);
+
+        // Still Active (no votes)
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.resolveFutarchyNo(id);
+    }
+
+    function test_CashOutFutarchy_NotResolved() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 777);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Fund futarchy
+        vm.prank(alice);
+        moloch.fundFutarchy{value: 1 ether}(id, address(0), 1 ether);
+
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Try to cash out before resolution
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.cashOutFutarchy(id, 1e18);
+    }
+
+    function test_FundFutarchy_ZeroAmount() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 666);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.fundFutarchy(id, address(0), 0);
+    }
+
+    function test_FundFutarchy_WrongToken() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 555);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Try to fund with unsupported token
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
+        moloch.fundFutarchy(id, address(target), 1 ether);
+    }
+
+    function test_FundFutarchy_MismatchedToken() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 444);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Fund with ETH first
+        vm.prank(alice);
+        moloch.fundFutarchy{value: 1 ether}(id, address(0), 1 ether);
+
+        // Try to fund with shares (mismatched)
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.fundFutarchy(id, address(shares), 1e18);
+    }
+
+    function test_FundFutarchy_WithShares() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 333);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Alice needs to approve moloch to spend her shares
+        vm.prank(alice);
+        shares.approve(address(moloch), 5e18);
+
+        // Fund with shares - Alice funds with her shares
+        vm.prank(alice);
+        moloch.fundFutarchy(id, address(shares), 5e18);
+
+        (bool enabled, address rewardToken, uint256 pool,,,,) = moloch.futarchy(id);
+        assertTrue(enabled);
+        assertEq(rewardToken, address(shares));
+        assertEq(pool, 5e18);
+
+        // Verify shares were transferred to moloch
+        assertEq(shares.balanceOf(address(moloch)), 5e18);
+        assertEq(shares.balanceOf(alice), 55e18); // Started with 60e18
+    }
+
+    function test_SetFutarchyRewardToken_Invalid() public {
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.setFutarchyRewardToken(address(target));
+    }
+
+    function test_SpendPermit_Insufficient() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 222);
+        // Charlie has no permit
+        vm.prank(charlie);
+        vm.expectRevert(); // Will revert on underflow
+        moloch.spendPermit(0, address(target), 0, data, bytes32(0));
+    }
+
+    function test_SpendAllowance_Insufficient() public {
+        // Charlie has no allowance
+        vm.prank(charlie);
+        vm.expectRevert(); // Will revert on underflow
+        moloch.spendAllowance(address(0), 1 ether);
+    }
+
+    function test_BuyShares_InactiveSale() public {
+        // No sale configured
+        vm.prank(charlie);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.buyShares(address(0), 1e18, 0);
+    }
+
+    function test_BuyShares_ExceedsCap() public {
+        vm.prank(address(moloch));
+        moloch.setSale(address(0), 1, 10e18, true, true, false); // Cap of 10e18
+
+        vm.prank(charlie);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.buyShares{value: 20 ether}(address(0), 20e18, 0);
+    }
+
+    function test_BuyShares_ExceedsMaxPay() public {
+        vm.prank(address(moloch));
+        moloch.setSale(address(0), 2, 0, true, true, false); // 2 wei per share
+
+        vm.prank(charlie);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.buyShares{value: 10e18}(address(0), 5e18, 1e18); // maxPay too low
+    }
+
+    function test_BuyShares_InsufficientETH() public {
+        vm.prank(address(moloch));
+        moloch.setSale(address(0), 1e18, 0, true, true, false);
+
+        vm.prank(charlie);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.buyShares{value: 0.5 ether}(address(0), 1, 0); // Not enough ETH
+    }
+
+    function test_Ragequit_NotRagequittable() public {
+        // Already tested but let's ensure the setup is correct
+        vm.prank(address(moloch));
+        moloch.setRagequittable(false);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.ragequit(tokens, 1e18, 0);
+    }
+
+    function test_Ragequit_EmptyTokens() public {
+        address[] memory tokens = new address[](0);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("LengthMismatch()"));
+        moloch.ragequit(tokens, 1e18, 0);
+    }
+
+    function test_Ragequit_ZeroAmounts() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.ragequit(tokens, 0, 0);
+    }
+
+    function test_Ragequit_CannotWithdrawShares() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(shares);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
+        moloch.ragequit(tokens, 1e18, 0);
+    }
+
+    function test_Ragequit_CannotWithdrawThis() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(moloch);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
+        moloch.ragequit(tokens, 1e18, 0);
+    }
+
+    function test_Ragequit_UnsortedTokens() public {
+        // Deploy two ERC20 tokens with proper ordering
+        Target token1 = new Target();
+        Target token2 = new Target();
+
+        // Ensure token2 address > token1 address
+        address addr1 = address(token1);
+        address addr2 = address(token2);
+        if (addr1 > addr2) {
+            (addr1, addr2) = (addr2, addr1);
+        }
+
+        // Put tokens in wrong order (high address first)
+        address[] memory tokens = new address[](2);
+        tokens[0] = addr2; // Higher address first
+        tokens[1] = addr1; // Lower address second
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.ragequit(tokens, 1e18, 0);
+    }
+
+    function test_SharesTransferFrom_NoAllowance() public {
+        vm.prank(charlie);
+        vm.expectRevert(); // Will underflow
+        shares.transferFrom(alice, charlie, 1e18);
+    }
+
+    function test_SharesTransferFrom_MaxAllowance() public {
+        // Alice approves max uint256
+        vm.prank(alice);
+        shares.approve(charlie, type(uint256).max);
+
+        // Charlie transfers using max allowance (shouldn't decrement)
+        vm.prank(charlie);
+        shares.transferFrom(alice, charlie, 5e18);
+
+        // Allowance should still be max
+        assertEq(shares.allowance(alice, charlie), type(uint256).max);
+    }
+
+    function test_LootTransfer() public {
+        // Mint loot to alice
+        vm.prank(address(moloch));
+        loot.mintFromMoloch(alice, 20e18);
+
+        // Transfer loot
+        vm.prank(alice);
+        loot.transfer(charlie, 5e18);
+
+        assertEq(loot.balanceOf(alice), 15e18);
+        assertEq(loot.balanceOf(charlie), 5e18);
+    }
+
+    function test_LootTransferFrom() public {
+        // Mint loot to alice
+        vm.prank(address(moloch));
+        loot.mintFromMoloch(alice, 20e18);
+
+        // Alice approves bob
+        vm.prank(alice);
+        loot.approve(bob, 10e18);
+
+        // Bob transfers from alice
+        vm.prank(bob);
+        loot.transferFrom(alice, charlie, 5e18);
+
+        assertEq(loot.balanceOf(alice), 15e18);
+        assertEq(loot.balanceOf(charlie), 5e18);
+        assertEq(loot.allowance(alice, bob), 5e18);
+    }
+
+    function test_BadgeSupportsInterface() public view {
+        // ERC165
+        assertTrue(badge.supportsInterface(0x01ffc9a7));
+        // ERC721
+        assertTrue(badge.supportsInterface(0x80ac58cd));
+        // ERC721Metadata
+        assertTrue(badge.supportsInterface(0x5b5e139f));
+        // Random interface
+        assertFalse(badge.supportsInterface(0x12345678));
+    }
+
+    function test_BadgeOwnerOf_NotMinted() public {
+        vm.expectRevert(abi.encodeWithSignature("NotMinted()"));
+        badge.ownerOf(999);
+    }
+
+    function test_BadgeMintSeat_InvalidSeat() public {
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("NotMinted()"));
+        badge.mintSeat(alice, 0); // Seat 0 is invalid
+
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("NotMinted()"));
+        badge.mintSeat(alice, 257); // Seat > 256 is invalid
+    }
+
+    function test_BadgeMintSeat_AlreadyHasBadge() public {
+        // Trigger badge minting
+        vm.prank(alice);
+        shares.transfer(bob, 1);
+
+        // Try to mint another badge to alice (who already has one)
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("Minted()"));
+        badge.mintSeat(alice, 100);
+    }
+
+    function test_BadgeTokenURI() public {
+        // Trigger badge minting
+        vm.prank(alice);
+        shares.transfer(bob, 1);
+        vm.prank(bob);
+        shares.transfer(alice, 1);
+
+        uint256 aliceSeat = badge.seatOf(alice);
+        if (aliceSeat > 0) {
+            string memory uri = badge.tokenURI(aliceSeat);
+            assertTrue(bytes(uri).length > 0);
+        }
+    }
+
+    function test_SetSale_ZeroPrice() public {
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.setSale(address(0), 0, 10e18, true, true, false);
+    }
+
+    function test_ProposalState_DefeatedByQuorum() public {
+        // Set high quorum
+        vm.prank(address(moloch));
+        moloch.setQuorumBps(9000); // 90%
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 123);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Only Alice votes (60%)
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Should still be Active (not enough quorum)
+        assertEq(uint256(moloch.state(id)), 1);
+    }
+
+    function test_Multicall_Revert() public {
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(moloch.setQuorumBps.selector, 6000);
+        data[1] = abi.encodeWithSelector(moloch.setQuorumBps.selector, 20000); // Invalid
+
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.multicall(data);
+    }
+
+    function test_BatchCalls_Revert() public {
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({
+            target: address(target), value: 0, data: abi.encodeWithSelector(Target.fail.selector)
+        });
+
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.batchCalls(calls);
     }
 }

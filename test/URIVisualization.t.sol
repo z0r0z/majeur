@@ -2,14 +2,14 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
-import {Moloch, Shares, Loot, Badge, Summoner, Call} from "../src/Moloch.sol";
+import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract URIVisualizationTest is Test {
     Summoner internal summoner;
     Moloch internal moloch;
     Shares internal shares;
     Loot internal loot;
-    Badge internal badge;
+    Badges internal badge;
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0x0B0B);
@@ -50,7 +50,7 @@ contract URIVisualizationTest is Test {
 
         shares = moloch.shares();
         loot = moloch.loot();
-        badge = moloch.badge();
+        badge = moloch.badges();
 
         target = new Target();
         vm.roll(block.number + 1);
