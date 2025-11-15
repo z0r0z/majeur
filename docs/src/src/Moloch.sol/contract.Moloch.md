@@ -1,5 +1,5 @@
 # Moloch
-[Git Source](https://github.com/z0r0z/SAW/blob/13ea6c7ee0a1b32389fd7b13702d217146536371/src/Moloch.sol)
+[Git Source](https://github.com/z0r0z/SAW/blob/58989be3b007e6ed4d89f25206c3132a7dc08ab6/src/Moloch.sol)
 
 ERC-20 shares (delegatable/split) & Loot + ERC-6909 receipts + ERC-721 badges.
 Features: timelock, permits, futarchy, token sales, ragequit, SBT-gated chat.
@@ -298,6 +298,13 @@ uint256 public autoFutarchyCap
 
 ```solidity
 address public rewardToken
+```
+
+
+### isOperator
+
+```solidity
+mapping(address owner => mapping(address operator => bool)) public isOperator
 ```
 
 
@@ -715,6 +722,83 @@ function multicall(bytes[] calldata data) public returns (bytes[] memory results
 function onSharesChanged(address a) public payable;
 ```
 
+### transfer
+
+
+```solidity
+function transfer(address receiver, uint256 id, uint256 amount) public returns (bool);
+```
+
+### transferFrom
+
+
+```solidity
+function transferFrom(address sender, address receiver, uint256 id, uint256 amount)
+    public
+    returns (bool);
+```
+
+### setOperator
+
+
+```solidity
+function setOperator(address operator, bool approved) public returns (bool);
+```
+
+### _mint6909
+
+
+```solidity
+function _mint6909(address to, uint256 id, uint256 amount) internal;
+```
+
+### _burn6909
+
+
+```solidity
+function _burn6909(address from, uint256 id, uint256 amount) internal;
+```
+
+### _receiptId
+
+
+```solidity
+function _receiptId(uint256 id, uint8 support) internal pure returns (uint256);
+```
+
+### _intentHashId
+
+
+```solidity
+function _intentHashId(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
+    internal
+    view
+    returns (uint256);
+```
+
+### _execute
+
+
+```solidity
+function _execute(uint8 op, address to, uint256 value, bytes calldata data)
+    internal
+    returns (bool ok, bytes memory retData);
+```
+
+### _payout
+
+
+```solidity
+function _payout(address token, address to, uint256 amount) internal;
+```
+
+### nonReentrant
+
+
+```solidity
+modifier nonReentrant() virtual;
+```
+
 ### contractURI
 
 
@@ -754,62 +838,6 @@ function onERC1155Received(address, address, uint256, uint256, bytes calldata)
     public
     pure
     returns (bytes4);
-```
-
-### _execute
-
-Shared low-level executor for call / delegatecall:
-
-
-```solidity
-function _execute(uint8 op, address to, uint256 value, bytes calldata data)
-    internal
-    returns (bool ok, bytes memory retData);
-```
-
-### _mint6909
-
-
-```solidity
-function _mint6909(address to, uint256 id, uint256 amount) internal;
-```
-
-### _burn6909
-
-
-```solidity
-function _burn6909(address from, uint256 id, uint256 amount) internal;
-```
-
-### _receiptId
-
-
-```solidity
-function _receiptId(uint256 id, uint8 support) internal pure returns (uint256);
-```
-
-### _intentHashId
-
-
-```solidity
-function _intentHashId(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
-    internal
-    view
-    returns (uint256);
-```
-
-### _payout
-
-
-```solidity
-function _payout(address token, address to, uint256 amount) internal;
-```
-
-### nonReentrant
-
-
-```solidity
-modifier nonReentrant() virtual;
 ```
 
 ## Events
@@ -923,6 +951,12 @@ event FutarchyClaimed(
 );
 ```
 
+### OperatorSet
+
+```solidity
+event OperatorSet(address indexed owner, address indexed operator, bool approved);
+```
+
 ## Errors
 ### NotOk
 
@@ -940,6 +974,12 @@ error Expired();
 
 ```solidity
 error TooEarly();
+```
+
+### Reentrancy
+
+```solidity
+error Reentrancy();
 ```
 
 ### AlreadyVoted
@@ -964,12 +1004,6 @@ error AlreadyExecuted();
 
 ```solidity
 error Timelocked(uint64 untilWhen);
-```
-
-### Reentrancy
-
-```solidity
-error Reentrancy();
 ```
 
 ## Structs

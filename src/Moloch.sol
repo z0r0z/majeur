@@ -12,6 +12,7 @@ contract Moloch {
     error NotOk();
     error Expired();
     error TooEarly();
+    error Reentrancy();
     error AlreadyVoted();
     error LengthMismatch();
     error AlreadyExecuted();
@@ -883,6 +884,110 @@ contract Moloch {
         badges.onSharesChanged(a);
     }
 
+    /*ERC-6909*/
+    event OperatorSet(address indexed owner, address indexed operator, bool approved);
+    mapping(address owner => mapping(address operator => bool)) public isOperator;
+
+    function transfer(address receiver, uint256 id, uint256 amount) public returns (bool) {
+        balanceOf[msg.sender][id] -= amount;
+        unchecked {
+            balanceOf[receiver][id] += amount;
+        }
+        emit Transfer(msg.sender, msg.sender, receiver, id, amount);
+        return true;
+    }
+
+    function transferFrom(address sender, address receiver, uint256 id, uint256 amount)
+        public
+        returns (bool)
+    {
+        require(msg.sender == sender || isOperator[sender][msg.sender], Unauthorized());
+        balanceOf[sender][id] -= amount;
+        unchecked {
+            balanceOf[receiver][id] += amount;
+        }
+        emit Transfer(msg.sender, sender, receiver, id, amount);
+        return true;
+    }
+
+    function setOperator(address operator, bool approved) public returns (bool) {
+        isOperator[msg.sender][operator] = approved;
+        emit OperatorSet(msg.sender, operator, approved);
+        return true;
+    }
+
+    function _mint6909(address to, uint256 id, uint256 amount) internal {
+        totalSupply[id] += amount;
+        unchecked {
+            balanceOf[to][id] += amount;
+        }
+        emit Transfer(msg.sender, address(0), to, id, amount);
+    }
+
+    function _burn6909(address from, uint256 id, uint256 amount) internal {
+        balanceOf[from][id] -= amount;
+        unchecked {
+            totalSupply[id] -= amount;
+        }
+        emit Transfer(msg.sender, from, address(0), id, amount);
+    }
+
+    /*UTILS*/
+    function _receiptId(uint256 id, uint8 support) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked("Moloch:receipt", id, support)));
+    }
+
+    function _intentHashId(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
+        internal
+        view
+        returns (uint256)
+    {
+        return uint256(
+            keccak256(abi.encode(address(this), op, to, value, keccak256(data), nonce, config))
+        );
+    }
+
+    function _execute(uint8 op, address to, uint256 value, bytes calldata data)
+        internal
+        returns (bool ok, bytes memory retData)
+    {
+        if (op == 0) {
+            (ok, retData) = to.call{value: value}(data);
+        } else {
+            (ok, retData) = to.delegatecall(data);
+        }
+        if (!ok) revert NotOk();
+    }
+
+    function _payout(address token, address to, uint256 amount) internal {
+        if (amount == 0) return;
+        if (token == address(0)) {
+            safeTransferETH(to, amount);
+        } else if (token == address(this)) {
+            shares.mintFromMoloch(to, amount);
+        } else if (token == address(1007)) {
+            loot.mintFromMoloch(to, amount);
+        } else {
+            safeTransfer(token, to, amount);
+        }
+    }
+
+    uint256 constant REENTRANCY_GUARD_SLOT = 0x929eee149b4bd21268;
+
+    modifier nonReentrant() virtual {
+        assembly ("memory-safe") {
+            if tload(REENTRANCY_GUARD_SLOT) {
+                mstore(0x00, 0xab143c06)
+                revert(0x1c, 0x04)
+            }
+            tstore(REENTRANCY_GUARD_SLOT, address())
+        }
+        _;
+        assembly ("memory-safe") {
+            tstore(REENTRANCY_GUARD_SLOT, 0)
+        }
+    }
+
     /* URI */
     function contractURI() public view returns (string memory) {
         // if DAO set a custom URI, use that
@@ -917,83 +1022,6 @@ contract Moloch {
         returns (bytes4)
     {
         return this.onERC1155Received.selector;
-    }
-
-    /* HELPERS */
-    /// @dev Shared low-level executor for call / delegatecall:
-    function _execute(uint8 op, address to, uint256 value, bytes calldata data)
-        internal
-        returns (bool ok, bytes memory retData)
-    {
-        if (op == 0) {
-            (ok, retData) = to.call{value: value}(data);
-        } else {
-            (ok, retData) = to.delegatecall(data);
-        }
-        if (!ok) revert NotOk();
-    }
-
-    function _mint6909(address to, uint256 id, uint256 amount) internal {
-        totalSupply[id] += amount;
-        unchecked {
-            balanceOf[to][id] += amount;
-        }
-        emit Transfer(msg.sender, address(0), to, id, amount);
-    }
-
-    function _burn6909(address from, uint256 id, uint256 amount) internal {
-        balanceOf[from][id] -= amount;
-        unchecked {
-            totalSupply[id] -= amount;
-        }
-        emit Transfer(msg.sender, from, address(0), id, amount);
-    }
-
-    function _receiptId(uint256 id, uint8 support) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked("Moloch:receipt", id, support)));
-    }
-
-    function _intentHashId(uint8 op, address to, uint256 value, bytes calldata data, bytes32 nonce)
-        internal
-        view
-        returns (uint256)
-    {
-        return uint256(
-            keccak256(abi.encode(address(this), op, to, value, keccak256(data), nonce, config))
-        );
-    }
-
-    function _payout(address token, address to, uint256 amount) internal {
-        if (amount == 0) return;
-        if (token == address(0)) {
-            safeTransferETH(to, amount);
-        } else if (token == address(this)) {
-            shares.mintFromMoloch(to, amount);
-        } else if (token == address(1007)) {
-            loot.mintFromMoloch(to, amount);
-        } else {
-            safeTransfer(token, to, amount);
-        }
-    }
-
-    /*──────── reentrancy ─*/
-
-    error Reentrancy();
-
-    uint256 constant REENTRANCY_GUARD_SLOT = 0x929eee149b4bd21268;
-
-    modifier nonReentrant() virtual {
-        assembly ("memory-safe") {
-            if tload(REENTRANCY_GUARD_SLOT) {
-                mstore(0x00, 0xab143c06)
-                revert(0x1c, 0x04)
-            }
-            tstore(REENTRANCY_GUARD_SLOT, address())
-        }
-        _;
-        assembly ("memory-safe") {
-            tstore(REENTRANCY_GUARD_SLOT, 0)
-        }
     }
 }
 
