@@ -2,6 +2,8 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
+
+import {Renderer} from "../src/Renderer.sol";
 import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract ContractURITest is Test {
@@ -10,12 +12,16 @@ contract ContractURITest is Test {
     Shares internal shares;
     Loot internal loot;
 
+    address internal renderer;
+
     address internal alice = address(0xA11CE);
     address internal bob = address(0x0B0B);
 
     function setUp() public {
         vm.deal(alice, 100 ether);
         vm.deal(bob, 100 ether);
+
+        renderer = address(new Renderer());
 
         summoner = new Summoner();
 
@@ -33,6 +39,7 @@ contract ContractURITest is Test {
             "", // Empty contractURI - will use default DUNA covenant
             5000,
             true, // ragequit enabled
+            renderer,
             bytes32(0),
             initialHolders,
             initialAmounts,
@@ -206,6 +213,7 @@ contract ContractURITest is Test {
             "",
             5000,
             false, // ragequit disabled
+            renderer,
             bytes32(uint256(1)),
             holders,
             amounts,

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
+import {Renderer} from "../src/Renderer.sol";
 import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract Target {
@@ -25,6 +26,8 @@ contract MolochTest is Test {
     Shares internal shares;
     Loot internal loot;
     Badges internal badge;
+
+    address internal renderer;
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0x0B0B);
@@ -75,6 +78,8 @@ contract MolochTest is Test {
 
         summoner = new Summoner();
 
+        renderer = address(new Renderer());
+
         // Create the DAO without initial holders to avoid badge conflicts
         address[] memory initialHolders = new address[](0);
         uint256[] memory initialAmounts = new uint256[](0);
@@ -85,6 +90,7 @@ contract MolochTest is Test {
             "ipfs://QmTest123",
             5000, // 50% quorum
             true, // ragequit enabled
+            renderer,
             bytes32(0),
             initialHolders,
             initialAmounts,
@@ -143,7 +149,7 @@ contract MolochTest is Test {
         amounts[0] = 100e18;
 
         summoner.summon{value: 1 ether}(
-            "Test2", "T2", "", 0, false, bytes32(uint256(1)), holders, amounts, initCalls
+            "Test2", "T2", "", 0, false, renderer, bytes32(uint256(1)), holders, amounts, initCalls
         );
 
         assertEq(target.value(), 42);
@@ -1031,7 +1037,7 @@ contract MolochTest is Test {
         amounts[0] = 100e18;
 
         vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
-        moloch.init("Hack", "HACK", "", 0, false, holders, amounts, new Call[](0));
+        moloch.init("Hack", "HACK", "", 0, false, renderer, holders, amounts, new Call[](0));
 
         vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
         shares.init(holders, amounts);
@@ -1251,7 +1257,16 @@ contract MolochTest is Test {
         amounts[0] = 100e18;
 
         Moloch dao2 = summoner.summon(
-            "DAO 2", "D2", "", 0, false, bytes32(uint256(123)), holders, amounts, new Call[](0)
+            "DAO 2",
+            "D2",
+            "",
+            0,
+            false,
+            renderer,
+            bytes32(uint256(123)),
+            holders,
+            amounts,
+            new Call[](0)
         );
 
         assertTrue(address(dao2) != address(0));
@@ -1445,7 +1460,7 @@ contract MolochTest is Test {
         vm.prank(bob);
         shares.transfer(alice, 1);
 
-        Moloch.Seat[] memory seats = moloch.getSeats();
+        Badges.Seat[] memory seats = badge.getSeats();
         assertTrue(seats.length > 0);
     }
 
@@ -1456,8 +1471,8 @@ contract MolochTest is Test {
         vm.prank(bob);
         shares.transfer(alice, 1);
 
-        uint256 aliceRank = moloch.seatOf(alice);
-        uint256 bobRank = moloch.seatOf(bob);
+        uint256 aliceRank = badge.seatOf(alice);
+        uint256 bobRank = badge.seatOf(bob);
 
         // Both should have ranks if they're in top 256
         assertTrue(aliceRank > 0 || bobRank > 0);

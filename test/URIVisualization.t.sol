@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
+import {Renderer} from "../src/Renderer.sol";
 import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract URIVisualizationTest is Test {
@@ -15,6 +16,8 @@ contract URIVisualizationTest is Test {
     address internal bob = address(0x0B0B);
     address internal charlie = address(0xCAFE);
 
+    address internal renderer;
+
     Target internal target;
 
     function setUp() public {
@@ -27,6 +30,8 @@ contract URIVisualizationTest is Test {
         vm.deal(charlie, 100 ether);
 
         summoner = new Summoner();
+
+        renderer = address(new Renderer());
 
         address[] memory initialHolders = new address[](2);
         initialHolders[0] = alice;
@@ -42,6 +47,7 @@ contract URIVisualizationTest is Test {
             "ipfs://QmTest123",
             5000, // 50% quorum
             true, // ragequit enabled
+            renderer,
             bytes32(0),
             initialHolders,
             initialAmounts,
