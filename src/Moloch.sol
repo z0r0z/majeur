@@ -32,9 +32,9 @@ contract Moloch {
      * PROPOSAL STATE
      */
     /// @dev Absolute vote thresholds (0 = disabled):
-    uint256 public proposalThreshold; // minimum votes to make proposal
-    uint256 public minYesVotesAbsolute; // minimum YES (FOR) votes
-    uint256 public quorumAbsolute; // minimum total turnout (FOR+AGAINST+ABSTAIN)
+    uint96 public proposalThreshold; // minimum votes to make proposal
+    uint96 public minYesVotesAbsolute; // minimum YES (FOR) votes
+    uint96 public quorumAbsolute; // minimum total turnout (FOR+AGAINST+ABSTAIN)
 
     /// @dev Time-based settings (seconds; 0 = off):
     uint64 public proposalTTL; // proposal expiry
@@ -99,6 +99,7 @@ contract Moloch {
     event PermitSet(address spender, uint256 indexed id, uint256 newCount);
     event PermitSpent(uint256 indexed id, address indexed by, uint8 op, address to, uint256 value);
 
+    mapping(uint256 id => bool) isPermitReceipt;
     mapping(address token => mapping(address spender => uint256 amount)) public allowance;
 
     /**
@@ -177,12 +178,13 @@ contract Moloch {
         bool resolved; // set on resolution
         uint8 winner; // 1=YES (For), 0=NO (Against)
         uint256 finalWinningSupply;
-        uint256 payoutPerUnit; // pool / finalWinningSupply (floor)
+        uint256 payoutPerUnit; // (pool * 1e18 / finalWinningSupply), scaled by 1e18
     }
     mapping(uint256 id => FutarchyConfig) public futarchy;
-    // 0 = off
-    // 1..10_000 = BPS of snapshot supply per proposal
-    // >10_000   = absolute amount (18 dp)
+    // 1..10_000 = BPS of `basis`,
+    //             where basis = snapshot supply (shares),
+    //             and + loot.totalSupply() if rewardToken is loot/1007
+    // >10_000   = absolute amount in token units
     uint256 public autoFutarchyParam; // flexible auto-funding knob
     uint256 public autoFutarchyCap; // per-proposal max; 0 = no cap
     address public rewardToken;
@@ -278,7 +280,7 @@ contract Moloch {
 
         Shares _shares = shares;
 
-        uint256 threshold = proposalThreshold;
+        uint96 threshold = proposalThreshold;
         if (threshold != 0) {
             require(_shares.getVotes(msg.sender) >= threshold, Unauthorized());
         }
@@ -458,7 +460,7 @@ contract Moloch {
             uint256 totalCast = forVotes + againstVotes + abstainVotes;
 
             // absolute quorum
-            uint256 absQuorum = quorumAbsolute;
+            uint96 absQuorum = quorumAbsolute;
             if (absQuorum != 0 && totalCast < absQuorum) return ProposalState.Active;
 
             // dynamic quorum (BPS)
@@ -469,7 +471,7 @@ contract Moloch {
         }
 
         // absolute YES floor
-        uint256 minYes = minYesVotesAbsolute;
+        uint96 minYes = minYesVotesAbsolute;
         if (minYes != 0 && forVotes < minYes) return ProposalState.Defeated;
         if (forVotes <= againstVotes) return ProposalState.Defeated;
 
@@ -525,7 +527,7 @@ contract Moloch {
     /**
      * FUTARCHY
      */
-    function fundFutarchy(uint256 id, address token, uint256 amount) public payable nonReentrant {
+    function fundFutarchy(uint256 id, address token, uint256 amount) public payable {
         if (amount == 0) revert NotOk();
         if (
             token != address(0) && token != address(this) && token != address(1007)
@@ -637,6 +639,7 @@ contract Moloch {
         uint256 count
     ) public payable onlyDAO {
         uint256 tokenId = _intentHashId(op, to, value, data, nonce);
+        isPermitReceipt[tokenId] = true;
         uint256 bal = balanceOf[spender][tokenId];
         uint256 diff;
 
@@ -660,6 +663,7 @@ contract Moloch {
         returns (bool ok, bytes memory retData)
     {
         uint256 tokenId = _intentHashId(op, to, value, data, nonce);
+        require(isPermitReceipt[tokenId], Unauthorized());
 
         executed[tokenId] = true;
 
@@ -811,11 +815,11 @@ contract Moloch {
         quorumBps = bps;
     }
 
-    function setMinYesVotesAbsolute(uint256 v) public payable onlyDAO {
+    function setMinYesVotesAbsolute(uint96 v) public payable onlyDAO {
         minYesVotesAbsolute = v;
     }
 
-    function setQuorumAbsolute(uint256 v) public payable onlyDAO {
+    function setQuorumAbsolute(uint96 v) public payable onlyDAO {
         quorumAbsolute = v;
     }
 
@@ -836,7 +840,7 @@ contract Moloch {
         loot.setTransfersLocked(lootLocked);
     }
 
-    function setProposalThreshold(uint256 v) public payable onlyDAO {
+    function setProposalThreshold(uint96 v) public payable onlyDAO {
         proposalThreshold = v;
     }
 
@@ -853,8 +857,9 @@ contract Moloch {
     }
 
     /// @dev Configure automatic futarchy earmark per proposal:
-    /// @dev param: 0=off; 1..10_000=BPS of snapshot supply; >10_000=absolute (18 dp),
-    ///      cap: hard per-proposal maximum after param calculation (0 = no cap):
+    /// @param param 0 = off; 1..10_000 = BPS of basis (snapshot share supply,
+    /// plus loot supply if rewardToken is loot/1007); >10_000 = absolute token amount
+    /// @param cap Hard per-proposal cap applied after param calculation (0 = no cap)
     function setAutoFutarchy(uint256 param, uint256 cap) public payable onlyDAO {
         (autoFutarchyParam, autoFutarchyCap) = (param, cap);
     }
@@ -908,6 +913,7 @@ contract Moloch {
     mapping(address owner => mapping(address operator => bool)) public isOperator;
 
     function transfer(address receiver, uint256 id, uint256 amount) public returns (bool) {
+        if (isPermitReceipt[id]) revert SBT();
         balanceOf[msg.sender][id] -= amount;
         unchecked {
             balanceOf[receiver][id] += amount;
@@ -920,6 +926,7 @@ contract Moloch {
         public
         returns (bool)
     {
+        if (isPermitReceipt[id]) revert SBT();
         require(msg.sender == sender || isOperator[sender][msg.sender], Unauthorized());
         balanceOf[sender][id] -= amount;
         unchecked {
@@ -1355,7 +1362,7 @@ contract Shares {
         uint256 n = sp.length;
 
         if (n == 0) {
-            // stack allocation for single element
+            // small single-element array
             delegates_ = new address[](1);
             delegates_[0] = delegates(account);
             bps_ = new uint32[](1);
@@ -1709,7 +1716,6 @@ contract Badges {
         _;
     }
 
-    error SBT();
     error Minted();
     error NotMinted();
 
@@ -1949,6 +1955,7 @@ struct Call {
 }
 
 // Global errors:
+error SBT();
 error Locked();
 error Overflow();
 error MulDivFailed();

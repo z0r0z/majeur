@@ -1,5 +1,5 @@
 # Display
-[Git Source](https://github.com/z0r0z/SAW/blob/c002e161f060638b24924d609690bf8c1bdd5e95/src/Renderer.sol)
+[Git Source](https://github.com/z0r0z/SAW/blob/7a1cdeb117d089c989e0c6b15508846c72bbe337/src/Renderer.sol)
 
 Display — Solady helpers for on-chain SVG / string rendering:
 
@@ -61,6 +61,15 @@ Decimal with commas: 123_456_789 => "123,456,789":
 
 ```solidity
 function fmtComma(uint256 n) internal pure returns (string memory);
+```
+
+### fmtAmount18Simple
+
+Format a 1e18-scaled token amount, with a simple "<1" for sub-unit values:
+
+
+```solidity
+function fmtAmount18Simple(uint256 amount) internal pure returns (string memory);
 ```
 
 ### percent2

@@ -86,7 +86,7 @@ contract Renderer {
             ".g{font-family:'EB Garamond',serif;}",
             ".gb{font-family:'EB Garamond',serif;font-weight:600;}",
             ".m{font-family:'Courier Prime',monospace;font-variant-ligatures:none;}",
-            ".c{font-family:'EB Garamond',serif;font-style:italic;font-size:8;fill:#ccc;}",
+            ".c{font-family:'EB Garamond',serif;font-style:italic;font-size:7px;fill:#ccc;}",
             "text{text-rendering:geometricPrecision;}",
             "</style></defs>",
             "<rect width='420' height='600' fill='#000'/>",
@@ -134,7 +134,7 @@ contract Renderer {
             svg,
             "<text x='60' y='261' class='g' font-size='9' fill='#aaa'>Share Supply</text>",
             "<text x='60' y='274' class='m' font-size='8' fill='#fff'>",
-            Display.fmtComma(shareSupply / 1e18),
+            Display.fmtAmount18Simple(shareSupply),
             "</text>"
         );
 
@@ -143,30 +143,28 @@ contract Renderer {
                 svg,
                 "<text x='220' y='261' class='g' font-size='9' fill='#aaa'>Loot Supply</text>",
                 "<text x='220' y='274' class='m' font-size='8' fill='#fff'>",
-                Display.fmtComma(lootSupply / 1e18),
+                Display.fmtAmount18Simple(lootSupply),
                 "</text>"
             );
         }
 
-        // DUNA covenant text - centered
+        // DUNA covenant text + terms (centered, wrapped for card width)
         svg = string.concat(
             svg,
             "<line x1='60' y1='290' x2='360' y2='290' stroke='#8b0000' stroke-width='0.5' opacity='0.5'/>",
             "<text x='210' y='310' class='g' font-size='10' fill='#8b0000' text-anchor='middle'>WYOMING DUNA</text>",
-            "<text x='210' y='325' class='c' text-anchor='middle'>W.S. 17-32-101 et seq.</text>"
-        );
-
-        // covenant terms - centered alignment
-        svg = string.concat(
-            svg,
-            "<text x='210' y='345' class='c' text-anchor='middle'>By transacting with address ",
+            "<text x='210' y='325' class='c' text-anchor='middle'>W.S. 17-32-101 et seq.</text>",
+            "<text x='210' y='340' class='c' text-anchor='middle'><tspan x='210' dy='0'>By transacting with address ",
             orgShort,
-            " you acknowledge this organization operates</text>",
-            "<text x='210' y='355' class='c' text-anchor='middle'>as a Wyoming Decentralized Unincorporated Nonprofit Association</text>",
-            "<text x='210' y='365' class='c' text-anchor='middle'>(W.S. 17-32-101 et seq.). Holding members covenant to:</text>",
-            "<text x='210' y='385' class='c' text-anchor='middle'>(i) defer to this smart contract for internal governance;</text>",
-            "<text x='210' y='395' class='c' text-anchor='middle'>(ii) use DAO procedures and designated arbitrators for disputes; (iii) help maintain or wind up this organization;</text>",
-            "<text x='210' y='405' class='c' text-anchor='middle'>(iv) participate in good faith; and (v) manage their own legal compliance and self-help.</text>"
+            "</tspan>",
+            "<tspan x='210' dy='9'>you acknowledge this organization operates as a</tspan>",
+            "<tspan x='210' dy='9'>Wyoming Decentralized Unincorporated Nonprofit Association</tspan>",
+            "<tspan x='210' dy='9'>(W.S. 17-32-101 et seq.). Holding members covenant to:</tspan>",
+            "<tspan x='210' dy='11'>(i) defer to this smart contract for internal governance;</tspan>",
+            "<tspan x='210' dy='9'>(ii) use DAO procedures and designated arbitrators</tspan>",
+            "<tspan x='210' dy='9'>for disputes; (iii) help maintain or wind up this organization;</tspan>",
+            "<tspan x='210' dy='9'>(iv) participate in good faith; and (v) manage</tspan>",
+            "<tspan x='210' dy='9'>their own legal compliance and self-help.</tspan></text>"
         );
 
         // transfer and ragequit status
@@ -297,7 +295,7 @@ contract Renderer {
                 Display.toString(snap),
                 "</text>",
                 "<text x='60' y='335' class='m' font-size='9' fill='#fff'>Supply ",
-                Display.fmtComma(dao.supplySnapshot(id) / 1e18),
+                Display.fmtAmount18Simple(dao.supplySnapshot(id)),
                 "</text>"
             );
         }
@@ -308,13 +306,13 @@ contract Renderer {
                 svg,
                 "<text x='60' y='368' class='g' font-size='10' fill='#aaa' letter-spacing='1'>Tally</text>",
                 "<text x='60' y='385' class='m' font-size='9' fill='#fff'>For      ",
-                Display.fmtComma(t.forVotes / 1e18),
+                Display.fmtAmount18Simple(t.forVotes),
                 "</text>",
                 "<text x='60' y='398' class='m' font-size='9' fill='#fff'>Against  ",
-                Display.fmtComma(t.againstVotes / 1e18),
+                Display.fmtAmount18Simple(t.againstVotes),
                 "</text>",
                 "<text x='60' y='411' class='m' font-size='9' fill='#fff'>Abstain  ",
-                Display.fmtComma(t.abstainVotes / 1e18),
+                Display.fmtAmount18Simple(t.abstainVotes),
                 "</text>"
             );
         }
@@ -412,7 +410,7 @@ contract Renderer {
             "</text>",
             "<text x='60' y='378' class='g' font-size='10' fill='#aaa' letter-spacing='1'>Weight</text>",
             "<text x='60' y='395' class='m' font-size='9' fill='#fff'>",
-            Display.fmtComma(dao.totalSupply(id) / 1e18),
+            Display.fmtAmount18Simple(dao.totalSupply(id)),
             " votes</text>"
         );
 
@@ -432,7 +430,7 @@ contract Renderer {
                 svg,
                 "<text x='60' y='428' class='g' font-size='10' fill='#aaa' letter-spacing='1'>Futarchy</text>",
                 "<text x='60' y='445' class='m' font-size='9' fill='#fff'>Pool ",
-                Display.fmtComma(F.pool / 1e18),
+                Display.fmtAmount18Simple(F.pool),
                 unit,
                 "</text>"
             );
@@ -441,7 +439,7 @@ contract Renderer {
                 svg = string.concat(
                     svg,
                     "<text x='60' y='458' class='m' font-size='9' fill='#fff'>Payout ",
-                    Display.fmtComma(F.payoutPerUnit / 1e18),
+                    Display.fmtAmount18Simple(F.payoutPerUnit),
                     unit,
                     "/vote</text>"
                 );
@@ -520,7 +518,6 @@ contract Renderer {
 
         IMoloch sh = IMoloch(dao.shares());
         uint256 bal = sh.balanceOf(holder);
-        uint256 balInTokens = bal / 1e18;
         uint256 ts = sh.totalSupply();
 
         // seat string comes straight from tokenId
@@ -563,7 +560,7 @@ contract Renderer {
             svg,
             "<text x='60' y='378' class='g' font-size='10' fill='#aaa' letter-spacing='1'>Balance</text>",
             "<text x='60' y='395' class='m' font-size='9' fill='#fff'>",
-            Display.fmtComma(balInTokens), // 123,456,789
+            Display.fmtAmount18Simple(bal), // 123,456,789
             " shares</text>"
         );
 
@@ -710,6 +707,14 @@ library Display {
             }
         }
         return string(buf);
+    }
+
+    /// @dev Format a 1e18-scaled token amount, with a simple "<1" for sub-unit values:
+    function fmtAmount18Simple(uint256 amount) internal pure returns (string memory) {
+        if (amount == 0) return "0";
+        uint256 whole = amount / 1e18;
+        if (whole == 0) return "<1";
+        return fmtComma(whole);
     }
 
     /// @dev Percent with 2 decimals from a/b, e.g. 1234/10000 => "12.34%":

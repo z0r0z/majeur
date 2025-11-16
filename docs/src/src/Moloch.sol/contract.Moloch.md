@@ -1,5 +1,5 @@
 # Moloch
-[Git Source](https://github.com/z0r0z/SAW/blob/c002e161f060638b24924d609690bf8c1bdd5e95/src/Moloch.sol)
+[Git Source](https://github.com/z0r0z/SAW/blob/7a1cdeb117d089c989e0c6b15508846c72bbe337/src/Moloch.sol)
 
 ERC-20 shares (delegatable/split) & Loot + ERC-6909 receipts + ERC-721 badges.
 Features: timelock, permits, futarchy, token sales, ragequit, SBT-gated chat.
@@ -29,21 +29,21 @@ Absolute vote thresholds (0 = disabled):
 
 
 ```solidity
-uint256 public proposalThreshold
+uint96 public proposalThreshold
 ```
 
 
 ### minYesVotesAbsolute
 
 ```solidity
-uint256 public minYesVotesAbsolute
+uint96 public minYesVotesAbsolute
 ```
 
 
 ### quorumAbsolute
 
 ```solidity
-uint256 public quorumAbsolute
+uint96 public quorumAbsolute
 ```
 
 
@@ -213,6 +213,13 @@ mapping(uint256 id => mapping(address voter => uint8)) public hasVoted
 
 ```solidity
 mapping(uint256 => mapping(address => uint96)) public voteWeight
+```
+
+
+### isPermitReceipt
+
+```solidity
+mapping(uint256 id => bool) isPermitReceipt
 ```
 
 
@@ -478,7 +485,7 @@ FUTARCHY
 
 
 ```solidity
-function fundFutarchy(uint256 id, address token, uint256 amount) public payable nonReentrant;
+function fundFutarchy(uint256 id, address token, uint256 amount) public payable;
 ```
 
 ### resolveFutarchyNo
@@ -612,14 +619,14 @@ function setQuorumBps(uint16 bps) public payable onlyDAO;
 
 
 ```solidity
-function setMinYesVotesAbsolute(uint256 v) public payable onlyDAO;
+function setMinYesVotesAbsolute(uint96 v) public payable onlyDAO;
 ```
 
 ### setQuorumAbsolute
 
 
 ```solidity
-function setQuorumAbsolute(uint256 v) public payable onlyDAO;
+function setQuorumAbsolute(uint96 v) public payable onlyDAO;
 ```
 
 ### setProposalTTL
@@ -654,7 +661,7 @@ function setTransfersLocked(bool sharesLocked, bool lootLocked) public payable o
 
 
 ```solidity
-function setProposalThreshold(uint256 v) public payable onlyDAO;
+function setProposalThreshold(uint96 v) public payable onlyDAO;
 ```
 
 ### setRenderer
@@ -678,13 +685,17 @@ function setMetadata(string calldata n, string calldata s, string calldata uri)
 
 Configure automatic futarchy earmark per proposal:
 
-param: 0=off; 1..10_000=BPS of snapshot supply; >10_000=absolute (18 dp),
-cap: hard per-proposal maximum after param calculation (0 = no cap):
-
 
 ```solidity
 function setAutoFutarchy(uint256 param, uint256 cap) public payable onlyDAO;
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`param`|`uint256`|0 = off; 1..10_000 = BPS of basis (snapshot share supply, plus loot supply if rewardToken is loot/1007); >10_000 = absolute token amount|
+|`cap`|`uint256`|Hard per-proposal cap applied after param calculation (0 = no cap)|
+
 
 ### setFutarchyRewardToken
 
@@ -1048,7 +1059,7 @@ struct FutarchyConfig {
     bool resolved; // set on resolution
     uint8 winner; // 1=YES (For), 0=NO (Against)
     uint256 finalWinningSupply;
-    uint256 payoutPerUnit; // pool / finalWinningSupply (floor)
+    uint256 payoutPerUnit; // (pool * 1e18 / finalWinningSupply), scaled by 1e18
 }
 ```
 
