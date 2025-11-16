@@ -358,6 +358,9 @@ contract Moloch {
 
         if (hasVoted[id][msg.sender] != 0) revert AlreadyVoted();
 
+        FutarchyConfig storage F = futarchy[id];
+        if (F.enabled && F.resolved) revert Unauthorized();
+
         uint48 snap = snapshotBlock[id];
         uint96 weight = uint96(shares.getPastVotes(msg.sender, snap));
         if (weight == 0) revert Unauthorized();
