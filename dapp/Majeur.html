@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Moloch Majeur – DAO Governance Framework</title>
+    <title>Majeur ༼ つ ◕_◕ ༽つ</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0015'/%3E%3Cpath d='M16 4 L22 12 L30 12 L24 18 L26 26 L16 22 L6 26 L8 18 L2 12 L10 12 Z' fill='none' stroke='%239d7bff' stroke-width='1.5' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%239d7bff'/%3E%3C/svg%3E" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
@@ -1155,6 +1156,32 @@
         letter-spacing: 0.2em;
         color: #e6d9ff;
         text-transform: uppercase;
+        margin-bottom: 0.5rem;
+      }
+
+      .dao-etherscan-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-family: "Courier New", monospace;
+        font-size: 0.85rem;
+        color: rgba(157, 123, 255, 0.7);
+        text-decoration: none;
+        transition: all 0.3s ease;
+        padding: 0.25rem 0;
+      }
+
+      .dao-etherscan-link:hover {
+        color: #9d7bff;
+      }
+
+      .dao-etherscan-link svg {
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+      }
+
+      .dao-etherscan-link:hover svg {
+        opacity: 1;
       }
 
       .back-button {
@@ -1301,7 +1328,105 @@
         cursor: not-allowed;
       }
 
+      /* TREASURY */
+      .treasury-section {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(157, 123, 255, 0.2);
+      }
+
+      .treasury-title {
+        font-family: "Cinzel", serif;
+        font-size: 1rem;
+        letter-spacing: 0.15em;
+        color: #e6d9ff;
+        margin-bottom: 1rem;
+        text-transform: uppercase;
+      }
+
+      .treasury-assets {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .treasury-asset {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem 0.5rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        transition: all 0.3s ease;
+      }
+
+      .treasury-asset:hover {
+        border-color: rgba(157, 123, 255, 0.4);
+        background: rgba(0, 0, 0, 0.4);
+      }
+
+      .treasury-asset-icon {
+        width: 32px;
+        height: 32px;
+        margin-bottom: 0.5rem;
+      }
+
+      .treasury-asset-symbol {
+        font-family: "Cinzel", serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        color: #9d7bff;
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+      }
+
+      .treasury-asset-balance {
+        font-family: "EB Garamond", serif;
+        font-size: 0.9rem;
+        color: rgba(230, 217, 255, 0.9);
+      }
+
+      .ragequit-button {
+        width: 100%;
+        padding: 12px 20px;
+        background: rgba(255, 0, 0, 0.15);
+        border: 1px solid rgba(255, 0, 0, 0.3);
+        color: #ff6b6b;
+        font-family: "Cinzel", serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.15em;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+
+      .ragequit-button:hover {
+        background: rgba(255, 0, 0, 0.25);
+        border-color: #ff6b6b;
+      }
+
       /* PROPOSALS */
+      #proposalsList {
+        max-height: 600px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+      }
+
+      #proposalsList::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      #proposalsList::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3);
+      }
+
+      #proposalsList::-webkit-scrollbar-thumb {
+        background: rgba(157, 123, 255, 0.4);
+        border-radius: 3px;
+      }
+
       .proposal-item {
         margin-bottom: 1.5rem;
         padding: 1.5rem;
@@ -1324,25 +1449,27 @@
       }
 
       .proposal-state {
-        padding: 4px 12px;
-        background: rgba(157, 123, 255, 0.2);
-        border: 1px solid rgba(157, 123, 255, 0.4);
+        padding: 3px 10px;
+        background: rgba(157, 123, 255, 0.08);
+        border: 1px solid rgba(157, 123, 255, 0.2);
         font-family: "Cinzel", serif;
-        font-size: 0.65rem;
-        letter-spacing: 0.1em;
+        font-size: 0.6rem;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
+        opacity: 0.75;
+        color: rgba(230, 217, 255, 0.7);
       }
 
       .proposal-state.succeeded {
-        background: rgba(0, 255, 0, 0.1);
-        border-color: rgba(0, 255, 0, 0.4);
-        color: #5fff5f;
+        background: rgba(0, 255, 0, 0.05);
+        border-color: rgba(0, 255, 0, 0.25);
+        color: rgba(95, 255, 95, 0.85);
       }
 
       .proposal-state.defeated {
-        background: rgba(255, 0, 0, 0.1);
-        border-color: rgba(255, 0, 0, 0.4);
-        color: #ff6b6b;
+        background: rgba(255, 0, 0, 0.05);
+        border-color: rgba(255, 0, 0, 0.25);
+        color: rgba(255, 107, 107, 0.85);
       }
 
       .proposal-description {
@@ -1420,6 +1547,34 @@
         border-color: rgba(255, 0, 0, 0.3);
       }
 
+      .proposal-button.cancel {
+        background: rgba(255, 165, 0, 0.1);
+        border-color: rgba(255, 165, 0, 0.3);
+        color: #ffb366;
+      }
+
+      .proposal-button.cancel:hover:not(:disabled) {
+        background: rgba(255, 165, 0, 0.2);
+        border-color: #ffb366;
+      }
+
+      .user-vote-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 16px;
+        font-family: "EB Garamond", serif;
+        font-size: 0.9rem;
+        color: rgba(230, 217, 255, 0.8);
+        background: rgba(157, 123, 255, 0.05);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        margin-right: 0.5rem;
+      }
+
+      .user-vote-indicator strong {
+        color: #9d7bff;
+        margin-left: 0.3rem;
+      }
+
       .proposal-form {
         padding: 1.5rem;
         background: rgba(0, 0, 0, 0.3);
@@ -1471,6 +1626,181 @@
         min-height: 80px;
         resize: vertical;
       }
+
+      /* MOBILE OPTIMIZATIONS FOR DAO DASHBOARD */
+      @media (max-width: 768px) {
+        .dao-dashboard {
+          padding: 2rem 1rem;
+        }
+
+        .dao-dashboard-header {
+          flex-direction: column;
+          align-items: flex-start;
+          margin-bottom: 2rem;
+        }
+
+        .dao-dashboard-title {
+          font-size: 1.3rem;
+          letter-spacing: 0.15em;
+        }
+
+        .dao-etherscan-link {
+          font-size: 0.75rem;
+        }
+
+        .back-button {
+          width: 100%;
+          text-align: center;
+        }
+
+        .dao-panel {
+          padding: 1.5rem 1rem;
+        }
+
+        .dao-panel-title {
+          font-size: 1rem;
+          margin-bottom: 1rem;
+        }
+
+        /* Chatroom mobile */
+        .chatroom-messages {
+          max-height: 300px;
+        }
+
+        .chatroom-message {
+          padding: 0.75rem;
+        }
+
+        /* Proposals mobile */
+        #proposalsList {
+          max-height: 400px;
+        }
+
+        .chatroom-message-header {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .chatroom-send {
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .chatroom-button {
+          width: 100%;
+        }
+
+        /* Proposals mobile */
+        .proposal-item {
+          padding: 1rem;
+        }
+
+        .proposal-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.5rem;
+        }
+
+        .proposal-id {
+          font-size: 0.75rem;
+          word-break: break-all;
+        }
+
+        .proposal-votes {
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+
+        .proposal-vote-stat {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          text-align: left;
+          padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+          background: transparent;
+          border-left: 2px solid rgba(157, 123, 255, 0.3);
+        }
+
+        .proposal-vote-label {
+          margin-bottom: 0;
+        }
+
+        .proposal-vote-value {
+          font-weight: 600;
+        }
+
+        .proposal-actions {
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .proposal-button {
+          width: 100%;
+          padding: 12px;
+        }
+
+        .user-vote-indicator {
+          width: 100%;
+          justify-content: center;
+          margin-right: 0;
+          margin-bottom: 0.5rem;
+          font-size: 0.85rem;
+        }
+
+        /* Proposal form mobile */
+        .proposal-form {
+          padding: 1rem;
+        }
+
+        .proposal-form-title {
+          font-size: 0.9rem;
+        }
+
+        .proposal-form-group {
+          margin-bottom: 0.75rem;
+        }
+
+        .proposal-form-input,
+        .proposal-form-textarea {
+          font-size: 0.95rem;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .dao-dashboard {
+          padding: 1.5rem 0.75rem;
+        }
+
+        .dao-dashboard-title {
+          font-size: 1.1rem;
+        }
+
+        .dao-etherscan-link {
+          font-size: 0.7rem;
+        }
+
+        .dao-panel {
+          padding: 1rem 0.75rem;
+        }
+
+        .chatroom-messages {
+          max-height: 250px;
+        }
+
+        #proposalsList {
+          max-height: 350px;
+        }
+
+        .proposal-id {
+          font-size: 0.7rem;
+        }
+
+        .proposal-state {
+          font-size: 0.6rem;
+          padding: 3px 8px;
+          opacity: 1;
+        }
+      }
     </style>
   </head>
   <body>
@@ -1498,6 +1828,65 @@
         </div>
         <div id="walletOptions">
           <!-- Wallet options will be dynamically inserted here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- RAGEQUIT MODAL -->
+    <div class="wallet-modal-overlay" id="ragequitModal">
+      <div class="wallet-modal" style="max-width: 600px;">
+        <div class="wallet-modal-header">
+          <h2 class="wallet-modal-title">Ragequit DAO</h2>
+          <button class="wallet-modal-close" onclick="closeRagequitModal()">&times;</button>
+        </div>
+        <div style="padding: 1.5rem;">
+          <!-- Member Balances -->
+          <div style="margin-bottom: 2rem;">
+            <h4 style="font-family: 'Cinzel', serif; font-size: 0.9rem; color: #9d7bff; margin-bottom: 1rem; letter-spacing: 0.1em;">YOUR BALANCES</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+              <div style="padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3);">
+                <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem;">SHARES</div>
+                <div id="ragequitUserShares" style="font-size: 1.25rem; color: #e6d9ff;">0</div>
+              </div>
+              <div style="padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3);">
+                <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem;">LOOT</div>
+                <div id="ragequitUserLoot" style="font-size: 1.25rem; color: #e6d9ff;">0</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Burn Amounts -->
+          <div style="margin-bottom: 2rem;">
+            <h4 style="font-family: 'Cinzel', serif; font-size: 0.9rem; color: #9d7bff; margin-bottom: 1rem; letter-spacing: 0.1em;">BURN AMOUNTS</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem;">Shares to Burn</label>
+                <input type="text" id="ragequitSharesInput" placeholder="0.0" style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 1rem;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem;">Loot to Burn</label>
+                <input type="text" id="ragequitLootInput" placeholder="0.0" style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 1rem;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Token Selection -->
+          <div style="margin-bottom: 2rem;">
+            <h4 style="font-family: 'Cinzel', serif; font-size: 0.9rem; color: #9d7bff; margin-bottom: 1rem; letter-spacing: 0.1em;">TOKENS TO CLAIM</h4>
+            <div id="ragequitTokenList" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <!-- Token checkboxes will be dynamically inserted here -->
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 1rem;">
+            <button onclick="closeRagequitModal()" style="flex: 1; padding: 12px; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); color: #9d7bff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase;">
+              Cancel
+            </button>
+            <button onclick="executeRagequit()" style="flex: 1; padding: 12px; background: rgba(255, 0, 0, 0.15); border: 1px solid rgba(255, 0, 0, 0.3); color: #ff6b6b; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; font-weight: 600;">
+              Execute Ragequit
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -3416,7 +3805,17 @@
     <!-- DAO DASHBOARD SECTION -->
     <section class="dao-dashboard" id="daoDashboard">
       <div class="dao-dashboard-header">
-        <h2 class="dao-dashboard-title" id="dashboardTitle">DAO Dashboard</h2>
+        <div>
+          <h2 class="dao-dashboard-title" id="dashboardTitle">DAO Dashboard</h2>
+          <a class="dao-etherscan-link" id="daoEtherscanLink" href="#" target="_blank" rel="noopener noreferrer">
+            <span id="daoAddressText">0x...</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+        </div>
         <button class="back-button" onclick="backToGallery()">← Back to Gallery</button>
       </div>
       <div class="dao-dashboard-content">
@@ -3435,6 +3834,15 @@
             />
             <button class="chatroom-button" onclick="sendChatMessage()">Send</button>
           </div>
+
+          <!-- Treasury Section -->
+          <div class="treasury-section">
+            <h4 class="treasury-title">Treasury</h4>
+            <div class="treasury-assets" id="treasuryAssets">
+              <!-- Treasury assets will be dynamically rendered here -->
+            </div>
+            <button class="ragequit-button" onclick="openRagequitModal()">Ragequit</button>
+          </div>
         </div>
 
         <!-- Proposals Panel -->
@@ -3444,25 +3852,30 @@
           <!-- New Proposal Form -->
           <div class="proposal-form">
             <h4 class="proposal-form-title">Create Proposal</h4>
-            <div class="proposal-form-group">
-              <label class="proposal-form-label">Operation (0=call, 1=delegatecall)</label>
-              <input type="number" id="proposalOp" class="proposal-form-input" value="0" min="0" max="1" />
-            </div>
+            <input type="hidden" id="proposalOp" value="0" />
             <div class="proposal-form-group">
               <label class="proposal-form-label">Target Address</label>
-              <input type="text" id="proposalTo" class="proposal-form-input" placeholder="0x..." />
+              <input type="text" id="proposalTo" class="proposal-form-input" placeholder="0x..." oninput="updateTargetAddressHint()" />
+              <div id="targetAddressHint" style="margin-top: 0.35rem; display: none;">
+                <span id="targetAddressHintBadge" style="display: inline-block; padding: 0.25rem 0.5rem; background: rgba(157, 123, 255, 0.15); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 3px; font-size: 0.7rem; color: #9d7bff; font-family: 'Cinzel', serif; letter-spacing: 0.1em;"></span>
+              </div>
             </div>
-            <div class="proposal-form-group">
+            <div class="proposal-form-group" id="proposalValueGroup">
               <label class="proposal-form-label">Value (ETH)</label>
               <input type="text" id="proposalValue" class="proposal-form-input" placeholder="0" />
             </div>
             <div class="proposal-form-group">
               <label class="proposal-form-label">Data (hex)</label>
-              <input type="text" id="proposalData" class="proposal-form-input" placeholder="0x" />
-            </div>
-            <div class="proposal-form-group">
-              <label class="proposal-form-label">Nonce (32 bytes hex)</label>
-              <input type="text" id="proposalNonce" class="proposal-form-input" placeholder="0x0000..." />
+              <input type="text" id="proposalData" class="proposal-form-input" placeholder="0x" oninput="updateCalldataPreview(); updateCalldataTranslation();" />
+              <div id="calldataTranslation" style="margin-top: 0.5rem; display: none; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff; font-size: 0.85rem;"></div>
+              <div id="calldataPreview" style="margin-top: 0.5rem; display: none;">
+                <a id="calldataPreviewLink" href="#" target="_blank" rel="noopener noreferrer"
+                   style="font-size: 0.75rem; color: #9d7bff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; opacity: 0.75; transition: opacity 0.3s ease;"
+                   onmouseover="this.style.opacity='1'"
+                   onmouseout="this.style.opacity='0.75'">
+                  <span>🔍</span> Decode calldata on SwissKnife
+                </a>
+              </div>
             </div>
             <div class="proposal-form-group">
               <label class="proposal-form-label">Description</label>
@@ -3940,21 +4353,25 @@
             {"internalType": "uint256", "name": "id", "type": "uint256"},
             {"internalType": "uint8", "name": "support", "type": "uint8"}
           ],
-          "name": "vote",
+          "name": "castVote",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+          "name": "cancelVote",
           "outputs": [],
           "stateMutability": "nonpayable",
           "type": "function"
         },
         {
           "inputs": [
-            {"internalType": "uint8", "name": "op", "type": "uint8"},
-            {"internalType": "address", "name": "to", "type": "address"},
-            {"internalType": "uint256", "name": "value", "type": "uint256"},
-            {"internalType": "bytes", "name": "data", "type": "bytes"},
-            {"internalType": "bytes32", "name": "nonce", "type": "bytes32"}
+            {"internalType": "uint256", "name": "", "type": "uint256"},
+            {"internalType": "address", "name": "", "type": "address"}
           ],
-          "name": "intentHashId",
-          "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+          "name": "hasVoted",
+          "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
           "stateMutability": "view",
           "type": "function"
         },
@@ -3971,19 +4388,39 @@
           "outputs": [{"internalType": "bytes[]", "name": "results", "type": "bytes[]"}],
           "stateMutability": "nonpayable",
           "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address[]", "name": "tokens", "type": "address[]"},
+            {"internalType": "uint256", "name": "sharesToBurn", "type": "uint256"},
+            {"internalType": "uint256", "name": "lootToBurn", "type": "uint256"}
+          ],
+          "name": "ragequit",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
         }
       ];
 
       // Constants for minimal proxy pattern (from Solidity reference)
       const CLONE_PREFIX = '0x602d5f8160095f39f35f5f365f5f37365f73';
       const CLONE_SUFFIX = '0x5af43d5f5f3e6029573d5ffd5b3d5ff3';
-      
+
       // Implementation addresses
       const IMPLEMENTATIONS = {
         moloch: '0x643A45B599D81be3f3a68F37EB3De55fF10673C1',
         badges: '0x71e9b38d301b5a58cb998c1295045fe276acf600',
         shares: '0x47c175ce83b6b931ccbedd5ce95e701984ed96d5',
         loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+      };
+
+      // Token addresses from MolochViewHelper
+      const TOKEN_ADDRESSES = {
+        usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        usdt: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+        dai: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        wsteth: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
+        reth: '0xae78736Cd615f374D3085123A210448E74Fc6393'
       };
 
       // Helper to create minimal proxy init code
@@ -4307,6 +4744,180 @@
         showStatus('Wallet disconnected', false);
       }
 
+      // Ragequit modal functions
+      function openRagequitModal() {
+        if (!currentDAO) {
+          showStatus('No DAO selected', true);
+          return;
+        }
+
+        const modal = document.getElementById('ragequitModal');
+        const member = currentDAO.member;
+
+        // Check if user is a member
+        if (!member) {
+          showStatus('You are not a member of this DAO', true);
+          return;
+        }
+
+        // Display user's shares and loot
+        const shares = ethers.formatUnits(member.shares, 18);
+        const loot = ethers.formatUnits(member.loot, 18);
+        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(4);
+        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(4);
+
+        // Clear inputs
+        document.getElementById('ragequitSharesInput').value = '';
+        document.getElementById('ragequitLootInput').value = '';
+
+        // Generate token list with checkboxes
+        const tokenList = document.getElementById('ragequitTokenList');
+        tokenList.innerHTML = '';
+
+        const treasury = currentDAO.dao.treasury;
+        const tokens = [
+          { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, balance: treasury.usdc, decimals: 6, icon: TOKEN_ICONS.usdc },
+          { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, balance: treasury.usdt, decimals: 6, icon: TOKEN_ICONS.usdt },
+          { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, balance: treasury.dai, decimals: 18, icon: TOKEN_ICONS.dai },
+          { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, balance: treasury.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth },
+          { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, balance: treasury.reth, decimals: 18, icon: TOKEN_ICONS.reth }
+        ];
+
+        // Note: ETH is handled separately in ragequit, not included in token array
+
+        tokens.forEach(token => {
+          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(4);
+
+          const tokenDiv = document.createElement('div');
+          tokenDiv.style.cssText = 'display: flex; align-items: center; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.2); cursor: pointer; transition: all 0.3s ease;';
+          tokenDiv.onmouseover = () => tokenDiv.style.borderColor = 'rgba(157, 123, 255, 0.4)';
+          tokenDiv.onmouseout = () => tokenDiv.style.borderColor = 'rgba(157, 123, 255, 0.2)';
+
+          tokenDiv.innerHTML = `
+            <input type="checkbox" id="token_${token.symbol}" value="${token.address}"
+                   style="margin-right: 1rem; width: 20px; height: 20px; cursor: pointer;" checked>
+            <div style="width: 28px; height: 28px; margin-right: 1rem;">${token.icon}</div>
+            <div style="flex: 1;">
+              <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; margin-bottom: 0.25rem;">${token.symbol}</div>
+              <div style="font-family: 'EB Garamond', serif; font-size: 0.8rem; color: rgba(230, 217, 255, 0.6);">Balance: ${formattedBalance}</div>
+            </div>
+          `;
+
+          tokenList.appendChild(tokenDiv);
+
+          // Make the whole div clickable to toggle checkbox
+          tokenDiv.onclick = (e) => {
+            if (e.target.tagName !== 'INPUT') {
+              const checkbox = tokenDiv.querySelector('input[type="checkbox"]');
+              checkbox.checked = !checkbox.checked;
+            }
+          };
+        });
+
+        modal.classList.add('show');
+      }
+
+      function closeRagequitModal() {
+        document.getElementById('ragequitModal').classList.remove('show');
+      }
+
+      async function executeRagequit() {
+        try {
+          if (!signer || !currentDAO) {
+            showStatus('No wallet connected or DAO selected', true);
+            return;
+          }
+
+          // Get input values
+          const sharesInput = document.getElementById('ragequitSharesInput').value.trim();
+          const lootInput = document.getElementById('ragequitLootInput').value.trim();
+
+          if (!sharesInput && !lootInput) {
+            showStatus('Please enter shares or loot to burn', true);
+            return;
+          }
+
+          const sharesToBurn = sharesInput ? ethers.parseUnits(sharesInput, 18) : 0n;
+          const lootToBurn = lootInput ? ethers.parseUnits(lootInput, 18) : 0n;
+
+          if (sharesToBurn === 0n && lootToBurn === 0n) {
+            showStatus('Must burn at least some shares or loot', true);
+            return;
+          }
+
+          // Get selected tokens
+          const checkboxes = document.querySelectorAll('#ragequitTokenList input[type="checkbox"]:checked');
+          if (checkboxes.length === 0) {
+            showStatus('Please select at least one token to claim', true);
+            return;
+          }
+
+          const tokenAddresses = Array.from(checkboxes).map(cb => cb.value);
+
+          // Sort addresses (required by contract)
+          tokenAddresses.sort((a, b) => {
+            const aBig = BigInt(a);
+            const bBig = BigInt(b);
+            return aBig < bBig ? -1 : aBig > bBig ? 1 : 0;
+          });
+
+          // Execute ragequit
+          const daoContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
+
+          showStatus('Executing ragequit...', false);
+          const tx = await daoContract.ragequit(tokenAddresses, sharesToBurn, lootToBurn);
+
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
+          await tx.wait();
+
+          showStatus('Ragequit executed successfully!', false);
+          closeRagequitModal();
+
+          // Refresh DAO data
+          await fetchUserDAOs();
+          await fetchAllDAOs();
+
+          // Refresh current DAO view if still a member
+          if (currentDAO) {
+            const daoIndex = userDAOs.findIndex(udao =>
+              udao.dao.dao.toLowerCase() === currentDAO.dao.dao.toLowerCase()
+            );
+            if (daoIndex !== -1) {
+              await openDAO(daoIndex, 'user');
+            } else {
+              // User is no longer a member, go back to gallery
+              backToGallery();
+            }
+          }
+
+        } catch (error) {
+          console.error('Ragequit failed:', error);
+          let errorMessage = 'Ragequit failed';
+
+          if (error.message?.includes('NotOk')) {
+            errorMessage = 'Ragequit not allowed - DAO may not allow ragequitting';
+          } else if (error.message?.includes('user rejected')) {
+            errorMessage = 'Transaction cancelled';
+          } else if (error.message) {
+            errorMessage = `Ragequit failed: ${error.message}`;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Close ragequit modal when clicking outside
+      document.addEventListener('DOMContentLoaded', () => {
+        const ragequitModal = document.getElementById('ragequitModal');
+        if (ragequitModal) {
+          ragequitModal.addEventListener('click', (e) => {
+            if (e.target === ragequitModal) {
+              closeRagequitModal();
+            }
+          });
+        }
+      });
+
       // Fetch user's DAOs from View Helper
       async function fetchUserDAOs() {
         if (!provider || !connectedAddress) return;
@@ -4567,6 +5178,227 @@
         daoGallery.classList.add('show');
       }
 
+      // Token SVG icons
+      const TOKEN_ICONS = {
+        eth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 0l-1.5 5.1v17.3l1.5 1.5 7-4.2L16 0z" fill="#9d7bff" opacity="0.6"/>
+          <path d="M16 0L9 19.7l7 4.2V0z" fill="#9d7bff"/>
+          <path d="M16 26l-.8.9v5.4l.8 2.4 7-9.8L16 26z" fill="#9d7bff" opacity="0.6"/>
+          <path d="M16 34.7v-8.8L9 24.9l7 9.8z" fill="#9d7bff"/>
+          <path d="M16 23.9l7-4.2-7-3.2v7.4z" fill="#9d7bff" opacity="0.4"/>
+          <path d="M9 19.7l7 4.2v-7.4l-7 3.2z" fill="#9d7bff" opacity="0.8"/>
+        </svg>`,
+        usdc: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="15" fill="none" stroke="#9d7bff" stroke-width="2"/>
+          <path d="M20 12c0-2-1.5-3-4-3s-4 1-4 3c0 1.5 1 2.5 4 3s4 1.5 4 3c0 2-1.5 3-4 3s-4-1-4-3M16 7v2M16 23v2"
+                stroke="#9d7bff" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>`,
+        usdt: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="15" fill="none" stroke="#9d7bff" stroke-width="2"/>
+          <path d="M12 10h8M16 10v14M12 16h8" stroke="#9d7bff" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="16" cy="16" r="4" fill="none" stroke="#9d7bff" stroke-width="1.5"/>
+        </svg>`,
+        dai: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="15" fill="none" stroke="#9d7bff" stroke-width="2"/>
+          <path d="M11 10h6c3 0 5 2 5 6s-2 6-5 6h-6V10z" fill="none" stroke="#9d7bff" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M9 14h14M9 18h14" stroke="#9d7bff" stroke-width="1.5"/>
+        </svg>`,
+        wsteth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="15" fill="none" stroke="#9d7bff" stroke-width="2" stroke-dasharray="3,3"/>
+          <path d="M16 8l-6 10 6 3.5 6-3.5L16 8z" fill="none" stroke="#9d7bff" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M10 18l6 6 6-6" fill="none" stroke="#9d7bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`,
+        reth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="15" fill="none" stroke="#9d7bff" stroke-width="2"/>
+          <path d="M12 22V10h5.5c2 0 3.5 1.5 3.5 3s-1.5 3-3.5 3H12"
+                fill="none" stroke="#9d7bff" stroke-width="2" stroke-linejoin="round"/>
+          <line x1="12" y1="16" x2="19" y2="22" stroke="#9d7bff" stroke-width="2" stroke-linecap="round"/>
+        </svg>`
+      };
+
+      // Render treasury
+      function renderTreasury() {
+        const treasuryAssets = document.getElementById('treasuryAssets');
+        if (!treasuryAssets || !currentDAO) return;
+
+        treasuryAssets.innerHTML = '';
+
+        const treasury = currentDAO.dao.treasury;
+
+        const assets = [
+          { symbol: 'ETH', balance: treasury.eth, decimals: 18, icon: TOKEN_ICONS.eth, address: null },
+          { symbol: 'USDC', balance: treasury.usdc, decimals: 6, icon: TOKEN_ICONS.usdc, address: TOKEN_ADDRESSES.usdc },
+          { symbol: 'USDT', balance: treasury.usdt, decimals: 6, icon: TOKEN_ICONS.usdt, address: TOKEN_ADDRESSES.usdt },
+          { symbol: 'DAI', balance: treasury.dai, decimals: 18, icon: TOKEN_ICONS.dai, address: TOKEN_ADDRESSES.dai },
+          { symbol: 'wstETH', balance: treasury.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth, address: TOKEN_ADDRESSES.wsteth },
+          { symbol: 'rETH', balance: treasury.reth, decimals: 18, icon: TOKEN_ICONS.reth, address: TOKEN_ADDRESSES.reth }
+        ];
+
+        assets.forEach(asset => {
+          const assetDiv = document.createElement('div');
+          assetDiv.className = 'treasury-asset';
+          assetDiv.style.cursor = 'pointer';
+          assetDiv.title = `Click to create ${asset.symbol} transfer proposal`;
+
+          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(4);
+
+          assetDiv.innerHTML = `
+            <div class="treasury-asset-icon">${asset.icon}</div>
+            <div class="treasury-asset-symbol">${asset.symbol}</div>
+            <div class="treasury-asset-balance">${formattedBalance}</div>
+          `;
+
+          assetDiv.onclick = () => prepareTransferProposal(asset);
+
+          treasuryAssets.appendChild(assetDiv);
+        });
+      }
+
+      // Prepare transfer proposal from treasury asset
+      async function prepareTransferProposal(asset) {
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add transfer helper UI if not already present
+        let helperDiv = document.getElementById('transferHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'transferHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        // Show transfer helper
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              ${asset.symbol} TRANSFER
+            </div>
+            <button onclick="clearTransferHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Recipient Address or ENS</label>
+              <input type="text" id="transferRecipient" placeholder="vitalik.eth or 0x..."
+                     style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Amount (${asset.symbol})</label>
+              <input type="text" id="transferAmount" placeholder="0.0"
+                     style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            </div>
+          </div>
+          <button onclick="populateTransferProposal('${asset.symbol}', '${asset.address}', ${asset.decimals})"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            ⚡ Populate Proposal Form
+          </button>
+        `;
+
+        // Focus on recipient input
+        setTimeout(() => {
+          const recipientInput = document.getElementById('transferRecipient');
+          if (recipientInput) recipientInput.focus();
+        }, 100);
+      }
+
+      function clearTransferHelper() {
+        const helperDiv = document.getElementById('transferHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateTransferProposal(symbol, address, decimals) {
+        try {
+          const recipientInput = document.getElementById('transferRecipient').value.trim();
+          const amountInput = document.getElementById('transferAmount').value.trim();
+
+          if (!recipientInput) {
+            showStatus('Please enter recipient address or ENS', true);
+            return;
+          }
+
+          if (!amountInput || isNaN(amountInput) || parseFloat(amountInput) <= 0) {
+            showStatus('Please enter valid amount', true);
+            return;
+          }
+
+          showStatus('Resolving address...', false);
+
+          // Resolve ENS if needed
+          let recipientAddress = recipientInput;
+          if (recipientInput.endsWith('.eth') || !recipientInput.startsWith('0x')) {
+            if (!provider) {
+              showStatus('Provider not available for ENS resolution', true);
+              return;
+            }
+            try {
+              const resolved = await provider.resolveName(recipientInput);
+              if (!resolved) {
+                showStatus('Could not resolve ENS name', true);
+                return;
+              }
+              recipientAddress = resolved;
+              showStatus(`Resolved to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`, false);
+            } catch (error) {
+              showStatus('ENS resolution failed', true);
+              return;
+            }
+          }
+
+          // Validate address
+          if (!ethers.isAddress(recipientAddress)) {
+            showStatus('Invalid address', true);
+            return;
+          }
+
+          const amount = amountInput;
+          const amountWei = ethers.parseUnits(amount, decimals);
+
+          // Populate form
+          if (symbol === 'ETH') {
+            // For ETH: target is recipient, value is amount, no calldata
+            document.getElementById('proposalTo').value = recipientAddress;
+            document.getElementById('proposalValue').value = amount;
+            document.getElementById('proposalData').value = '0x';
+            document.getElementById('proposalDescription').value = `Transfer ${amount} ETH to ${recipientInput}`;
+          } else {
+            // For ERC20: target is token contract, encode transfer calldata
+            // transfer(address recipient, uint256 amount)
+            const abiCoder = new ethers.AbiCoder();
+            const transferCalldata = '0xa9059cbb' + abiCoder.encode(
+              ['address', 'uint256'],
+              [recipientAddress, amountWei]
+            ).slice(2);
+
+            document.getElementById('proposalTo').value = address;
+            document.getElementById('proposalValue').value = '0';
+            document.getElementById('proposalData').value = transferCalldata;
+            document.getElementById('proposalDescription').value = `Transfer ${amount} ${symbol} to ${recipientInput}`;
+          }
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearTransferHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating transfer proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
       // Open DAO dashboard
       async function openDAO(daoIndex, source = 'user') {
         // Get the DAO from the appropriate source
@@ -4579,8 +5411,16 @@
         const dashboardTitle = document.getElementById('dashboardTitle');
         dashboardTitle.textContent = currentDAO.dao.meta.name;
 
+        // Update Etherscan link
+        const daoAddress = currentDAO.dao.dao;
+        const etherscanLink = document.getElementById('daoEtherscanLink');
+        const addressText = document.getElementById('daoAddressText');
+        etherscanLink.href = `https://etherscan.io/address/${daoAddress}`;
+        addressText.textContent = `${daoAddress.slice(0, 6)}...${daoAddress.slice(-4)}`;
+
         renderChatroom();
         await renderProposals();
+        renderTreasury();
 
         document.getElementById('daoGallery').classList.remove('show');
         document.getElementById('allDaosGallery').classList.remove('show');
@@ -4613,14 +5453,86 @@
 
           msgDiv.className = 'chatroom-message' + (proposalData ? ' proposal' : '');
 
+          let messageContent = message.text;
+          if (proposalData) {
+            // Format proposal message nicely
+            const isETHTransfer = proposalData.value !== '0' && proposalData.data === '0x';
+            const isTokenTransfer = proposalData.data.startsWith('0xa9059cbb');
+
+            let formattedDetails = '';
+            if (isETHTransfer) {
+              const ethAmount = ethers.formatEther(proposalData.value);
+              formattedDetails = `
+                <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff;">
+                  <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.35rem;">ETH Transfer</div>
+                  <div style="font-size: 0.9rem;">Amount: <strong>${ethAmount} ETH</strong></div>
+                  <div style="font-size: 0.85rem; margin-top: 0.25rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem;">${proposalData.to}</code></div>
+                </div>
+              `;
+            } else if (isTokenTransfer) {
+              try {
+                const abiCoder = new ethers.AbiCoder();
+                const decoded = abiCoder.decode(['address', 'uint256'], '0x' + proposalData.data.slice(10));
+                const recipient = decoded[0];
+                const amount = decoded[1];
+                // Try to identify token
+                let tokenSymbol = 'TOKEN';
+                if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.usdc.toLowerCase()) tokenSymbol = 'USDC';
+                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.usdt.toLowerCase()) tokenSymbol = 'USDT';
+                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.dai.toLowerCase()) tokenSymbol = 'DAI';
+                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.wsteth.toLowerCase()) tokenSymbol = 'wstETH';
+                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.reth.toLowerCase()) tokenSymbol = 'rETH';
+
+                const decimals = (tokenSymbol === 'USDC' || tokenSymbol === 'USDT') ? 6 : 18;
+                const formattedAmount = ethers.formatUnits(amount, decimals);
+
+                formattedDetails = `
+                  <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff;">
+                    <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.35rem;">${tokenSymbol} Transfer</div>
+                    <div style="font-size: 0.9rem;">Amount: <strong>${formattedAmount} ${tokenSymbol}</strong></div>
+                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem;">${recipient}</code></div>
+                  </div>
+                `;
+              } catch (e) {
+                formattedDetails = '';
+              }
+            }
+
+            // Add SwissKnife link if calldata exists and is not empty
+            let calldataLinkForMessage = '';
+            if (proposalData.data && proposalData.data !== '0x' && proposalData.data.length > 2) {
+              calldataLinkForMessage = `
+                <div style="margin-top: 0.5rem;">
+                  <a href="https://calldata.swiss-knife.xyz/decoder?calldata=${proposalData.data}"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     style="font-size: 0.75rem; color: #9d7bff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; opacity: 0.75; transition: opacity 0.3s ease;"
+                     onmouseover="this.style.opacity='1'"
+                     onmouseout="this.style.opacity='0.75'">
+                    <span>🔍</span> Decode calldata on SwissKnife
+                  </a>
+                </div>
+              `;
+            }
+
+            messageContent = `
+              <strong style="color: #9d7bff; font-size: 0.85rem; letter-spacing: 0.1em;">⚡ PROPOSAL</strong>
+              <div style="margin-top: 0.5rem; font-size: 1rem;">${proposalData.description}</div>
+              ${formattedDetails}
+              ${calldataLinkForMessage}
+              <details style="margin-top: 0.75rem; opacity: 0.6;">
+                <summary style="cursor: pointer; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase;">Technical Details</summary>
+                <pre style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.4); overflow-x: auto; font-size: 0.7rem; border: 1px solid rgba(157, 123, 255, 0.2);">${JSON.stringify({op: proposalData.op, to: proposalData.to, value: proposalData.value, data: proposalData.data.slice(0, 66) + (proposalData.data.length > 66 ? '...' : ''), nonce: proposalData.nonce}, null, 2)}</pre>
+              </details>
+            `;
+          }
+
           msgDiv.innerHTML = `
             <div class="chatroom-message-header">
               <span>Message #${message.index}</span>
             </div>
             <div class="chatroom-message-text">
-              ${proposalData ?
-                `<strong style="color: #9d7bff;">[PROPOSAL]</strong><br>${proposalData.description}<br><details style="margin-top: 0.5rem; opacity: 0.7;"><summary style="cursor: pointer; font-size: 0.85rem;">View execution data</summary><pre style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.3); overflow-x: auto; font-size: 0.75rem;">${JSON.stringify({op: proposalData.op, to: proposalData.to, value: proposalData.value, data: proposalData.data, nonce: proposalData.nonce}, null, 2)}</pre></details>` :
-                message.text}
+              ${messageContent}
             </div>
           `;
 
@@ -4683,23 +5595,67 @@
           daoConfig = 0n; // fallback
         }
 
-        const PROPOSAL_STATES = ['Pending', 'Active', 'Defeated', 'Succeeded', 'Queued', 'Executed'];
+        // Must match Moloch.sol enum ProposalState (line 79-87)
+        const PROPOSAL_STATES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
 
-        currentDAO.dao.proposals.forEach(proposal => {
+        // Deduplicate proposals by ID
+        const seenProposalIds = new Set();
+        const uniqueProposals = currentDAO.dao.proposals.filter(proposal => {
+          const id = proposal.id.toString();
+          if (seenProposalIds.has(id)) {
+            return false;
+          }
+          seenProposalIds.add(id);
+          return true;
+        });
+
+        // Check if user has voted on any proposals (only if connected)
+        const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+        const userVoteStatus = {};
+
+        if (connectedAddress) {
+          const voteCheckPromises = uniqueProposals.map(async (proposal) => {
+            try {
+              const hasVotedValue = await molochContract.hasVoted(proposal.id, connectedAddress);
+              userVoteStatus[proposal.id.toString()] = Number(hasVotedValue);
+            } catch (e) {
+              userVoteStatus[proposal.id.toString()] = 0;
+            }
+          });
+          await Promise.all(voteCheckPromises);
+        }
+
+        uniqueProposals.forEach(proposal => {
           const proposalDiv = document.createElement('div');
           proposalDiv.className = 'proposal-item';
 
-          const stateText = PROPOSAL_STATES[proposal.state] || `State ${proposal.state}`;
+          // Convert state to number for comparison (might be BigInt)
+          const state = Number(proposal.state);
+          const stateText = PROPOSAL_STATES[state] || `State ${state}`;
           const stateClass = stateText.toLowerCase();
 
           const forVotes = ethers.formatUnits(proposal.forVotes, 18);
           const againstVotes = ethers.formatUnits(proposal.againstVotes, 18);
           const abstainVotes = ethers.formatUnits(proposal.abstainVotes, 18);
 
+          // Determine if proposal is executable
+          // State 2 = Queued (timelock running), State 3 = Succeeded (passed, ready to execute)
+          // For proposals with 0 TTL and 0 timelock, Succeeded means immediately executable
+          const isExecutable = (state === 2 || state === 3);
+
+          // Check if user has voted (0 = not voted, 1 = voted against, 2 = voted for, 3 = voted abstain)
+          const hasVotedValue = userVoteStatus[proposal.id.toString()] || 0;
+          const userHasVoted = hasVotedValue > 0;
+          const userVoteType = hasVotedValue > 0 ? ['Against', 'For', 'Abstain'][hasVotedValue - 1] : null;
+
+          console.log(`Proposal ${proposal.id.toString()} - State: ${state} (${stateText}), Executable: ${isExecutable}, HasVoted: ${userHasVoted} (${userVoteType || 'none'})`);
+          console.log(`  For: ${forVotes}, Against: ${againstVotes}, Abstain: ${abstainVotes}`);
+
           // Find proposal description from messages and verify hash
           let description = `Proposal #${proposal.id.toString()}`;
           let isVerified = false;
           let verificationBadge = '';
+          let proposalCalldata = null;
 
           currentDAO.dao.messages.forEach(msg => {
             const propData = decodeProposalMessage(msg.text);
@@ -4720,7 +5676,8 @@
                 if (recomputedId.toString() === proposal.id.toString()) {
                   description = propData.description || description;
                   isVerified = true;
-                  verificationBadge = '<span style="color: #5fff5f; font-size: 0.9rem; margin-left: 0.5rem;" title="Proposal ID verified against tagged message">✓ Verified</span>';
+                  proposalCalldata = propData.data;
+                  console.log(`Found calldata for proposal ${proposal.id.toString()}:`, propData.data);
                 }
               } catch (e) {
                 console.error('Error verifying proposal:', e);
@@ -4728,12 +5685,37 @@
             }
           });
 
+          // Only show badge if NOT verified (warning flag)
+          if (!isVerified) {
+            verificationBadge = '<span style="color: #ff6b6b; font-size: 0.9rem; margin-left: 0.5rem;" title="⚠ Proposal data not found in messages - cannot verify integrity">⚠ Unverified</span>';
+          }
+
+          // Create SwissKnife link if calldata exists and is not empty
+          let calldataLink = '';
+          if (proposalCalldata && proposalCalldata !== '0x' && proposalCalldata.length > 2) {
+            console.log(`Creating SwissKnife link for proposal ${proposal.id.toString()}`);
+            calldataLink = `
+              <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(157, 123, 255, 0.15);">
+                <a href="https://calldata.swiss-knife.xyz/decoder?calldata=${proposalCalldata}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   style="font-size: 0.8rem; color: #9d7bff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; opacity: 0.8; transition: opacity 0.3s ease;"
+                   onmouseover="this.style.opacity='1'"
+                   onmouseout="this.style.opacity='0.8'">
+                  <span>🔍</span> Decode calldata on SwissKnife
+                </a>
+              </div>
+            `;
+          } else {
+            console.log(`No SwissKnife link for proposal ${proposal.id.toString()} - calldata:`, proposalCalldata);
+          }
+
           proposalDiv.innerHTML = `
             <div class="proposal-header">
               <span class="proposal-id">Proposal #${proposal.id.toString()}${verificationBadge}</span>
               <span class="proposal-state ${stateClass}">${stateText}</span>
             </div>
-            <div class="proposal-description">${description}</div>
+            <div class="proposal-description">${description}${calldataLink}</div>
             <div class="proposal-votes">
               <div class="proposal-vote-stat">
                 <div class="proposal-vote-label">For</div>
@@ -4749,11 +5731,17 @@
               </div>
             </div>
             <div class="proposal-actions">
-              <button class="proposal-button for" onclick="voteOnProposal(${proposal.id}, 1)">Vote For</button>
-              <button class="proposal-button against" onclick="voteOnProposal(${proposal.id}, 0)">Vote Against</button>
-              <button class="proposal-button" onclick="voteOnProposal(${proposal.id}, 2)">Abstain</button>
-              ${proposal.state === 3 || proposal.state === 4 ?
-                `<button class="proposal-button" onclick="executeProposalFromData(${proposal.id})">Execute</button>` :
+              ${!userHasVoted && state === 1 ? `
+                <button class="proposal-button for" onclick="voteOnProposal('${proposal.id.toString()}', 1)">Vote For</button>
+                <button class="proposal-button against" onclick="voteOnProposal('${proposal.id.toString()}', 0)">Vote Against</button>
+                <button class="proposal-button" onclick="voteOnProposal('${proposal.id.toString()}', 2)">Abstain</button>
+              ` : ''}
+              ${userHasVoted && state === 1 ? `
+                <span class="user-vote-indicator">You voted: <strong>${userVoteType}</strong></span>
+                <button class="proposal-button cancel" onclick="cancelVoteOnProposal('${proposal.id.toString()}')">Cancel Vote</button>
+              ` : ''}
+              ${isExecutable ?
+                `<button class="proposal-button execute" onclick="executeProposalFromData('${proposal.id.toString()}')">Execute</button>` :
                 ''}
             </div>
           `;
@@ -4764,40 +5752,264 @@
 
       // Vote on proposal
       async function voteOnProposal(proposalId, support) {
-        if (!currentDAO || !signer) return;
+        if (!currentDAO || !signer) {
+          showStatus('Please connect wallet and select a DAO', true);
+          return;
+        }
 
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
 
-          const tx = await molochContract.vote(proposalId, support);
-          alert('Voting... Please wait for confirmation.');
+          // Convert string to BigInt (passed as string to avoid overflow in onclick)
+          const proposalIdBigInt = BigInt(proposalId);
 
+          const voteType = support === 1 ? 'For' : support === 0 ? 'Against' : 'Abstain';
+          showStatus(`Casting vote ${voteType}...`, false);
+
+          const tx = await molochContract.castVote(proposalIdBigInt, support);
+
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
           await tx.wait();
 
-          alert('Vote submitted successfully!');
+          showStatus(`Vote ${voteType} submitted successfully!`, false);
 
           // Refresh DAO data
           await refreshCurrentDAO();
           await renderProposals();
         } catch (error) {
           console.error('Error voting:', error);
-          alert('Failed to vote: ' + (error.message || 'Unknown error'));
+
+          let errorMessage = 'Failed to cast vote';
+
+          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
+            errorMessage = 'Vote cancelled by user';
+          } else if (error.message?.includes('user rejected')) {
+            errorMessage = 'Vote rejected';
+          } else if (error.message?.includes('already voted')) {
+            errorMessage = 'You have already voted on this proposal';
+          } else if (error.message?.includes('not active')) {
+            errorMessage = 'Proposal is not active for voting';
+          } else if (error.message?.includes('insufficient')) {
+            errorMessage = 'Insufficient voting power or funds';
+          } else if (error.message) {
+            errorMessage = `Failed to vote: ${error.message}`;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Cancel vote on proposal
+      async function cancelVoteOnProposal(proposalId) {
+        if (!currentDAO || !signer) {
+          showStatus('Please connect wallet and select a DAO', true);
+          return;
+        }
+
+        if (!confirm('Are you sure you want to cancel your vote on this proposal?')) {
+          return;
+        }
+
+        try {
+          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
+
+          // Convert string to BigInt (passed as string to avoid overflow in onclick)
+          const proposalIdBigInt = BigInt(proposalId);
+
+          showStatus('Cancelling vote...', false);
+          const tx = await molochContract.cancelVote(proposalIdBigInt);
+
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
+          await tx.wait();
+
+          showStatus('Vote cancelled successfully!', false);
+
+          // Refresh DAO data
+          await refreshCurrentDAO();
+          await renderProposals();
+        } catch (error) {
+          console.error('Error cancelling vote:', error);
+
+          let errorMessage = 'Failed to cancel vote';
+
+          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
+            errorMessage = 'Cancellation rejected by user';
+          } else if (error.message?.includes('user rejected')) {
+            errorMessage = 'Cancellation rejected';
+          } else if (error.message?.includes('not voted')) {
+            errorMessage = 'You have not voted on this proposal';
+          } else if (error.message?.includes('not active')) {
+            errorMessage = 'Proposal is not active';
+          } else if (error.message) {
+            errorMessage = `Failed to cancel vote: ${error.message}`;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Update calldata preview link in proposal form
+      function updateCalldataPreview() {
+        const calldataInput = document.getElementById('proposalData');
+        const previewDiv = document.getElementById('calldataPreview');
+        const previewLink = document.getElementById('calldataPreviewLink');
+
+        if (!calldataInput || !previewDiv || !previewLink) return;
+
+        const calldata = calldataInput.value.trim();
+
+        // Show link only if calldata is not empty and not just "0x"
+        if (calldata && calldata !== '0x' && calldata.length > 2) {
+          previewLink.href = `https://calldata.swiss-knife.xyz/decoder?calldata=${calldata}`;
+          previewDiv.style.display = 'block';
+        } else {
+          previewDiv.style.display = 'none';
+        }
+      }
+
+      // Update target address hint to show token symbol if recognized
+      function updateTargetAddressHint() {
+        const addressInput = document.getElementById('proposalTo');
+        const hintDiv = document.getElementById('targetAddressHint');
+        const hintBadge = document.getElementById('targetAddressHintBadge');
+        const valueGroup = document.getElementById('proposalValueGroup');
+
+        if (!addressInput || !hintDiv || !hintBadge) return;
+
+        const address = addressInput.value.trim().toLowerCase();
+
+        // Check if address matches any known tokens
+        const tokenMap = {
+          [TOKEN_ADDRESSES.usdc.toLowerCase()]: 'USDC Token',
+          [TOKEN_ADDRESSES.usdt.toLowerCase()]: 'USDT Token',
+          [TOKEN_ADDRESSES.dai.toLowerCase()]: 'DAI Token',
+          [TOKEN_ADDRESSES.wsteth.toLowerCase()]: 'wstETH Token',
+          [TOKEN_ADDRESSES.reth.toLowerCase()]: 'rETH Token'
+        };
+
+        if (tokenMap[address]) {
+          hintBadge.textContent = `📍 ${tokenMap[address]}`;
+          hintDiv.style.display = 'block';
+
+          // Hide ETH value field for ERC20 tokens (no reason to send ETH to them)
+          if (valueGroup) {
+            valueGroup.style.display = 'none';
+            document.getElementById('proposalValue').value = '0';
+          }
+        } else {
+          hintDiv.style.display = 'none';
+
+          // Show ETH value field for non-token addresses
+          if (valueGroup) {
+            valueGroup.style.display = 'block';
+          }
+        }
+
+        // Update calldata translation when target changes
+        updateCalldataTranslation();
+      }
+
+      // Translate calldata for known ERC20 functions
+      function updateCalldataTranslation() {
+        const targetInput = document.getElementById('proposalTo');
+        const calldataInput = document.getElementById('proposalData');
+        const translationDiv = document.getElementById('calldataTranslation');
+
+        if (!targetInput || !calldataInput || !translationDiv) return;
+
+        const target = targetInput.value.trim().toLowerCase();
+        const calldata = calldataInput.value.trim();
+
+        // Only translate if targeting a known ERC20 token
+        const tokenInfo = {
+          [TOKEN_ADDRESSES.usdc.toLowerCase()]: { symbol: 'USDC', decimals: 6 },
+          [TOKEN_ADDRESSES.usdt.toLowerCase()]: { symbol: 'USDT', decimals: 6 },
+          [TOKEN_ADDRESSES.dai.toLowerCase()]: { symbol: 'DAI', decimals: 18 },
+          [TOKEN_ADDRESSES.wsteth.toLowerCase()]: { symbol: 'wstETH', decimals: 18 },
+          [TOKEN_ADDRESSES.reth.toLowerCase()]: { symbol: 'rETH', decimals: 18 }
+        };
+
+        const token = tokenInfo[target];
+
+        if (!token || !calldata || calldata === '0x' || calldata.length < 10) {
+          translationDiv.style.display = 'none';
+          return;
+        }
+
+        try {
+          const functionSelector = calldata.slice(0, 10).toLowerCase();
+          const abiCoder = new ethers.AbiCoder();
+          let translation = '';
+
+          // transfer(address recipient, uint256 amount) - 0xa9059cbb
+          if (functionSelector === '0xa9059cbb' && calldata.length >= 138) {
+            const decoded = abiCoder.decode(['address', 'uint256'], '0x' + calldata.slice(10));
+            const recipient = decoded[0];
+            const amount = decoded[1];
+            const formattedAmount = ethers.formatUnits(amount, token.decimals);
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Transfer</div>
+              <div>Send <strong>${formattedAmount} ${token.symbol}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.8rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${recipient}</code></div>
+            `;
+          }
+          // approve(address spender, uint256 amount) - 0x095ea7b3
+          else if (functionSelector === '0x095ea7b3' && calldata.length >= 138) {
+            const decoded = abiCoder.decode(['address', 'uint256'], '0x' + calldata.slice(10));
+            const spender = decoded[0];
+            const amount = decoded[1];
+            const formattedAmount = amount === ethers.MaxUint256 ? 'Unlimited' : ethers.formatUnits(amount, token.decimals);
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Approve</div>
+              <div>Allow <strong>${formattedAmount} ${token.symbol}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.8rem;">Spender: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${spender}</code></div>
+            `;
+          }
+          // transferFrom(address sender, address recipient, uint256 amount) - 0x23b872dd
+          else if (functionSelector === '0x23b872dd' && calldata.length >= 202) {
+            const decoded = abiCoder.decode(['address', 'address', 'uint256'], '0x' + calldata.slice(10));
+            const sender = decoded[0];
+            const recipient = decoded[1];
+            const amount = decoded[2];
+            const formattedAmount = ethers.formatUnits(amount, token.decimals);
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Transfer From</div>
+              <div>Send <strong>${formattedAmount} ${token.symbol}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.8rem;">From: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${sender}</code></div>
+              <div style="margin-top: 0.25rem; font-size: 0.8rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${recipient}</code></div>
+            `;
+          }
+
+          if (translation) {
+            translationDiv.innerHTML = translation;
+            translationDiv.style.display = 'block';
+          } else {
+            translationDiv.style.display = 'none';
+          }
+        } catch (e) {
+          console.error('Error translating calldata:', e);
+          translationDiv.style.display = 'none';
         }
       }
 
       // Create and publish proposal
       async function createProposal() {
-        if (!currentDAO || !signer) return;
+        if (!currentDAO || !signer) {
+          showStatus('Please connect wallet and select a DAO', true);
+          return;
+        }
 
         const op = parseInt(document.getElementById('proposalOp').value);
         const to = document.getElementById('proposalTo').value;
         const value = document.getElementById('proposalValue').value;
         let data = document.getElementById('proposalData').value || '0x';
-        let nonce = document.getElementById('proposalNonce').value || ethers.hexlify(ethers.randomBytes(32));
         const description = document.getElementById('proposalDescription').value;
 
         if (!to || !value || !description) {
-          alert('Please fill in all required fields');
+          showStatus('Please fill in all required fields', true);
           return;
         }
 
@@ -4811,22 +6023,17 @@
             throw new Error('Data must be valid hex (even number of characters)');
           }
 
-          // Ensure nonce is valid bytes32
-          if (!nonce.startsWith('0x')) {
-            nonce = '0x' + nonce;
-          }
-          if (nonce.length !== 66) { // 0x + 64 hex chars = 32 bytes
-            throw new Error('Nonce must be 32 bytes (64 hex characters)');
-          }
-
           // Validate address
           if (!ethers.isAddress(to)) {
             throw new Error('Invalid target address');
           }
         } catch (validationError) {
-          alert('Validation error: ' + validationError.message);
+          showStatus('Validation error: ' + validationError.message, true);
           return;
         }
+
+        // Generate random nonce (32 bytes)
+        const nonce = ethers.hexlify(ethers.randomBytes(32));
 
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
@@ -4853,27 +6060,25 @@
           const openProposalCalldata = iface.encodeFunctionData('openProposal', [computedProposalId]);
 
           // Execute multicall (chat + openProposal in one transaction)
+          showStatus('Creating proposal...', false);
           const tx = await molochContract.multicall([chatCalldata, openProposalCalldata]);
 
-          alert('Publishing and opening proposal... Please wait for confirmation.');
-
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
           await tx.wait();
 
-          // Verify the proposal ID matches on-chain
-          const onChainProposalId = await molochContract.intentHashId(op, to, valueWei, data, nonce);
+          showStatus(`Proposal created successfully! ID: ${computedProposalId.toString()}`, false);
 
-          if (onChainProposalId.toString() === computedProposalId.toString()) {
-            alert(`✓ Proposal created successfully!\n\nProposal ID: ${computedProposalId.toString()}\n\n✓ Verified: On-chain hash matches computed hash`);
-          } else {
-            alert(`⚠ Proposal created but ID mismatch!\n\nComputed: ${computedProposalId.toString()}\nOn-chain: ${onChainProposalId.toString()}\n\nPlease verify manually.`);
-          }
-
-          // Clear form
+          // Clear form (reset op to 0/call)
+          document.getElementById('proposalOp').value = '0';
           document.getElementById('proposalTo').value = '';
           document.getElementById('proposalValue').value = '';
           document.getElementById('proposalData').value = '';
-          document.getElementById('proposalNonce').value = '';
           document.getElementById('proposalDescription').value = '';
+
+          // Clear UI hints
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
 
           // Refresh
           await refreshCurrentDAO();
@@ -4881,54 +6086,69 @@
           await renderProposals();
         } catch (error) {
           console.error('Error creating proposal:', error);
-          alert('Failed to create proposal: ' + (error.message || 'Unknown error'));
+
+          let errorMessage = 'Failed to create proposal';
+
+          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
+            errorMessage = 'Transaction cancelled by user';
+          } else if (error.message?.includes('user rejected')) {
+            errorMessage = 'Transaction rejected';
+          } else if (error.message?.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds for transaction';
+          } else if (error.message) {
+            errorMessage = `Failed to create proposal: ${error.message}`;
+          }
+
+          showStatus(errorMessage, true);
         }
       }
 
-      // Execute proposal (placeholder - would need to extract data from tagged message)
+      // Execute proposal by extracting parameters from tagged message
       async function executeProposalFromData(proposalId) {
-        alert('To execute, you need the original proposal parameters (op, to, value, data, nonce). These should be stored in the tagged message.');
-
-        // Find the proposal data from messages
-        let proposalData = null;
-        currentDAO.dao.messages.forEach(msg => {
-          const propData = decodeProposalMessage(msg.text);
-          if (propData) {
-            proposalData = propData;
-          }
-        });
-
-        if (!proposalData) {
-          alert('Could not find proposal data in messages');
-          return;
-        }
-
-        if (!confirm(`Execute proposal with:\nOp: ${proposalData.op}\nTo: ${proposalData.to}\nValue: ${proposalData.value}\nData: ${proposalData.data}\nNonce: ${proposalData.nonce}`)) {
-          return;
-        }
+        // Convert string to BigInt (passed as string to avoid overflow in onclick)
+        const proposalIdBigInt = BigInt(proposalId);
 
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
+          const config = await molochContract.config();
+
+          // Find the proposal data from messages by matching the proposal ID
+          let proposalData = null;
+          for (const msg of currentDAO.dao.messages) {
+            const propData = decodeProposalMessage(msg.text);
+            if (propData) {
+              // Verify this is the correct proposal by computing its ID
+              const valueBigInt = BigInt(propData.value);
+              const computedId = computeProposalId(
+                currentDAO.dao.dao,
+                propData.op,
+                propData.to,
+                valueBigInt,
+                propData.data,
+                propData.nonce,
+                config
+              );
+
+              if (computedId.toString() === proposalIdBigInt.toString()) {
+                proposalData = propData;
+                break;
+              }
+            }
+          }
+
+          if (!proposalData) {
+            showStatus('Could not find proposal data in messages', true);
+            return;
+          }
 
           // Convert stored string value back to BigInt for proper encoding
           const valueBigInt = BigInt(proposalData.value);
 
-          // Verify the proposal ID matches before executing (double-check)
-          const config = await molochContract.config();
-          const verifyId = computeProposalId(
-            currentDAO.dao.dao,
-            proposalData.op,
-            proposalData.to,
-            valueBigInt,
-            proposalData.data,
-            proposalData.nonce,
-            config
-          );
-
-          if (verifyId.toString() !== proposalId.toString()) {
-            alert(`⚠️ Warning: Proposal ID mismatch!\nExpected: ${proposalId}\nComputed: ${verifyId}\n\nExecution cancelled for safety.`);
+          if (!confirm(`Execute proposal:\n\n${proposalData.description}\n\nOp: ${proposalData.op}\nTo: ${proposalData.to}\nValue: ${ethers.formatEther(valueBigInt)} ETH\nData: ${proposalData.data.slice(0, 66)}${proposalData.data.length > 66 ? '...' : ''}`)) {
             return;
           }
+
+          showStatus('Executing proposal...', false);
 
           const tx = await molochContract.executeByVotes(
             proposalData.op,
@@ -4938,18 +6158,34 @@
             proposalData.nonce
           );
 
-          alert('Executing proposal... Please wait for confirmation.');
-
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
           await tx.wait();
 
-          alert('Proposal executed successfully!');
+          showStatus('Proposal executed successfully!', false);
 
           // Refresh
           await refreshCurrentDAO();
           await renderProposals();
         } catch (error) {
           console.error('Error executing proposal:', error);
-          alert('Failed to execute proposal: ' + (error.message || 'Unknown error'));
+
+          let errorMessage = 'Failed to execute proposal';
+
+          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
+            errorMessage = 'Execution cancelled by user';
+          } else if (error.message?.includes('user rejected')) {
+            errorMessage = 'Execution rejected';
+          } else if (error.message?.includes('not succeeded')) {
+            errorMessage = 'Proposal has not passed or is not ready for execution';
+          } else if (error.message?.includes('already executed')) {
+            errorMessage = 'Proposal has already been executed';
+          } else if (error.message?.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds in treasury';
+          } else if (error.message) {
+            errorMessage = `Failed to execute: ${error.message}`;
+          }
+
+          showStatus(errorMessage, true);
         }
       }
 
