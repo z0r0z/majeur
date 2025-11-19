@@ -1215,6 +1215,35 @@
         opacity: 1;
       }
 
+      .dao-stats-bar {
+        display: flex;
+        gap: 1.5rem;
+        margin-top: 0.75rem;
+        padding: 0.75rem 0;
+        border-top: 1px solid rgba(157, 123, 255, 0.15);
+      }
+
+      .dao-stat-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .dao-stat-label {
+        font-family: 'Cinzel', serif;
+        font-size: 0.65rem;
+        color: rgba(230, 217, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .dao-stat-value {
+        font-family: 'EB Garamond', serif;
+        font-size: 1rem;
+        color: #9d7bff;
+        font-weight: 500;
+      }
+
       .back-button {
         padding: 10px 20px;
         background: rgba(10, 0, 21, 0.9);
@@ -2058,6 +2087,19 @@
           font-size: 0.75rem;
         }
 
+        .dao-stats-bar {
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+
+        .dao-stat-label {
+          font-size: 0.6rem;
+        }
+
+        .dao-stat-value {
+          font-size: 0.9rem;
+        }
+
         .back-button {
           width: 100%;
           text-align: center;
@@ -2198,6 +2240,18 @@
 
         .dao-etherscan-link {
           font-size: 0.7rem;
+        }
+
+        .dao-stats-bar {
+          gap: 0.75rem;
+        }
+
+        .dao-stat-label {
+          font-size: 0.55rem;
+        }
+
+        .dao-stat-value {
+          font-size: 0.85rem;
         }
 
         .dao-panel {
@@ -4602,6 +4656,57 @@
               </select>
               <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Mint LOOT rewards for winning voters (% of shares+loot supply, capped per proposal)</small>
             </div>
+
+            <div class="form-group">
+              <label class="form-label">Initial Token Sale (DAICO)</label>
+              <select class="form-input" id="initialSalePreset" onchange="toggleSaleConfig()">
+                <option value="off" selected>Off (No initial sale)</option>
+                <option value="custom">Custom Sale Configuration</option>
+              </select>
+              <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Launch with an active token sale for fundraising</small>
+            </div>
+
+            <div id="saleConfigSection" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.05); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px;">
+              <div class="form-group">
+                <label class="form-label">Payment Token</label>
+                <select class="form-input" id="salePaymentToken">
+                  <option value="eth">ETH</option>
+                  <option value="usdc">USDC</option>
+                  <option value="usdt">USDT</option>
+                  <option value="dai">DAI</option>
+                  <option value="wsteth">wstETH</option>
+                  <option value="reth">rETH</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Token Type</label>
+                <select class="form-input" id="saleTokenType">
+                  <option value="shares">Shares (voting power)</option>
+                  <option value="loot">Loot (non-voting)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Price per Token</label>
+                <input type="number" class="form-input" id="salePrice" placeholder="e.g., 0.1" step="any" min="0">
+                <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Price in payment token per share/loot</small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Sale Cap (optional)</label>
+                <input type="number" class="form-input" id="saleCap" placeholder="0 for unlimited" step="any" min="0">
+                <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Maximum tokens to sell (0 = unlimited)</small>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-container">
+                  <input type="checkbox" id="saleMinting" checked>
+                  <span>Mint New Tokens</span>
+                </label>
+                <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">If unchecked, will sell from DAO treasury (requires pre-allocated tokens)</small>
+              </div>
+            </div>
           </div>
 
           <button type="submit" class="summon-button" id="summonBtn" disabled>
@@ -4612,6 +4717,19 @@
         <div id="statusMessage"></div>
       </div>
     </section>
+
+    <!-- PURCHASE MODAL -->
+    <div class="wallet-modal-overlay" id="purchaseModal">
+      <div class="wallet-modal" style="max-width: 500px;">
+        <div class="wallet-modal-header">
+          <h3 style="font-family: 'Cinzel', serif; font-size: 1.2rem; color: #e6d9ff; letter-spacing: 0.1em;">Purchase Tokens</h3>
+          <button onclick="closePurchaseModal()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.5rem;">&times;</button>
+        </div>
+        <div style="padding: 1.5rem;">
+          <div id="purchaseModalContent"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- DAO GALLERY SECTION -->
     <section class="dao-gallery-section" id="daoGallery">
@@ -4652,6 +4770,9 @@
                 <line x1="10" y1="14" x2="21" y2="3"></line>
               </svg>
             </a>
+            <div class="dao-stats-bar" id="daoStatsBar">
+              <!-- Stats will be dynamically rendered here -->
+            </div>
           </div>
         </div>
         <button class="back-button" onclick="backToGallery()">← Back to Gallery</button>
@@ -4689,6 +4810,31 @@
               <!-- Treasury assets will be dynamically rendered here -->
             </div>
             <button class="ragequit-button" onclick="openRagequitModal()">Ragequit</button>
+          </div>
+
+          <!-- Governance Info Section -->
+          <div class="treasury-section" style="margin-top: 1.5rem;">
+            <h4 class="treasury-title">Governance</h4>
+            <div id="governanceInfo" style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); line-height: 1.6;">
+              <!-- Governance info will be dynamically rendered here -->
+            </div>
+          </div>
+
+          <!-- Sales Section -->
+          <div id="salesSection" class="treasury-section" style="margin-top: 1.5rem; display: none;">
+            <h4 class="treasury-title">
+              Active Sales
+              <a href="#" onclick="event.preventDefault(); prepareSaleProposal(); switchDaoView('dao');" title="Configure token sale" onmouseover="this.style.opacity='1'; this.style.transform='translateY(-1px)';" onmouseout="this.style.opacity='0.5'; this.style.transform='translateY(0)';" style="margin-left: 0.5rem; color: #9d7bff; opacity: 0.5; transition: all 0.2s; font-size: 0.75rem; text-decoration: none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                  <circle cx="9" cy="21" r="1"></circle>
+                  <circle cx="20" cy="21" r="1"></circle>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+              </a>
+            </h4>
+            <div id="salesInfo">
+              <!-- Active sales will be dynamically rendered here -->
+            </div>
           </div>
         </div>
 
@@ -4762,6 +4908,13 @@
                     <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
                 </a>
+                <a href="#" onclick="event.preventDefault(); prepareMintProposal('shares'); switchDaoView('dao');" title="Create mint shares proposal" onmouseover="this.style.opacity='1'; this.style.transform='translateY(-1px)';" onmouseout="this.style.opacity='0.5'; this.style.transform='translateY(0)';" style="margin-left: 0.35rem; color: #9d7bff; opacity: 0.5; transition: all 0.2s; font-size: 0.75rem; text-decoration: none;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </a>
               </div>
               <div class="balance-value" id="membershipShares">0</div>
             </div>
@@ -4773,6 +4926,13 @@
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                     <polyline points="15 3 21 3 21 9"></polyline>
                     <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+                <a href="#" onclick="event.preventDefault(); prepareMintProposal('loot'); switchDaoView('dao');" title="Create mint loot proposal" onmouseover="this.style.opacity='1'; this.style.transform='translateY(-1px)';" onmouseout="this.style.opacity='0.5'; this.style.transform='translateY(0)';" style="margin-left: 0.35rem; color: #9d7bff; opacity: 0.5; transition: all 0.2s; font-size: 0.75rem; text-decoration: none;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
                   </svg>
                 </a>
               </div>
@@ -5390,6 +5550,44 @@
           "outputs": [{"internalType": "string", "name": "", "type": "string"}],
           "stateMutability": "view",
           "type": "function"
+        },
+        {
+          "inputs": [{"internalType": "address", "name": "payToken", "type": "address"}],
+          "name": "sales",
+          "outputs": [
+            {"internalType": "uint256", "name": "pricePerShare", "type": "uint256"},
+            {"internalType": "uint256", "name": "cap", "type": "uint256"},
+            {"internalType": "bool", "name": "minting", "type": "bool"},
+            {"internalType": "bool", "name": "active", "type": "bool"},
+            {"internalType": "bool", "name": "isLoot", "type": "bool"}
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "payToken", "type": "address"},
+            {"internalType": "uint256", "name": "pricePerShare", "type": "uint256"},
+            {"internalType": "uint256", "name": "cap", "type": "uint256"},
+            {"internalType": "bool", "name": "minting", "type": "bool"},
+            {"internalType": "bool", "name": "active", "type": "bool"},
+            {"internalType": "bool", "name": "isLoot", "type": "bool"}
+          ],
+          "name": "setSale",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "payToken", "type": "address"},
+            {"internalType": "uint256", "name": "shareAmount", "type": "uint256"},
+            {"internalType": "uint256", "name": "maxPay", "type": "uint256"}
+          ],
+          "name": "buyShares",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
         }
       ];
 
@@ -5445,28 +5643,6 @@
         return ethers.getAddress(rawAddress);
       }
 
-      // Helper: Setup Etherscan link with hover effects
-      function setupEtherscanLink(elementId, tokenAddress) {
-        const link = document.getElementById(elementId);
-        if (!link || !tokenAddress) return;
-
-        link.href = `https://etherscan.io/token/${tokenAddress}`;
-        link.style.display = 'inline';
-        link.onmouseover = () => {
-          link.style.opacity = '1';
-          link.style.transform = 'translateY(-1px)';
-        };
-        link.onmouseout = () => {
-          link.style.opacity = '0.7';
-          link.style.transform = 'translateY(0)';
-        };
-      }
-
-      // Helper: Format token amount to fixed decimals
-      function formatTokenAmount(amount, decimals = 18, fixed = 4) {
-        return parseFloat(ethers.formatUnits(amount, decimals)).toFixed(fixed);
-      }
-
       // Predict all Majeur addresses
       function predictMajeurAddresses(initHolders, initShares, userSalt) {
         // Step 1: Recreate Summoner's salt
@@ -5505,6 +5681,40 @@
       let userDAOs = [];
       let allDAOs = [];
       let currentDAO = null;
+
+      // Utility function to check if error is user rejection
+      function isUserRejection(error) {
+        if (!error) return false;
+
+        // Check error codes
+        if (error.code === 4001 || error.code === -32603 || error.code === 'ACTION_REJECTED') {
+          return true;
+        }
+
+        // Check error message (case insensitive)
+        const message = (error.message || '').toLowerCase();
+        if (message.includes('user rejected') ||
+            message.includes('user denied') ||
+            message.includes('transaction cancelled') ||
+            message.includes('cancelled by user')) {
+          return true;
+        }
+
+        // Check nested error object
+        if (error.error) {
+          return isUserRejection(error.error);
+        }
+
+        // Check reason field
+        if (error.reason) {
+          const reason = error.reason.toLowerCase();
+          if (reason.includes('user rejected') || reason.includes('user denied')) {
+            return true;
+          }
+        }
+
+        return false;
+      }
 
       // Wallet detection configuration
       const WALLET_CONFIG = {
@@ -5694,12 +5904,24 @@
         } catch (error) {
           console.error(error);
 
+          if (isUserRejection(error)) {
+            showStatus('Connection cancelled', false);
+            return;
+          }
+
           let errorMessage = `Failed to connect ${wallet.name}`;
 
-          if (error.code === 4001 || error.message?.includes('User rejected')) {
-            errorMessage = 'Connection cancelled';
-          } else if (error.code === -32002) {
+          if (error.code === -32002) {
             errorMessage = `Please check ${wallet.name} - a connection request is pending`;
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          } else if (error.message) {
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
@@ -5774,8 +5996,10 @@
         }
 
         // Display user's shares and loot
-        document.getElementById('ragequitUserShares').textContent = formatTokenAmount(member.shares);
-        document.getElementById('ragequitUserLoot').textContent = formatTokenAmount(member.loot);
+        const shares = ethers.formatUnits(member.shares, 18);
+        const loot = ethers.formatUnits(member.loot, 18);
+        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(4);
+        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(4);
 
         // Clear inputs
         document.getElementById('ragequitSharesInput').value = '';
@@ -5797,7 +6021,7 @@
         // Note: ETH is handled separately in ragequit, not included in token array
 
         tokens.forEach(token => {
-          const formattedBalance = formatTokenAmount(token.balance, token.decimals);
+          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(4);
 
           const tokenDiv = document.createElement('div');
           tokenDiv.style.cssText = 'display: flex; align-items: center; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.2); cursor: pointer; transition: all 0.3s ease;';
@@ -5903,27 +6127,47 @@
 
         } catch (error) {
           console.error('Ragequit failed:', error);
+
+          if (isUserRejection(error)) {
+            showStatus('Ragequit cancelled', false);
+            return;
+          }
+
           let errorMessage = 'Ragequit failed';
 
           if (error.message?.includes('NotOk')) {
             errorMessage = 'Ragequit not allowed - DAO may not allow ragequitting';
-          } else if (error.message?.includes('user rejected')) {
-            errorMessage = 'Transaction cancelled';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
           } else if (error.message) {
-            errorMessage = `Ragequit failed: ${error.message}`;
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
         }
       }
 
-      // Close ragequit modal when clicking outside
+      // Close modals when clicking outside
       document.addEventListener('DOMContentLoaded', () => {
         const ragequitModal = document.getElementById('ragequitModal');
         if (ragequitModal) {
           ragequitModal.addEventListener('click', (e) => {
             if (e.target === ragequitModal) {
               closeRagequitModal();
+            }
+          });
+        }
+
+        const purchaseModal = document.getElementById('purchaseModal');
+        if (purchaseModal) {
+          purchaseModal.addEventListener('click', (e) => {
+            if (e.target === purchaseModal) {
+              closePurchaseModal();
             }
           });
         }
@@ -6216,6 +6460,208 @@
         </svg>`
       };
 
+      // Render DAO stats in header
+      function renderDaoStats() {
+        const statsBar = document.getElementById('daoStatsBar');
+        if (!statsBar || !currentDAO) return;
+
+        const dao = currentDAO.dao;
+
+        // Format totals
+        const totalProposals = dao.proposals.length;
+        // Members array structure: [0]=address, [1]=shares, [2]=loot, [3]=seatId
+        const totalBadgeMembers = dao.members.filter(m => m[3] && m[3] > 0).length;
+        const totalShares = parseFloat(ethers.formatEther(dao.supplies.sharesTotalSupply)).toFixed(1);
+        const totalLoot = parseFloat(ethers.formatEther(dao.supplies.lootTotalSupply)).toFixed(1);
+
+        statsBar.innerHTML = `
+          <div class="dao-stat-item">
+            <div class="dao-stat-label">Proposals</div>
+            <div class="dao-stat-value">${totalProposals}</div>
+          </div>
+          <div class="dao-stat-item">
+            <div class="dao-stat-label">Badge Members</div>
+            <div class="dao-stat-value">${totalBadgeMembers}</div>
+          </div>
+          <div class="dao-stat-item">
+            <div class="dao-stat-label">Total Shares</div>
+            <div class="dao-stat-value">${totalShares}</div>
+          </div>
+          <div class="dao-stat-item">
+            <div class="dao-stat-label">Total Loot</div>
+            <div class="dao-stat-value">${totalLoot}</div>
+          </div>
+        `;
+      }
+
+      // Render governance info
+      function renderGovernanceInfo() {
+        const governanceInfo = document.getElementById('governanceInfo');
+        if (!governanceInfo || !currentDAO) return;
+
+        const gov = currentDAO.dao.gov;
+        const supplies = currentDAO.dao.supplies;
+
+        // Calculate quorum percentage
+        const quorumBps = Number(gov.quorumBps);
+        const quorumPercent = (quorumBps / 100).toFixed(1);
+
+        // Format ragequittable
+        const ragequittable = gov.ragequittable ? 'Enabled' : 'Disabled';
+
+        // Decode futarchy settings
+        let futarchyText = 'Disabled';
+        const futarchyParam = BigInt(gov.autoFutarchyParam || 0);
+        const futarchyCap = BigInt(gov.autoFutarchyCap || 0);
+
+        if (futarchyParam > 0n && futarchyCap > 0n) {
+          const paramBps = Number(futarchyParam);
+          const paramPercent = (paramBps / 100).toFixed(2);
+          const capFormatted = parseFloat(ethers.formatEther(futarchyCap)).toFixed(1);
+          futarchyText = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
+        }
+
+        governanceInfo.innerHTML = `
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
+            <div>
+              <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+                Quorum
+                <a href="#" onclick="event.preventDefault(); prepareQuorumProposal(); switchDaoView('dao');"
+                   title="Create proposal to change quorum"
+                   style="color: #9d7bff; opacity: 0.5; line-height: 1;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </a>
+              </div>
+              <div style="font-size: 0.95rem; color: #e6d9ff;">${quorumPercent}%</div>
+            </div>
+            <div>
+              <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+                Ragequit
+                <a href="#" onclick="event.preventDefault(); prepareRagequitProposal(); switchDaoView('dao');"
+                   title="Create proposal to toggle ragequit"
+                   style="color: #9d7bff; opacity: 0.5; line-height: 1;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </a>
+              </div>
+              <div style="font-size: 0.95rem; color: #e6d9ff;">${ragequittable}</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+              Auto-Futarchy
+              <a href="#" onclick="event.preventDefault(); prepareFutarchyProposal(); switchDaoView('dao');"
+                 title="Create proposal to configure auto-futarchy"
+                 style="color: #9d7bff; opacity: 0.5; line-height: 1;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+              </a>
+            </div>
+            <div style="font-size: 0.95rem; color: #e6d9ff;">${futarchyText}</div>
+          </div>
+        `;
+      }
+
+      // Render active sales info
+      async function renderSalesInfo() {
+        const salesInfo = document.getElementById('salesInfo');
+        const salesSection = document.getElementById('salesSection');
+        if (!salesInfo || !salesSection || !currentDAO) return;
+
+        try {
+          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+
+          // Check sales for all supported tokens
+          const tokens = [
+            { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18 },
+            { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6 },
+            { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6 },
+            { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18 },
+            { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18 },
+            { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18 }
+          ];
+
+          // Batch all sales queries in parallel to reduce RPC calls
+          const salePromises = tokens.map(token =>
+            molochContract.sales(token.address).catch(err => {
+              console.error(`Error fetching sale for ${token.symbol}:`, err);
+              return { active: false }; // Return inactive on error
+            })
+          );
+
+          const salesResults = await Promise.all(salePromises);
+
+          const activeSales = [];
+          salesResults.forEach((sale, index) => {
+            if (sale.active) {
+              activeSales.push({
+                token: tokens[index],
+                pricePerShare: sale.pricePerShare,
+                cap: sale.cap,
+                minting: sale.minting,
+                isLoot: sale.isLoot
+              });
+            }
+          });
+
+          if (activeSales.length === 0) {
+            salesSection.style.display = 'none';
+            return;
+          }
+
+          salesSection.style.display = 'block';
+
+          let salesHTML = '';
+          for (const sale of activeSales) {
+            const tokenType = sale.isLoot ? 'LOOT' : 'SHARES';
+            const tokenSymbol = sale.isLoot ? `${currentDAO.dao.meta.symbol}-LOOT` : currentDAO.dao.meta.symbol;
+            const priceFormatted = parseFloat(ethers.formatUnits(sale.pricePerShare, sale.token.decimals)).toFixed(sale.token.decimals === 6 ? 2 : 4);
+            const capText = sale.cap > 0n ? `${parseFloat(ethers.formatEther(sale.cap)).toFixed(2)} remaining` : 'Unlimited';
+            const sourceText = sale.minting ? 'Minting new' : 'From treasury';
+
+            salesHTML += `
+              <div style="padding: 0.75rem; background: rgba(157, 123, 255, 0.05); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px; margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">${tokenType} SALE</div>
+                  <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">${sourceText}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <div>
+                    <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">Price</div>
+                    <div style="font-size: 0.9rem; color: #e6d9ff;">${priceFormatted} ${sale.token.symbol}</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">Available</div>
+                    <div style="font-size: 0.9rem; color: #e6d9ff;">${capText}</div>
+                  </div>
+                </div>
+                <button onclick="openPurchaseModal('${sale.token.address}', '${sale.token.symbol}', ${sale.token.decimals}, ${sale.isLoot})"
+                        onmouseover="this.style.background='rgba(157, 123, 255, 0.25)'; this.style.borderColor='#9d7bff';"
+                        onmouseout="this.style.background='rgba(157, 123, 255, 0.15)'; this.style.borderColor='rgba(157, 123, 255, 0.3)';"
+                        style="width: 100%; padding: 0.6rem; background: rgba(157, 123, 255, 0.15); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.12em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+                  Purchase ${tokenSymbol}
+                </button>
+              </div>
+            `;
+          }
+
+          salesInfo.innerHTML = salesHTML;
+        } catch (error) {
+          console.error('Error rendering sales:', error);
+          salesSection.style.display = 'none';
+        }
+      }
+
       // Render treasury
       function renderTreasury() {
         const treasuryAssets = document.getElementById('treasuryAssets');
@@ -6226,7 +6672,7 @@
         const treasury = currentDAO.dao.treasury;
 
         const assets = [
-          { symbol: 'ETH', balance: treasury.eth, decimals: 18, icon: TOKEN_ICONS.eth, address: null },
+          { symbol: 'ETH', balance: treasury.eth, decimals: 18, icon: TOKEN_ICONS.eth, address: ethers.ZeroAddress },
           { symbol: 'USDC', balance: treasury.usdc, decimals: 6, icon: TOKEN_ICONS.usdc, address: TOKEN_ADDRESSES.usdc },
           { symbol: 'USDT', balance: treasury.usdt, decimals: 6, icon: TOKEN_ICONS.usdt, address: TOKEN_ADDRESSES.usdt },
           { symbol: 'DAI', balance: treasury.dai, decimals: 18, icon: TOKEN_ICONS.dai, address: TOKEN_ADDRESSES.dai },
@@ -6240,7 +6686,7 @@
           assetDiv.style.cursor = 'pointer';
           assetDiv.title = `Click to create ${asset.symbol} transfer proposal`;
 
-          const formattedBalance = formatTokenAmount(asset.balance, asset.decimals);
+          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(4);
 
           assetDiv.innerHTML = `
             <div class="treasury-asset-icon">${asset.icon}</div>
@@ -6256,54 +6702,162 @@
 
       // Prepare transfer proposal from treasury asset
       async function prepareTransferProposal(asset) {
+        // Clear any existing helpers first
+        clearTransferHelper();
+        clearMintHelper();
+        clearFutarchyHelper();
+        clearQuorumHelper();
+        clearRagequitHelper();
+        clearSaleHelper();
+
         // Scroll to proposal form
         const proposalForm = document.querySelector('.proposal-form');
         if (proposalForm) {
           proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        // Add transfer helper UI if not already present
-        let helperDiv = document.getElementById('transferHelper');
-        if (!helperDiv) {
-          helperDiv = document.createElement('div');
-          helperDiv.id = 'transferHelper';
-          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
-          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
-        }
+        // Add transfer helper UI
+        let helperDiv = document.createElement('div');
+        helperDiv.id = 'transferHelper';
+        helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+        proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
 
-        // Show transfer helper
+        // Store asset info for later use
+        helperDiv.dataset.assetSymbol = asset.symbol;
+        helperDiv.dataset.assetAddress = asset.address;
+        helperDiv.dataset.assetDecimals = asset.decimals;
+
+        // Show transfer helper with Send/Sale toggle
         helperDiv.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
-              ${asset.symbol} TRANSFER
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+                ${asset.symbol}
+              </div>
+              <div style="display: flex; background: rgba(0, 0, 0, 0.3); border-radius: 4px; overflow: hidden;">
+                <button id="sendToggle" onclick="toggleProposalMode('send')"
+                        style="padding: 0.35rem 0.75rem; background: rgba(157, 123, 255, 0.3); border: none; color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease;">
+                  Send
+                </button>
+                <button id="saleToggle" onclick="toggleProposalMode('sale')"
+                        style="padding: 0.35rem 0.75rem; background: transparent; border: none; color: rgba(230, 217, 255, 0.6); font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease;">
+                  Sale
+                </button>
+              </div>
             </div>
             <button onclick="clearTransferHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-            <div>
-              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Recipient Address or ENS</label>
-              <input type="text" id="transferRecipient" placeholder="vitalik.eth or 0x..."
-                     style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
-            </div>
-            <div>
-              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Amount (${asset.symbol})</label>
-              <input type="text" id="transferAmount" placeholder="0.0"
-                     style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
-            </div>
-          </div>
-          <button onclick="populateTransferProposal('${asset.symbol}', '${asset.address}', ${asset.decimals})"
-                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
-                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
-                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
-            Populate Proposal Form
-          </button>
+          <div id="proposalFields"></div>
         `;
 
-        // Focus on recipient input
-        setTimeout(() => {
-          const recipientInput = document.getElementById('transferRecipient');
-          if (recipientInput) recipientInput.focus();
-        }, 100);
+        // Show send mode by default
+        toggleProposalMode('send');
+      }
+
+      function toggleProposalMode(mode) {
+        const helperDiv = document.getElementById('transferHelper');
+        if (!helperDiv) return;
+
+        const sendToggle = document.getElementById('sendToggle');
+        const saleToggle = document.getElementById('saleToggle');
+        const fieldsDiv = document.getElementById('proposalFields');
+
+        const symbol = helperDiv.dataset.assetSymbol;
+        const address = helperDiv.dataset.assetAddress;
+        const decimals = helperDiv.dataset.assetDecimals;
+
+        // Update toggle button states
+        if (mode === 'send') {
+          sendToggle.style.background = 'rgba(157, 123, 255, 0.3)';
+          sendToggle.style.color = '#e6d9ff';
+          saleToggle.style.background = 'transparent';
+          saleToggle.style.color = 'rgba(230, 217, 255, 0.6)';
+
+          // Show send fields
+          fieldsDiv.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Recipient Address or ENS</label>
+                <input type="text" id="transferRecipient" placeholder="vitalik.eth or 0x..."
+                       style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Amount (${symbol})</label>
+                <input type="text" id="transferAmount" placeholder="0.0"
+                       style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+              </div>
+            </div>
+            <button type="button" onclick="populateTransferProposal('${symbol}', '${address}', ${decimals})"
+                    onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                    onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                    style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+              Populate Proposal Form
+            </button>
+          `;
+          setTimeout(() => {
+            const recipientInput = document.getElementById('transferRecipient');
+            if (recipientInput) recipientInput.focus();
+          }, 100);
+
+        } else if (mode === 'sale') {
+          sendToggle.style.background = 'transparent';
+          sendToggle.style.color = 'rgba(230, 217, 255, 0.6)';
+          saleToggle.style.background = 'rgba(157, 123, 255, 0.3)';
+          saleToggle.style.color = '#e6d9ff';
+
+          // Show sale configuration fields
+          fieldsDiv.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Token Type</label>
+                <select id="saleTokenType"
+                        style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                  <option value="shares">Shares (Voting)</option>
+                  <option value="loot">Loot (Non-Voting)</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">
+                  Price per Token (${symbol}) <span style="color: #ff6b6b;">*</span>
+                </label>
+                <input type="text" id="salePrice" placeholder="1.0"
+                       style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Sale Cap (0 = unlimited)</label>
+                <input type="text" id="saleCap" placeholder="0"
+                       style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Status</label>
+                <select id="saleStatus"
+                        style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-bottom: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); cursor: pointer;">
+                <input type="checkbox" id="saleMinting" checked
+                       style="width: 1rem; height: 1rem; cursor: pointer;" />
+                <span>Mint new tokens (unchecked = sell from treasury)</span>
+              </label>
+            </div>
+            <button type="button" onclick="populateSaleProposalFromToggle('${symbol}', '${address}', ${decimals})"
+                    onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                    onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                    style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+              Populate Proposal Form
+            </button>
+          `;
+          setTimeout(() => {
+            const priceInput = document.getElementById('salePrice');
+            if (priceInput) priceInput.focus();
+          }, 100);
+        }
       }
 
       function clearTransferHelper() {
@@ -6399,6 +6953,832 @@
         }
       }
 
+      // Prepare mint proposal for shares or loot
+      async function prepareMintProposal(tokenType) {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const tokenAddress = tokenType === 'shares' ? dao.meta.sharesToken : dao.meta.lootToken;
+        const tokenSymbol = tokenType === 'shares' ? dao.meta.symbol : `${dao.meta.symbol}-LOOT`;
+
+        if (!tokenAddress) {
+          showStatus(`${tokenType} token address not found`, true);
+          return;
+        }
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add mint helper UI if not already present
+        let helperDiv = document.getElementById('mintHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'mintHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        // Show mint helper
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              MINT ${tokenType.toUpperCase()}
+            </div>
+            <button onclick="clearMintHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Recipient Address or ENS</label>
+              <input type="text" id="mintRecipient" placeholder="vitalik.eth or 0x..."
+                     style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Amount (${tokenSymbol})</label>
+              <input type="text" id="mintAmount" placeholder="0.0"
+                     style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            </div>
+          </div>
+          <button onclick="populateMintProposal('${tokenType}', '${tokenSymbol}', '${tokenAddress}')"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+
+        // Focus on recipient input
+        setTimeout(() => {
+          const recipientInput = document.getElementById('mintRecipient');
+          if (recipientInput) recipientInput.focus();
+        }, 100);
+      }
+
+      function clearMintHelper() {
+        const helperDiv = document.getElementById('mintHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateMintProposal(tokenType, tokenSymbol, tokenAddress) {
+        try {
+          const recipientInput = document.getElementById('mintRecipient').value.trim();
+          const amountInput = document.getElementById('mintAmount').value.trim();
+
+          if (!recipientInput) {
+            showStatus('Please enter recipient address or ENS', true);
+            return;
+          }
+
+          if (!amountInput || isNaN(amountInput) || parseFloat(amountInput) <= 0) {
+            showStatus('Please enter valid amount', true);
+            return;
+          }
+
+          showStatus('Resolving address...', false);
+
+          // Resolve ENS if needed
+          let recipientAddress = recipientInput;
+          if (recipientInput.endsWith('.eth') || !recipientInput.startsWith('0x')) {
+            if (!provider) {
+              showStatus('Provider not available for ENS resolution', true);
+              return;
+            }
+            try {
+              const resolved = await provider.resolveName(recipientInput);
+              if (!resolved) {
+                showStatus('Could not resolve ENS name', true);
+                return;
+              }
+              recipientAddress = resolved;
+              showStatus(`Resolved to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`, false);
+            } catch (error) {
+              showStatus('ENS resolution failed', true);
+              return;
+            }
+          }
+
+          // Validate address
+          if (!ethers.isAddress(recipientAddress)) {
+            showStatus('Invalid address', true);
+            return;
+          }
+
+          const amount = amountInput;
+          const amountWei = ethers.parseUnits(amount, 18); // Shares and loot are always 18 decimals
+
+          // Encode mintFromMoloch(address recipient, uint256 amount)
+          const abiCoder = new ethers.AbiCoder();
+          const mintCalldata = '0x7c1fb593' + abiCoder.encode(
+            ['address', 'uint256'],
+            [recipientAddress, amountWei]
+          ).slice(2);
+
+          document.getElementById('proposalTo').value = tokenAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = mintCalldata;
+          document.getElementById('proposalDescription').value = `Mint ${amount} ${tokenSymbol} to ${recipientInput}`;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearMintHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating mint proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
+      // Prepare futarchy proposal for DAO self-configuration
+      async function prepareFutarchyProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const daoAddress = dao.dao;
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add futarchy helper UI if not already present
+        let helperDiv = document.getElementById('futarchyHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'futarchyHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        // Get current futarchy settings
+        const currentParam = BigInt(dao.gov.autoFutarchyParam || 0);
+        const currentCap = BigInt(dao.gov.autoFutarchyCap || 0);
+        let currentPreset = 'off';
+
+        if (currentParam > 0n && currentCap > 0n) {
+          if (currentParam === 5n && currentCap === ethers.parseEther('2')) {
+            currentPreset = 'low';
+          } else if (currentParam === 10n && currentCap === ethers.parseEther('5')) {
+            currentPreset = 'standard';
+          } else if (currentParam === 50n && currentCap === ethers.parseEther('10')) {
+            currentPreset = 'high';
+          } else {
+            currentPreset = 'custom';
+          }
+        }
+
+        // Show futarchy helper
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              CONFIGURE AUTO-FUTARCHY
+            </div>
+            <button onclick="clearFutarchyHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="margin-bottom: 0.75rem;">
+            <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Preset</label>
+            <select id="futarchyPreset"
+                    style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+              <option value="off" ${currentPreset === 'off' ? 'selected' : ''}>Off (Disable auto-futarchy)</option>
+              <option value="low" ${currentPreset === 'low' ? 'selected' : ''}>Low: 0.05% supply, 2 LOOT cap</option>
+              <option value="standard" ${currentPreset === 'standard' ? 'selected' : ''}>Standard: 0.1% supply, 5 LOOT cap</option>
+              <option value="high" ${currentPreset === 'high' ? 'selected' : ''}>High: 0.5% supply, 10 LOOT cap</option>
+            </select>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5);">
+              Auto-futarchy mints LOOT rewards to winning voters (% of total supply, capped per proposal)
+            </div>
+          </div>
+          <button onclick="populateFutarchyProposal('${daoAddress}')"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+
+        // Focus on preset dropdown
+        setTimeout(() => {
+          const presetSelect = document.getElementById('futarchyPreset');
+          if (presetSelect) presetSelect.focus();
+        }, 100);
+      }
+
+      function clearFutarchyHelper() {
+        const helperDiv = document.getElementById('futarchyHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateFutarchyProposal(daoAddress) {
+        try {
+          const preset = document.getElementById('futarchyPreset').value;
+
+          let param = 0n;
+          let cap = 0n;
+          let description = '';
+
+          if (preset === 'off') {
+            param = 0n;
+            cap = 0n;
+            description = 'Disable auto-futarchy (turn off voter rewards)';
+          } else if (preset === 'low') {
+            param = 5n;  // 5 bps (0.05%)
+            cap = ethers.parseEther('2');  // 2 LOOT
+            description = 'Enable auto-futarchy: Low (0.05% supply, 2 LOOT cap)';
+          } else if (preset === 'standard') {
+            param = 10n;  // 10 bps (0.1%)
+            cap = ethers.parseEther('5');  // 5 LOOT
+            description = 'Enable auto-futarchy: Standard (0.1% supply, 5 LOOT cap)';
+          } else if (preset === 'high') {
+            param = 50n;  // 50 bps (0.5%)
+            cap = ethers.parseEther('10');  // 10 LOOT
+            description = 'Enable auto-futarchy: High (0.5% supply, 10 LOOT cap)';
+          }
+
+          // Encode setAutoFutarchy(uint256 param, uint256 cap)
+          const abiCoder = new ethers.AbiCoder();
+          const futarchyCalldata = '0xc7b6a5b7' + abiCoder.encode(
+            ['uint256', 'uint256'],
+            [param, cap]
+          ).slice(2);
+
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = futarchyCalldata;
+          document.getElementById('proposalDescription').value = description;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearFutarchyHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating futarchy proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
+      // Quorum proposal helper
+      async function prepareQuorumProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const daoAddress = dao.dao;
+        const currentQuorum = Number(dao.gov.quorumBps) / 100;
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add quorum helper UI if not already present
+        let helperDiv = document.getElementById('quorumHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'quorumHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        // Show quorum helper
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              CHANGE QUORUM
+            </div>
+            <button onclick="clearQuorumHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="margin-bottom: 0.75rem;">
+            <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Quorum Percentage</label>
+            <input type="text" id="quorumPercentage" placeholder="${currentQuorum}" value="${currentQuorum}"
+                   style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5);">
+              Quorum is the minimum % of shares required to pass proposals
+            </div>
+          </div>
+          <button onclick="populateQuorumProposal('${daoAddress}')"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+
+        // Focus on input
+        setTimeout(() => {
+          const input = document.getElementById('quorumPercentage');
+          if (input) {
+            input.select();
+            input.focus();
+          }
+        }, 100);
+      }
+
+      function clearQuorumHelper() {
+        const helperDiv = document.getElementById('quorumHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateQuorumProposal(daoAddress) {
+        try {
+          const percentInput = document.getElementById('quorumPercentage').value.trim();
+
+          if (!percentInput || isNaN(percentInput) || parseFloat(percentInput) < 0 || parseFloat(percentInput) > 100) {
+            showStatus('Please enter a valid percentage (0-100)', true);
+            return;
+          }
+
+          const quorumBps = Math.floor(parseFloat(percentInput) * 100);
+
+          // Encode setQuorum(uint256 bps)
+          const iface = new ethers.Interface(['function setQuorum(uint256)']);
+          const calldata = iface.encodeFunctionData('setQuorum', [quorumBps]);
+
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = calldata;
+          document.getElementById('proposalDescription').value = `Change quorum to ${percentInput}%`;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearQuorumHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating quorum proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
+      // Ragequit proposal helper
+      async function prepareRagequitProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const daoAddress = dao.dao;
+        const currentRagequit = dao.gov.ragequittable;
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add ragequit helper UI if not already present
+        let helperDiv = document.getElementById('ragequitHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'ragequitHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        const newStatus = !currentRagequit;
+        const actionText = newStatus ? 'Enable' : 'Disable';
+
+        // Show ragequit helper
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              TOGGLE RAGEQUIT
+            </div>
+            <button onclick="clearRagequitHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-radius: 4px;">
+            <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.5rem;">
+              Current Status: <strong>${currentRagequit ? 'Enabled' : 'Disabled'}</strong>
+            </div>
+            <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8);">
+              This proposal will: <strong>${actionText} Ragequit</strong>
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5);">
+              Ragequit allows members to exit the DAO and claim their proportional share of treasury
+            </div>
+          </div>
+          <button onclick="populateRagequitProposal('${daoAddress}', ${newStatus})"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+      }
+
+      function clearRagequitHelper() {
+        const helperDiv = document.getElementById('ragequitHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateRagequitProposal(daoAddress, newStatus) {
+        try {
+          // Encode setRagequittable(bool)
+          const iface = new ethers.Interface(['function setRagequittable(bool)']);
+          const calldata = iface.encodeFunctionData('setRagequittable', [newStatus]);
+
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = calldata;
+          document.getElementById('proposalDescription').value = `${newStatus ? 'Enable' : 'Disable'} ragequit`;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearRagequitHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating ragequit proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
+      // Purchase modal functions
+      function openPurchaseModal(payToken, tokenSymbol, tokenDecimals, isLoot) {
+        if (!signer) {
+          showStatus('Please connect wallet first', true);
+          return;
+        }
+
+        const modal = document.getElementById('purchaseModal');
+        const content = document.getElementById('purchaseModalContent');
+
+        const tokenType = isLoot ? 'LOOT' : 'SHARES';
+        const daoSymbol = currentDAO.dao.meta.symbol;
+        const targetSymbol = isLoot ? `${daoSymbol}-LOOT` : daoSymbol;
+
+        content.innerHTML = `
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-size: 0.85rem; color: rgba(230, 217, 255, 0.7); margin-bottom: 0.5rem;">Amount to Purchase (${targetSymbol})</label>
+            <input type="number" id="purchaseAmount" placeholder="0.0" step="any" min="0"
+                   style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 1rem;" />
+          </div>
+          <div style="margin-bottom: 1.5rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-radius: 4px; font-size: 0.85rem; color: rgba(230, 217, 255, 0.8);">
+            Payment will be in <strong>${tokenSymbol}</strong>
+          </div>
+          <button onclick="executePurchase('${payToken}', ${tokenDecimals}, ${isLoot})"
+                  style="width: 100%; padding: 0.875rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; font-weight: 600;">
+            Confirm Purchase
+          </button>
+        `;
+
+        modal.classList.add('show');
+      }
+
+      function closePurchaseModal() {
+        document.getElementById('purchaseModal').classList.remove('show');
+      }
+
+      async function executePurchase(payToken, tokenDecimals, isLoot) {
+        try {
+          const amountInput = document.getElementById('purchaseAmount').value.trim();
+          if (!amountInput || parseFloat(amountInput) <= 0) {
+            showStatus('Please enter a valid amount', true);
+            return;
+          }
+
+          const shareAmount = ethers.parseEther(amountInput);
+          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
+          const sale = await molochContract.sales(payToken);
+
+          if (!sale.active) {
+            showStatus('Sale is no longer active', true);
+            return;
+          }
+
+          const cost = shareAmount * sale.pricePerShare / (10n ** 18n);
+          const maxPay = cost * 105n / 100n; // 5% slippage
+
+          showStatus('Confirming purchase...', false);
+
+          let tx;
+          if (payToken === ethers.ZeroAddress) {
+            tx = await molochContract.buyShares(payToken, shareAmount, maxPay, { value: cost });
+          } else {
+            tx = await molochContract.buyShares(payToken, shareAmount, maxPay);
+          }
+
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
+          await tx.wait();
+
+          const tokenType = isLoot ? 'LOOT' : 'SHARES';
+          showStatus(`Purchase successful! You received ${amountInput} ${tokenType}`, false);
+          closePurchaseModal();
+          await refreshCurrentDAO();
+          await renderSalesInfo();
+        } catch (error) {
+          console.error('Purchase failed:', error);
+
+          if (isUserRejection(error)) {
+            showStatus('Purchase cancelled', false);
+            return;
+          }
+
+          let errorMessage = 'Purchase failed';
+          if (error.message?.includes('insufficient')) {
+            errorMessage = 'Insufficient balance or allowance';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Populate sale proposal from Send/Sale toggle
+      async function populateSaleProposalFromToggle(symbol, address, decimals) {
+        try {
+          // Get elements from within the transferHelper div to avoid conflicts
+          const helperDiv = document.getElementById('transferHelper');
+          if (!helperDiv) {
+            showStatus('Helper not found - please try again', true);
+            return;
+          }
+
+          const tokenTypeEl = helperDiv.querySelector('#saleTokenType');
+          const priceEl = helperDiv.querySelector('#salePrice');
+          const capEl = helperDiv.querySelector('#saleCap');
+          const mintingEl = helperDiv.querySelector('#saleMinting');
+          const statusEl = helperDiv.querySelector('#saleStatus');
+
+          if (!priceEl) {
+            showStatus('Form elements not found - please try again', true);
+            return;
+          }
+
+          const tokenType = tokenTypeEl?.value;
+          const priceInput = priceEl?.value?.trim();
+          const capInput = capEl?.value?.trim();
+          const minting = mintingEl?.checked;
+          const status = statusEl?.value;
+
+          if (!priceInput || isNaN(priceInput) || parseFloat(priceInput) <= 0) {
+            showStatus('⚠️ Please enter a valid price per token (required field)', true);
+            // Highlight the price field
+            if (priceEl) {
+              priceEl.style.border = '2px solid #ff6b6b';
+              priceEl.focus();
+              setTimeout(() => {
+                priceEl.style.border = '1px solid rgba(157, 123, 255, 0.3)';
+              }, 2000);
+            }
+            return;
+          }
+
+          const pricePerShare = ethers.parseUnits(priceInput, decimals);
+          const cap = capInput && parseFloat(capInput) > 0 ? ethers.parseEther(capInput) : 0n;
+          const isLoot = tokenType === 'loot';
+          const active = status === 'active';
+
+          // Get DAO address
+          if (!currentDAO || !currentDAO.dao || !currentDAO.dao.dao) {
+            showStatus('DAO not loaded', true);
+            return;
+          }
+          const daoAddress = currentDAO.dao.dao;
+
+          // Encode setSale call
+          const saleIface = new ethers.Interface([
+            'function setSale(address,uint256,uint256,bool,bool,bool)'
+          ]);
+          const calldata = saleIface.encodeFunctionData('setSale', [
+            address, pricePerShare, cap, minting, active, isLoot
+          ]);
+
+          // Populate proposal form
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = calldata;
+
+          const tokenTypeText = isLoot ? 'LOOT' : 'SHARES';
+          const sourceText = minting ? 'minting new tokens' : 'selling from treasury';
+          const capText = cap > 0n ? `${ethers.formatEther(cap)} tokens` : 'unlimited';
+          const statusText = active ? 'ACTIVE' : 'INACTIVE';
+
+          document.getElementById('proposalDescription').value =
+            `Configure ${symbol} sale: ${priceInput} ${symbol} per ${tokenTypeText} token, ${capText} cap, ${sourceText}, status: ${statusText}`;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated with sale configuration', false);
+          clearTransferHelper();
+
+          // Scroll to description
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 100);
+        } catch (error) {
+          console.error('Error populating sale proposal:', error);
+          showStatus('Failed to populate sale proposal: ' + error.message, true);
+        }
+      }
+
+      // Sale proposal helper
+      async function prepareSaleProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        let helperDiv = document.getElementById('saleHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'saleHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">CONFIGURE TOKEN SALE</div>
+            <button onclick="clearSaleHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Payment Token</label>
+              <select id="salePayToken" style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                <option value="${ethers.ZeroAddress}">ETH</option>
+                <option value="${TOKEN_ADDRESSES.usdc}">USDC</option>
+                <option value="${TOKEN_ADDRESSES.usdt}">USDT</option>
+                <option value="${TOKEN_ADDRESSES.dai}">DAI</option>
+                <option value="${TOKEN_ADDRESSES.wsteth}">wstETH</option>
+                <option value="${TOKEN_ADDRESSES.reth}">rETH</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Token Type</label>
+              <select id="saleTokenType" style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                <option value="false">Shares</option>
+                <option value="true">Loot</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Price per Token</label>
+              <input type="number" id="salePrice" placeholder="0.0" step="any" min="0" style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Cap (0 = unlimited)</label>
+              <input type="number" id="saleCap" placeholder="0" step="any" min="0" style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Source</label>
+              <select id="saleMinting" style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                <option value="true">Mint new</option>
+                <option value="false">From treasury</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Status</label>
+              <select id="saleActive" style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <button onclick="populateSaleProposal('${currentDAO.dao.dao}')"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+      }
+
+      function clearSaleHelper() {
+        const helperDiv = document.getElementById('saleHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateSaleProposal(daoAddress) {
+        try {
+          const payToken = document.getElementById('salePayToken').value;
+          const priceInput = document.getElementById('salePrice').value.trim();
+          const capInput = document.getElementById('saleCap').value.trim();
+          const minting = document.getElementById('saleMinting').value === 'true';
+          const active = document.getElementById('saleActive').value === 'true';
+          const isLoot = document.getElementById('saleTokenType').value === 'true';
+
+          if (!priceInput || parseFloat(priceInput) <= 0) {
+            showStatus('Please enter a valid price', true);
+            return;
+          }
+
+          const tokenNames = {
+            [ethers.ZeroAddress]: 'ETH',
+            [TOKEN_ADDRESSES.usdc]: 'USDC',
+            [TOKEN_ADDRESSES.usdt]: 'USDT',
+            [TOKEN_ADDRESSES.dai]: 'DAI',
+            [TOKEN_ADDRESSES.wsteth]: 'wstETH',
+            [TOKEN_ADDRESSES.reth]: 'rETH'
+          };
+
+          const tokenDecimals = {
+            [ethers.ZeroAddress]: 18,
+            [TOKEN_ADDRESSES.usdc]: 6,
+            [TOKEN_ADDRESSES.usdt]: 6,
+            [TOKEN_ADDRESSES.dai]: 18,
+            [TOKEN_ADDRESSES.wsteth]: 18,
+            [TOKEN_ADDRESSES.reth]: 18
+          };
+
+          const tokenName = tokenNames[payToken];
+          const decimals = tokenDecimals[payToken];
+
+          const pricePerShare = ethers.parseUnits(priceInput, decimals);
+          const cap = capInput && parseFloat(capInput) > 0 ? ethers.parseEther(capInput) : 0n;
+
+          const abiCoder = new ethers.AbiCoder();
+          const saleCalldata = '0x62843c99' + abiCoder.encode(
+            ['address', 'uint256', 'uint256', 'bool', 'bool', 'bool'],
+            [payToken, pricePerShare, cap, minting, active, isLoot]
+          ).slice(2);
+
+          const tokenType = isLoot ? 'LOOT' : 'SHARES';
+          const statusText = active ? 'Enable' : 'Disable';
+          const sourceText = minting ? 'mint new' : 'sell from treasury';
+          const capText = cap > 0n ? `, cap ${ethers.formatEther(cap)}` : ', unlimited';
+          const description = `${statusText} ${tokenType} sale: ${priceInput} ${tokenName} per token (${sourceText}${capText})`;
+
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = saleCalldata;
+          document.getElementById('proposalDescription').value = description;
+
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearSaleHelper();
+
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+        } catch (error) {
+          console.error('Error populating sale proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
       // Open DAO dashboard
       async function openDAO(daoIndex, source = 'user') {
         // Get the DAO from the appropriate source
@@ -6421,6 +7801,9 @@
         renderChatroom();
         await renderProposals();
         renderTreasury();
+        renderGovernanceInfo();
+        await renderSalesInfo();
+        renderDaoStats();
         await renderDAOEmblem(daoAddress);
 
         // Show/hide membership tab based on membership status
@@ -6495,14 +7878,34 @@
         const dao = currentDAO.dao;
 
         // Update balances
-        document.getElementById('membershipShares').textContent = formatTokenAmount(member.shares);
-        document.getElementById('membershipLoot').textContent = formatTokenAmount(member.loot);
+        const shares = ethers.formatUnits(member.shares, 18);
+        const loot = ethers.formatUnits(member.loot, 18);
+        document.getElementById('membershipShares').textContent = parseFloat(shares).toFixed(4);
+        document.getElementById('membershipLoot').textContent = parseFloat(loot).toFixed(4);
 
         // Update Etherscan links for tokens
-        if (dao.meta) {
-          setupEtherscanLink('sharesEtherscanLink', dao.meta.sharesToken);
-          setupEtherscanLink('lootEtherscanLink', dao.meta.lootToken);
-          setupEtherscanLink('badgeEtherscanLink', dao.meta.badgesToken);
+        if (dao.meta && dao.meta.sharesToken) {
+          const sharesLink = document.getElementById('sharesEtherscanLink');
+          sharesLink.href = `https://etherscan.io/token/${dao.meta.sharesToken}`;
+          sharesLink.style.display = 'inline';
+          sharesLink.onmouseover = () => { sharesLink.style.opacity = '1'; sharesLink.style.transform = 'translateY(-1px)'; };
+          sharesLink.onmouseout = () => { sharesLink.style.opacity = '0.7'; sharesLink.style.transform = 'translateY(0)'; };
+        }
+
+        if (dao.meta && dao.meta.lootToken) {
+          const lootLink = document.getElementById('lootEtherscanLink');
+          lootLink.href = `https://etherscan.io/token/${dao.meta.lootToken}`;
+          lootLink.style.display = 'inline';
+          lootLink.onmouseover = () => { lootLink.style.opacity = '1'; lootLink.style.transform = 'translateY(-1px)'; };
+          lootLink.onmouseout = () => { lootLink.style.opacity = '0.7'; lootLink.style.transform = 'translateY(0)'; };
+        }
+
+        if (dao.meta && dao.meta.badgesToken) {
+          const badgeLink = document.getElementById('badgeEtherscanLink');
+          badgeLink.href = `https://etherscan.io/token/${dao.meta.badgesToken}`;
+          badgeLink.style.display = 'inline';
+          badgeLink.onmouseover = () => { badgeLink.style.opacity = '1'; badgeLink.style.transform = 'translateY(-1px)'; };
+          badgeLink.onmouseout = () => { badgeLink.style.opacity = '0.7'; badgeLink.style.transform = 'translateY(0)'; };
         }
 
         // Update badge info
@@ -6614,27 +8017,38 @@
         const receipts = [];
         const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
 
-        // Check all proposals for user votes
-        for (const proposal of currentDAO.dao.proposals) {
-          const hasVotedValue = await molochContract.hasVoted(proposal.id, connectedAddress);
-          if (hasVotedValue > 0) {
-            const support = Number(hasVotedValue) - 1; // 0=Against, 1=For, 2=Abstain
-            const receiptId = ethers.solidityPackedKeccak256(
-              ['string', 'uint256', 'uint8'],
-              ['Moloch:receipt', proposal.id, support]
-            );
+        // Use voters data from view helper to find user's votes (no hasVoted RPC calls!)
+        const userVotedProposals = currentDAO.dao.proposals.filter(proposal => {
+          return proposal.voters?.some(v => v.voter?.toLowerCase() === connectedAddress.toLowerCase());
+        });
 
+        // Batch balance checks in parallel
+        const balancePromises = userVotedProposals.map(async (proposal) => {
+          const userVote = proposal.voters.find(v => v.voter?.toLowerCase() === connectedAddress.toLowerCase());
+          const support = Number(userVote.support); // 0=Against, 1=For, 2=Abstain
+          const receiptId = ethers.solidityPackedKeccak256(
+            ['string', 'uint256', 'uint8'],
+            ['Moloch:receipt', proposal.id, support]
+          );
+
+          try {
             const balance = await molochContract.balanceOf(connectedAddress, receiptId);
             if (balance > 0n) {
-              receipts.push({
+              return {
                 proposalId: proposal.id,
                 support,
                 balance,
                 receiptId
-              });
+              };
             }
+          } catch (err) {
+            console.error('Error checking receipt balance:', err);
           }
-        }
+          return null;
+        });
+
+        const results = await Promise.all(balancePromises);
+        receipts.push(...results.filter(r => r !== null));
 
         if (receipts.length === 0) {
           receiptsGrid.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic; grid-column: 1/-1;">No vote receipts yet. Vote on proposals to collect them!</p>';
@@ -6900,8 +8314,8 @@
             const memberDiv = document.createElement('div');
             memberDiv.className = 'member-item';
 
-            const shares = formatTokenAmount(sharesBN, 18);
-            const loot = formatTokenAmount(lootBN, 18);
+            const shares = parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(4);
+            const loot = parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(4);
             const badgeText = (seatId && seatId > 0) ? `Seat #${seatId}` : 'None';
 
             // Calculate ownership %
@@ -7081,8 +8495,27 @@
           renderChatroom();
         } catch (error) {
           console.error('Error sending message:', error);
+          chatInput.value = message; // Restore the message
           chatInput.disabled = false;
-          alert('Failed to send message: ' + (error.message || 'Unknown error'));
+
+          if (isUserRejection(error)) {
+            showStatus('Message cancelled', false);
+            return;
+          }
+
+          let errorMessage = 'Failed to send message';
+          if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          } else if (error.message) {
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
+          }
+
+          showStatus(errorMessage, true);
         }
       }
 
@@ -7122,21 +8555,21 @@
           return true;
         });
 
-        // Check if user has voted on any proposals (only if connected)
-        const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+        // Check if user has voted on any proposals (use voters data from view helper - no RPC calls!)
         const userVoteStatus = {};
 
         if (connectedAddress) {
-          const voteCheckPromises = uniqueProposals.map(async (proposal) => {
-            try {
-              const hasVotedValue = await molochContract.hasVoted(proposal.id, connectedAddress);
-              userVoteStatus[proposal.id.toString()] = Number(hasVotedValue);
-            } catch (e) {
-              userVoteStatus[proposal.id.toString()] = 0;
-            }
+          uniqueProposals.forEach(proposal => {
+            // Check if user is in the voters array (already provided by view helper)
+            const userVote = proposal.voters?.find(v =>
+              v.voter?.toLowerCase() === connectedAddress.toLowerCase()
+            );
+            // userVoteStatus: 0 = not voted, 1 = Against, 2 = For, 3 = Abstain
+            userVoteStatus[proposal.id.toString()] = userVote ? (Number(userVote.support) + 1) : 0;
           });
-          await Promise.all(voteCheckPromises);
         }
+
+        const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
 
         uniqueProposals.forEach(proposal => {
           const proposalDiv = document.createElement('div');
@@ -7268,9 +8701,27 @@
             }
           }
 
+          const fullProposalId = proposal.id.toString();
+          const truncatedId = fullProposalId.length > 12 ?
+            fullProposalId.slice(0, 8) + '...' + fullProposalId.slice(-4) :
+            fullProposalId;
+
           proposalDiv.innerHTML = `
             <div class="proposal-header">
-              <span class="proposal-id">Proposal #${proposal.id.toString()}${verificationBadge}</span>
+              <span class="proposal-id" style="display: flex; align-items: center; gap: 0.35rem;">
+                <span>Proposal #${truncatedId}</span>
+                <button onclick="copyProposalId('${fullProposalId}')"
+                        title="Copy full proposal ID"
+                        style="background: none; border: none; color: rgba(230, 217, 255, 0.4); cursor: pointer; padding: 0.15rem; line-height: 1; transition: all 0.2s ease;"
+                        onmouseover="this.style.color='#9d7bff'; this.style.opacity='1';"
+                        onmouseout="this.style.color='rgba(230, 217, 255, 0.4)'; this.style.opacity='1';">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+                ${verificationBadge}
+              </span>
               <span class="proposal-state ${stateClass}">${stateText}</span>
             </div>
             <div class="proposal-description">${description}${calldataLink}</div>
@@ -7338,20 +8789,28 @@
         } catch (error) {
           console.error('Error voting:', error);
 
+          if (isUserRejection(error)) {
+            showStatus('Vote cancelled', false);
+            return;
+          }
+
           let errorMessage = 'Failed to cast vote';
 
-          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-            errorMessage = 'Vote cancelled by user';
-          } else if (error.message?.includes('user rejected')) {
-            errorMessage = 'Vote rejected';
-          } else if (error.message?.includes('already voted')) {
+          if (error.message?.includes('already voted')) {
             errorMessage = 'You have already voted on this proposal';
           } else if (error.message?.includes('not active')) {
             errorMessage = 'Proposal is not active for voting';
           } else if (error.message?.includes('insufficient')) {
             errorMessage = 'Insufficient voting power or funds';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
           } else if (error.message) {
-            errorMessage = `Failed to vote: ${error.message}`;
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
@@ -7389,18 +8848,26 @@
         } catch (error) {
           console.error('Error cancelling vote:', error);
 
+          if (isUserRejection(error)) {
+            showStatus('Vote cancellation aborted', false);
+            return;
+          }
+
           let errorMessage = 'Failed to cancel vote';
 
-          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-            errorMessage = 'Cancellation rejected by user';
-          } else if (error.message?.includes('user rejected')) {
-            errorMessage = 'Cancellation rejected';
-          } else if (error.message?.includes('not voted')) {
+          if (error.message?.includes('not voted')) {
             errorMessage = 'You have not voted on this proposal';
           } else if (error.message?.includes('not active')) {
             errorMessage = 'Proposal is not active';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
           } else if (error.message) {
-            errorMessage = `Failed to cancel vote: ${error.message}`;
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
@@ -7435,18 +8902,26 @@
         } catch (error) {
           console.error('Error claiming futarchy rewards:', error);
 
+          if (isUserRejection(error)) {
+            showStatus('Claim cancelled', false);
+            return;
+          }
+
           let errorMessage = 'Failed to claim rewards';
 
-          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-            errorMessage = 'Claim cancelled by user';
-          } else if (error.message?.includes('user rejected')) {
-            errorMessage = 'Claim rejected';
-          } else if (error.message?.includes('not enabled')) {
+          if (error.message?.includes('not enabled')) {
             errorMessage = 'Futarchy not enabled for this proposal';
           } else if (error.message?.includes('not resolved')) {
             errorMessage = 'Futarchy market not yet resolved';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
           } else if (error.message) {
-            errorMessage = `Failed to claim: ${error.message}`;
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
@@ -7492,6 +8967,23 @@
           [TOKEN_ADDRESSES.reth.toLowerCase()]: 'rETH Token'
         };
 
+        // Add shares and loot tokens if currentDAO is available
+        if (currentDAO && currentDAO.dao && currentDAO.dao.meta) {
+          if (currentDAO.dao.meta.sharesToken) {
+            tokenMap[currentDAO.dao.meta.sharesToken.toLowerCase()] = `${currentDAO.dao.meta.symbol} Shares`;
+          }
+          if (currentDAO.dao.meta.lootToken) {
+            tokenMap[currentDAO.dao.meta.lootToken.toLowerCase()] = `${currentDAO.dao.meta.symbol} Loot`;
+          }
+        }
+
+        // Add the DAO's own address for self-calls
+        if (currentDAO && currentDAO.dao && currentDAO.dao.dao) {
+          if (address === currentDAO.dao.dao.toLowerCase()) {
+            tokenMap[address] = `${currentDAO.dao.meta.symbol} DAO (Self-Call)`;
+          }
+        }
+
         if (tokenMap[address]) {
           hintBadge.textContent = `📍 ${tokenMap[address]}`;
           hintDiv.style.display = 'block';
@@ -7534,9 +9026,37 @@
           [TOKEN_ADDRESSES.reth.toLowerCase()]: { symbol: 'rETH', decimals: 18 }
         };
 
+        // Add shares and loot tokens if currentDAO is available
+        if (currentDAO && currentDAO.dao && currentDAO.dao.meta) {
+          if (currentDAO.dao.meta.sharesToken) {
+            tokenInfo[currentDAO.dao.meta.sharesToken.toLowerCase()] = {
+              symbol: currentDAO.dao.meta.symbol,
+              decimals: 18
+            };
+          }
+          if (currentDAO.dao.meta.lootToken) {
+            tokenInfo[currentDAO.dao.meta.lootToken.toLowerCase()] = {
+              symbol: `${currentDAO.dao.meta.symbol}-LOOT`,
+              decimals: 18
+            };
+          }
+        }
+
         const token = tokenInfo[target];
 
-        if (!token || !calldata || calldata === '0x' || calldata.length < 10) {
+        // Check if this is a DAO self-call
+        let isDaoSelfCall = false;
+        if (currentDAO && currentDAO.dao && currentDAO.dao.dao) {
+          isDaoSelfCall = (target === currentDAO.dao.dao.toLowerCase());
+        }
+
+        if (!calldata || calldata === '0x' || calldata.length < 10) {
+          translationDiv.style.display = 'none';
+          return;
+        }
+
+        // If it's neither a token nor a DAO self-call, don't translate
+        if (!token && !isDaoSelfCall) {
           translationDiv.style.display = 'none';
           return;
         }
@@ -7546,8 +9066,83 @@
           const abiCoder = new ethers.AbiCoder();
           let translation = '';
 
+          // setAutoFutarchy(uint256 param, uint256 cap) - 0xc7b6a5b7 (for DAO self-calls)
+          if (isDaoSelfCall && functionSelector === '0xc7b6a5b7' && calldata.length >= 138) {
+            const decoded = abiCoder.decode(['uint256', 'uint256'], '0x' + calldata.slice(10));
+            const param = decoded[0];
+            const cap = decoded[1];
+
+            let futarchyDesc = 'Disabled';
+            if (param > 0n && cap > 0n) {
+              const paramBps = Number(param);
+              const paramPercent = (paramBps / 100).toFixed(2);
+              const capFormatted = parseFloat(ethers.formatEther(cap)).toFixed(1);
+              futarchyDesc = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
+            }
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Configure Auto-Futarchy</div>
+              <div>Set voter rewards: <strong>${futarchyDesc}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
+            `;
+          }
+          // setSale(address payToken, uint256 pricePerShare, uint256 cap, bool minting, bool active, bool isLoot) - 0x62843c99
+          else if (isDaoSelfCall && functionSelector === '0x62843c99' && calldata.length >= 202) {
+            const decoded = abiCoder.decode(['address', 'uint256', 'uint256', 'bool', 'bool', 'bool'], '0x' + calldata.slice(10));
+            const payToken = decoded[0];
+            const pricePerShare = decoded[1];
+            const cap = decoded[2];
+            const minting = decoded[3];
+            const active = decoded[4];
+            const isLoot = decoded[5];
+
+            const tokenNames = {
+              [ethers.ZeroAddress.toLowerCase()]: 'ETH',
+              [TOKEN_ADDRESSES.usdc.toLowerCase()]: 'USDC',
+              [TOKEN_ADDRESSES.usdt.toLowerCase()]: 'USDT',
+              [TOKEN_ADDRESSES.dai.toLowerCase()]: 'DAI',
+              [TOKEN_ADDRESSES.wsteth.toLowerCase()]: 'wstETH',
+              [TOKEN_ADDRESSES.reth.toLowerCase()]: 'rETH'
+            };
+
+            const tokenDecimals = {
+              [ethers.ZeroAddress.toLowerCase()]: 18,
+              [TOKEN_ADDRESSES.usdc.toLowerCase()]: 6,
+              [TOKEN_ADDRESSES.usdt.toLowerCase()]: 6,
+              [TOKEN_ADDRESSES.dai.toLowerCase()]: 18,
+              [TOKEN_ADDRESSES.wsteth.toLowerCase()]: 18,
+              [TOKEN_ADDRESSES.reth.toLowerCase()]: 18
+            };
+
+            const tokenName = tokenNames[payToken.toLowerCase()] || 'Unknown';
+            const decimals = tokenDecimals[payToken.toLowerCase()] || 18;
+            const price = ethers.formatUnits(pricePerShare, decimals);
+            const tokenType = isLoot ? 'LOOT' : 'SHARES';
+            const statusText = active ? 'Enable' : 'Disable';
+            const capText = cap > 0n ? `${ethers.formatEther(cap)} cap` : 'unlimited';
+            const sourceText = minting ? 'mint new' : 'from treasury';
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Configure ${tokenType} Sale</div>
+              <div>${statusText}: <strong>${price} ${tokenName}</strong> per token</div>
+              <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">${sourceText}, ${capText}</div>
+            `;
+          }
+          // mintFromMoloch(address recipient, uint256 amount) - 0x7c1fb593
+          else if (token && functionSelector === '0x7c1fb593' && calldata.length >= 138) {
+            const decoded = abiCoder.decode(['address', 'uint256'], '0x' + calldata.slice(10));
+            const recipient = decoded[0];
+            const amount = decoded[1];
+            const formattedAmount = ethers.formatUnits(amount, token.decimals);
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Mint Tokens</div>
+              <div>Mint <strong>${formattedAmount} ${token.symbol}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.8rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${recipient}</code></div>
+            `;
+          }
           // transfer(address recipient, uint256 amount) - 0xa9059cbb
-          if (functionSelector === '0xa9059cbb' && calldata.length >= 138) {
+          else if (token && functionSelector === '0xa9059cbb' && calldata.length >= 138) {
             const decoded = abiCoder.decode(['address', 'uint256'], '0x' + calldata.slice(10));
             const recipient = decoded[0];
             const amount = decoded[1];
@@ -7560,7 +9155,7 @@
             `;
           }
           // approve(address spender, uint256 amount) - 0x095ea7b3
-          else if (functionSelector === '0x095ea7b3' && calldata.length >= 138) {
+          else if (token && functionSelector === '0x095ea7b3' && calldata.length >= 138) {
             const decoded = abiCoder.decode(['address', 'uint256'], '0x' + calldata.slice(10));
             const spender = decoded[0];
             const amount = decoded[1];
@@ -7573,7 +9168,7 @@
             `;
           }
           // transferFrom(address sender, address recipient, uint256 amount) - 0x23b872dd
-          else if (functionSelector === '0x23b872dd' && calldata.length >= 202) {
+          else if (token && functionSelector === '0x23b872dd' && calldata.length >= 202) {
             const decoded = abiCoder.decode(['address', 'address', 'uint256'], '0x' + calldata.slice(10));
             const sender = decoded[0];
             const recipient = decoded[1];
@@ -7692,16 +9287,25 @@
         } catch (error) {
           console.error('Error creating proposal:', error);
 
+          if (isUserRejection(error)) {
+            showStatus('Proposal creation cancelled', false);
+            return;
+          }
+
           let errorMessage = 'Failed to create proposal';
 
-          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-            errorMessage = 'Transaction cancelled by user';
-          } else if (error.message?.includes('user rejected')) {
-            errorMessage = 'Transaction rejected';
-          } else if (error.message?.includes('insufficient funds')) {
+          if (error.message?.includes('insufficient funds')) {
             errorMessage = 'Insufficient funds for transaction';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
           } else if (error.message) {
-            errorMessage = `Failed to create proposal: ${error.message}`;
+            // Only show concise error, not the full dump
+            const msg = error.message.split('\n')[0]; // Take first line only
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
@@ -7774,20 +9378,28 @@
         } catch (error) {
           console.error('Error executing proposal:', error);
 
+          if (isUserRejection(error)) {
+            showStatus('Execution cancelled', false);
+            return;
+          }
+
           let errorMessage = 'Failed to execute proposal';
 
-          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
-            errorMessage = 'Execution cancelled by user';
-          } else if (error.message?.includes('user rejected')) {
-            errorMessage = 'Execution rejected';
-          } else if (error.message?.includes('not succeeded')) {
+          if (error.message?.includes('not succeeded')) {
             errorMessage = 'Proposal has not passed or is not ready for execution';
           } else if (error.message?.includes('already executed')) {
             errorMessage = 'Proposal has already been executed';
           } else if (error.message?.includes('insufficient funds')) {
             errorMessage = 'Insufficient funds in treasury';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
           } else if (error.message) {
-            errorMessage = `Failed to execute: ${error.message}`;
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
           }
 
           showStatus(errorMessage, true);
@@ -7878,6 +9490,36 @@
         if (!isError) {
           setTimeout(() => statusEl.innerHTML = '', 10000);
         }
+      }
+
+      function copyProposalId(proposalId) {
+        // Create a temporary textarea to copy the proposal ID
+        const textarea = document.createElement('textarea');
+        textarea.value = proposalId;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        try {
+          document.execCommand('copy');
+          showStatus('Proposal ID copied to clipboard', false);
+        } catch (err) {
+          // Fallback to modern clipboard API
+          navigator.clipboard.writeText(proposalId).then(() => {
+            showStatus('Proposal ID copied to clipboard', false);
+          }).catch(() => {
+            showStatus('Failed to copy proposal ID', true);
+          });
+        } finally {
+          document.body.removeChild(textarea);
+        }
+      }
+
+      function toggleSaleConfig() {
+        const preset = document.getElementById('initialSalePreset').value;
+        const section = document.getElementById('saleConfigSection');
+        section.style.display = preset === 'custom' ? 'block' : 'none';
       }
 
       // Add loot distribution toggle handler
@@ -8180,6 +9822,51 @@
             });
           }
 
+          // Add initial sale configuration if enabled
+          const salePreset = document.getElementById('initialSalePreset').value;
+          if (salePreset === 'custom') {
+            const paymentToken = document.getElementById('salePaymentToken').value;
+            const tokenType = document.getElementById('saleTokenType').value;
+            const priceInput = document.getElementById('salePrice').value;
+            const capInput = document.getElementById('saleCap').value;
+            const minting = document.getElementById('saleMinting').checked;
+
+            if (priceInput && parseFloat(priceInput) > 0) {
+              // Map token selection to addresses
+              const tokenAddresses = {
+                'eth': ethers.ZeroAddress,
+                'usdc': TOKEN_ADDRESSES.usdc,
+                'usdt': TOKEN_ADDRESSES.usdt,
+                'dai': TOKEN_ADDRESSES.dai,
+                'wsteth': TOKEN_ADDRESSES.wsteth,
+                'reth': TOKEN_ADDRESSES.reth
+              };
+
+              const tokenDecimals = {
+                'eth': 18, 'usdc': 6, 'usdt': 6,
+                'dai': 18, 'wsteth': 18, 'reth': 18
+              };
+
+              const payToken = tokenAddresses[paymentToken];
+              const decimals = tokenDecimals[paymentToken];
+              const pricePerShare = ethers.parseUnits(priceInput, decimals);
+              const cap = capInput && parseFloat(capInput) > 0 ? ethers.parseEther(capInput) : 0n;
+              const isLoot = tokenType === 'loot';
+
+              // Add setSale call
+              const saleIface = new ethers.Interface([
+                'function setSale(address,uint256,uint256,bool,bool,bool)'
+              ]);
+              initCalls.push({
+                target: predictedDao, // Self-call to the DAO
+                value: 0n,
+                data: saleIface.encodeFunctionData('setSale', [
+                  payToken, pricePerShare, cap, minting, true, isLoot
+                ])
+              });
+            }
+          }
+
           showStatus('Preparing transaction...');
 
           // Call summon
@@ -8238,32 +9925,34 @@
 
         } catch (error) {
           console.error(error);
-          
-          // Handle common wallet errors with user-friendly messages
-          let errorMessage = 'Summoning failed';
-          
-          if (error.code === 'UNKNOWN_ERROR' && error.message?.includes('eth_blockNumber')) {
-            errorMessage = 'Network connection issue. Please check your wallet is connected to the correct network and try again.';
-          } else if (error.code === 'NETWORK_ERROR' || error.message?.includes('network')) {
-            errorMessage = 'Network error. Please check your connection and try again.';
-          } else if (error.code === 'ACTION_REJECTED' || error.code === 4001 || 
-              error.message?.includes('User rejected') || 
-              error.message?.includes('User denied') ||
-              error.info?.error?.code === -32603) {
-            errorMessage = 'Transaction cancelled by user';
-          } else if (error.code === -32000 || error.message?.includes('insufficient funds')) {
-            errorMessage = 'Insufficient funds for transaction';
-          } else if (error.code === 'NETWORK_ERROR') {
-            errorMessage = 'Network error - please check your connection';
-          } else if (error.message?.includes('nonce')) {
-            errorMessage = 'Transaction nonce issue - please reset your wallet';
-          } else if (error.message) {
-            // Extract simple error message if available
-            const match = error.message.match(/[A-Z][a-z]+(?:\s+[a-z]+)*/);
-            errorMessage = match ? match[0] : 'Transaction failed';
+
+          if (isUserRejection(error)) {
+            showStatus('Summoning cancelled', false);
+          } else {
+            // Handle common wallet errors with user-friendly messages
+            let errorMessage = 'Summoning failed';
+
+            if (error.code === 'UNKNOWN_ERROR' && error.message?.includes('eth_blockNumber')) {
+              errorMessage = 'Network connection issue. Please check your wallet is connected to the correct network and try again.';
+            } else if (error.code === 'NETWORK_ERROR' || error.message?.includes('network')) {
+              errorMessage = 'Network error. Please check your connection and try again.';
+            } else if (error.code === -32000 || error.message?.includes('insufficient funds')) {
+              errorMessage = 'Insufficient funds for transaction';
+            } else if (error.message?.includes('nonce')) {
+              errorMessage = 'Transaction nonce issue - please reset your wallet';
+            } else if (error.shortMessage) {
+              errorMessage = error.shortMessage;
+            } else if (error.reason) {
+              errorMessage = error.reason;
+            } else if (error.message) {
+              const msg = error.message.split('\n')[0];
+              if (msg.length < 100) {
+                errorMessage = msg;
+              }
+            }
+
+            showStatus(errorMessage, true);
           }
-          
-          showStatus(errorMessage, true);
         } finally {
           summonBtn.disabled = false;
           summonBtn.textContent = 'SUMMON DAO';
