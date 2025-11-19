@@ -1002,6 +1002,37 @@
         transform: translateY(-5px);
       }
 
+      .dao-tile-emblem {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 32px;
+        height: 32px;
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+        background: rgba(10, 0, 21, 0.8);
+        opacity: 0.6;
+        transition: all 0.3s ease;
+      }
+
+      /* For all DAOs view, position emblem below member badge */
+      .all-dao-tile .dao-tile-emblem {
+        top: 3.5rem;
+        right: 1rem;
+      }
+
+      .dao-tile:hover .dao-tile-emblem {
+        opacity: 1;
+        border-color: rgba(157, 123, 255, 0.4);
+      }
+
+      .dao-tile-emblem img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
       .dao-tile-name {
         font-family: "Cinzel", serif;
         font-size: 1.4rem;
@@ -1202,6 +1233,36 @@
         border-color: #9d7bff;
       }
 
+      .dao-view-toggle {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid rgba(157, 123, 255, 0.2);
+      }
+
+      .view-toggle-btn {
+        padding: 0.75rem 1.5rem;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: rgba(230, 217, 255, 0.6);
+        font-family: "Cinzel", serif;
+        font-size: 0.85rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .view-toggle-btn:hover {
+        color: rgba(230, 217, 255, 0.9);
+      }
+
+      .view-toggle-btn.active {
+        color: #9d7bff;
+        border-bottom-color: #9d7bff;
+      }
+
       .dao-dashboard-content {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1210,10 +1271,316 @@
         margin: 0 auto;
       }
 
+      .dao-dashboard-content.show {
+        display: grid;
+      }
+
+      .dao-dashboard-content.hide {
+        display: none;
+      }
+
+      .dao-membership-content {
+        display: none;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .dao-membership-content.show {
+        display: block;
+      }
+
       @media (max-width: 1024px) {
         .dao-dashboard-content {
           grid-template-columns: 1fr;
         }
+      }
+
+      /* MEMBERSHIP DASHBOARD */
+      .membership-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 2rem;
+      }
+
+      @media (max-width: 768px) {
+        .membership-grid {
+          grid-template-columns: 1fr;
+          gap: 1.5rem;
+        }
+
+        .badge-card,
+        .balance-card {
+          padding: 1.5rem 1rem;
+        }
+
+        .badge-image {
+          max-width: 200px;
+        }
+
+        .badge-card a,
+        .badge-card button {
+          font-size: 0.8rem;
+          padding: 0.4rem 0.75rem !important;
+        }
+
+        .balance-value {
+          font-size: 1.5rem;
+        }
+
+        .balance-label {
+          font-size: 0.7rem;
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .balance-item {
+          margin-bottom: 1.25rem;
+          padding-bottom: 1.25rem;
+        }
+
+        .receipts-panel {
+          padding: 1.5rem 1rem;
+        }
+
+        .receipts-grid {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        .receipt-card {
+          padding: 1rem;
+        }
+
+        .receipt-image {
+          height: 120px;
+        }
+
+        .dao-panel-title {
+          font-size: 0.9rem;
+          letter-spacing: 0.1em;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .membership-grid {
+          gap: 1rem;
+        }
+
+        .badge-card,
+        .balance-card,
+        .receipts-panel {
+          padding: 1rem 0.75rem;
+        }
+
+        .balance-value {
+          font-size: 1.25rem;
+        }
+
+        .balance-label {
+          font-size: 0.65rem;
+        }
+
+        .balance-item {
+          margin-bottom: 1rem;
+          padding-bottom: 1rem;
+        }
+
+        .badge-image {
+          max-width: 150px;
+        }
+
+        .badge-card a,
+        .badge-card button {
+          font-size: 0.7rem;
+          padding: 0.35rem 0.6rem !important;
+        }
+
+        .dao-panel-title {
+          font-size: 0.8rem;
+        }
+
+        .receipt-card {
+          padding: 0.75rem;
+        }
+
+        .receipt-image {
+          height: 100px;
+        }
+
+        .receipt-name {
+          font-size: 0.75rem;
+        }
+
+        .receipt-proposal {
+          font-size: 0.65rem;
+        }
+
+        .receipt-vote {
+          font-size: 0.8rem;
+        }
+
+        .receipt-amount {
+          font-size: 0.95rem;
+        }
+
+        .view-toggle-btn {
+          padding: 0.5rem 0.65rem;
+          font-size: 0.65rem;
+          flex: 1;
+        }
+
+        .dao-view-toggle {
+          gap: 0.25rem;
+        }
+
+        .dao-tile-emblem {
+          width: 24px;
+          height: 24px;
+          top: 0.75rem;
+          right: 0.75rem;
+        }
+
+        .all-dao-tile .dao-tile-emblem {
+          top: 3rem;
+          right: 0.75rem;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .view-toggle-btn {
+          padding: 0.4rem 0.5rem;
+          font-size: 0.6rem;
+        }
+
+        .dao-view-toggle {
+          gap: 0.15rem;
+        }
+      }
+
+      .badge-card {
+        background: rgba(10, 0, 21, 0.6);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        text-align: center;
+      }
+
+      .badge-image {
+        width: 100%;
+        max-width: 300px;
+        height: auto;
+        margin: 1rem auto;
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        border-radius: 8px;
+        transition: all 0.3s ease;
+      }
+
+      .badge-card .badge-image:hover {
+        transform: scale(1.02);
+        border-color: #9d7bff;
+      }
+
+      .balance-card {
+        background: rgba(10, 0, 21, 0.6);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+      }
+
+      .balance-item {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(157, 123, 255, 0.15);
+      }
+
+      .balance-item:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .balance-label {
+        font-family: "Cinzel", serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.6);
+        margin-bottom: 0.5rem;
+      }
+
+      .balance-value {
+        font-family: "EB Garamond", serif;
+        font-size: 2rem;
+        color: #9d7bff;
+        font-weight: 500;
+      }
+
+      .receipts-panel {
+        background: rgba(10, 0, 21, 0.6);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+      }
+
+      .receipts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+
+      .receipt-card {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        padding: 1.25rem;
+        transition: all 0.3s ease;
+        cursor: pointer;
+      }
+
+      .receipt-card:hover {
+        border-color: rgba(157, 123, 255, 0.4);
+        background: rgba(157, 123, 255, 0.05);
+      }
+
+      .receipt-image {
+        width: 100%;
+        height: 150px;
+        object-fit: contain;
+        margin-bottom: 1rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+      }
+
+      .receipt-proposal {
+        font-family: "Cinzel", serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        color: #9d7bff;
+        margin-bottom: 0.5rem;
+      }
+
+      .receipt-vote {
+        font-family: "EB Garamond", serif;
+        font-size: 0.9rem;
+        color: rgba(230, 217, 255, 0.8);
+        margin-bottom: 0.5rem;
+      }
+
+      .receipt-amount {
+        font-family: "EB Garamond", serif;
+        font-size: 1.1rem;
+        color: #e6d9ff;
+        font-weight: 500;
+      }
+
+      .receipt-name {
+        font-family: "Cinzel", serif;
+        font-size: 0.85rem;
+        color: #9d7bff;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
       }
 
       .dao-panel {
@@ -1575,6 +1942,45 @@
         margin-left: 0.3rem;
       }
 
+      .futarchy-reward-box {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: rgba(157, 123, 255, 0.05);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        border-left: 3px solid #9d7bff;
+      }
+
+      .futarchy-reward-title {
+        font-family: "Cinzel", serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #9d7bff;
+        margin-bottom: 0.5rem;
+      }
+
+      .futarchy-reward-info {
+        font-family: "EB Garamond", serif;
+        font-size: 0.9rem;
+        color: rgba(230, 217, 255, 0.8);
+        margin-bottom: 0.75rem;
+      }
+
+      .futarchy-reward-info strong {
+        color: #9d7bff;
+      }
+
+      .proposal-button.claim {
+        background: rgba(157, 123, 255, 0.15);
+        border-color: rgba(157, 123, 255, 0.4);
+        color: #9d7bff;
+      }
+
+      .proposal-button.claim:hover:not(:disabled) {
+        background: rgba(157, 123, 255, 0.25);
+        border-color: #9d7bff;
+      }
+
       .proposal-form {
         padding: 1.5rem;
         background: rgba(0, 0, 0, 0.3);
@@ -1639,6 +2045,10 @@
           margin-bottom: 2rem;
         }
 
+        .dao-dashboard-header > div:first-child {
+          width: 100%;
+        }
+
         .dao-dashboard-title {
           font-size: 1.3rem;
           letter-spacing: 0.15em;
@@ -1651,6 +2061,17 @@
         .back-button {
           width: 100%;
           text-align: center;
+        }
+
+        .dao-view-toggle {
+          gap: 0.5rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .view-toggle-btn {
+          padding: 0.6rem 1rem;
+          font-size: 0.75rem;
+          letter-spacing: 0.08em;
         }
 
         .dao-panel {
@@ -1799,6 +2220,407 @@
           font-size: 0.6rem;
           padding: 3px 8px;
           opacity: 1;
+        }
+      }
+
+      /* MEMBERS LIST */
+      .dao-members-content {
+        display: none;
+      }
+
+      .dao-members-content.show {
+        display: block;
+      }
+
+      .members-panel {
+        background: rgba(10, 0, 21, 0.6);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+      }
+
+      .members-header {
+        margin-bottom: 1.5rem;
+      }
+
+      .members-stats {
+        display: flex;
+        gap: 2rem;
+        margin-top: 1rem;
+        padding: 1rem;
+        background: rgba(157, 123, 255, 0.05);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        border-radius: 6px;
+      }
+
+      .members-stat {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .members-stat-label {
+        font-family: 'Cinzel', serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.6);
+      }
+
+      .members-stat-value {
+        font-family: 'EB Garamond', serif;
+        font-size: 1.1rem;
+        color: #9d7bff;
+        font-weight: 500;
+      }
+
+      .members-list {
+        max-height: 600px;
+        overflow-y: auto;
+        margin-top: 1.5rem;
+      }
+
+      .members-list::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .members-list::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+      }
+
+      .members-list::-webkit-scrollbar-thumb {
+        background: rgba(157, 123, 255, 0.3);
+        border-radius: 4px;
+      }
+
+      .members-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(157, 123, 255, 0.5);
+      }
+
+      .member-item {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 0.8fr 0.8fr 100px;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(157, 123, 255, 0.15);
+        margin-bottom: 0.75rem;
+        transition: all 0.2s ease;
+        align-items: center;
+      }
+
+      .member-item:hover {
+        background: rgba(157, 123, 255, 0.05);
+        border-color: rgba(157, 123, 255, 0.3);
+      }
+
+      .member-address {
+        font-family: 'EB Garamond', serif;
+        font-size: 0.9rem;
+        color: #e6d9ff;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .member-ens {
+        font-size: 1rem;
+        color: #9d7bff;
+        font-weight: 500;
+      }
+
+      .member-address-hex {
+        font-size: 0.8rem;
+        color: rgba(230, 217, 255, 0.6);
+        font-family: 'Courier New', monospace;
+      }
+
+      .member-shares,
+      .member-loot,
+      .member-badge,
+      .member-ownership {
+        font-family: 'EB Garamond', serif;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .member-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.5);
+      }
+
+      .member-value {
+        font-size: 0.95rem;
+        color: #e6d9ff;
+      }
+
+      .member-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        background: rgba(157, 123, 255, 0.1);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        border-radius: 4px;
+        color: #9d7bff;
+        text-decoration: none;
+        transition: all 0.2s ease;
+      }
+
+      .member-link:hover {
+        background: rgba(157, 123, 255, 0.2);
+        border-color: #9d7bff;
+      }
+
+      .member-link svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      @media (max-width: 768px) {
+        .members-stats {
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .member-item {
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+
+        .member-address,
+        .member-shares,
+        .member-loot,
+        .member-badge,
+        .member-ownership {
+          padding-bottom: 0.5rem;
+          border-bottom: 1px solid rgba(157, 123, 255, 0.1);
+        }
+
+        .member-link {
+          width: 100%;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .members-panel {
+          padding: 1rem 0.75rem;
+        }
+
+        .members-list {
+          max-height: 400px;
+        }
+
+        .member-item {
+          padding: 0.75rem;
+        }
+      }
+
+      /* DAO EMBLEM */
+      .dao-emblem {
+        width: 48px;
+        height: 48px;
+        cursor: pointer;
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        border-radius: 6px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        background: rgba(10, 0, 21, 0.6);
+        backdrop-filter: blur(5px);
+        flex-shrink: 0;
+      }
+
+      .dao-emblem:hover {
+        border-color: #9d7bff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(157, 123, 255, 0.2);
+      }
+
+      .dao-emblem img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      /* NFT MODAL */
+      .nft-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(10px);
+        z-index: 10000;
+        overflow-y: auto;
+        padding: 2rem;
+      }
+
+      .nft-modal.show {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .nft-modal-content {
+        background: rgba(10, 0, 21, 0.95);
+        border: 1px solid rgba(157, 123, 255, 0.4);
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 600px;
+        width: 100%;
+        position: relative;
+        animation: modalSlideIn 0.3s ease;
+      }
+
+      @keyframes modalSlideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .nft-modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: rgba(157, 123, 255, 0.1);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        color: #e6d9ff;
+        font-size: 1.5rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+
+      .nft-modal-close:hover {
+        background: rgba(157, 123, 255, 0.2);
+        border-color: #9d7bff;
+      }
+
+      .nft-modal-body {
+        text-align: center;
+      }
+
+      .nft-modal-image {
+        width: 100%;
+        max-width: 500px;
+        height: auto;
+        border-radius: 8px;
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        margin-bottom: 1.5rem;
+      }
+
+      .nft-modal-title {
+        font-family: 'Cinzel', serif;
+        font-size: 1.5rem;
+        color: #9d7bff;
+        margin-bottom: 1rem;
+        letter-spacing: 0.1em;
+      }
+
+      .nft-modal-description {
+        font-family: 'EB Garamond', serif;
+        font-size: 1rem;
+        color: rgba(230, 217, 255, 0.8);
+        line-height: 1.6;
+        margin-bottom: 1.5rem;
+      }
+
+      .nft-modal-attributes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+
+      .nft-modal-attribute {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        padding: 0.75rem;
+        border-radius: 6px;
+      }
+
+      .nft-modal-attribute-label {
+        font-family: 'Cinzel', serif;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.6);
+        margin-bottom: 0.25rem;
+      }
+
+      .nft-modal-attribute-value {
+        font-family: 'EB Garamond', serif;
+        font-size: 1rem;
+        color: #e6d9ff;
+      }
+
+      @media (max-width: 768px) {
+        .nft-modal {
+          padding: 1rem;
+        }
+
+        .nft-modal-content {
+          padding: 1.5rem;
+          max-width: 100%;
+        }
+
+        .nft-modal-title {
+          font-size: 1.2rem;
+        }
+
+        .nft-modal-description {
+          font-size: 0.9rem;
+        }
+
+        .dao-emblem {
+          width: 40px;
+          height: 40px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .nft-modal {
+          padding: 0.5rem;
+        }
+
+        .nft-modal-content {
+          padding: 1rem;
+        }
+
+        .nft-modal-title {
+          font-size: 1rem;
+        }
+
+        .nft-modal-close {
+          width: 35px;
+          height: 35px;
+          font-size: 1.2rem;
+        }
+
+        .dao-emblem {
+          width: 36px;
+          height: 36px;
+        }
+
+        .nft-modal-attributes {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -3674,7 +4496,7 @@
           <div class="form-group">
             <label class="form-label">Founding Members</label>
             <div class="members-container">
-              <div id="membersList">
+              <div id="foundingMembersList">
                 <!-- Initial member (connected wallet) will be added by JS -->
               </div>
               <button type="button" class="add-member-btn" onclick="addMemberRow()">+ Add Member</button>
@@ -3769,6 +4591,17 @@
               </label>
               <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Allow loot to be transferred</small>
             </div>
+
+            <div class="form-group">
+              <label class="form-label">Auto-Futarchy (Voter Rewards)</label>
+              <select class="form-input" id="autoFutarchyPreset">
+                <option value="off" selected>Off</option>
+                <option value="low">Low: 0.05% supply, 2 LOOT cap</option>
+                <option value="standard">Standard: 0.1% supply, 5 LOOT cap</option>
+                <option value="high">High: 0.5% supply, 10 LOOT cap</option>
+              </select>
+              <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Mint LOOT rewards for winning voters (% of shares+loot supply, capped per proposal)</small>
+            </div>
           </div>
 
           <button type="submit" class="summon-button" id="summonBtn" disabled>
@@ -3805,20 +4638,34 @@
     <!-- DAO DASHBOARD SECTION -->
     <section class="dao-dashboard" id="daoDashboard">
       <div class="dao-dashboard-header">
-        <div>
-          <h2 class="dao-dashboard-title" id="dashboardTitle">DAO Dashboard</h2>
-          <a class="dao-etherscan-link" id="daoEtherscanLink" href="#" target="_blank" rel="noopener noreferrer">
-            <span id="daoAddressText">0x...</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-          </a>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div id="daoEmblem" class="dao-emblem" style="display: none;" title="DAO Contract URI">
+            <!-- DAO emblem will be rendered here -->
+          </div>
+          <div>
+            <h2 class="dao-dashboard-title" id="dashboardTitle">DAO Dashboard</h2>
+            <a class="dao-etherscan-link" id="daoEtherscanLink" href="#" target="_blank" rel="noopener noreferrer">
+              <span id="daoAddressText">0x...</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </a>
+          </div>
         </div>
         <button class="back-button" onclick="backToGallery()">← Back to Gallery</button>
       </div>
-      <div class="dao-dashboard-content">
+
+      <!-- View Toggle -->
+      <div class="dao-view-toggle">
+        <button class="view-toggle-btn active" id="viewToggleDao" onclick="switchDaoView('dao')">DAO Dashboard</button>
+        <button class="view-toggle-btn" id="viewToggleMembership" onclick="switchDaoView('membership')">My Membership</button>
+        <button class="view-toggle-btn" id="viewToggleMembers" onclick="switchDaoView('members')">Members</button>
+      </div>
+
+      <!-- DAO Dashboard Content -->
+      <div class="dao-dashboard-content show" id="daoDashboardView">
         <!-- Chatroom Panel -->
         <div class="dao-panel">
           <h3 class="dao-panel-title">Chatroom</h3>
@@ -3890,18 +4737,107 @@
           </div>
         </div>
       </div>
+
+      <!-- Membership Dashboard Content -->
+      <div class="dao-membership-content" id="daoMembershipView">
+        <div class="membership-grid">
+          <!-- Badge Card -->
+          <div class="badge-card">
+            <h3 class="dao-panel-title">Member Badge</h3>
+            <div id="badgeContent">
+              <p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic;">Loading...</p>
+            </div>
+          </div>
+
+          <!-- Balances Card -->
+          <div class="balance-card">
+            <h3 class="dao-panel-title">Your Balances</h3>
+            <div class="balance-item">
+              <div class="balance-label">
+                Voting Shares
+                <a id="sharesEtherscanLink" href="#" target="_blank" rel="noopener noreferrer" style="margin-left: 0.35rem; color: #9d7bff; opacity: 0.7; transition: all 0.2s; display: none;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+              </div>
+              <div class="balance-value" id="membershipShares">0</div>
+            </div>
+            <div class="balance-item">
+              <div class="balance-label">
+                Loot
+                <a id="lootEtherscanLink" href="#" target="_blank" rel="noopener noreferrer" style="margin-left: 0.35rem; color: #9d7bff; opacity: 0.7; transition: all 0.2s; display: none;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+              </div>
+              <div class="balance-value" id="membershipLoot">0</div>
+            </div>
+            <div class="balance-item">
+              <div class="balance-label">
+                Badge Seat
+                <a id="badgeEtherscanLink" href="#" target="_blank" rel="noopener noreferrer" style="margin-left: 0.35rem; color: #9d7bff; opacity: 0.7; transition: all 0.2s; display: none;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+              </div>
+              <div class="balance-value" id="membershipBadge">None</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vote Receipts Panel -->
+        <div class="receipts-panel">
+          <h3 class="dao-panel-title">Vote Receipts Collection</h3>
+          <div id="receiptsGrid" class="receipts-grid">
+            <!-- Receipt cards will be dynamically rendered here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Members List Content -->
+      <div class="dao-members-content" id="daoMembersView">
+        <div class="members-panel">
+          <div class="members-header">
+            <h3 class="dao-panel-title">DAO Members</h3>
+            <div class="members-stats">
+              <div class="members-stat">
+                <span class="members-stat-label">Total Members:</span>
+                <span class="members-stat-value" id="memberCount">0</span>
+              </div>
+              <div class="members-stat">
+                <span class="members-stat-label">Badge Holders:</span>
+                <span class="members-stat-value" id="badgeHolderCount">0</span>
+              </div>
+            </div>
+          </div>
+          <div class="members-list" id="membersList">
+            <!-- Members will be dynamically rendered here -->
+          </div>
+        </div>
+      </div>
     </section>
+
+    <!-- Modal for NFT viewing -->
+    <div id="nftModal" class="nft-modal" onclick="closeNFTModal()">
+      <div class="nft-modal-content" onclick="event.stopPropagation()">
+        <button class="nft-modal-close" onclick="closeNFTModal()">&times;</button>
+        <div id="nftModalBody" class="nft-modal-body">
+          <!-- NFT content will be dynamically rendered here -->
+        </div>
+      </div>
+    </div>
 
     <!-- Web3 Integration Script -->
     <script>
-      // Performance monitoring
-      if ('performance' in window && 'measure' in window.performance) {
-        window.addEventListener('load', function() {
-          const perfData = performance.getEntriesByType('navigation')[0];
-          console.log('Page Load Time:', Math.round(perfData.loadEventEnd - perfData.fetchStart), 'ms');
-        });
-      }
-
       // Lazy loading for images
       if ('IntersectionObserver' in window) {
         const imageObserver = new IntersectionObserver((entries) => {
@@ -4399,6 +5335,61 @@
           "outputs": [],
           "stateMutability": "nonpayable",
           "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "uint256", "name": "id", "type": "uint256"},
+            {"internalType": "uint256", "name": "amount", "type": "uint256"}
+          ],
+          "name": "cashOutFutarchy",
+          "outputs": [{"internalType": "uint256", "name": "payout", "type": "uint256"}],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "owner", "type": "address"},
+            {"internalType": "uint256", "name": "id", "type": "uint256"}
+          ],
+          "name": "balanceOf",
+          "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "badges",
+          "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "shares",
+          "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "loot",
+          "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+          "name": "tokenURI",
+          "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "contractURI",
+          "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+          "stateMutability": "view",
+          "type": "function"
         }
       ];
 
@@ -4452,6 +5443,28 @@
         const rawAddress = '0x' + hash.slice(-40);
         // Return checksummed address
         return ethers.getAddress(rawAddress);
+      }
+
+      // Helper: Setup Etherscan link with hover effects
+      function setupEtherscanLink(elementId, tokenAddress) {
+        const link = document.getElementById(elementId);
+        if (!link || !tokenAddress) return;
+
+        link.href = `https://etherscan.io/token/${tokenAddress}`;
+        link.style.display = 'inline';
+        link.onmouseover = () => {
+          link.style.opacity = '1';
+          link.style.transform = 'translateY(-1px)';
+        };
+        link.onmouseout = () => {
+          link.style.opacity = '0.7';
+          link.style.transform = 'translateY(0)';
+        };
+      }
+
+      // Helper: Format token amount to fixed decimals
+      function formatTokenAmount(amount, decimals = 18, fixed = 4) {
+        return parseFloat(ethers.formatUnits(amount, decimals)).toFixed(fixed);
       }
 
       // Predict all Majeur addresses
@@ -4667,9 +5680,9 @@
           }
 
           // Initialize first member with connected wallet
-          if (document.getElementById('membersList').children.length === 0) {
+          if (document.getElementById('foundingMembersList').children.length === 0) {
             const memberRow = createMemberRow(address, '1', true);
-            document.getElementById('membersList').appendChild(memberRow);
+            document.getElementById('foundingMembersList').appendChild(memberRow);
             updateLootInputs();
           }
 
@@ -4718,9 +5731,9 @@
         summonBtn.textContent = 'CONNECT WALLET TO SUMMON';
 
         // Clear the first member if it was auto-added
-        const membersList = document.getElementById('membersList');
-        if (membersList.children.length > 0) {
-          const firstMember = membersList.children[0];
+        const foundingMembersList = document.getElementById('foundingMembersList');
+        if (foundingMembersList.children.length > 0) {
+          const firstMember = foundingMembersList.children[0];
           const addressInput = firstMember.querySelector('.member-address');
           if (addressInput && addressInput.hasAttribute('readonly')) {
             // Clear the readonly address that was auto-populated
@@ -4761,10 +5774,8 @@
         }
 
         // Display user's shares and loot
-        const shares = ethers.formatUnits(member.shares, 18);
-        const loot = ethers.formatUnits(member.loot, 18);
-        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(4);
-        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(4);
+        document.getElementById('ragequitUserShares').textContent = formatTokenAmount(member.shares);
+        document.getElementById('ragequitUserLoot').textContent = formatTokenAmount(member.loot);
 
         // Clear inputs
         document.getElementById('ragequitSharesInput').value = '';
@@ -4786,7 +5797,7 @@
         // Note: ETH is handled separately in ragequit, not included in token array
 
         tokens.forEach(token => {
-          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(4);
+          const formattedBalance = formatTokenAmount(token.balance, token.decimals);
 
           const tokenDiv = document.createElement('div');
           tokenDiv.style.cssText = 'display: flex; align-items: center; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.2); cursor: pointer; transition: all 0.3s ease;';
@@ -4950,30 +5961,19 @@
       }
 
       // Render all DAOs gallery
-      // Render all DAOs gallery
       function renderAllDAOsGallery() {
-        console.log('renderAllDAOsGallery called');
-        console.log('allDAOs:', allDAOs);
-        console.log('allDAOs.length:', allDAOs.length);
-
         const allDaosTiles = document.getElementById('allDaosTiles');
         const allDaosGallery = document.getElementById('allDaosGallery');
 
-        console.log('allDaosTiles element:', allDaosTiles);
-        console.log('allDaosGallery element:', allDaosGallery);
-
         if (!allDaosTiles) {
-          console.log('allDaosTiles not found, returning');
           return;
         }
 
         allDaosTiles.innerHTML = '';
 
         const userDAOAddresses = new Set(userDAOs.map(udao => udao.dao.dao.toLowerCase()));
-        console.log('userDAOAddresses:', userDAOAddresses);
 
         allDAOs.forEach((daoLens, index) => {
-          console.log(`Processing DAO ${index}:`, daoLens);
           const dao = daoLens;
           const isUserMember = userDAOAddresses.has(dao.dao.toLowerCase());
 
@@ -4986,6 +5986,7 @@
           tile.onclick = () => openDAO(index, 'all');
 
           tile.innerHTML = `
+            <div class="dao-tile-emblem" id="emblem-all-${index}"></div>
             <div class="dao-tile-name">${dao.meta.name}</div>
             <div class="dao-tile-symbol">${dao.meta.symbol}</div>
             <div class="dao-tile-stats">
@@ -5009,10 +6010,11 @@
           `;
 
           allDaosTiles.appendChild(tile);
+
+          // Render emblem asynchronously
+          renderTileEmblem(dao.dao, `emblem-all-${index}`);
         });
 
-        console.log(`Rendered ${allDAOs.length} DAO tiles`);
-        console.log('Showing allDaosGallery');
         allDaosGallery.classList.add('show');
       }
 
@@ -5033,13 +6035,7 @@
             5 // messageCount (fewer details for browse view)
           );
 
-          console.log('fetchAllDAOs result:', result);
-          console.log('fetchAllDAOs result.length:', result.length);
-          console.log('fetchAllDAOs result type:', typeof result);
-
           allDAOs = result;
-          console.log('allDAOs assigned, length:', allDAOs.length);
-
           renderAllDAOsGallery();
 
           return allDAOs;
@@ -5150,6 +6146,7 @@
           const lootBN = member.loot;
 
           tile.innerHTML = `
+            <div class="dao-tile-emblem" id="emblem-user-${index}"></div>
             <div class="dao-tile-name">${dao.meta.name}</div>
             <div class="dao-tile-symbol">${dao.meta.symbol}</div>
             <div class="dao-tile-stats">
@@ -5173,6 +6170,9 @@
           `;
 
           daoTiles.appendChild(tile);
+
+          // Render emblem asynchronously
+          renderTileEmblem(dao.dao, `emblem-user-${index}`);
         });
 
         daoGallery.classList.add('show');
@@ -5240,7 +6240,7 @@
           assetDiv.style.cursor = 'pointer';
           assetDiv.title = `Click to create ${asset.symbol} transfer proposal`;
 
-          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(4);
+          const formattedBalance = formatTokenAmount(asset.balance, asset.decimals);
 
           assetDiv.innerHTML = `
             <div class="treasury-asset-icon">${asset.icon}</div>
@@ -5295,7 +6295,7 @@
                   onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
                   onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
                   style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
-            ⚡ Populate Proposal Form
+            Populate Proposal Form
           </button>
         `;
 
@@ -5421,6 +6421,17 @@
         renderChatroom();
         await renderProposals();
         renderTreasury();
+        await renderDAOEmblem(daoAddress);
+
+        // Show/hide membership tab based on membership status
+        const membershipBtn = document.getElementById('viewToggleMembership');
+        if (currentDAO.member) {
+          membershipBtn.style.display = 'block';
+        } else {
+          membershipBtn.style.display = 'none';
+          // Ensure we're on DAO view if no membership
+          switchDaoView('dao');
+        }
 
         document.getElementById('daoGallery').classList.remove('show');
         document.getElementById('allDaosGallery').classList.remove('show');
@@ -5433,6 +6444,508 @@
         document.getElementById('daoDashboard').classList.remove('show');
         document.getElementById('daoGallery').classList.add('show');
         document.getElementById('allDaosGallery').classList.add('show');
+
+        // Reset to DAO view
+        switchDaoView('dao');
+      }
+
+      // Switch between DAO dashboard, membership, and members view
+      function switchDaoView(view) {
+        const daoView = document.getElementById('daoDashboardView');
+        const membershipView = document.getElementById('daoMembershipView');
+        const membersView = document.getElementById('daoMembersView');
+        const daoBtn = document.getElementById('viewToggleDao');
+        const membershipBtn = document.getElementById('viewToggleMembership');
+        const membersBtn = document.getElementById('viewToggleMembers');
+
+        // Hide all views
+        daoView.classList.remove('show');
+        daoView.classList.add('hide');
+        membershipView.classList.remove('show');
+        membersView.classList.remove('show');
+
+        // Deactivate all buttons
+        daoBtn.classList.remove('active');
+        membershipBtn.classList.remove('active');
+        membersBtn.classList.remove('active');
+
+        if (view === 'membership') {
+          membershipView.classList.add('show');
+          membershipBtn.classList.add('active');
+          renderMembership();
+        } else if (view === 'members') {
+          membersView.classList.add('show');
+          membersBtn.classList.add('active');
+          renderMembers();
+        } else {
+          daoView.classList.remove('hide');
+          daoView.classList.add('show');
+          daoBtn.classList.add('active');
+        }
+      }
+
+      // Render membership dashboard
+      async function renderMembership() {
+        if (!currentDAO || !currentDAO.member) {
+          document.getElementById('badgeContent').innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic;">No membership data available</p>';
+          return;
+        }
+
+        const member = currentDAO.member;
+        const dao = currentDAO.dao;
+
+        // Update balances
+        document.getElementById('membershipShares').textContent = formatTokenAmount(member.shares);
+        document.getElementById('membershipLoot').textContent = formatTokenAmount(member.loot);
+
+        // Update Etherscan links for tokens
+        if (dao.meta) {
+          setupEtherscanLink('sharesEtherscanLink', dao.meta.sharesToken);
+          setupEtherscanLink('lootEtherscanLink', dao.meta.lootToken);
+          setupEtherscanLink('badgeEtherscanLink', dao.meta.badgesToken);
+        }
+
+        // Update badge info
+        const badgeSeat = member.seatId;
+        if (badgeSeat > 0) {
+          document.getElementById('membershipBadge').textContent = `Seat #${badgeSeat}`;
+          await renderBadge(dao.dao, badgeSeat);
+        } else {
+          document.getElementById('membershipBadge').textContent = 'No Badge';
+          document.getElementById('badgeContent').innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic; margin-top: 1rem;">You don\'t have a badge seat yet</p>';
+        }
+
+        // Render vote receipts
+        await renderVoteReceipts();
+      }
+
+      // Render badge NFT
+      async function renderBadge(daoAddress, seatId) {
+        const badgeContent = document.getElementById('badgeContent');
+
+        try {
+          // Get badges contract address (predicted from DAO)
+          const predictions = predictMajeurAddresses([], [], ethers.randomBytes(32));
+          const badgesAddress = predictions.badges;
+
+          // Use the correct badges contract from the DAO
+          const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, provider);
+          const badgesAddr = await molochContract.badges();
+
+          const badgesABI = [
+            'function tokenURI(uint256) view returns (string)',
+          ];
+          const badgesContract = new ethers.Contract(badgesAddr, badgesABI, provider);
+
+          const tokenURI = await badgesContract.tokenURI(seatId);
+
+          // Parse metadata (could be data URI or IPFS)
+          let metadata;
+          if (tokenURI.startsWith('data:application/json;base64,')) {
+            const json = atob(tokenURI.slice(29));
+            metadata = JSON.parse(json);
+          } else if (tokenURI.startsWith('data:application/json,')) {
+            metadata = JSON.parse(decodeURIComponent(tokenURI.slice(22)));
+          } else {
+            // Fetch from URL
+            const response = await fetch(tokenURI);
+            metadata = await response.json();
+          }
+
+          // Render badge
+          let imageHTML = '';
+          if (metadata.image) {
+            if (metadata.image.startsWith('data:image/svg+xml')) {
+              imageHTML = `<img src="${metadata.image}" class="badge-image" alt="Badge #${seatId}" />`;
+            } else if (metadata.image.startsWith('data:')) {
+              imageHTML = `<img src="${metadata.image}" class="badge-image" alt="Badge #${seatId}" />`;
+            } else {
+              imageHTML = `<img src="${metadata.image}" class="badge-image" alt="Badge #${seatId}" />`;
+            }
+          }
+
+          // OpenSea link
+          const openseaLink = `https://opensea.io/assets/ethereum/${badgesAddr.toLowerCase()}/${seatId}`;
+
+          badgeContent.innerHTML = `
+            <div style="cursor: pointer;" onclick="openNFTModal(${JSON.stringify(metadata).replace(/"/g, '&quot;')}, 'Member Badge')">
+              ${imageHTML}
+            </div>
+            <div style="margin-top: 1rem;">
+              <div style="font-family: 'Cinzel', serif; font-size: 0.9rem; color: #9d7bff; margin-bottom: 0.5rem;">
+                ${metadata.name || `Badge #${seatId}`}
+              </div>
+              ${metadata.description ? `<div style="font-family: 'EB Garamond', serif; font-size: 0.9rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.75rem;">${metadata.description}</div>` : ''}
+              <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                <button onclick="openNFTModal(${JSON.stringify(metadata).replace(/"/g, '&quot;')}, 'Member Badge')" style="padding: 0.5rem 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); color: #9d7bff; font-family: 'EB Garamond', serif; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; border-radius: 4px;">
+                  View Details
+                </button>
+                <a href="${openseaLink}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 0.4rem; font-family: 'EB Garamond', serif; font-size: 0.85rem; color: rgba(157, 123, 255, 0.8); text-decoration: none; transition: color 0.2s; padding: 0.5rem 1rem; background: rgba(157, 123, 255, 0.05); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                  OpenSea
+                </a>
+              </div>
+            </div>
+          `;
+        } catch (error) {
+          console.error('Error rendering badge:', error);
+          badgeContent.innerHTML = `
+            <div style="text-align: center; padding: 2rem;">
+              <div style="font-size: 3rem; margin-bottom: 1rem;">🎖️</div>
+              <div style="font-family: 'Cinzel', serif; font-size: 1rem; color: #9d7bff;">Seat #${seatId}</div>
+              <div style="font-family: 'EB Garamond', serif; font-size: 0.85rem; color: rgba(230, 217, 255, 0.6); margin-top: 0.5rem;">Badge metadata unavailable</div>
+            </div>
+          `;
+        }
+      }
+
+      // Render vote receipts collection
+      async function renderVoteReceipts() {
+        const receiptsGrid = document.getElementById('receiptsGrid');
+        if (!currentDAO || !connectedAddress) {
+          receiptsGrid.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic; grid-column: 1/-1;">Connect wallet to view receipts</p>';
+          return;
+        }
+
+        const receipts = [];
+        const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+
+        // Check all proposals for user votes
+        for (const proposal of currentDAO.dao.proposals) {
+          const hasVotedValue = await molochContract.hasVoted(proposal.id, connectedAddress);
+          if (hasVotedValue > 0) {
+            const support = Number(hasVotedValue) - 1; // 0=Against, 1=For, 2=Abstain
+            const receiptId = ethers.solidityPackedKeccak256(
+              ['string', 'uint256', 'uint8'],
+              ['Moloch:receipt', proposal.id, support]
+            );
+
+            const balance = await molochContract.balanceOf(connectedAddress, receiptId);
+            if (balance > 0n) {
+              receipts.push({
+                proposalId: proposal.id,
+                support,
+                balance,
+                receiptId
+              });
+            }
+          }
+        }
+
+        if (receipts.length === 0) {
+          receiptsGrid.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic; grid-column: 1/-1;">No vote receipts yet. Vote on proposals to collect them!</p>';
+          return;
+        }
+
+        // Render receipt cards with metadata
+        receiptsGrid.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic; grid-column: 1/-1;">Loading receipt metadata...</p>';
+
+        const supportLabels = ['Against', 'For', 'Abstain'];
+        const supportColors = ['#ff6b6b', '#66ff66', '#9d7bff'];
+
+        // Fetch metadata for all receipts
+        const receiptPromises = receipts.map(async receipt => {
+          try {
+            const tokenURI = await molochContract.tokenURI(receipt.receiptId);
+
+            // Parse metadata (could be data URI or IPFS)
+            let metadata;
+            if (tokenURI.startsWith('data:application/json;base64,')) {
+              const json = atob(tokenURI.slice(29));
+              metadata = JSON.parse(json);
+            } else if (tokenURI.startsWith('data:application/json,')) {
+              metadata = JSON.parse(decodeURIComponent(tokenURI.slice(22)));
+            } else {
+              // Fetch from URL
+              const response = await fetch(tokenURI);
+              metadata = await response.json();
+            }
+
+            return { ...receipt, metadata };
+          } catch (error) {
+            console.error('Error fetching receipt metadata:', error);
+            return { ...receipt, metadata: null };
+          }
+        });
+
+        const receiptsWithMetadata = await Promise.all(receiptPromises);
+
+        receiptsGrid.innerHTML = '';
+
+        receiptsWithMetadata.forEach(receipt => {
+          const card = document.createElement('div');
+          card.className = 'receipt-card';
+
+          const balanceFormatted = ethers.formatUnits(receipt.balance, 18);
+          const supportLabel = supportLabels[receipt.support];
+          const supportColor = supportColors[receipt.support];
+
+          let imageHTML = '';
+          let nameHTML = '';
+
+          if (receipt.metadata) {
+            if (receipt.metadata.image) {
+              imageHTML = `<img src="${receipt.metadata.image}" class="receipt-image" alt="Receipt" />`;
+            }
+            if (receipt.metadata.name) {
+              nameHTML = `<div class="receipt-name">${receipt.metadata.name}</div>`;
+            }
+          }
+
+          card.innerHTML = `
+            ${imageHTML}
+            ${nameHTML}
+            <div class="receipt-proposal">Proposal #${receipt.proposalId.toString().slice(0, 8)}...</div>
+            <div class="receipt-vote" style="color: ${supportColor};">Voted ${supportLabel}</div>
+            <div class="receipt-amount">${parseFloat(balanceFormatted).toFixed(4)} receipts</div>
+          `;
+
+          // Make card clickable to open modal
+          card.onclick = () => openNFTModal(receipt.metadata, 'Vote Receipt');
+
+          receiptsGrid.appendChild(card);
+        });
+      }
+
+      // Render DAO emblem from contractURI
+      async function renderDAOEmblem(daoAddress) {
+        const emblem = document.getElementById('daoEmblem');
+        if (!emblem) return;
+
+        try {
+          const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, provider);
+          const contractURI = await molochContract.contractURI();
+
+          if (!contractURI) {
+            emblem.style.display = 'none';
+            return;
+          }
+
+          // Parse metadata
+          let metadata;
+          if (contractURI.startsWith('data:application/json;base64,')) {
+            const json = atob(contractURI.slice(29));
+            metadata = JSON.parse(json);
+          } else if (contractURI.startsWith('data:application/json,')) {
+            metadata = JSON.parse(decodeURIComponent(contractURI.slice(22)));
+          } else {
+            const response = await fetch(contractURI);
+            metadata = await response.json();
+          }
+
+          if (metadata && metadata.image) {
+            emblem.innerHTML = `<img src="${metadata.image}" alt="DAO Emblem" />`;
+            emblem.style.display = 'block';
+            emblem.onclick = () => openNFTModal(metadata, 'DAO Contract');
+          } else {
+            emblem.style.display = 'none';
+          }
+        } catch (error) {
+          console.error('Error rendering DAO emblem:', error);
+          emblem.style.display = 'none';
+        }
+      }
+
+      // Open NFT modal
+      function openNFTModal(metadata, title) {
+        if (!metadata) return;
+
+        const modal = document.getElementById('nftModal');
+        const modalBody = document.getElementById('nftModalBody');
+
+        let imageHTML = '';
+        if (metadata.image) {
+          imageHTML = `<img src="${metadata.image}" class="nft-modal-image" alt="${title}" />`;
+        }
+
+        let attributesHTML = '';
+        if (metadata.attributes && Array.isArray(metadata.attributes)) {
+          attributesHTML = `
+            <div class="nft-modal-attributes">
+              ${metadata.attributes.map(attr => `
+                <div class="nft-modal-attribute">
+                  <div class="nft-modal-attribute-label">${attr.trait_type || attr.type || 'Attribute'}</div>
+                  <div class="nft-modal-attribute-value">${attr.value}</div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        modalBody.innerHTML = `
+          ${imageHTML}
+          <div class="nft-modal-title">${metadata.name || title}</div>
+          ${metadata.description ? `<div class="nft-modal-description">${metadata.description}</div>` : ''}
+          ${attributesHTML}
+        `;
+
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+      }
+
+      // Close NFT modal
+      function closeNFTModal() {
+        const modal = document.getElementById('nftModal');
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+      }
+
+      // Close modal with ESC key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeNFTModal();
+        }
+      });
+
+      // Render tile emblem (for gallery tiles)
+      async function renderTileEmblem(daoAddress, emblemId) {
+        const emblem = document.getElementById(emblemId);
+        if (!emblem) return;
+
+        try {
+          const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, provider);
+          const contractURI = await molochContract.contractURI();
+
+          if (!contractURI) return;
+
+          // Parse metadata
+          let metadata;
+          if (contractURI.startsWith('data:application/json;base64,')) {
+            const json = atob(contractURI.slice(29));
+            metadata = JSON.parse(json);
+          } else if (contractURI.startsWith('data:application/json,')) {
+            metadata = JSON.parse(decodeURIComponent(contractURI.slice(22)));
+          } else {
+            const response = await fetch(contractURI);
+            metadata = await response.json();
+          }
+
+          if (metadata && metadata.image) {
+            emblem.innerHTML = `<img src="${metadata.image}" alt="DAO Emblem" />`;
+          }
+        } catch (error) {
+          console.error('Error rendering tile emblem:', error);
+        }
+      }
+
+      // Render Members List
+      async function renderMembers() {
+        if (!currentDAO) {
+          return;
+        }
+
+        const membersList = document.getElementById('membersList');
+        const memberCount = document.getElementById('memberCount');
+        const badgeHolderCount = document.getElementById('badgeHolderCount');
+
+        if (!membersList) {
+          console.error('membersList element NOT FOUND!');
+          return;
+        }
+
+        membersList.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic;">Loading members...</p>';
+
+        const members = currentDAO.dao.members;
+        memberCount.textContent = members.length;
+
+        let badgeHolders = 0;
+        members.forEach(member => {
+          // member[3] = seatId
+          if (member[3] && member[3] > 0) badgeHolders++;
+        });
+        badgeHolderCount.textContent = badgeHolders;
+
+        membersList.innerHTML = '';
+
+        // Calculate total supply for ownership %
+        const totalShares = currentDAO.dao.supplies.sharesTotalSupply;
+        const totalLoot = currentDAO.dao.supplies.lootTotalSupply;
+        const totalSupply = totalShares + totalLoot;
+
+        // Reverse ENS resolution for each member
+        const membersWithENS = await Promise.all(
+          members.map(async (member) => {
+            let ensName = null;
+            // Member structure uses numeric indices: [0] = address
+            const memberAddress = member[0];
+            if (memberAddress) {
+              try {
+                ensName = await provider.lookupAddress(memberAddress);
+              } catch (error) {
+                // ENS lookup failed, continue without it
+              }
+            }
+            return { ...member, ensName };
+          })
+        );
+
+        // Render each member
+        try {
+          membersWithENS.forEach((member, index) => {
+            // Member structure from view helper uses numeric indices:
+            // [0] = address, [1] = shares, [2] = loot, [3] = seatId, [4] = delegatedShares
+            const memberAddress = member[0] || member.account || member.address;
+            const sharesBN = member[1] !== null && member[1] !== undefined ? member[1] : 0n;
+            const lootBN = member[2] !== null && member[2] !== undefined ? member[2] : 0n;
+            const seatId = member[3] || 0;
+
+            if (!memberAddress) {
+              return;
+            }
+
+            const memberDiv = document.createElement('div');
+            memberDiv.className = 'member-item';
+
+            const shares = formatTokenAmount(sharesBN, 18);
+            const loot = formatTokenAmount(lootBN, 18);
+            const badgeText = (seatId && seatId > 0) ? `Seat #${seatId}` : 'None';
+
+            // Calculate ownership %
+            const memberTotal = sharesBN + lootBN;
+            const ownershipPercent = totalSupply > 0n
+              ? ((Number(memberTotal) / Number(totalSupply)) * 100).toFixed(2)
+              : '0.00';
+
+            memberDiv.innerHTML = `
+              <div class="member-address">
+                ${member.ensName ? `<div class="member-ens">${member.ensName}</div>` : ''}
+                <div class="member-address-hex">${memberAddress.slice(0, 10)}...${memberAddress.slice(-8)}</div>
+              </div>
+              <div class="member-shares">
+                <div class="member-label">Shares</div>
+                <div class="member-value">${shares}</div>
+              </div>
+              <div class="member-loot">
+                <div class="member-label">Loot</div>
+                <div class="member-value">${loot}</div>
+              </div>
+              <div class="member-badge">
+                <div class="member-label">Badge</div>
+                <div class="member-value">${badgeText}</div>
+              </div>
+              <div class="member-ownership">
+                <div class="member-label">Ownership</div>
+                <div class="member-value">${ownershipPercent}%</div>
+              </div>
+              <a href="https://etherscan.io/address/${memberAddress}" target="_blank" rel="noopener noreferrer" class="member-link" title="View on Etherscan">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </a>
+            `;
+
+            membersList.appendChild(memberDiv);
+          });
+        } catch (error) {
+          console.error('Error rendering members:', error);
+          membersList.innerHTML = `<p style="text-align: center; color: #ff6b6b; padding: 2rem;">Error rendering members: ${error.message}<br><small>Check console for details</small></p>`;
+        }
       }
 
       // Render chatroom messages
@@ -5516,7 +7029,7 @@
             }
 
             messageContent = `
-              <strong style="color: #9d7bff; font-size: 0.85rem; letter-spacing: 0.1em;">⚡ PROPOSAL</strong>
+              <strong style="color: #9d7bff; font-size: 0.85rem; letter-spacing: 0.1em;">PROPOSAL</strong>
               <div style="margin-top: 0.5rem; font-size: 1rem;">${proposalData.description}</div>
               ${formattedDetails}
               ${calldataLinkForMessage}
@@ -5648,9 +7161,6 @@
           const userHasVoted = hasVotedValue > 0;
           const userVoteType = hasVotedValue > 0 ? ['Against', 'For', 'Abstain'][hasVotedValue - 1] : null;
 
-          console.log(`Proposal ${proposal.id.toString()} - State: ${state} (${stateText}), Executable: ${isExecutable}, HasVoted: ${userHasVoted} (${userVoteType || 'none'})`);
-          console.log(`  For: ${forVotes}, Against: ${againstVotes}, Abstain: ${abstainVotes}`);
-
           // Find proposal description from messages and verify hash
           let description = `Proposal #${proposal.id.toString()}`;
           let isVerified = false;
@@ -5677,7 +7187,6 @@
                   description = propData.description || description;
                   isVerified = true;
                   proposalCalldata = propData.data;
-                  console.log(`Found calldata for proposal ${proposal.id.toString()}:`, propData.data);
                 }
               } catch (e) {
                 console.error('Error verifying proposal:', e);
@@ -5693,7 +7202,6 @@
           // Create SwissKnife link if calldata exists and is not empty
           let calldataLink = '';
           if (proposalCalldata && proposalCalldata !== '0x' && proposalCalldata.length > 2) {
-            console.log(`Creating SwissKnife link for proposal ${proposal.id.toString()}`);
             calldataLink = `
               <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(157, 123, 255, 0.15);">
                 <a href="https://calldata.swiss-knife.xyz/decoder?calldata=${proposalCalldata}"
@@ -5706,8 +7214,58 @@
                 </a>
               </div>
             `;
-          } else {
-            console.log(`No SwissKnife link for proposal ${proposal.id.toString()} - calldata:`, proposalCalldata);
+          }
+
+          // Check futarchy state and user receipts
+          let futarchyUI = '';
+          if (proposal.futarchy && proposal.futarchy.enabled && connectedAddress) {
+            const futarchy = proposal.futarchy;
+            const isResolved = futarchy.resolved;
+
+            if (isResolved) {
+              // Compute receipt ID for winning side
+              const winnerSupport = Number(futarchy.winner); // 0 or 1
+              const receiptId = ethers.solidityPackedKeccak256(
+                ['string', 'uint256', 'uint8'],
+                ['Moloch:receipt', proposal.id, winnerSupport]
+              );
+
+              // Check if user holds winning receipts (this will be checked async below)
+              futarchyUI = `<div class="futarchy-reward-box" id="futarchy-${proposal.id.toString()}">
+                <div class="futarchy-reward-title">Futarchy Rewards</div>
+                <div class="futarchy-reward-info" id="futarchy-info-${proposal.id.toString()}">Checking your rewards...</div>
+              </div>`;
+
+              // Async check receipt balance and update UI
+              (async () => {
+                try {
+                  const userReceiptBalance = await molochContract.balanceOf(connectedAddress, receiptId);
+                  const infoDiv = document.getElementById(`futarchy-info-${proposal.id.toString()}`);
+                  const boxDiv = document.getElementById(`futarchy-${proposal.id.toString()}`);
+
+                  if (userReceiptBalance > 0n) {
+                    const receiptAmount = ethers.formatUnits(userReceiptBalance, 18);
+                    const payoutPerUnit = futarchy.payoutPerUnit;
+                    const estimatedReward = (userReceiptBalance * payoutPerUnit) / (10n ** 18n);
+                    const estimatedRewardFormatted = ethers.formatUnits(estimatedReward, 18);
+
+                    infoDiv.innerHTML = `You have <strong>${parseFloat(receiptAmount).toFixed(4)} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(4)} LOOT</strong>`;
+
+                    const claimBtn = document.createElement('button');
+                    claimBtn.className = 'proposal-button claim';
+                    claimBtn.textContent = 'Claim Rewards';
+                    claimBtn.onclick = () => claimFutarchyReward(proposal.id.toString(), userReceiptBalance.toString());
+                    boxDiv.appendChild(claimBtn);
+                  } else {
+                    boxDiv.style.display = 'none';
+                  }
+                } catch (e) {
+                  console.error('Error checking futarchy receipts:', e);
+                  const boxDiv = document.getElementById(`futarchy-${proposal.id.toString()}`);
+                  if (boxDiv) boxDiv.style.display = 'none';
+                }
+              })();
+            }
           }
 
           proposalDiv.innerHTML = `
@@ -5744,6 +7302,7 @@
                 `<button class="proposal-button execute" onclick="executeProposalFromData('${proposal.id.toString()}')">Execute</button>` :
                 ''}
             </div>
+            ${futarchyUI}
           `;
 
           proposalsList.appendChild(proposalDiv);
@@ -5842,6 +7401,52 @@
             errorMessage = 'Proposal is not active';
           } else if (error.message) {
             errorMessage = `Failed to cancel vote: ${error.message}`;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Claim futarchy rewards
+      async function claimFutarchyReward(proposalId, amountStr) {
+        if (!currentDAO || !signer) {
+          showStatus('Please connect wallet and select a DAO', true);
+          return;
+        }
+
+        try {
+          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
+
+          // Convert string to BigInt
+          const proposalIdBigInt = BigInt(proposalId);
+          const amount = BigInt(amountStr);
+
+          showStatus('Claiming futarchy rewards...', false);
+          const tx = await molochContract.cashOutFutarchy(proposalIdBigInt, amount);
+
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
+          const receipt = await tx.wait();
+
+          showStatus('Rewards claimed successfully!', false);
+
+          // Refresh DAO data
+          await refreshCurrentDAO();
+          await renderProposals();
+        } catch (error) {
+          console.error('Error claiming futarchy rewards:', error);
+
+          let errorMessage = 'Failed to claim rewards';
+
+          if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
+            errorMessage = 'Claim cancelled by user';
+          } else if (error.message?.includes('user rejected')) {
+            errorMessage = 'Claim rejected';
+          } else if (error.message?.includes('not enabled')) {
+            errorMessage = 'Futarchy not enabled for this proposal';
+          } else if (error.message?.includes('not resolved')) {
+            errorMessage = 'Futarchy market not yet resolved';
+          } else if (error.message) {
+            errorMessage = `Failed to claim: ${error.message}`;
           }
 
           showStatus(errorMessage, true);
@@ -6237,7 +7842,7 @@
 
       function addMemberRow() {
         const memberRow = createMemberRow();
-        document.getElementById('membersList').appendChild(memberRow);
+        document.getElementById('foundingMembersList').appendChild(memberRow);
         updateLootInputs();
       }
 
@@ -6342,14 +7947,7 @@
           [initHolders, initShares, userSalt]
         );
         const salt = ethers.keccak256(saltData);
-        
-        console.log('Salt calculation debug:');
-        console.log('  User salt:', userSalt);
-        console.log('  Init holders:', initHolders);
-        console.log('  Init shares:', initShares);
-        console.log('  Encoded data:', saltData);
-        console.log('  Final salt:', salt);
-        
+
         // Minimal proxy bytecode that summoner deploys
         // This is the exact bytecode from the summoner's create2 call
         const proxyBytecode = ethers.concat([
@@ -6360,144 +7958,6 @@
         
         const initCodeHash = ethers.keccak256(proxyBytecode);
         return predictCreate2Address(summonerAddress, salt, initCodeHash);
-      }
-
-      // Predict Loot implementation address created by Moloch's constructor
-      function predictLootImplAddress(molochAddress) {
-        // Moloch creates lootImpl in its constructor with:
-        // lootImpl = address(new Loot{salt: _salt}())
-        // where _salt = bytes32(bytes20(address(this)))
-        
-        // HOWEVER: The Moloch implementation at 0x643A45B599D81be3f3A68F37EB3De55fF10673C1
-        // has ALREADY created its loot implementation during its constructor
-        // That implementation is at a fixed address that all clones share
-        
-        // Since we're using minimal proxy clones of Moloch, all clones use the SAME
-        // lootImpl that was created when the Moloch implementation was deployed
-        // We need to find what that address is from the deployed Moloch implementation
-        
-        // The actual loot implementation address used by all Moloch clones is:
-        return '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5';
-      }
-      
-      // Predict Loot proxy address created by Moloch during init()
-      function predictLootProxyAddress(molochAddress) {
-        // Moloch deploys the loot PROXY during init() with:
-        // loot = Loot(_loot = _init(lootImpl, _salt))
-        // where _salt = bytes32(bytes20(address(this)))
-        
-        const salt = ethers.zeroPadValue(molochAddress.toLowerCase(), 32);
-        const lootImplAddress = '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5';
-        
-        // The assembly does these mstore operations in order:
-        // mstore(0x24, 0x5af43d5f5f3e6029573d5ffd5b3d5ff3)
-        // mstore(0x14, _implementation)  
-        // mstore(0x00, 0x602d5f8160095f39f35f5f37365f73)
-        // create2(0, 0x0e, 0x36, _salt)
-        
-        // After the mstores, memory looks like:
-        // 0x00-0x13: 602d5f8160095f39f35f5f365f5f37365f73 (20 bytes)
-        // 0x14-0x27: implementation address (20 bytes, overwrites part of above)
-        // 0x28-0x37: 5af43d5f5f3e6029573d5ffd5b3d5ff3 (16 bytes from the first mstore)
-        
-        // The create2 deploys from 0x0e (byte 14) for 0x36 (54) bytes
-        // So we're deploying bytes 14-67 of the memory
-        // Bytes 14-19 are: 37365f73 (last 6 bytes of the 0x00 mstore)
-        // Bytes 20-39 are: implementation address
-        // Bytes 40-55 are: 5af43d5f5f3e6029573d5ffd5b3d5ff3
-        // Bytes 56-67 are: zeros (padding)
-        
-        // Wait, let me recalculate. The 0x00 mstore is only 16 bytes long
-        // So bytes 14-15 are the last 2 bytes of that: 5f73
-        // No wait, 0x602d5f8160095f39f35f5f365f5f37365f73 is 19 bytes
-        
-        // Let me just use what the trace shows is actually deployed
-        // The trace shows the full bytecode, but we need the portion from 0x0e
-        
-        // Based on the bytecode pattern, bytes starting at 0x0e are:
-        const initCode = ethers.concat([
-          '0x37365f73', // 4 bytes (from position 0x0e of the memory)
-          ethers.zeroPadValue(lootImplAddress.toLowerCase(), 20), // 20 bytes
-          '0x5af43d5f5f3e6029573d5ffd5b3d5ff3' // 16 bytes
-          // That's only 40 bytes, but we need 54...
-        ]);
-        
-        // Actually, looking at the deployed bytecode in the trace (from 0x0e):
-        // 0x37365f736f1f2af76a3add953277e9f369242697c87bc6a55af43d5f5f3e6029573d5ffd5b3d5ff3
-        // This is exactly 54 bytes (108 hex chars / 2)
-        
-        // Let me construct it properly:
-        const deployedInitCode = ethers.concat([
-          '0x37365f73', // 4 bytes
-          ethers.zeroPadValue(lootImplAddress.toLowerCase(), 20), // 20 bytes
-          '0x5af43d5f5f3e6029573d5ffd5b3d5ff3', // 16 bytes
-          '0x00000000000000000000000000' // 14 bytes padding to reach 54 total
-        ]);
-        
-        const initCodeHash = ethers.keccak256(deployedInitCode);
-        
-        const predicted = predictCreate2Address(molochAddress, salt, initCodeHash);
-        
-        return predicted;
-      }
-
-
-
-      // Predict Loot contract address created by Moloch
-      function predictLootAddress(daoAddress) {
-        // Moloch creates loot with salt = bytes32(bytes20(address(this)))
-        const salt = ethers.zeroPadValue(daoAddress.toLowerCase(), 32);
-        
-        // Moloch creates its own loot implementation in constructor
-        // The implementation is created deterministically
-        // lootImpl = address(new Loot{salt: _salt}())
-        // where _salt = bytes32(bytes20(address(this)))
-        
-        // First predict the loot implementation address
-        const LOOT_BYTECODE_HASH = '0x8e23c89932c7171dcfd95f5c5c0c27e2c9b685a6cc1c0c06f712b19c06c19dc3'; // This would be the actual Loot bytecode hash
-        
-        // For the actual implementation, we need to use the Moloch's address as deployer
-        // and the init code hash of the Loot contract
-        // However, this is complex as we need the exact bytecode
-        
-        // Since Moloch deploys lootImpl and then clones it with same salt,
-        // We'll use a simplified approach where we know the pattern
-        
-        // Actually, looking at the contract, Moloch does:
-        // loot = Loot(_loot = _init(lootImpl, _salt));
-        // where _init creates a minimal proxy
-        
-        // The lootImpl address is deterministic based on:
-        // 1. Moloch address (deployer)
-        // 2. Loot bytecode
-        // 3. Salt (bytes32(bytes20(moloch address)))
-        
-        // For production, you'd need the actual Loot bytecode hash
-        // For now, we'll calculate assuming we know the pattern
-        
-        // The final loot proxy is at:
-        // CREATE2(daoAddress, salt, proxyInitCode(lootImpl))
-        
-        // This requires knowing lootImpl which requires knowing Loot bytecode
-        // Let's use a placeholder that would be replaced with actual bytecode hash
-        const lootImplAddress = '0x' + ethers.keccak256(
-          ethers.concat([
-            '0xff',
-            daoAddress,
-            salt,
-            LOOT_BYTECODE_HASH // Would need actual bytecode hash
-          ])
-        ).slice(-40);
-        
-        // Now predict the proxy address
-        const proxyBytecode = ethers.concat([
-          '0x602d5f8160095f39f35f5f365f5f37365f73',
-          ethers.zeroPadValue(lootImplAddress, 20),
-          '0x5af43d5f5f3e6029573d5ffd5b3d5ff3'
-        ]);
-        
-        const proxyInitCodeHash = ethers.keccak256(proxyBytecode);
-        return predictCreate2Address(daoAddress, salt, proxyInitCodeHash);
       }
 
       document.getElementById('summonForm').addEventListener('submit', async (e) => {
@@ -6693,6 +8153,33 @@
             });
           }
 
+          // Add auto-futarchy preset if not "off"
+          const futarchyPreset = document.getElementById('autoFutarchyPreset').value;
+          if (futarchyPreset !== 'off') {
+            let param = 0n;
+            let cap = 0n;
+
+            // Configure based on preset
+            if (futarchyPreset === 'low') {
+              param = 5n;  // 5 bps (0.05%)
+              cap = ethers.parseEther('2');  // 2 LOOT
+            } else if (futarchyPreset === 'standard') {
+              param = 10n;  // 10 bps (0.1%)
+              cap = ethers.parseEther('5');  // 5 LOOT
+            } else if (futarchyPreset === 'high') {
+              param = 50n;  // 50 bps (0.5%)
+              cap = ethers.parseEther('10');  // 10 LOOT
+            }
+
+            // Add setAutoFutarchy call
+            const futarchyIface = new ethers.Interface(['function setAutoFutarchy(uint256,uint256)']);
+            initCalls.push({
+              target: predictedDao, // Self-call to the DAO
+              value: 0n,
+              data: futarchyIface.encodeFunctionData('setAutoFutarchy', [param, cap])
+            });
+          }
+
           showStatus('Preparing transaction...');
 
           // Call summon
@@ -6733,14 +8220,17 @@
           
           // Reset form
           document.getElementById('summonForm').reset();
-          document.getElementById('membersList').innerHTML = '';
+          document.getElementById('foundingMembersList').innerHTML = '';
           const memberRow = createMemberRow(await signer.getAddress(), '1', true);
-          document.getElementById('membersList').appendChild(memberRow);
+          document.getElementById('foundingMembersList').appendChild(memberRow);
           
           // Reset time units to defaults
           document.getElementById('proposalTTLUnit').value = '86400';
           document.getElementById('timelockDelayUnit').value = '86400';
-          
+
+          // Reset auto-futarchy preset to default
+          document.getElementById('autoFutarchyPreset').value = 'off';
+
           // Reset and update loot inputs
           document.getElementById('distributeLoot').checked = false;
           document.getElementById('lootDistribution').style.display = 'none';

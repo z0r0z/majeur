@@ -37,7 +37,7 @@ This dApp is designed to be deployed to IPFS and accessed via ENS. The entire ap
 
 ### DAO Gallery & Dashboard Integration
 
-The dApp now includes a complete DAO management system that integrates with the View Helper contract deployed at `0x000000000066317bd3662A649D8901c076268Df9` on Ethereum Mainnet.
+The dApp includes a complete DAO management system that integrates with the View Helper contract deployed at `0x000000000066317bd3662A649D8901c076268Df9` on Ethereum Mainnet.
 
 #### 1. DAO Gallery View
 - **Automatic Discovery**: When you connect your wallet, the dApp automatically fetches all DAOs where you are a member (have shares or loot)
@@ -140,7 +140,6 @@ Anyone can verify the proposal by:
 1. Copy the execution data from chat
 2. Hash it locally: `keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))`
 3. Compare to the proposal ID
-4. ✓ Verified badge shows this was done successfully
 
 #### Workflow
 
@@ -150,7 +149,7 @@ Anyone can verify the proposal by:
 4. **Vote** → Click vote button → Submit transaction
 5. **Execute** → When proposal succeeds → Click execute → System extracts parameters and executes
 
-#### Key Improvements
+#### Key Features
 
 1. **Transfer Lock Initialization**: Only includes `setTransfersLocked` call in init if user explicitly enables transfers. Default behavior (locked) requires no self-call.
 
