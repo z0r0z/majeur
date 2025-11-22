@@ -8372,6 +8372,13 @@
           "type": "function"
         },
         {
+          "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
+          "name": "queue",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
           "inputs": [{"internalType": "string", "name": "message", "type": "string"}],
           "name": "chat",
           "outputs": [],
@@ -14484,10 +14491,66 @@
           const againstVotes = ethers.formatUnits(proposal.againstVotes, 18);
           const abstainVotes = ethers.formatUnits(proposal.abstainVotes, 18);
 
-          // Determine if proposal is executable
+          // Determine button state based on proposal state and timelock settings
           // State 2 = Queued (timelock running), State 3 = Succeeded (passed, ready to execute)
-          // For proposals with 0 TTL and 0 timelock, Succeeded means immediately executable
-          const isExecutable = (state === 2 || state === 3);
+          const timelockDelay = Number(currentDAO.dao.gov?.timelockDelay || 0);
+          const queuedAt = Number(proposal.queuedAt || 0);
+          const currentTime = Math.floor(Date.now() / 1000);
+
+          let buttonText = '';
+          let buttonAction = '';
+          let buttonDisabled = false;
+          let timeRemaining = '';
+
+          if (state === 3) {
+            // Succeeded - check if already queued and timelock elapsed
+            if (timelockDelay > 0) {
+              if (queuedAt > 0) {
+                // Already queued, check if timelock elapsed
+                const unlockTime = queuedAt + timelockDelay;
+                if (currentTime >= unlockTime) {
+                  buttonText = 'Execute';
+                  buttonAction = `executeProposalFromData('${proposal.id.toString()}')`;
+                } else {
+                  // Shouldn't normally be in Succeeded state during timelock, but handle it
+                  buttonText = 'Queue';
+                  buttonAction = `queueProposal('${proposal.id.toString()}')`;
+                }
+              } else {
+                // Not queued yet, show queue button
+                buttonText = 'Queue';
+                buttonAction = `queueProposal('${proposal.id.toString()}')`;
+              }
+            } else {
+              buttonText = 'Execute';
+              buttonAction = `executeProposalFromData('${proposal.id.toString()}')`;
+            }
+          } else if (state === 2) {
+            // Queued - check if timelock has elapsed
+            if (queuedAt > 0 && timelockDelay > 0) {
+              const unlockTime = queuedAt + timelockDelay;
+              if (currentTime < unlockTime) {
+                // Still in timelock
+                const secondsRemaining = unlockTime - currentTime;
+                const hours = Math.floor(secondsRemaining / 3600);
+                const minutes = Math.floor((secondsRemaining % 3600) / 60);
+                timeRemaining = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+                buttonText = `Queued (${timeRemaining})`;
+                buttonAction = '';
+                buttonDisabled = true;
+              } else {
+                // Timelock elapsed, ready to execute
+                buttonText = 'Execute';
+                buttonAction = `executeProposalFromData('${proposal.id.toString()}')`;
+              }
+            } else {
+              // Queued but no timelock data, assume executable
+              buttonText = 'Execute';
+              buttonAction = `executeProposalFromData('${proposal.id.toString()}')`;
+            }
+          }
+
+          const isExecutable = buttonText !== '';
 
           // Check if user has voted (0 = not voted, 1 = voted against, 2 = voted for, 3 = voted abstain)
           const hasVotedValue = userVoteStatus[proposal.id.toString()] || 0;
@@ -14655,7 +14718,9 @@
                 <button class="proposal-button cancel" onclick="cancelVoteOnProposal('${proposal.id.toString()}')">Cancel Vote</button>
               ` : ''}
               ${isExecutable ?
-                `<button class="proposal-button execute" onclick="executeProposalFromData('${proposal.id.toString()}')">Execute</button>` :
+                `<button class="proposal-button ${buttonText.toLowerCase().includes('queue') ? 'queue' : 'execute'}"
+                         onclick="${buttonAction}"
+                         ${buttonDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>${buttonText}</button>` :
                 ''}
             </div>
             ${futarchyUI}
@@ -15343,6 +15408,60 @@
           showStatus(errorMessage, true);
         } finally {
           isCreatingProposal = false;
+        }
+      }
+
+      // Queue a proposal (start timelock countdown)
+      async function queueProposal(proposalId) {
+        if (!currentDAO || !signer) {
+          showStatus('Please connect wallet and select a DAO', true);
+          return;
+        }
+
+        // Validate proposalId before converting to BigInt
+        if (!proposalId || proposalId === '' || (typeof proposalId === 'string' && !/^\d+$/.test(proposalId))) {
+          showStatus('Invalid proposal ID', true);
+          return;
+        }
+
+        // Convert string to BigInt
+        const proposalIdBigInt = BigInt(proposalId);
+
+        try {
+          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
+
+          showStatus('Queueing proposal...', false);
+          const tx = await molochContract.queue(proposalIdBigInt);
+
+          showStatus('Transaction submitted. Waiting for confirmation...', false);
+          await tx.wait();
+
+          showStatus('✨ Proposal queued! Timelock started.', false);
+
+          // Refresh to show updated state
+          await refreshCurrentDAO(true);
+          await renderProposals();
+        } catch (error) {
+          console.error('Error queueing proposal:', error);
+
+          if (isUserRejection(error)) {
+            showStatus('Queue cancelled', false);
+            return;
+          }
+
+          let errorMessage = 'Failed to queue proposal';
+          if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          } else if (error.message) {
+            const msg = error.message.split('\n')[0];
+            if (msg.length < 100) {
+              errorMessage = msg;
+            }
+          }
+
+          showStatus(errorMessage, true);
         }
       }
 
