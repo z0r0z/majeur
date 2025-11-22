@@ -1185,6 +1185,50 @@
         .intro-text p {
           font-size: 1.1rem;
         }
+
+        /* Feature pages mobile layout */
+        .feature-page {
+          padding: 3rem 5vw;
+          min-height: auto;
+        }
+
+        .feature-inner {
+          flex-direction: column;
+          gap: 2.5rem;
+          align-items: flex-start;
+        }
+
+        .feature-left {
+          max-width: 100%;
+        }
+
+        .feature-right {
+          width: 100%;
+          max-width: 100%;
+        }
+
+        .feature-right svg {
+          width: 100%;
+          height: auto;
+          max-width: 420px;
+        }
+
+        .feature-title {
+          font-size: 2.5rem;
+        }
+
+        .feature-copy {
+          font-size: 1rem;
+          line-height: 1.6;
+        }
+
+        .feature-tag {
+          font-size: 0.65rem;
+        }
+
+        .feature-meta {
+          font-size: 0.75rem;
+        }
       }
 
       /* Feature pages */
@@ -1373,6 +1417,39 @@
           bottom: 15px;
           left: 15px;
         }
+
+        /* Smaller feature pages for mobile */
+        .feature-page {
+          padding: 2.5rem 4vw;
+        }
+
+        .feature-inner {
+          gap: 2rem;
+        }
+
+        .feature-title {
+          font-size: 1.8rem;
+          letter-spacing: 0.2em;
+        }
+
+        .feature-copy {
+          font-size: 0.95rem;
+          line-height: 1.5;
+        }
+
+        .feature-right svg {
+          max-width: 100%;
+        }
+
+        /* Ensure SVG text is readable on mobile */
+        .feature-right svg text {
+          font-size: 10px !important;
+        }
+
+        .feature-right svg text[font-size="16"],
+        .feature-right svg text[font-size="18"] {
+          font-size: 14px !important;
+        }
       }
 
       @media (max-width: 400px) {
@@ -1408,6 +1485,47 @@
           padding: 6px 10px;
           bottom: 12px;
           left: 12px;
+        }
+
+        /* Extra small mobile optimizations for feature pages */
+        .feature-page {
+          padding: 2rem 3vw;
+        }
+
+        .feature-inner {
+          gap: 1.5rem;
+        }
+
+        .feature-title {
+          font-size: 1.5rem;
+          letter-spacing: 0.18em;
+        }
+
+        .feature-copy {
+          font-size: 0.9rem;
+          line-height: 1.5;
+        }
+
+        .feature-tag {
+          font-size: 0.6rem;
+        }
+
+        .feature-meta {
+          font-size: 0.7rem;
+        }
+
+        /* Further reduce SVG text size for very small screens */
+        .feature-right svg text {
+          font-size: 8px !important;
+        }
+
+        .feature-right svg text[font-size="16"],
+        .feature-right svg text[font-size="18"] {
+          font-size: 12px !important;
+        }
+
+        .feature-right svg text[font-size="12"] {
+          font-size: 10px !important;
         }
       }
 
@@ -3358,6 +3476,14 @@
 
         #purchaseModal input {
           font-size: 16px !important; /* Prevent zoom on iOS */
+        }
+
+        #purchaseModal button {
+          min-height: 44px !important; /* Touch-friendly buttons */
+        }
+
+        #purchaseModal .wallet-modal-header h3 {
+          font-size: 1rem !important;
         }
 
         #depositModal input,
@@ -10643,6 +10769,9 @@
           ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2)
           : '0';
 
+        // Format timelock delay
+        const timelockDelay = formatDuration(gov.timelockDelay || 0);
+
         // Update proposal form TTL info
         updateProposalTTLInfo();
 
@@ -10721,6 +10850,23 @@
                 </a>
               </div>
               <div style="font-size: 0.95rem; color: #e6d9ff;">${proposalThresholdFormatted} shares</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
+            <div>
+              <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+                Timelock Delay
+                <a href="#" onclick="event.preventDefault(); prepareTimelockDelayProposal(); switchDaoView('dao');"
+                   title="Create proposal to change timelock delay"
+                   style="color: #9d7bff; opacity: 0.5; line-height: 1;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </a>
+              </div>
+              <div style="font-size: 0.95rem; color: #e6d9ff;">${timelockDelay}</div>
             </div>
           </div>
           <div>
@@ -11058,6 +11204,9 @@
         clearMintHelper();
         clearFutarchyHelper();
         clearQuorumHelper();
+        clearTTLHelper();
+        clearTimelockDelayHelper();
+        clearThresholdHelper();
         clearRagequitHelper();
         clearSaleHelper();
 
@@ -11320,6 +11469,9 @@
         clearMintHelper();
         clearFutarchyHelper();
         clearQuorumHelper();
+        clearTTLHelper();
+        clearTimelockDelayHelper();
+        clearThresholdHelper();
         clearRagequitHelper();
         clearSaleHelper();
 
@@ -12232,6 +12384,134 @@
         }
       }
 
+      // Timelock Delay proposal helper
+      async function prepareTimelockDelayProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const daoAddress = dao.dao;
+        const currentDelay = Number(dao.gov.timelockDelay || 0);
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add timelock delay helper UI if not already present
+        let helperDiv = document.getElementById('timelockDelayHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'timelockDelayHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        // Convert current delay to most appropriate unit
+        let defaultValue, defaultUnit;
+        if (currentDelay % 86400 === 0 && currentDelay > 0) {
+          defaultValue = currentDelay / 86400;
+          defaultUnit = '86400';
+        } else if (currentDelay % 3600 === 0 && currentDelay > 0) {
+          defaultValue = currentDelay / 3600;
+          defaultUnit = '3600';
+        } else if (currentDelay % 60 === 0 && currentDelay > 0) {
+          defaultValue = currentDelay / 60;
+          defaultUnit = '60';
+        } else {
+          defaultValue = currentDelay;
+          defaultUnit = '1';
+        }
+
+        // Show timelock delay helper
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              CHANGE TIMELOCK DELAY
+            </div>
+            <button onclick="clearTimelockDelayHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="margin-bottom: 0.75rem;">
+            <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Timelock Delay</label>
+            <div style="display: flex; gap: 0.5rem;">
+              <input type="number" id="timelockDelayValue" placeholder="${defaultValue}" value="${defaultValue}"
+                     style="flex: 1; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
+              <select id="timelockDelayUnit" style="padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+                <option value="86400" ${defaultUnit === '86400' ? 'selected' : ''}>Days</option>
+                <option value="3600" ${defaultUnit === '3600' ? 'selected' : ''}>Hours</option>
+                <option value="60" ${defaultUnit === '60' ? 'selected' : ''}>Minutes</option>
+                <option value="1" ${defaultUnit === '1' ? 'selected' : ''}>Seconds</option>
+              </select>
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5);">
+              Current: ${formatDuration(currentDelay)}. Timelock delay determines how long to wait after a proposal passes before it can be executed.
+            </div>
+          </div>
+          <button onclick="populateTimelockDelayProposal('${daoAddress}')"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+
+        // Focus on input
+        setTimeout(() => {
+          const input = document.getElementById('timelockDelayValue');
+          if (input) {
+            input.select();
+            input.focus();
+          }
+        }, 100);
+      }
+
+      function clearTimelockDelayHelper() {
+        const helperDiv = document.getElementById('timelockDelayHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateTimelockDelayProposal(daoAddress) {
+        try {
+          const valueInput = document.getElementById('timelockDelayValue').value.trim();
+          const unitMultiplier = parseInt(document.getElementById('timelockDelayUnit').value);
+
+          if (!valueInput || isNaN(valueInput) || parseFloat(valueInput) < 0) {
+            showStatus('Please enter a valid positive number', true);
+            return;
+          }
+
+          const delaySeconds = Math.floor(parseFloat(valueInput) * unitMultiplier);
+
+          // Encode setTimelockDelay(uint64)
+          const calldata = INTERFACES.setTimelockDelay.encodeFunctionData('setTimelockDelay', [delaySeconds]);
+
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = calldata;
+          document.getElementById('proposalDescription').value = `Change timelock delay to ${formatDuration(delaySeconds)}`;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearTimelockDelayHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating timelock delay proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
       // Proposal Threshold helper
       async function prepareThresholdProposal() {
         if (!currentDAO || !currentDAO.dao) {
@@ -12447,7 +12727,7 @@
       }
 
       // Purchase modal functions
-      function openPurchaseModal(payToken, tokenSymbol, tokenDecimals, isLoot) {
+      async function openPurchaseModal(payToken, tokenSymbol, tokenDecimals, isLoot) {
         if (!signer) {
           showStatus('Please connect wallet first', true);
           return;
@@ -12460,22 +12740,85 @@
         const daoSymbol = currentDAO.dao.meta.symbol;
         const targetSymbol = isLoot ? `${daoSymbol}-LOOT` : daoSymbol;
 
+        // Show loading state
         content.innerHTML = `
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-size: 0.85rem; color: rgba(230, 217, 255, 0.7); margin-bottom: 0.5rem;">Amount to Purchase (${targetSymbol})</label>
-            <input type="number" id="purchaseAmount" placeholder="0.0" step="any" min="0" inputmode="decimal"
-                   style="width: 100%; padding: 0.875rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 16px; border-radius: 4px;" />
+          <div style="text-align: center; padding: 2rem; color: rgba(230, 217, 255, 0.6);">
+            Loading balance...
           </div>
-          <div style="margin-bottom: 1.5rem; padding: 0.875rem; background: rgba(157, 123, 255, 0.1); border-radius: 4px; font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); line-height: 1.5;">
-            Payment will be in <strong>${tokenSymbol}</strong>
-          </div>
-          <button onclick="executePurchase('${payToken}', ${tokenDecimals}, ${isLoot})"
-                  style="width: 100%; padding: 1rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; font-weight: 600; border-radius: 4px; transition: all 0.2s ease; min-height: 48px;">
-            Confirm Purchase
-          </button>
         `;
-
         modal.classList.add('show');
+
+        try {
+          // Fetch user balance and sale info
+          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+          const sale = await molochContract.sales(payToken);
+
+          let userBalance = 0n;
+          if (payToken === ethers.ZeroAddress) {
+            userBalance = await provider.getBalance(connectedAddress);
+          } else {
+            const tokenContract = new ethers.Contract(payToken, ERC20_ABI, provider);
+            userBalance = await tokenContract.balanceOf(connectedAddress);
+          }
+
+          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(6);
+
+          // Calculate max affordable shares based on user balance
+          // pricePerShare is payToken wei per share wei
+          let maxAffordable = '0';
+          if (userBalance > 0n && sale.pricePerShare > 0n) {
+            const maxShares = userBalance / sale.pricePerShare;
+            maxAffordable = ethers.formatEther(maxShares);
+          }
+
+          content.innerHTML = `
+            <div style="margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.7);">Amount to Purchase (${targetSymbol})</label>
+                <button onclick="setMaxPurchaseAmount('${maxAffordable}')"
+                        onmouseover="this.style.background='rgba(157, 123, 255, 0.25)'; this.style.color='#9d7bff';"
+                        onmouseout="this.style.background='rgba(157, 123, 255, 0.1)'; this.style.color='rgba(230, 217, 255, 0.7)';"
+                        style="padding: 0.35rem 0.65rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); color: rgba(230, 217, 255, 0.7); font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; cursor: pointer; text-transform: uppercase; font-weight: 600; border-radius: 3px; transition: all 0.2s ease; min-height: 32px;">
+                  MAX
+                </button>
+              </div>
+              <input type="number" id="purchaseAmount" placeholder="0.0" step="any" min="0" inputmode="decimal"
+                     style="width: 100%; padding: 0.875rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 16px; border-radius: 4px;" />
+            </div>
+            <div style="margin-bottom: 1rem; padding: 0.875rem; background: rgba(157, 123, 255, 0.05); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <span style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">Your Balance:</span>
+                <span style="font-size: 0.85rem; color: #e6d9ff; font-weight: 600;">${balanceFormatted} ${tokenSymbol}</span>
+              </div>
+              <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.5); margin-top: 0.25rem;">
+                Payment will be in <strong>${tokenSymbol}</strong>
+              </div>
+            </div>
+            <button onclick="executePurchase('${payToken}', ${tokenDecimals}, ${isLoot})"
+                    onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff';"
+                    onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)';"
+                    style="width: 100%; padding: 1rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; font-weight: 600; border-radius: 4px; transition: all 0.2s ease; min-height: 48px;">
+              Confirm Purchase
+            </button>
+          `;
+        } catch (error) {
+          console.error('Error loading purchase modal:', error);
+          content.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: rgba(230, 217, 255, 0.6);">
+              Error loading balance. Please try again.
+            </div>
+          `;
+        }
+      }
+
+      function setMaxPurchaseAmount(maxAmount) {
+        const input = document.getElementById('purchaseAmount');
+        if (input) {
+          // Format to remove trailing zeros
+          const formatted = parseFloat(maxAmount).toString();
+          input.value = formatted;
+          input.focus();
+        }
       }
 
       function closePurchaseModal() {
@@ -14720,6 +15063,18 @@
             translation = `
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Change Proposal TTL</div>
               <div>Set proposal expiration to: <strong>${ttlFormatted}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
+            `;
+          }
+          // setTimelockDelay(uint64) - 0x3821933a
+          else if (isDaoSelfCall && functionSelector === '0x3821933a' && calldata.length >= 74) {
+            const decoded = abiCoder.decode(['uint64'], '0x' + calldata.slice(10));
+            const delaySeconds = Number(decoded[0]);
+            const delayFormatted = formatDuration(delaySeconds);
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Change Timelock Delay</div>
+              <div>Set execution delay to: <strong>${delayFormatted}</strong></div>
               <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
             `;
           }
