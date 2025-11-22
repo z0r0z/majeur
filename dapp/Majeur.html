@@ -12437,9 +12437,9 @@
           <div style="margin-bottom: 0.75rem;">
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Timelock Delay</label>
             <div style="display: flex; gap: 0.5rem;">
-              <input type="number" id="timelockDelayValue" placeholder="${defaultValue}" value="${defaultValue}"
+              <input type="number" id="proposalTimelockDelayValue" placeholder="${defaultValue}" value="${defaultValue}"
                      style="flex: 1; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
-              <select id="timelockDelayUnit" style="padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
+              <select id="proposalTimelockDelayUnit" style="padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;">
                 <option value="86400" ${defaultUnit === '86400' ? 'selected' : ''}>Days</option>
                 <option value="3600" ${defaultUnit === '3600' ? 'selected' : ''}>Hours</option>
                 <option value="60" ${defaultUnit === '60' ? 'selected' : ''}>Minutes</option>
@@ -12460,7 +12460,7 @@
 
         // Focus on input
         setTimeout(() => {
-          const input = document.getElementById('timelockDelayValue');
+          const input = document.getElementById('proposalTimelockDelayValue');
           if (input) {
             input.select();
             input.focus();
@@ -12475,8 +12475,8 @@
 
       async function populateTimelockDelayProposal(daoAddress) {
         try {
-          const valueInput = document.getElementById('timelockDelayValue').value.trim();
-          const unitMultiplier = parseInt(document.getElementById('timelockDelayUnit').value);
+          const valueInput = document.getElementById('proposalTimelockDelayValue').value.trim();
+          const unitMultiplier = parseInt(document.getElementById('proposalTimelockDelayUnit').value);
 
           if (!valueInput || isNaN(valueInput) || parseFloat(valueInput) < 0) {
             showStatus('Please enter a valid positive number', true);
