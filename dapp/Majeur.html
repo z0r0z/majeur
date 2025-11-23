@@ -2377,6 +2377,382 @@
         border-bottom: none;
       }
 
+      /* DELEGATION CARD */
+      .delegation-card {
+        background: rgba(10, 0, 21, 0.6);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border-radius: 6px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        grid-column: 1 / -1;
+      }
+
+      .delegation-card:hover {
+        border-color: rgba(157, 123, 255, 0.5);
+        box-shadow: 0 4px 16px rgba(157, 123, 255, 0.15);
+      }
+
+      .voting-power-summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .voting-power-item {
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        border-radius: 4px;
+        text-align: center;
+      }
+
+      .voting-power-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.6);
+        margin-bottom: 0.5rem;
+        font-family: "Cinzel", serif;
+      }
+
+      .voting-power-value {
+        font-size: 1.5rem;
+        color: #9d7bff;
+        font-family: "EB Garamond", serif;
+        font-weight: 600;
+      }
+
+      .voting-power-value.has-delegation {
+        color: #66ff66;
+      }
+
+      .voting-power-breakdown {
+        font-size: 0.75rem;
+        color: rgba(230, 217, 255, 0.5);
+        margin-top: 0.35rem;
+        font-style: italic;
+      }
+
+      .received-delegations {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: rgba(102, 255, 102, 0.05);
+        border: 1px solid rgba(102, 255, 102, 0.2);
+        border-radius: 4px;
+      }
+
+      .received-delegations-title {
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(102, 255, 102, 0.8);
+        margin-bottom: 0.75rem;
+        font-family: "Cinzel", serif;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .received-delegations-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .received-delegation-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+      }
+
+      .delegator-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .delegator-badge {
+        width: 20px;
+        height: 20px;
+        background: rgba(157, 123, 255, 0.3);
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+      }
+
+      .delegator-address {
+        font-family: "Courier New", monospace;
+        font-size: 0.85rem;
+        color: rgba(230, 217, 255, 0.8);
+      }
+
+      .delegated-amount {
+        font-family: "EB Garamond", serif;
+        font-size: 0.9rem;
+        color: #66ff66;
+      }
+
+      @media (max-width: 768px) {
+        .voting-power-summary {
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+      }
+
+      .delegation-status {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        border-radius: 4px;
+      }
+
+      .delegation-status-label {
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.6);
+        margin-bottom: 0.5rem;
+        font-family: "Cinzel", serif;
+      }
+
+      .delegation-status-value {
+        font-size: 0.9rem;
+        color: #e6d9ff;
+        font-family: "EB Garamond", serif;
+      }
+
+      .delegation-split-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(157, 123, 255, 0.1);
+      }
+
+      .delegation-split-item:last-child {
+        border-bottom: none;
+      }
+
+      .delegation-split-address {
+        font-family: "Courier New", monospace;
+        font-size: 0.85rem;
+        color: #9d7bff;
+        cursor: help;
+      }
+
+      /* ENS name styling */
+      .ens-name {
+        color: #66ff66;
+        font-family: "EB Garamond", serif;
+        font-style: italic;
+      }
+
+      .delegation-split-weight {
+        font-family: "EB Garamond", serif;
+        font-size: 0.9rem;
+        color: rgba(230, 217, 255, 0.8);
+      }
+
+      .delegation-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      .delegation-button {
+        flex: 1;
+        padding: 0.75rem;
+        background: rgba(157, 123, 255, 0.1);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        color: #9d7bff;
+        font-family: "Cinzel", serif;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        border-radius: 4px;
+      }
+
+      .delegation-button:hover:not(:disabled) {
+        background: rgba(157, 123, 255, 0.2);
+        border-color: rgba(157, 123, 255, 0.5);
+      }
+
+      .delegation-button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .delegate-input-row {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        align-items: flex-end;
+      }
+
+      .delegate-input-group {
+        flex: 1;
+      }
+
+      .delegate-input-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(230, 217, 255, 0.7);
+        margin-bottom: 0.35rem;
+        font-family: "Cinzel", serif;
+        display: block;
+      }
+
+      .delegate-address-input {
+        flex: 2;
+      }
+
+      .delegate-weight-input {
+        flex: 1;
+      }
+
+      .remove-delegate-btn {
+        padding: 0.7rem 1rem;
+        background: rgba(255, 0, 0, 0.1);
+        border: 1px solid rgba(255, 0, 0, 0.3);
+        color: #ff6b6b;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        border-radius: 4px;
+      }
+
+      .remove-delegate-btn:hover {
+        background: rgba(255, 0, 0, 0.2);
+        border-color: rgba(255, 0, 0, 0.5);
+      }
+
+      .add-delegate-btn {
+        width: 100%;
+        padding: 0.6rem;
+        background: rgba(157, 123, 255, 0.05);
+        border: 1px solid rgba(157, 123, 255, 0.25);
+        color: rgba(157, 123, 255, 0.8);
+        font-family: "Cinzel", serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+      }
+
+      .add-delegate-btn:hover {
+        background: rgba(157, 123, 255, 0.1);
+        border-color: rgba(157, 123, 255, 0.4);
+        color: #9d7bff;
+      }
+
+      /* Delegation type selector */
+      .delegation-type-selector {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .delegation-type-option {
+        position: relative;
+        padding: 1.25rem 1rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(157, 123, 255, 0.2);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+      }
+
+      .delegation-type-option:hover {
+        background: rgba(157, 123, 255, 0.08);
+        border-color: rgba(157, 123, 255, 0.4);
+        transform: translateY(-2px);
+      }
+
+      .delegation-type-option.selected {
+        background: rgba(157, 123, 255, 0.15);
+        border-color: rgba(157, 123, 255, 0.6);
+        box-shadow: 0 0 15px rgba(157, 123, 255, 0.3);
+      }
+
+      .delegation-type-option input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .delegation-type-title {
+        font-family: "Cinzel", serif;
+        font-size: 0.85rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #e6d9ff;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+      }
+
+      .delegation-type-option.selected .delegation-type-title {
+        color: #9d7bff;
+      }
+
+      .delegation-type-description {
+        font-family: "EB Garamond", serif;
+        font-size: 0.85rem;
+        color: rgba(230, 217, 255, 0.6);
+        line-height: 1.4;
+        font-style: italic;
+      }
+
+      .delegation-type-option.selected .delegation-type-description {
+        color: rgba(230, 217, 255, 0.85);
+      }
+
+      .delegation-type-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        opacity: 0.7;
+      }
+
+      .delegation-type-option.selected .delegation-type-icon {
+        opacity: 1;
+      }
+
+      @media (max-width: 768px) {
+        .delegation-actions {
+          flex-direction: column;
+        }
+
+        .delegate-input-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .remove-delegate-btn {
+          width: 100%;
+        }
+
+        .delegation-type-selector {
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+      }
+
       .balance-label {
         font-family: "Cinzel", serif;
         font-size: 0.75rem;
@@ -6767,6 +7143,12 @@
             <label class="form-label">Quorum %</label>
             <input type="number" class="form-input" id="quorumBps" placeholder="50" min="0" max="100" value="50">
             <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Percentage of votes needed for proposal validity</small>
+            <div id="quorumVotesDisplay" style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px; font-size: 0.85rem; display: none;">
+              <div style="color: #e6d9ff;">Required votes for quorum: <strong id="quorumVotesValue">0</strong> / <span id="quorumTotalSupply">0</span></div>
+            </div>
+            <div id="quorumWarning" style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255, 100, 100, 0.15); border: 1px solid rgba(255, 100, 100, 0.4); border-radius: 4px; font-size: 0.85rem; color: #ff6b6b; display: none;">
+              <strong>⚠️ Warning:</strong> With this quorum % and initial supply, required quorum rounds down to <strong>0 votes</strong>. Increase quorum %, increase initial supply, or set an absolute quorum.
+            </div>
           </div>
 
           <!-- Members -->
@@ -7236,6 +7618,88 @@
                 </a>
               </div>
               <div class="balance-value" id="membershipBadge">None</div>
+            </div>
+          </div>
+
+          <!-- Delegation Card -->
+          <div class="delegation-card">
+            <h3 class="dao-panel-title">Vote Delegation</h3>
+
+            <!-- Voting Power Summary -->
+            <div class="voting-power-summary">
+              <div class="voting-power-item">
+                <div class="voting-power-label">Your Shares</div>
+                <div class="voting-power-value" id="ownedSharesDisplay">0</div>
+                <div class="voting-power-breakdown">Direct ownership</div>
+              </div>
+              <div class="voting-power-item">
+                <div class="voting-power-label">Total Voting Power</div>
+                <div class="voting-power-value" id="totalVotesDisplay">0</div>
+                <div class="voting-power-breakdown" id="votingPowerBreakdown">Shares + delegations</div>
+              </div>
+            </div>
+
+            <div class="delegation-status" id="delegationStatus">
+              <div class="delegation-status-label">Your Outgoing Delegation</div>
+              <div class="delegation-status-value" id="currentDelegationDisplay">Loading...</div>
+            </div>
+
+            <!-- Received Delegations Section -->
+            <div id="receivedDelegationsContainer" style="display: none;">
+              <div class="received-delegations">
+                <div class="received-delegations-title">
+                  ⬇️ Delegations Received
+                </div>
+                <div class="received-delegations-list" id="receivedDelegationsList">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <div id="delegationForm" style="display: none;">
+              <div class="delegation-type-selector">
+                <label class="delegation-type-option selected" data-type="single">
+                  <input type="radio" name="delegationType" value="single" checked>
+                  <div class="delegation-type-icon">👤</div>
+                  <div class="delegation-type-title">Single Delegate</div>
+                  <div class="delegation-type-description">Delegate all voting power to one address</div>
+                </label>
+                <label class="delegation-type-option" data-type="split">
+                  <input type="radio" name="delegationType" value="split">
+                  <div class="delegation-type-icon">🔀</div>
+                  <div class="delegation-type-title">Split Delegation</div>
+                  <div class="delegation-type-description">Distribute votes across up to 4 delegates</div>
+                </label>
+              </div>
+
+              <div id="singleDelegateSection">
+                <div class="delegate-input-group">
+                  <label class="delegate-input-label">Delegate Address or ENS</label>
+                  <input
+                    type="text"
+                    id="singleDelegateAddress"
+                    class="modal-input"
+                    placeholder="0x... or vitalik.eth (leave empty for self)"
+                  />
+                </div>
+              </div>
+
+              <div id="splitDelegateSection" style="display: none;">
+                <div id="delegateInputs"></div>
+                <button class="add-delegate-btn" onclick="addDelegateInput()" id="addDelegateBtn">+ Add Delegate</button>
+              </div>
+
+              <div class="delegation-actions">
+                <button class="delegation-button" onclick="submitDelegation()">Set Delegation</button>
+                <button class="delegation-button" onclick="clearDelegation()">Clear & Self-Delegate</button>
+                <button class="delegation-button" onclick="toggleDelegationForm()">Cancel</button>
+              </div>
+            </div>
+
+            <div id="delegationActions" style="margin-top: 1rem;">
+              <button class="delegation-button" onclick="toggleDelegationForm()" style="width: 100%;">
+                Manage Delegation
+              </button>
             </div>
           </div>
         </div>
@@ -10706,7 +11170,7 @@
       // Format seconds into human-readable time
       function formatDuration(seconds) {
         const secs = Number(seconds);
-        if (secs === 0) return 'No limit';
+        if (secs === 0) return 'Disabled';
 
         const days = Math.floor(secs / 86400);
         const hours = Math.floor((secs % 86400) / 3600);
@@ -10753,7 +11217,7 @@
         ttlInfoDiv.style.display = 'block';
       }
 
-      function renderGovernanceInfo() {
+      async function renderGovernanceInfo() {
         const governanceInfo = document.getElementById('governanceInfo');
         if (!governanceInfo || !currentDAO) return;
 
@@ -10773,8 +11237,8 @@
         // Format proposal threshold
         const proposalThreshold = BigInt(gov.proposalThreshold || 0);
         const proposalThresholdFormatted = proposalThreshold > 0n
-          ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2)
-          : '0';
+          ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2) + ' shares'
+          : 'Disabled';
 
         // Format timelock delay
         const timelockDelay = formatDuration(gov.timelockDelay || 0);
@@ -10792,6 +11256,35 @@
           const paramPercent = (paramBps / 100).toFixed(2);
           const capFormatted = parseFloat(ethers.formatEther(futarchyCap)).toFixed(1);
           futarchyText = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
+        }
+
+        // Fetch transfer lock status for shares and loot
+        let transferabilityText = 'Loading...';
+        try {
+          const tokenABI = ['function transfersLocked() view returns (bool)'];
+          const sharesContract = new ethers.Contract(currentDAO.dao.meta.sharesToken, tokenABI, provider);
+          const lootContract = new ethers.Contract(currentDAO.dao.meta.lootToken, tokenABI, provider);
+
+          const [sharesLocked, lootLocked] = await Promise.all([
+            sharesContract.transfersLocked(),
+            lootContract.transfersLocked()
+          ]);
+
+          // Store for use in proposal helper
+          currentDAO._transferLocks = { sharesLocked, lootLocked };
+
+          if (!sharesLocked && !lootLocked) {
+            transferabilityText = 'Shares & Loot transferable';
+          } else if (sharesLocked && lootLocked) {
+            transferabilityText = 'Shares & Loot locked';
+          } else if (sharesLocked) {
+            transferabilityText = 'Shares locked, Loot transferable';
+          } else {
+            transferabilityText = 'Shares transferable, Loot locked';
+          }
+        } catch (error) {
+          console.error('Error fetching transferability:', error);
+          transferabilityText = 'Unknown';
         }
 
         governanceInfo.innerHTML = `
@@ -10856,7 +11349,7 @@
                   </svg>
                 </a>
               </div>
-              <div style="font-size: 0.95rem; color: #e6d9ff;">${proposalThresholdFormatted} shares</div>
+              <div style="font-size: 0.95rem; color: #e6d9ff;">${proposalThresholdFormatted}</div>
             </div>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
@@ -10874,6 +11367,21 @@
                 </a>
               </div>
               <div style="font-size: 0.95rem; color: #e6d9ff;">${timelockDelay}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem;">
+                Transferability
+                <a href="#" onclick="event.preventDefault(); prepareTransferabilityProposal(); switchDaoView('dao');"
+                   title="Create proposal to toggle transferability"
+                   style="color: #9d7bff; opacity: 0.5; line-height: 1;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </a>
+              </div>
+              <div style="font-size: 0.95rem; color: #e6d9ff;">${transferabilityText}</div>
             </div>
           </div>
           <div>
@@ -11215,6 +11723,7 @@
         clearTimelockDelayHelper();
         clearThresholdHelper();
         clearRagequitHelper();
+        clearTransferabilityHelper();
         clearSaleHelper();
 
         // Scroll to proposal form
@@ -11480,6 +11989,7 @@
         clearTimelockDelayHelper();
         clearThresholdHelper();
         clearRagequitHelper();
+        clearTransferabilityHelper();
         clearSaleHelper();
 
         // Scroll to proposal form
@@ -12186,6 +12696,16 @@
           proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
         }
 
+        // Calculate current quorum in votes
+        const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
+        const currentQuorumBps = Number(currentDAO.dao.gov.quorumBps);
+        const currentRequiredVotes = (BigInt(currentQuorumBps) * currentTotalSupply) / 10000n;
+        const currentRequiredVotesFormatted = parseFloat(ethers.formatEther(currentRequiredVotes)).toFixed(2);
+        const totalSupplyFormatted = parseFloat(ethers.formatEther(currentTotalSupply)).toFixed(2);
+
+        // Check if current quorum rounds to 0
+        const hasZeroQuorum = currentQuorumBps > 0 && currentTotalSupply > 0n && currentRequiredVotes === 0n;
+
         // Show quorum helper
         helperDiv.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
@@ -12194,13 +12714,28 @@
             </div>
             <button onclick="clearQuorumHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
           </div>
+          <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-radius: 4px;">
+            <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.5rem;">
+              Current Quorum: <strong>${currentQuorum}%</strong>
+            </div>
+            <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8);">
+              Current estimated quorum: <strong>${currentRequiredVotesFormatted} votes</strong> / ${totalSupplyFormatted} shares
+            </div>
+            ${hasZeroQuorum ? `
+              <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255, 100, 100, 0.15); border: 1px solid rgba(255, 100, 100, 0.4); border-radius: 4px; font-size: 0.8rem; color: #ff6b6b;">
+                <strong>⚠️ Warning:</strong> Current quorumBps results in 0-vote quorum due to rounding. Consider increasing quorumBps or setting an absolute quorum.
+              </div>
+            ` : ''}
+          </div>
           <div style="margin-bottom: 0.75rem;">
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Quorum Percentage</label>
             <input type="text" id="quorumPercentage" placeholder="${currentQuorum}" value="${currentQuorum}"
+                   oninput="updateProposalQuorumPreview()"
                    style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
             <div style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5);">
               Quorum is the minimum % of shares required to pass proposals
             </div>
+            <div id="proposalQuorumPreview" style="margin-top: 0.5rem; display: none;"></div>
           </div>
           <button onclick="populateQuorumProposal('${daoAddress}')"
                   onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
@@ -12220,6 +12755,43 @@
         }, 100);
       }
 
+      function updateProposalQuorumPreview() {
+        if (!currentDAO) return;
+
+        const previewDiv = document.getElementById('proposalQuorumPreview');
+        const percentInput = document.getElementById('quorumPercentage');
+        if (!previewDiv || !percentInput) return;
+
+        const newPercent = parseFloat(percentInput.value);
+        if (isNaN(newPercent) || newPercent < 0 || newPercent > 100) {
+          previewDiv.style.display = 'none';
+          return;
+        }
+
+        const newQuorumBps = Math.floor(newPercent * 100);
+        const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
+        const newRequiredVotes = (BigInt(newQuorumBps) * currentTotalSupply) / 10000n;
+        const newRequiredVotesFormatted = parseFloat(ethers.formatEther(newRequiredVotes)).toFixed(2);
+
+        const hasZeroQuorum = newQuorumBps > 0 && currentTotalSupply > 0n && newRequiredVotes === 0n;
+
+        if (hasZeroQuorum) {
+          previewDiv.innerHTML = `
+            <div style="padding: 0.5rem; background: rgba(255, 100, 100, 0.15); border: 1px solid rgba(255, 100, 100, 0.4); border-radius: 4px; font-size: 0.8rem; color: #ff6b6b;">
+              <strong>⚠️ Warning:</strong> New quorum (${newPercent}%) will result in <strong>0 required votes</strong>. Consider a higher percentage.
+            </div>
+          `;
+          previewDiv.style.display = 'block';
+        } else {
+          previewDiv.innerHTML = `
+            <div style="padding: 0.5rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px; font-size: 0.8rem; color: #e6d9ff;">
+              New estimated quorum: <strong>${newRequiredVotesFormatted} votes</strong>
+            </div>
+          `;
+          previewDiv.style.display = 'block';
+        }
+      }
+
       function clearQuorumHelper() {
         const helperDiv = document.getElementById('quorumHelper');
         if (helperDiv) helperDiv.remove();
@@ -12235,6 +12807,26 @@
           }
 
           const quorumBps = Math.floor(parseFloat(percentInput) * 100);
+
+          // Warn if this would result in 0 required votes
+          if (currentDAO) {
+            const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
+            const newRequiredVotes = (BigInt(quorumBps) * currentTotalSupply) / 10000n;
+
+            if (quorumBps > 0 && currentTotalSupply > 0n && newRequiredVotes === 0n) {
+              const continueAnyway = confirm(
+                '⚠️ WARNING: This quorum percentage with current supply results in 0 required votes.\n\n' +
+                'This effectively disables dynamic quorum for proposals.\n\n' +
+                'Consider:\n' +
+                '• Using a higher percentage\n' +
+                '• Setting an absolute quorum instead\n\n' +
+                'Do you want to create this proposal anyway?'
+              );
+              if (!continueAnyway) {
+                return;
+              }
+            }
+          }
 
           // Encode setQuorumBps(uint16 bps)
           const calldata = INTERFACES.setQuorumBps.encodeFunctionData('setQuorumBps', [quorumBps]);
@@ -12729,6 +13321,167 @@
 
         } catch (error) {
           console.error('Error populating ragequit proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
+      // Transferability proposal helper
+      async function prepareTransferabilityProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const daoAddress = dao.dao;
+
+        // Get current lock status
+        if (!currentDAO._transferLocks) {
+          showStatus('Transfer lock status not loaded yet, please wait...', true);
+          return;
+        }
+
+        const { sharesLocked, lootLocked } = currentDAO._transferLocks;
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add transferability helper UI if not already present
+        let helperDiv = document.getElementById('transferabilityHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'transferabilityHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        // Show transferability helper with toggle options
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+              CONFIGURE TRANSFERABILITY
+            </div>
+            <button onclick="clearTransferabilityHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-radius: 4px;">
+            <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.5rem;">
+              Current Status:
+            </div>
+            <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-left: 1rem;">
+              <div>Shares: <strong>${sharesLocked ? 'Locked (non-transferable)' : 'Unlocked (transferable)'}</strong></div>
+              <div>Loot: <strong>${lootLocked ? 'Locked (non-transferable)' : 'Unlocked (transferable)'}</strong></div>
+            </div>
+            <div style="margin-top: 0.75rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5);">
+              Select which tokens to update (unchecked items will keep their current state):
+            </div>
+          </div>
+          <div style="margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: rgba(157, 123, 255, 0.15); border: 1px solid rgba(157, 123, 255, 0.4); border-radius: 4px; transition: all 0.2s ease;"
+                   onmouseover="this.style.background='rgba(157, 123, 255, 0.25)'; this.style.borderColor='rgba(157, 123, 255, 0.6)';"
+                   onmouseout="this.style.background='rgba(157, 123, 255, 0.15)'; this.style.borderColor='rgba(157, 123, 255, 0.4)';">
+              <input type="checkbox" id="transferabilityUpdateShares" checked style="cursor: pointer; width: 18px; height: 18px; accent-color: #9d7bff;">
+              <span style="color: #e6d9ff; font-size: 0.9rem; font-weight: 600;">Update Shares</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: ${!sharesLocked ? 'rgba(157, 123, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'}; border: 1px solid ${!sharesLocked ? 'rgba(157, 123, 255, 0.6)' : 'rgba(157, 123, 255, 0.3)'}; border-radius: 4px; margin-left: 1.5rem; transition: all 0.2s ease;" id="sharesToggleLabel"
+                   onmouseover="this.style.background='rgba(157, 123, 255, 0.3)'; this.style.borderColor='rgba(157, 123, 255, 0.7)';"
+                   onmouseout="const checked = document.getElementById('transferabilitySharesUnlocked').checked; this.style.background = checked ? 'rgba(157, 123, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'; this.style.borderColor = checked ? 'rgba(157, 123, 255, 0.6)' : 'rgba(157, 123, 255, 0.3)';"
+                   onclick="setTimeout(() => { const checked = document.getElementById('transferabilitySharesUnlocked').checked; this.style.background = checked ? 'rgba(157, 123, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'; this.style.borderColor = checked ? 'rgba(157, 123, 255, 0.6)' : 'rgba(157, 123, 255, 0.3)'; }, 10);">
+              <input type="checkbox" id="transferabilitySharesUnlocked" ${!sharesLocked ? 'checked' : ''} style="cursor: pointer; width: 18px; height: 18px; accent-color: #9d7bff;">
+              <span style="color: #e6d9ff; font-size: 0.85rem;">Make Shares Transferable</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: rgba(157, 123, 255, 0.15); border: 1px solid rgba(157, 123, 255, 0.4); border-radius: 4px; transition: all 0.2s ease;"
+                   onmouseover="this.style.background='rgba(157, 123, 255, 0.25)'; this.style.borderColor='rgba(157, 123, 255, 0.6)';"
+                   onmouseout="this.style.background='rgba(157, 123, 255, 0.15)'; this.style.borderColor='rgba(157, 123, 255, 0.4)';">
+              <input type="checkbox" id="transferabilityUpdateLoot" checked style="cursor: pointer; width: 18px; height: 18px; accent-color: #9d7bff;">
+              <span style="color: #e6d9ff; font-size: 0.9rem; font-weight: 600;">Update Loot</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem; background: ${!lootLocked ? 'rgba(157, 123, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'}; border: 1px solid ${!lootLocked ? 'rgba(157, 123, 255, 0.6)' : 'rgba(157, 123, 255, 0.3)'}; border-radius: 4px; margin-left: 1.5rem; transition: all 0.2s ease;" id="lootToggleLabel"
+                   onmouseover="this.style.background='rgba(157, 123, 255, 0.3)'; this.style.borderColor='rgba(157, 123, 255, 0.7)';"
+                   onmouseout="const checked = document.getElementById('transferabilityLootUnlocked').checked; this.style.background = checked ? 'rgba(157, 123, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'; this.style.borderColor = checked ? 'rgba(157, 123, 255, 0.6)' : 'rgba(157, 123, 255, 0.3)';"
+                   onclick="setTimeout(() => { const checked = document.getElementById('transferabilityLootUnlocked').checked; this.style.background = checked ? 'rgba(157, 123, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)'; this.style.borderColor = checked ? 'rgba(157, 123, 255, 0.6)' : 'rgba(157, 123, 255, 0.3)'; }, 10);">
+              <input type="checkbox" id="transferabilityLootUnlocked" ${!lootLocked ? 'checked' : ''} style="cursor: pointer; width: 18px; height: 18px; accent-color: #9d7bff;">
+              <span style="color: #e6d9ff; font-size: 0.85rem;">Make Loot Transferable</span>
+            </label>
+          </div>
+          <button onclick="populateTransferabilityProposal('${daoAddress}')"
+                  onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(157, 123, 255, 0.3)';"
+                  onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+      }
+
+      function clearTransferabilityHelper() {
+        const helperDiv = document.getElementById('transferabilityHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function populateTransferabilityProposal(daoAddress) {
+        try {
+          if (!currentDAO || !currentDAO._transferLocks) {
+            showStatus('Transfer lock status not available', true);
+            return;
+          }
+
+          const { sharesLocked, lootLocked } = currentDAO._transferLocks;
+
+          // Get user selections
+          const updateShares = document.getElementById('transferabilityUpdateShares').checked;
+          const updateLoot = document.getElementById('transferabilityUpdateLoot').checked;
+          const sharesUnlocked = document.getElementById('transferabilitySharesUnlocked').checked;
+          const lootUnlocked = document.getElementById('transferabilityLootUnlocked').checked;
+
+          if (!updateShares && !updateLoot) {
+            showStatus('Please select at least one token type to update', true);
+            return;
+          }
+
+          // Determine final locked states
+          // For shares: if updating, use inverse of checkbox; if not updating, keep current
+          const finalSharesLocked = updateShares ? !sharesUnlocked : sharesLocked;
+          const finalLootLocked = updateLoot ? !lootUnlocked : lootLocked;
+
+          // Encode setTransfersLocked(bool sharesLocked, bool lootLocked)
+          const calldata = INTERFACES.setTransfersLocked.encodeFunctionData('setTransfersLocked', [
+            finalSharesLocked,
+            finalLootLocked
+          ]);
+
+          // Build description
+          let description = 'Update transferability: ';
+          const changes = [];
+          if (updateShares) {
+            changes.push(`Shares ${sharesUnlocked ? 'unlocked' : 'locked'}`);
+          }
+          if (updateLoot) {
+            changes.push(`Loot ${lootUnlocked ? 'unlocked' : 'locked'}`);
+          }
+          description += changes.join(', ');
+
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = calldata;
+          document.getElementById('proposalDescription').value = description;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearTransferabilityHelper();
+
+          // Scroll to show the populated form
+          setTimeout(() => {
+            document.getElementById('proposalDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          console.error('Error populating transferability proposal:', error);
           showStatus('Failed to populate form: ' + error.message, true);
         }
       }
@@ -13609,6 +14362,9 @@
 
         // Render vote receipts
         await renderVoteReceipts();
+
+        // Load delegation status
+        await loadDelegationStatus();
       }
 
       // Render badge NFT
@@ -13916,6 +14672,600 @@
           }
         });
       }
+
+      // ==================== DELEGATION FUNCTIONS ====================
+
+      // ABI for Shares contract delegation functions
+      const SHARES_DELEGATION_ABI = [
+        'function splitDelegationOf(address) view returns (address[], uint32[])',
+        'function delegates(address) view returns (address)',
+        'function delegate(address)',
+        'function setSplitDelegation(address[], uint32[])',
+        'function clearSplitDelegation()',
+        'function getVotes(address) view returns (uint256)',
+        'function balanceOf(address) view returns (uint256)'
+      ];
+
+      // Load and display current delegation status
+      async function loadDelegationStatus() {
+        const statusDisplay = document.getElementById('currentDelegationDisplay');
+        const ownedSharesDisplay = document.getElementById('ownedSharesDisplay');
+        const totalVotesDisplay = document.getElementById('totalVotesDisplay');
+        const votingPowerBreakdown = document.getElementById('votingPowerBreakdown');
+
+        if (!currentDAO || !connectedAddress) {
+          statusDisplay.innerHTML = '<span style="opacity: 0.6;">Not connected</span>';
+          ownedSharesDisplay.textContent = '0';
+          totalVotesDisplay.textContent = '0';
+          return;
+        }
+
+        try {
+          const dao = currentDAO.dao;
+          const sharesAddress = dao.meta?.sharesToken;
+          const badgesAddress = dao.meta?.badgesToken;
+
+          if (!sharesAddress) {
+            statusDisplay.innerHTML = '<span style="opacity: 0.6;">Shares contract not found</span>';
+            return;
+          }
+
+          const sharesContract = new ethers.Contract(sharesAddress, SHARES_DELEGATION_ABI, provider);
+
+          // Load voting power data
+          const [ownedShares, totalVotes, [delegates, bps]] = await Promise.all([
+            sharesContract.balanceOf(connectedAddress),
+            sharesContract.getVotes(connectedAddress),
+            sharesContract.splitDelegationOf(connectedAddress)
+          ]);
+
+          // Display voting power
+          const ownedFormatted = parseFloat(ethers.formatUnits(ownedShares, 18)).toFixed(2);
+          const votesFormatted = parseFloat(ethers.formatUnits(totalVotes, 18)).toFixed(2);
+
+          ownedSharesDisplay.textContent = ownedFormatted;
+          totalVotesDisplay.textContent = votesFormatted;
+
+          // Highlight if receiving delegations
+          const receivedVotes = totalVotes - ownedShares;
+          if (receivedVotes > 0n) {
+            totalVotesDisplay.classList.add('has-delegation');
+            const receivedFormatted = parseFloat(ethers.formatUnits(receivedVotes, 18)).toFixed(2);
+            votingPowerBreakdown.innerHTML = `${ownedFormatted} owned + <strong style="color: #66ff66;">${receivedFormatted} delegated</strong>`;
+          } else {
+            totalVotesDisplay.classList.remove('has-delegation');
+            votingPowerBreakdown.textContent = 'Same as owned shares';
+          }
+
+          // Resolve ENS names for all delegates in parallel
+          const delegateInfoPromises = delegates.map(async (addr) => {
+            const isSelf = addr.toLowerCase() === connectedAddress.toLowerCase();
+            const ensName = isSelf ? null : await lookupENS(addr);
+            return { address: addr, ensName, isSelf };
+          });
+          const delegateInfos = await Promise.all(delegateInfoPromises);
+
+          // Display delegation status
+          if (delegates.length === 1 && bps[0] === 10000) {
+            // Single delegate (100%)
+            const info = delegateInfos[0];
+            let displayText, displayColor, titleAttr;
+
+            if (info.isSelf) {
+              displayText = 'Self';
+              displayColor = '#9d7bff';
+              titleAttr = '';
+            } else if (info.ensName) {
+              displayText = info.ensName;
+              displayColor = '#66ff66';
+              titleAttr = `title="${info.address}"`;
+            } else {
+              displayText = formatAddress(info.address);
+              displayColor = '#9d7bff';
+              titleAttr = `title="${info.address}"`;
+            }
+
+            statusDisplay.innerHTML = `<strong style="color: ${displayColor}; cursor: help;" ${titleAttr}>${displayText}</strong> (100%)`;
+          } else {
+            // Split delegation
+            let html = '<div style="margin-top: 0.5rem;">';
+            for (let i = 0; i < delegates.length; i++) {
+              const info = delegateInfos[i];
+              const percentage = (Number(bps[i]) / 100).toFixed(2);
+
+              let displayText, displayClass;
+              if (info.isSelf) {
+                displayText = 'Self';
+                displayClass = 'delegation-split-address';
+              } else if (info.ensName) {
+                displayText = info.ensName;
+                displayClass = 'delegation-split-address ens-name';
+              } else {
+                displayText = formatAddress(info.address);
+                displayClass = 'delegation-split-address';
+              }
+
+              html += `
+                <div class="delegation-split-item">
+                  <span class="${displayClass}" title="${info.address}">${displayText}</span>
+                  <span class="delegation-split-weight">${percentage}%</span>
+                </div>
+              `;
+            }
+            html += '</div>';
+            statusDisplay.innerHTML = html;
+          }
+
+          // Load received delegations (only for badge holders to keep it efficient)
+          await loadReceivedDelegations(sharesContract, badgesAddress);
+
+        } catch (error) {
+          console.error('Error loading delegation status:', error);
+          statusDisplay.innerHTML = '<span style="opacity: 0.6; color: #ff6b6b;">Error loading delegation</span>';
+        }
+      }
+
+      // Load and display delegations received from others
+      async function loadReceivedDelegations(sharesContract, badgesAddress) {
+        if (!currentDAO || !connectedAddress) return;
+
+        const receivedContainer = document.getElementById('receivedDelegationsContainer');
+        const receivedList = document.getElementById('receivedDelegationsList');
+
+        if (!receivedContainer || !receivedList) return;
+
+        try {
+          // Only check badge holders (top 256 members) for efficiency
+          const members = currentDAO.dao?.members || [];
+          const badgeHolders = members.filter(m => m && m[3] && m[3] > 0); // m[3] = seatId
+
+          if (badgeHolders.length === 0) {
+            receivedContainer.style.display = 'none';
+            return;
+          }
+
+          const delegatorsToMe = [];
+          const connectedLower = connectedAddress.toLowerCase();
+
+          // Batch check delegations - limit concurrency to avoid overwhelming RPC
+          const BATCH_SIZE = 10;
+          for (let i = 0; i < badgeHolders.length; i += BATCH_SIZE) {
+            const batch = badgeHolders.slice(i, i + BATCH_SIZE);
+
+            await Promise.all(batch.map(async (member) => {
+              const memberAddress = member[0];
+              if (!memberAddress || memberAddress.toLowerCase() === connectedLower) return;
+
+              try {
+                // Fetch delegation and balance in parallel for this member
+                const [[delegateAddrs, weights], memberBalance] = await Promise.all([
+                  sharesContract.splitDelegationOf(memberAddress),
+                  sharesContract.balanceOf(memberAddress)
+                ]);
+
+                // Check if any delegation points to me
+                for (let i = 0; i < delegateAddrs.length; i++) {
+                  if (delegateAddrs[i].toLowerCase() === connectedLower) {
+                    const delegatedAmount = (memberBalance * BigInt(weights[i])) / 10000n;
+                    if (delegatedAmount > 0n) {
+                      delegatorsToMe.push({
+                        address: memberAddress,
+                        amount: delegatedAmount,
+                        percentage: Number(weights[i]) / 100, // Convert BPS to percentage
+                        seatId: member[3]
+                      });
+                    }
+                    break;
+                  }
+                }
+              } catch (err) {
+                // Silently skip members that error (could be rate limits or contract issues)
+                console.warn(`Skipping delegation check for ${memberAddress}:`, err.message);
+              }
+            }));
+          }
+
+          // Display received delegations
+          if (delegatorsToMe.length > 0) {
+            receivedContainer.style.display = 'block';
+            receivedList.innerHTML = '';
+
+            // Resolve ENS names in parallel
+            const delegatorsWithENS = await Promise.all(
+              delegatorsToMe.map(async (delegator) => ({
+                ...delegator,
+                ensName: await lookupENS(delegator.address)
+              }))
+            );
+
+            // Sort by amount descending
+            delegatorsWithENS.sort((a, b) => Number(b.amount - a.amount));
+
+            delegatorsWithENS.forEach(delegator => {
+              const displayName = delegator.ensName || formatAddress(delegator.address);
+              const amountFormatted = parseFloat(ethers.formatUnits(delegator.amount, 18)).toFixed(2);
+
+              const item = document.createElement('div');
+              item.className = 'received-delegation-item';
+              item.innerHTML = `
+                <div class="delegator-info">
+                  <div class="delegator-badge" title="Badge Seat #${delegator.seatId}">
+                    ${delegator.seatId}
+                  </div>
+                  <span class="delegator-address ${delegator.ensName ? 'ens-name' : ''}" title="${delegator.address}">
+                    ${displayName}
+                  </span>
+                </div>
+                <span class="delegated-amount" title="${delegator.percentage.toFixed(2)}% of their voting power">
+                  ${amountFormatted} votes
+                </span>
+              `;
+              receivedList.appendChild(item);
+            });
+          } else {
+            receivedContainer.style.display = 'none';
+          }
+        } catch (error) {
+          console.error('Error loading received delegations:', error);
+          receivedContainer.style.display = 'none';
+        }
+      }
+
+      // Toggle delegation form visibility
+      function toggleDelegationForm() {
+        const form = document.getElementById('delegationForm');
+        const actions = document.getElementById('delegationActions');
+
+        if (!form || !actions) {
+          console.error('Delegation form elements not found');
+          return;
+        }
+
+        if (form.style.display === 'none') {
+          form.style.display = 'block';
+          actions.style.display = 'none';
+
+          // Initialize event listeners
+          initializeDelegationTypeSelectors();
+
+          // Initialize with default single delegate
+          const singleRadio = document.querySelector('input[name="delegationType"][value="single"]');
+          if (singleRadio) singleRadio.checked = true;
+
+          // Update visual selection state for cards
+          const typeOptions = document.querySelectorAll('.delegation-type-option');
+          typeOptions.forEach(option => {
+            if (option.getAttribute('data-type') === 'single') {
+              option.classList.add('selected');
+            } else {
+              option.classList.remove('selected');
+            }
+          });
+
+          updateDelegationTypeUI();
+          initializeDelegateInputs();
+        } else {
+          form.style.display = 'none';
+          actions.style.display = 'block';
+        }
+      }
+
+      // Initialize delegation type selectors (called when form opens)
+      function initializeDelegationTypeSelectors() {
+        const typeRadios = document.querySelectorAll('input[name="delegationType"]');
+        const typeOptions = document.querySelectorAll('.delegation-type-option');
+
+        // Remove any existing listeners to prevent duplicates
+        typeRadios.forEach(radio => {
+          radio.removeEventListener('change', updateDelegationTypeUI);
+          radio.addEventListener('change', updateDelegationTypeUI);
+        });
+
+        // Add click handlers to delegation type option cards
+        typeOptions.forEach(option => {
+          option.onclick = function() {
+            // Remove selected class from all options
+            typeOptions.forEach(opt => opt.classList.remove('selected'));
+            // Add selected class to clicked option
+            this.classList.add('selected');
+            // Trigger the radio button
+            const radio = this.querySelector('input[type="radio"]');
+            if (radio) {
+              radio.checked = true;
+              updateDelegationTypeUI();
+            }
+          };
+        });
+      }
+
+      function updateDelegationTypeUI() {
+        const type = document.querySelector('input[name="delegationType"]:checked')?.value;
+        const singleSection = document.getElementById('singleDelegateSection');
+        const splitSection = document.getElementById('splitDelegateSection');
+
+        // Update visual selection state
+        const typeOptions = document.querySelectorAll('.delegation-type-option');
+        typeOptions.forEach(option => {
+          const optionType = option.getAttribute('data-type');
+          if (optionType === type) {
+            option.classList.add('selected');
+          } else {
+            option.classList.remove('selected');
+          }
+        });
+
+        // Show/hide appropriate sections
+        if (type === 'single') {
+          singleSection.style.display = 'block';
+          splitSection.style.display = 'none';
+        } else {
+          singleSection.style.display = 'none';
+          splitSection.style.display = 'block';
+        }
+      }
+
+      // Initialize delegate inputs for split delegation
+      function initializeDelegateInputs() {
+        const container = document.getElementById('delegateInputs');
+        container.innerHTML = '';
+        addDelegateInput(); // Start with one input
+      }
+
+      // Add a delegate input row
+      let delegateInputCounter = 0;
+      function addDelegateInput() {
+        const container = document.getElementById('delegateInputs');
+        const currentCount = container.children.length;
+
+        if (currentCount >= 4) {
+          alert('Maximum 4 delegates allowed');
+          return;
+        }
+
+        const inputId = `delegate-${delegateInputCounter++}`;
+        const row = document.createElement('div');
+        row.className = 'delegate-input-row';
+        row.innerHTML = `
+          <div class="delegate-input-group delegate-address-input">
+            <label class="delegate-input-label">Delegate Address or ENS</label>
+            <input
+              type="text"
+              class="modal-input delegate-address"
+              placeholder="0x... or vitalik.eth"
+              data-input-id="${inputId}"
+            />
+          </div>
+          <div class="delegate-input-group delegate-weight-input">
+            <label class="delegate-input-label">Weight (%)</label>
+            <input
+              type="number"
+              class="modal-input delegate-weight"
+              placeholder="25.00"
+              min="0.01"
+              max="100"
+              step="0.01"
+              data-input-id="${inputId}"
+            />
+          </div>
+          ${currentCount > 0 ? '<button class="remove-delegate-btn" onclick="removeDelegateInput(this)">✕</button>' : ''}
+        `;
+
+        container.appendChild(row);
+        updateAddDelegateButton();
+      }
+
+      // Remove a delegate input row
+      function removeDelegateInput(button) {
+        const row = button.closest('.delegate-input-row');
+        row.remove();
+        updateAddDelegateButton();
+      }
+
+      // Update add delegate button state
+      function updateAddDelegateButton() {
+        const container = document.getElementById('delegateInputs');
+        const button = document.getElementById('addDelegateBtn');
+
+        if (!container || !button) return;
+
+        const currentCount = container.children.length;
+
+        if (currentCount >= 4) {
+          button.disabled = true;
+          button.style.opacity = '0.4';
+        } else {
+          button.disabled = false;
+          button.style.opacity = '1';
+        }
+      }
+
+      // Submit delegation
+      async function submitDelegation() {
+        if (!currentDAO || !connectedAddress) {
+          showStatus('Please connect your wallet first', true);
+          return;
+        }
+
+        const type = document.querySelector('input[name="delegationType"]:checked')?.value;
+
+        try {
+          const dao = currentDAO.dao;
+          const sharesAddress = dao.meta?.sharesToken;
+
+          if (!sharesAddress) {
+            showStatus('Shares contract not found', true);
+            return;
+          }
+
+          const signer = await provider.getSigner();
+          const sharesContract = new ethers.Contract(sharesAddress, SHARES_DELEGATION_ABI, signer);
+
+          if (type === 'single') {
+            // Single delegation
+            let addressInput = document.getElementById('singleDelegateAddress')?.value.trim() || '';
+
+            if (!addressInput) {
+              // Empty means self-delegate
+              addressInput = connectedAddress;
+            }
+
+            // Resolve ENS if needed
+            let address;
+            if (addressInput.endsWith('.eth')) {
+              showStatus('Resolving ENS name...', false);
+              address = await provider.resolveName(addressInput);
+              if (!address) {
+                showStatus(`Could not resolve ENS name: ${addressInput}`, true);
+                return;
+              }
+            } else {
+              address = addressInput;
+            }
+
+            if (!ethers.isAddress(address)) {
+              showStatus('Invalid Ethereum address', true);
+              return;
+            }
+
+            // Call delegate function
+            showStatus('Submitting delegation transaction...', false);
+            const tx = await sharesContract.delegate(address);
+            showStatus('Transaction submitted! Waiting for confirmation...', false);
+            await tx.wait();
+            showStatus('Delegation updated successfully!', false);
+
+          } else {
+            // Split delegation
+            const rows = document.querySelectorAll('.delegate-input-row');
+            if (rows.length === 0) {
+              showStatus('Please add at least one delegate', true);
+              return;
+            }
+
+            const addressInputs = [];
+            const weightInputs = [];
+
+            // Collect inputs first
+            for (const row of rows) {
+              const addrInput = row.querySelector('.delegate-address')?.value.trim();
+              const weightInput = row.querySelector('.delegate-weight')?.value;
+
+              if (!addrInput || !weightInput) {
+                showStatus('Please fill in all delegate addresses and weights', true);
+                return;
+              }
+
+              const weight = parseFloat(weightInput);
+              if (isNaN(weight) || weight <= 0 || weight > 100) {
+                showStatus('Invalid weight value. Must be between 0.01 and 100', true);
+                return;
+              }
+
+              addressInputs.push(addrInput);
+              weightInputs.push(weight);
+            }
+
+            // Resolve all ENS names in parallel
+            showStatus('Resolving addresses...', false);
+            const addresses = await Promise.all(
+              addressInputs.map(async (addrInput) => {
+                if (addrInput.endsWith('.eth')) {
+                  const resolved = await provider.resolveName(addrInput);
+                  if (!resolved) {
+                    throw new Error(`Could not resolve ENS name: ${addrInput}`);
+                  }
+                  return resolved;
+                } else {
+                  if (!ethers.isAddress(addrInput)) {
+                    throw new Error(`Invalid address: ${addrInput}`);
+                  }
+                  return addrInput;
+                }
+              })
+            );
+
+            // Validate total weight is 100%
+            const totalWeight = weightInputs.reduce((sum, w) => sum + w, 0);
+            if (Math.abs(totalWeight - 100) > 0.01) {
+              showStatus(`Total weight must equal 100% (currently ${totalWeight.toFixed(2)}%)`, true);
+              return;
+            }
+
+            // Convert percentages to basis points (10000 = 100%)
+            const bps = weightInputs.map(w => Math.round(w * 100));
+
+            // Adjust for rounding errors - ensure sum is exactly 10000
+            const bpsSum = bps.reduce((a, b) => a + b, 0);
+            if (bpsSum !== 10000) {
+              bps[bps.length - 1] += (10000 - bpsSum);
+            }
+
+            // Call setSplitDelegation
+            showStatus('Submitting split delegation transaction...', false);
+            const tx = await sharesContract.setSplitDelegation(addresses, bps);
+            showStatus('Transaction submitted! Waiting for confirmation...', false);
+            await tx.wait();
+            showStatus('Split delegation updated successfully!', false);
+          }
+
+          // Reload delegation status
+          await loadDelegationStatus();
+          toggleDelegationForm();
+
+        } catch (error) {
+          console.error('Error setting delegation:', error);
+          const errorMsg = error.message || 'Failed to set delegation';
+          showStatus(`Error: ${errorMsg}`, true);
+        }
+      }
+
+      // Clear delegation and revert to self-delegation
+      async function clearDelegation() {
+        if (!currentDAO || !connectedAddress) {
+          showStatus('Please connect your wallet first', true);
+          return;
+        }
+
+        if (!confirm('This will clear your current delegation and revert to 100% self-delegation. Continue?')) {
+          return;
+        }
+
+        try {
+          const dao = currentDAO.dao;
+          const sharesAddress = dao.meta?.sharesToken;
+
+          if (!sharesAddress) {
+            showStatus('Shares contract not found', true);
+            return;
+          }
+
+          const signer = await provider.getSigner();
+          const sharesContract = new ethers.Contract(sharesAddress, SHARES_DELEGATION_ABI, signer);
+
+          showStatus('Clearing delegation...', false);
+          const tx = await sharesContract.clearSplitDelegation();
+          showStatus('Transaction submitted! Waiting for confirmation...', false);
+          await tx.wait();
+          showStatus('Delegation cleared! Now self-delegating.', false);
+
+          // Reload delegation status
+          await loadDelegationStatus();
+          toggleDelegationForm();
+
+        } catch (error) {
+          console.error('Error clearing delegation:', error);
+          const errorMsg = error.message || 'Failed to clear delegation';
+          showStatus(`Error: ${errorMsg}`, true);
+        }
+      }
+
+      // Helper function to format addresses
+      function formatAddress(address) {
+        if (!address) return '';
+        return `${address.slice(0, 6)}...${address.slice(-4)}`;
+      }
+
+      // ==================== END DELEGATION FUNCTIONS ====================
 
       // Render DAO emblem from contractURI
       async function renderDAOEmblem(daoAddress) {
@@ -15116,6 +16466,22 @@
             translation = `
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Toggle Ragequit</div>
               <div><strong>${status}</strong> ragequit functionality</div>
+              <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
+            `;
+          }
+          // setTransfersLocked(bool,bool) - 0x80fe038f
+          else if (isDaoSelfCall && functionSelector === '0x80fe038f' && calldata.length >= 138) {
+            const decoded = abiCoder.decode(['bool', 'bool'], '0x' + calldata.slice(10));
+            const sharesLocked = decoded[0];
+            const lootLocked = decoded[1];
+
+            const sharesStatus = sharesLocked ? 'Locked (non-transferable)' : 'Unlocked (transferable)';
+            const lootStatus = lootLocked ? 'Locked (non-transferable)' : 'Unlocked (transferable)';
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Configure Transferability</div>
+              <div style="margin-bottom: 0.25rem;"><strong>Shares:</strong> ${sharesStatus}</div>
+              <div><strong>Loot:</strong> ${lootStatus}</div>
               <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
             `;
           }
@@ -16329,6 +17695,76 @@
         return value * unit;
       }
 
+      // Update quorum votes display in summoning form
+      function updateSummonQuorumDisplay() {
+        const quorumBpsInput = document.getElementById('quorumBps');
+        const display = document.getElementById('quorumVotesDisplay');
+        const warning = document.getElementById('quorumWarning');
+        const votesValue = document.getElementById('quorumVotesValue');
+        const totalSupplySpan = document.getElementById('quorumTotalSupply');
+
+        if (!quorumBpsInput || !display || !warning) return;
+
+        // Calculate total shares from all members
+        const memberRows = document.querySelectorAll('.member-row');
+        let totalShares = 0n;
+
+        for (const row of memberRows) {
+          const sharesInput = row.querySelector('.member-shares');
+          if (sharesInput && sharesInput.value) {
+            try {
+              const shares = ethers.parseEther(sharesInput.value.trim());
+              totalShares += shares;
+            } catch (e) {
+              // Invalid input, skip
+            }
+          }
+        }
+
+        const quorumBps = Math.floor(parseFloat(quorumBpsInput.value || 50) * 100);
+
+        if (totalShares > 0n) {
+          // Calculate required votes: floor(quorumBps * totalShares / 10_000)
+          const requiredVotes = (BigInt(quorumBps) * totalShares) / 10000n;
+          const totalSharesFormatted = parseFloat(ethers.formatEther(totalShares)).toFixed(2);
+
+          votesValue.textContent = ethers.formatEther(requiredVotes);
+          totalSupplySpan.textContent = totalSharesFormatted;
+          display.style.display = 'block';
+
+          // Show warning if rounds to 0
+          if (quorumBps > 0 && totalShares > 0n && requiredVotes === 0n) {
+            warning.style.display = 'block';
+          } else {
+            warning.style.display = 'none';
+          }
+        } else {
+          display.style.display = 'none';
+          warning.style.display = 'none';
+        }
+      }
+
+      // Set up event listeners for quorum display updates
+      document.getElementById('quorumBps')?.addEventListener('input', updateSummonQuorumDisplay);
+
+      // Update quorum display when members change (debounced)
+      let quorumUpdateTimeout;
+      document.addEventListener('input', (e) => {
+        if (e.target.classList.contains('member-shares') || e.target.classList.contains('member-address')) {
+          clearTimeout(quorumUpdateTimeout);
+          quorumUpdateTimeout = setTimeout(updateSummonQuorumDisplay, 300);
+        }
+      });
+
+      // Also update when members are added/removed
+      const foundingMembersList = document.getElementById('foundingMembersList');
+      if (foundingMembersList) {
+        const observer = new MutationObserver(() => {
+          updateSummonQuorumDisplay();
+        });
+        observer.observe(foundingMembersList, { childList: true });
+      }
+
       document.getElementById('summonForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -16384,6 +17820,23 @@
           let totalShares = 0n;
           for (const shares of initShares) {
             totalShares += shares;
+          }
+
+          // Validate quorum settings
+          const requiredVotes = (BigInt(quorumBps) * totalShares) / 10000n;
+          if (quorumBps > 0 && totalShares > 0n && requiredVotes === 0n) {
+            const continueAnyway = confirm(
+              '⚠️ WARNING: Your quorum percentage and initial supply combination results in 0 required votes for quorum.\n\n' +
+              'This effectively disables dynamic quorum for proposals.\n\n' +
+              'Recommendations:\n' +
+              '• Increase quorum percentage\n' +
+              '• Increase initial supply\n' +
+              '• Set an absolute quorum after deployment\n\n' +
+              'Do you want to continue anyway?'
+            );
+            if (!continueAnyway) {
+              throw new Error('Summoning cancelled due to invalid quorum configuration');
+            }
           }
 
           // Validate proposal threshold if specified
