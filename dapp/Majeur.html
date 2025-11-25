@@ -2045,6 +2045,37 @@
         opacity: 1;
       }
 
+      .dao-copy-link-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: none;
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        color: rgba(157, 123, 255, 0.7);
+        font-family: "EB Garamond", serif;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-left: 0.75rem;
+      }
+
+      .dao-copy-link-btn:hover {
+        border-color: rgba(157, 123, 255, 0.6);
+        color: #9d7bff;
+        background: rgba(157, 123, 255, 0.1);
+      }
+
+      .dao-copy-link-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .dao-copy-link-btn.copied {
+        border-color: rgba(100, 200, 100, 0.6);
+        color: rgba(100, 200, 100, 0.9);
+      }
+
       .dao-stats-bar {
         display: flex;
         gap: 1.5rem;
@@ -3056,6 +3087,92 @@
         border-color: #ff6b6b;
       }
 
+      /* TRIBUTES */
+      .tribute-offers {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+      }
+
+      .tribute-card {
+        padding: 1rem;
+        background: rgba(157, 123, 255, 0.08);
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .tribute-card:hover {
+        background: rgba(157, 123, 255, 0.15);
+        border-color: rgba(157, 123, 255, 0.4);
+        transform: translateY(-2px);
+      }
+
+      .tribute-icon {
+        width: 28px;
+        height: 28px;
+        margin: 0 auto;
+      }
+
+      .tribute-proposer {
+        font-size: 0.7rem;
+        color: rgba(230, 217, 255, 0.6);
+        text-align: center;
+        font-family: monospace;
+      }
+
+      .tribute-amount {
+        font-size: 0.9rem;
+        color: #e6d9ff;
+        font-weight: 600;
+        text-align: center;
+        font-family: "EB Garamond", serif;
+      }
+
+      .tribute-request {
+        font-size: 0.75rem;
+        color: rgba(230, 217, 255, 0.7);
+        text-align: center;
+        padding: 0.5rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+      }
+
+      .tribute-accept-button {
+        width: 100%;
+        padding: 0.6rem;
+        background: rgba(157, 123, 255, 0.2);
+        border: 1px solid rgba(157, 123, 255, 0.4);
+        color: #e6d9ff;
+        font-family: "Cinzel", serif;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-transform: uppercase;
+        border-radius: 4px;
+      }
+
+      .tribute-accept-button:hover {
+        background: rgba(157, 123, 255, 0.35);
+        border-color: #9d7bff;
+      }
+
+      .tribute-buttons {
+        display: flex;
+        gap: 0.4rem;
+        margin-top: auto;
+      }
+
+      .tribute-buttons .tribute-accept-button {
+        flex: 1;
+      }
+
       /* PROPOSALS */
       #proposalsList {
         max-height: 600px;
@@ -3348,6 +3465,12 @@
 
         .dao-etherscan-link {
           font-size: 0.75rem;
+        }
+
+        .dao-copy-link-btn {
+          font-size: 0.7rem;
+          padding: 0.25rem 0.5rem;
+          margin-left: 0.5rem;
         }
 
         .dao-stats-bar {
@@ -3675,6 +3798,16 @@
 
         .dao-etherscan-link {
           font-size: 0.7rem;
+        }
+
+        .dao-copy-link-btn {
+          font-size: 0.65rem;
+          padding: 0.2rem 0.4rem;
+          margin-left: 0.4rem;
+        }
+
+        .dao-copy-link-btn span {
+          display: none;
         }
 
         .dao-stats-bar {
@@ -5048,6 +5181,96 @@
                       onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'"
                       onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'">
                 Deposit
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRIBUTE MODAL -->
+    <div class="wallet-modal-overlay" id="tributeModal">
+      <div class="wallet-modal" style="max-width: 520px;">
+        <div class="wallet-modal-header">
+          <h2 class="wallet-modal-title">Make Tribute Offer</h2>
+          <button class="wallet-modal-close" onclick="closeTributeModal()">&times;</button>
+        </div>
+        <div class="wallet-modal-content">
+          <div style="padding: 1rem;">
+            <div style="padding: 0.75rem; background: rgba(157, 123, 255, 0.08); border: 1px solid rgba(157, 123, 255, 0.25); border-radius: 4px; margin-bottom: 1.5rem; font-size: 0.8rem; color: rgba(230, 217, 255, 0.7); line-height: 1.5;">
+              Create an OTC offer by locking up your assets. DAO members can accept your tribute in exchange for assets from the treasury.
+            </div>
+
+            <!-- Offering (What you're giving) -->
+            <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(0, 0, 0, 0.2); border-radius: 4px;">
+              <h4 style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; margin-bottom: 1rem; letter-spacing: 0.1em;">YOU OFFER</h4>
+
+              <!-- Tribute Asset Selection -->
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem; font-family: 'Cinzel', serif; letter-spacing: 0.1em;">ASSET</label>
+                <div style="position: relative;">
+                  <div id="tributeAssetDisplay" onclick="toggleTributeAssetDropdown()"
+                       style="width: 100%; padding: 0.7rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>Choose asset to offer...</span>
+                  </div>
+                  <div id="tributeAssetDropdown" class="custom-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.25rem; background: rgba(10, 0, 21, 0.95); border: 1px solid rgba(157, 123, 255, 0.4); border-radius: 4px; max-height: 250px; overflow-y: auto; z-index: 1000; backdrop-filter: blur(10px);">
+                    <!-- Dropdown options will be populated here -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tribute Amount -->
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <label style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); font-family: 'Cinzel', serif; letter-spacing: 0.1em;">AMOUNT</label>
+                  <div style="font-size: 0.65rem; color: rgba(230, 217, 255, 0.5);">
+                    Balance: <span id="tributeUserBalance">0</span>
+                  </div>
+                </div>
+                <input type="text" id="tributeAmount" placeholder="0.0" inputmode="decimal"
+                       style="width: 100%; padding: 0.7rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem; border-radius: 4px;">
+              </div>
+            </div>
+
+            <!-- Requesting (What you want) -->
+            <div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(157, 123, 255, 0.05); border-radius: 4px;">
+              <h4 style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; margin-bottom: 1rem; letter-spacing: 0.1em;">YOU REQUEST</h4>
+
+              <!-- Request Asset Selection -->
+              <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem; font-family: 'Cinzel', serif; letter-spacing: 0.1em;">ASSET</label>
+                <div style="position: relative;">
+                  <div id="requestAssetDisplay" onclick="toggleRequestAssetDropdown()"
+                       style="width: 100%; padding: 0.7rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>Choose asset to request...</span>
+                  </div>
+                  <div id="requestAssetDropdown" class="custom-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.25rem; background: rgba(10, 0, 21, 0.95); border: 1px solid rgba(157, 123, 255, 0.4); border-radius: 4px; max-height: 250px; overflow-y: auto; z-index: 1000; backdrop-filter: blur(10px);">
+                    <!-- Dropdown options will be populated here -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Request Amount -->
+              <div>
+                <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem; font-family: 'Cinzel', serif; letter-spacing: 0.1em;">AMOUNT</label>
+                <input type="text" id="requestAmount" placeholder="0.0" inputmode="decimal"
+                       style="width: 100%; padding: 0.7rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem; border-radius: 4px;">
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 0.75rem; padding-top: 0.5rem; border-top: 1px solid rgba(157, 123, 255, 0.2);">
+              <button onclick="closeTributeModal()"
+                      style="flex: 1; padding: 0.85rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); color: #9d7bff; font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; border-radius: 4px;"
+                      onmouseover="this.style.background='rgba(157, 123, 255, 0.15)'"
+                      onmouseout="this.style.background='rgba(157, 123, 255, 0.1)'">
+                Cancel
+              </button>
+              <button onclick="executeTribute()"
+                      style="flex: 1; padding: 0.85rem; background: rgba(157, 123, 255, 0.2); border: 1px solid rgba(157, 123, 255, 0.4); color: #e6d9ff; font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; font-weight: 600; border-radius: 4px;"
+                      onmouseover="this.style.background='rgba(157, 123, 255, 0.35)'; this.style.borderColor='#9d7bff'"
+                      onmouseout="this.style.background='rgba(157, 123, 255, 0.2)'; this.style.borderColor='rgba(157, 123, 255, 0.4)'">
+                Create Tribute
               </button>
             </div>
           </div>
@@ -7422,6 +7645,13 @@
                 <line x1="10" y1="14" x2="21" y2="3"></line>
               </svg>
             </a>
+            <button class="dao-copy-link-btn" id="daoCopyLinkBtn" onclick="copyDAOLink()" title="Copy shareable link to this DAO">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+              <span>Copy Link</span>
+            </button>
             <div class="dao-stats-bar" id="daoStatsBar">
               <!-- Stats will be dynamically rendered here -->
             </div>
@@ -7469,6 +7699,22 @@
               <!-- Treasury assets will be dynamically rendered here -->
             </div>
             <button class="ragequit-button" onclick="openRagequitModal()">Ragequit</button>
+          </div>
+
+          <!-- Tributes Section -->
+          <div class="treasury-section" style="margin-top: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h4 class="treasury-title" style="margin-bottom: 0;">Incoming Tributes</h4>
+              <button onclick="openTributeModal()" class="deposit-button" title="Make a tribute offer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M7 7h10l-4 5 4 5H7l4-5-4-5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                </svg>
+              </button>
+            </div>
+            <div class="tribute-offers" id="tributeOffers">
+              <!-- Tributes will be dynamically rendered here -->
+            </div>
           </div>
 
           <!-- Governance Info Section -->
@@ -8534,6 +8780,7 @@
       ];
 
       const VIEW_HELPER_ADDRESS = '0x000000000066317bd3662A649D8901c076268Df9';
+      const TRIBUTE_ADDRESS = '0x000000000066524fcf78Dc1E41E9D525d9ea73D0';
       const VIEW_HELPER_ABI = [
         {
           "inputs": [
@@ -9092,6 +9339,89 @@
         }
       ];
 
+      const TRIBUTE_ABI = [
+        {
+          "inputs": [
+            {"name": "dao", "type": "address"},
+            {"name": "tribTkn", "type": "address"},
+            {"name": "tribAmt", "type": "uint256"},
+            {"name": "forTkn", "type": "address"},
+            {"name": "forAmt", "type": "uint256"}
+          ],
+          "name": "proposeTribute",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"name": "dao", "type": "address"},
+            {"name": "tribTkn", "type": "address"}
+          ],
+          "name": "cancelTribute",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"name": "proposer", "type": "address"},
+            {"name": "tribTkn", "type": "address"}
+          ],
+          "name": "claimTribute",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"name": "dao", "type": "address"}
+          ],
+          "name": "getActiveDaoTributes",
+          "outputs": [
+            {
+              "components": [
+                {"name": "proposer", "type": "address"},
+                {"name": "tribTkn", "type": "address"},
+                {"name": "tribAmt", "type": "uint256"},
+                {"name": "forTkn", "type": "address"},
+                {"name": "forAmt", "type": "uint256"}
+              ],
+              "name": "",
+              "type": "tuple[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {"indexed": true, "name": "proposer", "type": "address"},
+            {"indexed": true, "name": "dao", "type": "address"},
+            {"indexed": false, "name": "tribTkn", "type": "address"},
+            {"indexed": false, "name": "tribAmt", "type": "uint256"},
+            {"indexed": false, "name": "forTkn", "type": "address"},
+            {"indexed": false, "name": "forAmt", "type": "uint256"}
+          ],
+          "name": "TributeProposed",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {"indexed": true, "name": "proposer", "type": "address"},
+            {"indexed": true, "name": "dao", "type": "address"},
+            {"indexed": false, "name": "tribTkn", "type": "address"},
+            {"indexed": false, "name": "tribAmt", "type": "uint256"},
+            {"indexed": false, "name": "forTkn", "type": "address"},
+            {"indexed": false, "name": "forAmt", "type": "uint256"}
+          ],
+          "name": "TributeClaimed",
+          "type": "event"
+        }
+      ];
+
       // Constants for minimal proxy pattern (from Solidity reference)
       const CLONE_PREFIX = '0x602d5f8160095f39f35f5f365f5f37365f73';
       const CLONE_SUFFIX = '0x5af43d5f5f3e6029573d5ffd5b3d5ff3';
@@ -9273,6 +9603,15 @@
         MESSAGE_FETCH_LIMIT: 10
       };
 
+      // Public RPC for read-only access (deep links, browsing without wallet)
+      const PUBLIC_RPC_URL = 'https://eth.llamarpc.com';
+      let readOnlyProvider = null;
+
+      // Helper to get active provider (wallet provider or read-only fallback)
+      function getActiveProvider() {
+        return provider || readOnlyProvider;
+      }
+
       let provider = null;
       let signer = null;
       let memberIdCounter = 1;
@@ -9281,6 +9620,8 @@
       let userDAOs = [];
       let allDAOs = [];
       let currentDAO = null;
+      let currentDaoTributes = [];
+      let tributeRefreshTimestamp = 0;
 
       // Connection state management
       let isConnecting = false;
@@ -9699,7 +10040,27 @@
           showStatus('Fetching your DAOs...', false);
           await fetchUserDAOs();
           await fetchAllDAOs();
-          showStatus(`Connected to ${wallet.name}`, false);
+
+          // Check for deep link and open DAO if specified
+          const deepLinkAddress = parseDAODeepLink();
+          if (deepLinkAddress) {
+            showStatus('Opening linked DAO...', false);
+            const opened = await openDAOByAddress(deepLinkAddress);
+            if (opened) {
+              // Scroll to the DAO dashboard so user doesn't have to scroll past hero/summoning form
+              // Use requestAnimationFrame to ensure DOM has painted, then scroll
+              requestAnimationFrame(() => {
+                setTimeout(() => {
+                  const dashboard = document.getElementById('daoDashboard');
+                  if (dashboard) {
+                    dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 100);
+              });
+            }
+          } else {
+            showStatus(`Connected to ${wallet.name}`, false);
+          }
         } catch (error) {
           console.error(error);
 
@@ -10705,6 +11066,495 @@
         }
       }
 
+      // Tribute Modal Functions
+      let tributeAssets = [];
+      let selectedTributeAssetIndex = null;
+      let requestAssets = [];
+      let selectedRequestAssetIndex = null;
+
+      async function openTributeModal() {
+        if (!signer || !currentDAO) {
+          showStatus('Please connect wallet and select a DAO first', true);
+          return;
+        }
+
+        const modal = document.getElementById('tributeModal');
+        modal.classList.add('show');
+
+        // Populate tribute asset dropdown (what user offers)
+        const tributeDropdown = document.getElementById('tributeAssetDropdown');
+        tributeDropdown.innerHTML = '';
+        tributeAssets = [];
+
+        // Add standard assets
+        const standardAssets = [
+          { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18, icon: TOKEN_ICONS.eth },
+          { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6, icon: TOKEN_ICONS.usdc },
+          { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6, icon: TOKEN_ICONS.usdt },
+          { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18, icon: TOKEN_ICONS.dai },
+          { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth },
+          { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18, icon: TOKEN_ICONS.reth }
+        ];
+
+        for (const asset of standardAssets) {
+          tributeAssets.push(asset);
+          const option = document.createElement('div');
+          const index = tributeAssets.length - 1;
+          option.onclick = () => selectTributeAsset(index);
+          option.style.cssText = 'padding: 0.7rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: background 0.2s;';
+          option.onmouseover = () => option.style.background = 'rgba(157, 123, 255, 0.2)';
+          option.onmouseout = () => option.style.background = 'transparent';
+          option.innerHTML = `
+            <div style="width: 24px; height: 24px; flex-shrink: 0;">${asset.icon}</div>
+            <span style="color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem;">${asset.symbol}</span>
+          `;
+          tributeDropdown.appendChild(option);
+        }
+
+        // Populate request asset dropdown (what user wants from DAO treasury)
+        const requestDropdown = document.getElementById('requestAssetDropdown');
+        requestDropdown.innerHTML = '';
+        requestAssets = [];
+
+        // Prioritize Shares and Loot at the top
+        const daoMeta = currentDAO.dao.meta;
+        const priorityAssets = [
+          { symbol: 'Shares', address: daoMeta.sharesToken, decimals: 18, icon: TOKEN_ICONS.defaultCoin, isGovernanceToken: true },
+          { symbol: 'Loot', address: daoMeta.lootToken, decimals: 18, icon: TOKEN_ICONS.defaultCoin, isGovernanceToken: true }
+        ];
+
+        for (const asset of priorityAssets) {
+          requestAssets.push(asset);
+          const option = document.createElement('div');
+          const index = requestAssets.length - 1;
+          option.onclick = () => selectRequestAsset(index);
+          option.style.cssText = 'padding: 0.7rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid rgba(157, 123, 255, 0.2);';
+          option.onmouseover = () => option.style.background = 'rgba(157, 123, 255, 0.2)';
+          option.onmouseout = () => option.style.background = 'transparent';
+          option.innerHTML = `
+            <div style="width: 24px; height: 24px; flex-shrink: 0;">${asset.icon}</div>
+            <span style="color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem;">${asset.symbol}</span>
+            <span style="font-size: 0.7rem; color: rgba(157, 123, 255, 0.8); margin-left: auto;">GOVERNANCE</span>
+          `;
+          requestDropdown.appendChild(option);
+        }
+
+        // Add standard treasury assets
+        for (const asset of standardAssets) {
+          requestAssets.push(asset);
+          const option = document.createElement('div');
+          const index = requestAssets.length - 1;
+          option.onclick = () => selectRequestAsset(index);
+          option.style.cssText = 'padding: 0.7rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: background 0.2s;';
+          option.onmouseover = () => option.style.background = 'rgba(157, 123, 255, 0.2)';
+          option.onmouseout = () => option.style.background = 'transparent';
+          option.innerHTML = `
+            <div style="width: 24px; height: 24px; flex-shrink: 0;">${asset.icon}</div>
+            <span style="color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.9rem;">${asset.symbol}</span>
+          `;
+          requestDropdown.appendChild(option);
+        }
+
+        // Reset form
+        selectedTributeAssetIndex = null;
+        selectedRequestAssetIndex = null;
+        document.getElementById('tributeAssetDisplay').innerHTML = '<span>Choose asset to offer...</span>';
+        document.getElementById('requestAssetDisplay').innerHTML = '<span>Choose asset to request...</span>';
+        document.getElementById('tributeAmount').value = '';
+        document.getElementById('requestAmount').value = '';
+        document.getElementById('tributeUserBalance').textContent = '0';
+      }
+
+      function toggleTributeAssetDropdown() {
+        const dropdown = document.getElementById('tributeAssetDropdown');
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+      }
+
+      function toggleRequestAssetDropdown() {
+        const dropdown = document.getElementById('requestAssetDropdown');
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+      }
+
+      async function selectTributeAsset(index) {
+        selectedTributeAssetIndex = index;
+        const asset = tributeAssets[index];
+
+        const display = document.getElementById('tributeAssetDisplay');
+        display.innerHTML = `
+          <div style="width: 24px; height: 24px; flex-shrink: 0;">${asset.icon}</div>
+          <span>${asset.symbol}</span>
+        `;
+
+        document.getElementById('tributeAssetDropdown').style.display = 'none';
+
+        // Update balance
+        await updateTributeBalance();
+      }
+
+      async function selectRequestAsset(index) {
+        selectedRequestAssetIndex = index;
+        const asset = requestAssets[index];
+
+        const display = document.getElementById('requestAssetDisplay');
+        display.innerHTML = `
+          <div style="width: 24px; height: 24px; flex-shrink: 0;">${asset.icon}</div>
+          <span>${asset.symbol}</span>
+        `;
+
+        document.getElementById('requestAssetDropdown').style.display = 'none';
+      }
+
+      async function updateTributeBalance() {
+        if (selectedTributeAssetIndex === null) {
+          document.getElementById('tributeUserBalance').textContent = '0';
+          return;
+        }
+
+        const asset = tributeAssets[selectedTributeAssetIndex];
+
+        try {
+          let balance;
+          if (asset.address === ethers.ZeroAddress) {
+            balance = await provider.getBalance(await signer.getAddress());
+          } else {
+            const tokenContract = new ethers.Contract(asset.address, ERC20_ABI, provider);
+            balance = await tokenContract.balanceOf(await signer.getAddress());
+          }
+
+          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(4);
+          document.getElementById('tributeUserBalance').textContent = `${formatted} ${asset.symbol}`;
+        } catch (error) {
+          console.error('Error fetching balance:', error);
+          document.getElementById('tributeUserBalance').textContent = '0';
+        }
+      }
+
+      function closeTributeModal() {
+        document.getElementById('tributeModal').classList.remove('show');
+      }
+
+      async function executeTribute() {
+        try {
+          if (!signer || !currentDAO) {
+            showStatus('No wallet connected or DAO selected', true);
+            return;
+          }
+
+          if (selectedTributeAssetIndex === null) {
+            showStatus('Please select an asset to offer', true);
+            return;
+          }
+
+          if (selectedRequestAssetIndex === null) {
+            showStatus('Please select an asset to request', true);
+            return;
+          }
+
+          const tribAsset = tributeAssets[selectedTributeAssetIndex];
+          const reqAsset = requestAssets[selectedRequestAssetIndex];
+
+          const tribAmountInput = document.getElementById('tributeAmount').value.trim();
+          const reqAmountInput = document.getElementById('requestAmount').value.trim();
+
+          if (!tribAmountInput || parseFloat(tribAmountInput) <= 0) {
+            showStatus('Please enter a valid tribute amount', true);
+            return;
+          }
+
+          if (!reqAmountInput || parseFloat(reqAmountInput) <= 0) {
+            showStatus('Please enter a valid request amount', true);
+            return;
+          }
+
+          const tribAmt = ethers.parseUnits(tribAmountInput, tribAsset.decimals);
+          const forAmt = ethers.parseUnits(reqAmountInput, reqAsset.decimals);
+
+          const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, signer);
+          const daoAddress = currentDAO.dao.dao;
+
+          showStatus('Creating tribute offer...', false);
+
+          let tx;
+          if (tribAsset.address === ethers.ZeroAddress) {
+            // ETH tribute
+            tx = await tributeContract.proposeTribute(
+              daoAddress,
+              ethers.ZeroAddress,
+              0,
+              reqAsset.address,
+              forAmt,
+              { value: tribAmt }
+            );
+          } else {
+            // ERC20 tribute - check allowance and approve if needed
+            const tokenContract = new ethers.Contract(tribAsset.address, ERC20_ABI, signer);
+            const userAddress = await signer.getAddress();
+            const allowance = await tokenContract.allowance(userAddress, TRIBUTE_ADDRESS);
+
+            if (allowance < tribAmt) {
+              showStatus('Approving token transfer...', false);
+              const approveTx = await tokenContract.approve(TRIBUTE_ADDRESS, tribAmt);
+              showStatus(`Approval submitted. <a href="https://etherscan.io/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+              await approveTx.wait();
+              showStatus('Approval confirmed. Creating tribute...', false);
+            }
+
+            tx = await tributeContract.proposeTribute(
+              daoAddress,
+              tribAsset.address,
+              tribAmt,
+              reqAsset.address,
+              forAmt
+            );
+          }
+
+          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          await tx.wait();
+
+          showStatus(`✨ Tribute offer created successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+
+          closeTributeModal();
+          await renderTributes();
+
+        } catch (error) {
+          console.error('Error creating tribute:', error);
+
+          let errorMessage = 'Failed to create tribute';
+          if (error.code === 'ACTION_REJECTED') {
+            errorMessage = 'Transaction rejected by user';
+          } else if (error.message?.includes('insufficient funds')) {
+            errorMessage = 'Insufficient balance or gas';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Clear tribute helper UI
+      function clearTributeHelper() {
+        const helper = document.getElementById('tributeHelper');
+        if (helper) helper.remove();
+      }
+
+      // Accept tribute - populate proposal form with batchCalls to claim tribute
+      async function acceptTributeProposal(index) {
+        if (!signer || !currentDAO) {
+          showStatus('Please connect wallet', true);
+          return;
+        }
+
+        // Check membership - only members can sponsor proposals
+        const memberShares = BigInt(currentDAO.member?.shares || 0);
+        const memberLoot = BigInt(currentDAO.member?.loot || 0);
+        if (!currentDAO.member || (memberShares === 0n && memberLoot === 0n)) {
+          showStatus('Only DAO members can sponsor tribute claims', true);
+          return;
+        }
+
+        const tribute = currentDaoTributes[index];
+        if (!tribute) return;
+
+        try {
+          showStatus('Preparing tribute claim proposal...', false);
+
+          // Get token info
+          let tribSymbol = 'ETH';
+          let tribDecimals = 18;
+          let forSymbol = 'ETH';
+          let forDecimals = 18;
+
+          if (tribute.tribTkn !== ethers.ZeroAddress) {
+            tribSymbol = await getTokenSymbol(tribute.tribTkn);
+            tribDecimals = await getTokenDecimals(tribute.tribTkn);
+          }
+
+          if (tribute.forTkn !== ethers.ZeroAddress) {
+            forSymbol = await getTokenSymbol(tribute.forTkn);
+            forDecimals = await getTokenDecimals(tribute.forTkn);
+          }
+
+          const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(4);
+          const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(4);
+
+          const daoAddress = currentDAO.dao.dao;
+
+          // Build the multicall based on what is being requested
+          const calls = [];
+          const isSharesOrLoot = tribute.forTkn.toLowerCase() === currentDAO.dao.meta.sharesToken.toLowerCase() ||
+                                  tribute.forTkn.toLowerCase() === currentDAO.dao.meta.lootToken.toLowerCase();
+
+          if (isSharesOrLoot) {
+            // Case 1: Requesting Shares or Loot - need to mint first
+            // Step 1: Mint the tokens to the DAO itself (so it can then send to Tribute contract)
+            const mintInterface = new ethers.Interface(['function mintFromMoloch(address,uint256)']);
+            const mintCalldata = mintInterface.encodeFunctionData('mintFromMoloch', [daoAddress, tribute.forAmt]);
+            calls.push([tribute.forTkn, 0n, mintCalldata]);
+
+            // Step 2: Approve Tribute contract to spend the tokens
+            const approveInterface = new ethers.Interface(['function approve(address,uint256)']);
+            const approveCalldata = approveInterface.encodeFunctionData('approve', [TRIBUTE_ADDRESS, tribute.forAmt]);
+            calls.push([tribute.forTkn, 0n, approveCalldata]);
+
+            // Step 3: Claim the tribute
+            const tributeInterface = new ethers.Interface(TRIBUTE_ABI);
+            const claimCalldata = tributeInterface.encodeFunctionData('claimTribute', [tribute.proposer, tribute.tribTkn]);
+            calls.push([TRIBUTE_ADDRESS, 0n, claimCalldata]);
+          } else if (tribute.forTkn !== ethers.ZeroAddress) {
+            // Case 2: Requesting regular ERC20 - just approve and claim
+            // Step 1: Approve Tribute contract
+            const approveInterface = new ethers.Interface(['function approve(address,uint256)']);
+            const approveCalldata = approveInterface.encodeFunctionData('approve', [TRIBUTE_ADDRESS, tribute.forAmt]);
+            calls.push([tribute.forTkn, 0n, approveCalldata]);
+
+            // Step 2: Claim the tribute
+            const tributeInterface = new ethers.Interface(TRIBUTE_ABI);
+            const claimCalldata = tributeInterface.encodeFunctionData('claimTribute', [tribute.proposer, tribute.tribTkn]);
+            calls.push([TRIBUTE_ADDRESS, 0n, claimCalldata]);
+          } else {
+            // Case 3: Requesting ETH - send ETH with claim call
+            const tributeInterface = new ethers.Interface(TRIBUTE_ABI);
+            const claimCalldata = tributeInterface.encodeFunctionData('claimTribute', [tribute.proposer, tribute.tribTkn]);
+            calls.push([TRIBUTE_ADDRESS, tribute.forAmt, claimCalldata]);
+          }
+
+          // Encode batchCalls for proposal execution (self-call from DAO)
+          const batchCallsInterface = new ethers.Interface(['function batchCalls((address,uint256,bytes)[])']);
+          const batchCallsCalldata = batchCallsInterface.encodeFunctionData('batchCalls', [calls]);
+
+          // Create description
+          const description = `Accept tribute: Receive ${tribBalance} ${tribSymbol} from ${tribute.proposer.slice(0, 6)}...${tribute.proposer.slice(-4)} in exchange for ${forBalance} ${forSymbol}`;
+
+          // Clear any existing helpers
+          clearTransferHelper();
+          clearMintHelper();
+          clearFutarchyHelper();
+          clearRendererHelper();
+          clearQuorumHelper();
+          clearTTLHelper();
+          clearTimelockDelayHelper();
+          clearThresholdHelper();
+          clearRagequitHelper();
+          clearTransferabilityHelper();
+          clearEmergencyPermitHelper();
+          clearSaleHelper();
+          clearTributeHelper();
+
+          // Scroll to proposal form
+          const proposalForm = document.querySelector('.proposal-form');
+          if (proposalForm) {
+            proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+
+          // Add tribute helper UI
+          let helperDiv = document.createElement('div');
+          helperDiv.id = 'tributeHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+
+          helperDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; letter-spacing: 0.1em;">
+                TRIBUTE CLAIM
+              </div>
+              <button onclick="clearTributeHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+            </div>
+            <div style="font-size: 0.8rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span>DAO Receives:</span>
+                <span style="color: #9d7bff;">${tribBalance} ${tribSymbol}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span>DAO Sends:</span>
+                <span style="color: #ff9d7b;">${forBalance} ${forSymbol}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span>To:</span>
+                <span style="font-family: monospace; font-size: 0.75rem;">${tribute.proposer.slice(0, 10)}...${tribute.proposer.slice(-8)}</span>
+              </div>
+            </div>
+            <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); margin-top: 0.5rem;">
+              Review the proposal below and submit to create a vote.
+            </div>
+          `;
+
+          // Populate proposal form fields
+          // Target is the DAO itself (self-call with batchCalls)
+          document.getElementById('proposalTo').value = daoAddress;
+          document.getElementById('proposalValue').value = '0';
+          document.getElementById('proposalData').value = batchCallsCalldata;
+          document.getElementById('proposalDescription').value = description;
+
+          // Update UI hints and translations
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated. Review and submit below.', false);
+
+        } catch (error) {
+          console.error('Error preparing tribute claim proposal:', error);
+
+          let errorMessage = 'Failed to prepare proposal';
+          if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
+      // Cancel a tribute offer
+      async function cancelTributeOffer(index) {
+        if (!signer || !currentDAO) {
+          showStatus('Please connect wallet', true);
+          return;
+        }
+
+        const tribute = currentDaoTributes[index];
+        if (!tribute) return;
+
+        try {
+          const userAddress = await signer.getAddress();
+          if (tribute.proposer.toLowerCase() !== userAddress.toLowerCase()) {
+            showStatus('You can only cancel your own tributes', true);
+            return;
+          }
+
+          showStatus('Canceling tribute...', false);
+
+          const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, signer);
+          const tx = await tributeContract.cancelTribute(currentDAO.dao.dao, tribute.tribTkn);
+
+          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          await tx.wait();
+
+          showStatus(`✨ Tribute cancelled and refunded! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+
+          // Refresh tributes display
+          await renderTributes();
+
+        } catch (error) {
+          console.error('Error canceling tribute:', error);
+
+          let errorMessage = 'Failed to cancel tribute';
+          if (error.code === 'ACTION_REJECTED') {
+            errorMessage = 'Transaction rejected by user';
+          } else if (error.shortMessage) {
+            errorMessage = error.shortMessage;
+          } else if (error.reason) {
+            errorMessage = error.reason;
+          }
+
+          showStatus(errorMessage, true);
+        }
+      }
+
       // Close modals when clicking outside
       document.addEventListener('DOMContentLoaded', () => {
         // Initialize token icons in summoning form
@@ -10746,6 +11596,15 @@
           });
         }
 
+        const tributeModal = document.getElementById('tributeModal');
+        if (tributeModal) {
+          tributeModal.addEventListener('click', (e) => {
+            if (e.target === tributeModal) {
+              closeTributeModal();
+            }
+          });
+        }
+
         // Close custom dropdowns when clicking outside
         document.addEventListener('click', (e) => {
           // Close deposit asset dropdown
@@ -10767,6 +11626,20 @@
           const proposalPayTokenDropdown = document.getElementById('proposalPayTokenDropdown');
           if (proposalPayTokenDropdown && !proposalPayTokenDisplay?.contains(e.target) && !proposalPayTokenDropdown.contains(e.target)) {
             proposalPayTokenDropdown.style.display = 'none';
+          }
+
+          // Close tribute asset dropdown
+          const tributeAssetDisplay = document.getElementById('tributeAssetDisplay');
+          const tributeAssetDropdown = document.getElementById('tributeAssetDropdown');
+          if (tributeAssetDropdown && !tributeAssetDisplay?.contains(e.target) && !tributeAssetDropdown.contains(e.target)) {
+            tributeAssetDropdown.style.display = 'none';
+          }
+
+          // Close request asset dropdown
+          const requestAssetDisplay = document.getElementById('requestAssetDisplay');
+          const requestAssetDropdown = document.getElementById('requestAssetDropdown');
+          if (requestAssetDropdown && !requestAssetDisplay?.contains(e.target) && !requestAssetDropdown.contains(e.target)) {
+            requestAssetDropdown.style.display = 'none';
           }
         });
       });
@@ -10874,10 +11747,11 @@
 
       // Fetch all DAOs from View Helper (not filtered by user)
       async function fetchAllDAOs() {
-        if (!provider) return;
+        const activeProvider = getActiveProvider();
+        if (!activeProvider) return;
 
         try {
-          const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
+          const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
 
           // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 5 proposals, recent 5 messages
           const result = await viewHelper.getDAOsFullState(
@@ -11745,6 +12619,138 @@
         customAssetDiv.onclick = () => prepareCustomTokenProposal();
 
         treasuryAssets.appendChild(customAssetDiv);
+      }
+
+      // Render tributes
+      async function renderTributes() {
+        const tributeOffers = document.getElementById('tributeOffers');
+        if (!tributeOffers || !currentDAO || !provider) return;
+
+        try {
+          const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, provider);
+          currentDaoTributes = await tributeContract.getActiveDaoTributes(currentDAO.dao.dao);
+
+          tributeOffers.innerHTML = '';
+
+          if (currentDaoTributes.length === 0) {
+            tributeOffers.innerHTML = `
+              <div style="grid-column: 1 / -1; padding: 1rem; text-align: center; color: rgba(230, 217, 255, 0.5); font-size: 0.85rem;">
+                No active tributes
+              </div>
+            `;
+            return;
+          }
+
+          for (let i = 0; i < currentDaoTributes.length; i++) {
+            const tribute = currentDaoTributes[i];
+
+            // Get token info for tribute
+            let tribSymbol = 'ETH';
+            let tribDecimals = 18;
+            let tribIcon = TOKEN_ICONS.eth;
+
+            if (tribute.tribTkn !== ethers.ZeroAddress) {
+              tribSymbol = await getTokenSymbol(tribute.tribTkn);
+              tribDecimals = await getTokenDecimals(tribute.tribTkn);
+              tribIcon = getTokenIcon(tribute.tribTkn);
+            }
+
+            // Get token info for request
+            let forSymbol = 'ETH';
+            let forDecimals = 18;
+
+            if (tribute.forTkn !== ethers.ZeroAddress) {
+              forSymbol = await getTokenSymbol(tribute.forTkn);
+              forDecimals = await getTokenDecimals(tribute.forTkn);
+            }
+
+            const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(4);
+            const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(4);
+
+            const card = document.createElement('div');
+            card.className = 'tribute-card';
+
+            // Check if this is the user's own tribute and if they're a member
+            const userAddress = signer ? await signer.getAddress() : null;
+            const isOwnTribute = userAddress && tribute.proposer.toLowerCase() === userAddress.toLowerCase();
+            const isMember = currentDAO.member && (BigInt(currentDAO.member.shares || 0) > 0n || BigInt(currentDAO.member.loot || 0) > 0n);
+
+            // Build buttons - members can sponsor, proposers can cancel (both if applicable)
+            let buttonsHtml = '';
+            if (isMember) {
+              buttonsHtml += `
+                <button class="tribute-accept-button" onclick="acceptTributeProposal(${i})">
+                  Sponsor Claim
+                </button>
+              `;
+            }
+            if (isOwnTribute) {
+              buttonsHtml += `
+                <button class="tribute-accept-button" style="background: rgba(255, 100, 100, 0.2); border-color: rgba(255, 100, 100, 0.4);" onclick="cancelTributeOffer(${i})">
+                  Cancel
+                </button>
+              `;
+            }
+
+            card.innerHTML = `
+              <div class="tribute-icon">${tribIcon}</div>
+              <div class="tribute-proposer" title="${tribute.proposer}">${tribute.proposer.slice(0, 6)}...${tribute.proposer.slice(-4)}</div>
+              <div class="tribute-amount">${tribBalance} ${tribSymbol}</div>
+              <div class="tribute-request">Wants: ${forBalance} ${forSymbol}</div>
+              <div class="tribute-buttons">${buttonsHtml}</div>
+            `;
+
+            tributeOffers.appendChild(card);
+
+            // Resolve ENS name asynchronously and update display
+            lookupENS(tribute.proposer).then(ensName => {
+              const proposerEl = card.querySelector('.tribute-proposer');
+              if (ensName && proposerEl) {
+                proposerEl.textContent = ensName;
+              }
+            }).catch(() => {
+              // Silently fail - address is already displayed
+            });
+          }
+        } catch (error) {
+          console.error('Error rendering tributes:', error);
+          tributeOffers.innerHTML = `
+            <div style="grid-column: 1 / -1; padding: 1rem; text-align: center; color: rgba(255, 100, 100, 0.7); font-size: 0.85rem;">
+              Error loading tributes
+            </div>
+          `;
+        }
+      }
+
+      // Helper to get token symbol
+      async function getTokenSymbol(tokenAddress) {
+        try {
+          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+          return await tokenContract.symbol();
+        } catch (error) {
+          return tokenAddress.slice(0, 6);
+        }
+      }
+
+      // Helper to get token decimals
+      async function getTokenDecimals(tokenAddress) {
+        try {
+          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+          return await tokenContract.decimals();
+        } catch (error) {
+          return 18;
+        }
+      }
+
+      // Helper to get token icon
+      function getTokenIcon(tokenAddress) {
+        const lowerAddr = tokenAddress.toLowerCase();
+        if (lowerAddr === TOKEN_ADDRESSES.usdc.toLowerCase()) return TOKEN_ICONS.usdc;
+        if (lowerAddr === TOKEN_ADDRESSES.usdt.toLowerCase()) return TOKEN_ICONS.usdt;
+        if (lowerAddr === TOKEN_ADDRESSES.dai.toLowerCase()) return TOKEN_ICONS.dai;
+        if (lowerAddr === TOKEN_ADDRESSES.wsteth.toLowerCase()) return TOKEN_ICONS.wsteth;
+        if (lowerAddr === TOKEN_ADDRESSES.reth.toLowerCase()) return TOKEN_ICONS.reth;
+        return TOKEN_ICONS.defaultCoin;
       }
 
       // Prepare transfer proposal from treasury asset
@@ -14358,11 +15364,79 @@
         }
       }
 
+      // Copy shareable DAO link to clipboard
+      async function copyDAOLink() {
+        if (!currentDAO) return;
+
+        const daoAddress = currentDAO.dao.dao;
+        // Build the shareable URL using the current origin and the DAO hash
+        const shareUrl = `${window.location.origin}${window.location.pathname}#/dao/${daoAddress}`;
+
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          const btn = document.getElementById('daoCopyLinkBtn');
+          const originalText = btn.querySelector('span').textContent;
+          btn.classList.add('copied');
+          btn.querySelector('span').textContent = 'Copied!';
+
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.querySelector('span').textContent = originalText;
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+          showStatus('Failed to copy link', true);
+        }
+      }
+
+      // Parse URL hash for deep linking - returns DAO address if present
+      function parseDAODeepLink() {
+        const hash = window.location.hash;
+        if (!hash) return null;
+
+        // Match format: #/dao/0x... (42 char address)
+        const match = hash.match(/^#\/dao\/(0x[a-fA-F0-9]{40})$/i);
+        if (match) {
+          return match[1];
+        }
+        return null;
+      }
+
+      // Open DAO by address (for deep linking)
+      async function openDAOByAddress(address) {
+        if (!allDAOs || allDAOs.length === 0) {
+          console.warn('Cannot open DAO by address: allDAOs not loaded yet');
+          return false;
+        }
+
+        const normalizedAddress = address.toLowerCase();
+        const daoIndex = allDAOs.findIndex(dao =>
+          dao.dao.toLowerCase() === normalizedAddress
+        );
+
+        if (daoIndex !== -1) {
+          await openDAO(daoIndex, 'all');
+          return true;
+        } else {
+          console.warn('DAO not found for address:', address);
+          showStatus('DAO not found. It may not exist or may not be indexed yet.', true);
+          return false;
+        }
+      }
+
       // Open DAO dashboard
       async function openDAO(daoIndex, source = 'user') {
         // Get the DAO from the appropriate source
         if (source === 'all') {
-          currentDAO = { dao: allDAOs[daoIndex], member: null };
+          const dao = allDAOs[daoIndex];
+          // Try to find membership data from userDAOs if available
+          // Use userDAOs entry if found - it has more complete data (more messages/proposals)
+          const userDaoEntry = userDAOs.find(ud => ud.dao.dao.toLowerCase() === dao.dao.toLowerCase());
+          if (userDaoEntry) {
+            currentDAO = userDaoEntry;
+          } else {
+            currentDAO = { dao: dao, member: null };
+          }
         } else {
           currentDAO = userDAOs[daoIndex];
         }
@@ -14386,11 +15460,15 @@
         etherscanLink.href = `https://etherscan.io/address/${daoAddress}`;
         addressText.textContent = `${daoAddress.slice(0, 6)}...${daoAddress.slice(-4)}`;
 
+        // Update URL hash for deep linking (allows sharing direct links to this DAO)
+        history.replaceState(null, '', `#/dao/${daoAddress}`);
+
         renderChatroom();
         await renderProposals();
         renderGovernanceInfo();
         await renderSalesInfo();
         await renderTreasury(); // Must be after renderSalesInfo to get customSaleTokens
+        await renderTributes();
         renderDaoStats();
         await renderDAOEmblem(daoAddress);
 
@@ -14469,6 +15547,11 @@
         const journeyLineContainer = document.getElementById('journey-line-container');
         if (journeyLineContainer) {
           journeyLineContainer.style.display = '';
+        }
+
+        // Clear URL hash when returning to gallery
+        if (window.location.hash) {
+          history.pushState('', document.title, window.location.pathname + window.location.search);
         }
 
         // Reset to DAO view
@@ -14942,6 +16025,14 @@
                     ${permitId.toString().slice(0, 20)}...${permitId.toString().slice(-20)}
                   </div>
                 </div>
+                <button
+                  onclick="event.stopPropagation(); useEmergencyPermit('${permitId.toString()}');"
+                  style="width: 100%; margin-top: 0.75rem; padding: 0.6rem; background: rgba(255, 100, 100, 0.25); border: 1px solid rgba(255, 100, 100, 0.5); color: #ff6b6b; font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.1em; cursor: pointer; transition: all 0.2s ease; text-transform: uppercase; border-radius: 4px; font-weight: 600;"
+                  onmouseover="this.style.background='rgba(255, 100, 100, 0.35)'; this.style.borderColor='#ff6b6b';"
+                  onmouseout="this.style.background='rgba(255, 100, 100, 0.25)'; this.style.borderColor='rgba(255, 100, 100, 0.5)';"
+                >
+                  ⚡ Execute Permit
+                </button>
               </div>
             `;
 
@@ -17831,6 +18922,8 @@
           await renderSalesInfo();
           await renderMembership();
           await renderMembers();
+          await renderTreasury();
+          await renderTributes();
 
           // Only update lastRefreshTime after successful completion
           lastRefreshTime = Date.now();
@@ -18963,10 +20056,43 @@
         // Initialize EIP-6963 support for modern wallet detection
         initEIP6963();
 
+        // Initialize read-only provider for deep links and browsing without wallet
+        try {
+          readOnlyProvider = new ethers.JsonRpcProvider(PUBLIC_RPC_URL);
+        } catch (error) {
+          console.error('Failed to initialize read-only provider:', error);
+        }
+
+        // Check for deep link - if present, load DAOs immediately (read-only)
+        const deepLinkAddress = parseDAODeepLink();
+        if (deepLinkAddress && readOnlyProvider) {
+          try {
+            showStatus('Loading DAO...', false);
+
+            // Fetch all DAOs using read-only provider
+            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, readOnlyProvider);
+            const result = await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5);
+            allDAOs = result;
+
+            // Try to open the deep-linked DAO
+            const opened = await openDAOByAddress(deepLinkAddress);
+            if (!opened) {
+              // DAO not found, show galleries instead
+              renderAllDAOsGallery();
+              DOMCache.allDaosGallery.classList.add('show');
+            }
+            // Note: Scroll is handled after auto-reconnect check below
+          } catch (error) {
+            console.error('Failed to load deep-linked DAO:', error);
+            showStatus('Failed to load DAO. Please try connecting your wallet.', true);
+          }
+        }
+
         // Small delay to allow EIP-6963 providers to announce themselves
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Auto-reconnect logic with improved wallet preference handling
+        let autoReconnected = false;
         if (window.ethereum) {
           try {
             const accounts = await window.ethereum.request({ method: 'eth_accounts' });
@@ -18978,15 +20104,30 @@
               if (preferredWallet && wallets.some(w => w.key === preferredWallet)) {
                 // Reconnect with preferred wallet
                 await connectWithWallet(preferredWallet);
+                autoReconnected = true;
               } else if (wallets.length > 0) {
                 // Fallback: connect with first detected wallet
                 await connectWithWallet(wallets[0].key);
+                autoReconnected = true;
               }
             }
           } catch (error) {
             console.error('Auto-reconnect failed:', error);
             // Silently fail auto-reconnect, user can manually connect
           }
+        }
+
+        // If we loaded a deep-linked DAO and didn't auto-reconnect (which has its own scroll),
+        // scroll to the dashboard now
+        if (deepLinkAddress && currentDAO && !autoReconnected) {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              const dashboard = document.getElementById('daoDashboard');
+              if (dashboard) {
+                dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }, 100);
+          });
         }
       });
 
