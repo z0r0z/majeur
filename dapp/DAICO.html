@@ -7548,6 +7548,16 @@
                 }
             }
 
+            // Clip to the cost of remaining supply if user balance would exceed it
+            const sale = currentPurchase.sale;
+            if (sale && sale.remainingSupply && sale.remainingSupply > 0n && sale.tribAmt > 0n && sale.forAmt > 0n) {
+                // Cost to buy all remaining = (remainingSupply * tribAmt) / forAmt
+                const costForRemaining = (sale.remainingSupply * sale.tribAmt) / sale.forAmt;
+                if (costForRemaining < maxAmt) {
+                    maxAmt = costForRemaining;
+                }
+            }
+
             const formatted = Number(ethers.formatUnits(maxAmt, tribInfo.decimals));
             document.getElementById('payAmountInput').value = formatted.toString();
             currentPurchase.inputMode = 'pay';
@@ -7588,8 +7598,12 @@
             const tribInfo = COMMON_TRIB_TOKENS[currentPurchase.tribTkn] || { decimals: 18 };
 
             try {
+                // Ensure scanner is initialized for quotes without wallet connection
+                const rpcProvider = await initScanner();
+                if (!rpcProvider) return;
+
                 const payAmt = ethers.parseUnits(payStr, tribInfo.decimals);
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, scannerProvider || provider);
+                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, rpcProvider);
                 const buyAmt = await daicoContract.quoteBuy(currentPurchase.dao, currentPurchase.tribTkn, payAmt);
 
                 if (buyAmt > 0n) {
@@ -7611,8 +7625,12 @@
             const tribInfo = COMMON_TRIB_TOKENS[currentPurchase.tribTkn] || { decimals: 18 };
 
             try {
+                // Ensure scanner is initialized for quotes without wallet connection
+                const rpcProvider = await initScanner();
+                if (!rpcProvider) return;
+
                 const buyAmt = ethers.parseEther(receiveStr);
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, scannerProvider || provider);
+                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, rpcProvider);
                 const payAmt = await daicoContract.quotePayExactOut(currentPurchase.dao, currentPurchase.tribTkn, buyAmt);
 
                 if (payAmt > 0n) {
@@ -7993,7 +8011,8 @@
         // Fetch a specific DAO directly (for deep links to DAOs not in active list)
         async function fetchAndOpenDAO(daoAddr, tribTkn) {
             try {
-                const rpcProvider = scannerProvider || provider;
+                // Ensure scanner is initialized for deep links without wallet
+                const rpcProvider = await initScanner();
                 if (!rpcProvider) return;
 
                 const multicall = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI, rpcProvider);
