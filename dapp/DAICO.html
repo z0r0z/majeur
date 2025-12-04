@@ -7921,7 +7921,8 @@
             status.innerHTML = message;
             status.className = 'status-message';
             if (type === 'error') status.classList.add('error');
-            if (type === 'success') status.style.background = 'var(--green)';
+            else if (type === 'success') status.classList.add('success');
+            else if (type === 'info') status.classList.add('info');
             status.style.display = 'block';
         }
 
