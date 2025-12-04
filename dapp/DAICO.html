@@ -2837,6 +2837,7 @@
             overflow-y: auto;
             padding: 2rem;
             box-shadow: 12px 12px 0 var(--cyan);
+            margin: auto;
         }
 
         .purchase-header {
@@ -4211,7 +4212,7 @@
         <div id="summaryPricePreview" class="summary-price-preview"></div>
         <div id="summaryTapPreview" class="summary-tap-preview"></div>
         <div id="summaryLootNote" class="summary-loot-note" style="display: none;">
-            You retain voting control. Loot holders can ragequit.
+            No governance. Holders can ragequit. Tap releases funds to ops.
         </div>
 
         <div class="summary-name-section">
@@ -4374,7 +4375,7 @@
                     </button>
                     <button class="wizard-choice-btn loot" onclick="selectTokenType('loot')">
                         Loot
-                        <div class="wizard-choice-desc">Non-voting. Founders keep voting shares.</div>
+                        <div class="wizard-choice-desc">Non-voting. No governance. Ragequittable.</div>
                     </button>
                 </div>
             </div>
@@ -4881,7 +4882,7 @@
         const SUMMONER_ADDRESS = '0x0000000000330B8df9E3bc5E553074DA58eE9138';
         const DEFAULT_RENDERER = '0x000000000011c799980827f52d3137b4abd6e654';
         const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
-        const MOLOCH_VIEW_HELPER = '0x00000000001f42E9EC46e66bd0f36c56777Ef773';
+        const MOLOCH_VIEW_HELPER = '0x000000000066317bd3662A649D8901c076268Df9';
 
         // Implementation addresses for CREATE2 prediction (must match Summoner's implementations)
         const MOLOCH_IMPL = '0x643A45B599D81be3f3A68F37EB3De55fF10673C1';
@@ -5594,6 +5595,10 @@
 
         function selectTokenType(type) {
             wizardState.tokenType = type;
+            // Auto-enable tap for loot sales (prevents locked funds footgun)
+            if (type === 'loot') {
+                wizardState.enableTap = true;
+            }
             showWizardStep(2);
         }
 
@@ -5641,6 +5646,8 @@
         }
 
         function selectTap(enabled) {
+            // For loot sales, we auto-enable tap but allow disabling
+            // Validation at confirm step will warn if loot + no tap + no founders (locked funds footgun)
             wizardState.enableTap = enabled;
             wizardState.tapOps = null; // Reset
             // Go to LP step
@@ -6133,6 +6140,15 @@
             const price = calcPricePerToken(wizardState.raiseAmount);
             const isLoot = wizardState.tokenType === 'loot';
 
+            // Footgun prevention: loot sale with no tap and no founders = locked funds
+            if (isLoot && !wizardState.enableTap) {
+                const founders = getWizardFounders();
+                if (founders.addresses.length === 0) {
+                    showWizardStatus('Loot sale requires either Tap or Founders to access funds', 'error');
+                    return;
+                }
+            }
+
             // Gather founders (only for loot mode) - use pre-resolved ENS addresses
             let initHolders = [];
             let initSharesWei = [];
@@ -6432,6 +6448,11 @@
                 el.textContent = 'Loot';
                 el.classList.add('loot');
                 lootNote.style.display = 'block';
+                // Auto-enable tap for loot sales (prevents locked funds footgun)
+                if (!summaryState.tapEnabled) {
+                    summaryState.tapEnabled = true;
+                    updateSummaryTapDisplay();
+                }
             } else {
                 summaryState.tokenType = 'shares';
                 el.textContent = 'Shares';
@@ -6450,6 +6471,11 @@
         }
 
         function toggleSummaryTap() {
+            // Prevent disabling tap for loot sales in simple form (no founders = locked funds footgun)
+            // Users can use Advanced form for loot sales with founders where tap can be disabled
+            if (summaryState.tapEnabled && summaryState.tokenType === 'loot') {
+                return; // Don't allow disabling tap for loot sales in simple form
+            }
             summaryState.tapEnabled = !summaryState.tapEnabled;
             updateSummaryTapDisplay();
         }
@@ -6704,6 +6730,10 @@
 
                 document.getElementById('summaryStatus').innerHTML = `Launched! <a href="https://majeurdao.eth.limo/#/dao/${predictedDao}" target="_blank" rel="noopener" style="color: var(--green);">View your DAO</a>`;
 
+                // Refresh DAICO list to show the new sale
+                daicoScanTriggered = false;
+                setTimeout(() => triggerDAICOScan(), 3000);
+
             } catch (error) {
                 console.error('Launch failed:', error);
 
@@ -6733,9 +6763,104 @@
             'function aggregate3(tuple(address target, bool allowFailure, bytes callData)[] calls) view returns (tuple(bool success, bytes returnData)[])'
         ];
 
-        const VIEW_HELPER_ABI = [
-            'function getDaos(uint256 start, uint256 count) view returns (address[])'
-        ];
+        // VIEW_HELPER_ABI - getDAOsFullState returns rich DAO data in one call
+        const VIEW_HELPER_ABI = [{
+            "inputs": [
+                {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
+                {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
+                {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
+                {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
+                {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
+                {"internalType": "uint256", "name": "messageCount", "type": "uint256"}
+            ],
+            "name": "getDAOsFullState",
+            "outputs": [{
+                "components": [
+                    {"internalType": "address", "name": "dao", "type": "address"},
+                    {"components": [
+                        {"internalType": "string", "name": "name", "type": "string"},
+                        {"internalType": "string", "name": "symbol", "type": "string"},
+                        {"internalType": "string", "name": "contractURI", "type": "string"},
+                        {"internalType": "address", "name": "sharesToken", "type": "address"},
+                        {"internalType": "address", "name": "lootToken", "type": "address"},
+                        {"internalType": "address", "name": "badgesToken", "type": "address"},
+                        {"internalType": "address", "name": "renderer", "type": "address"}
+                    ], "internalType": "struct DAOMeta", "name": "meta", "type": "tuple"},
+                    {"components": [
+                        {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
+                        {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
+                        {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
+                        {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
+                        {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
+                        {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
+                        {"internalType": "bool", "name": "ragequittable", "type": "bool"},
+                        {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
+                        {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
+                        {"internalType": "address", "name": "rewardToken", "type": "address"}
+                    ], "internalType": "struct DAOGovConfig", "name": "gov", "type": "tuple"},
+                    {"components": [
+                        {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
+                    ], "internalType": "struct DAOTokenSupplies", "name": "supplies", "type": "tuple"},
+                    {"components": [
+                        {"internalType": "uint256", "name": "eth", "type": "uint256"},
+                        {"internalType": "uint256", "name": "usdc", "type": "uint256"},
+                        {"internalType": "uint256", "name": "usdt", "type": "uint256"},
+                        {"internalType": "uint256", "name": "dai", "type": "uint256"},
+                        {"internalType": "uint256", "name": "wsteth", "type": "uint256"},
+                        {"internalType": "uint256", "name": "reth", "type": "uint256"}
+                    ], "internalType": "struct DAOTreasury", "name": "treasury", "type": "tuple"},
+                    {"components": [
+                        {"internalType": "address", "name": "account", "type": "address"},
+                        {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                        {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                        {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                        {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                        {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                        {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                    ], "internalType": "struct MemberView[]", "name": "members", "type": "tuple[]"},
+                    {"components": [
+                        {"internalType": "uint256", "name": "id", "type": "uint256"},
+                        {"internalType": "address", "name": "proposer", "type": "address"},
+                        {"internalType": "uint8", "name": "state", "type": "uint8"},
+                        {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
+                        {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
+                        {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
+                        {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
+                        {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
+                        {"components": [
+                            {"internalType": "bool", "name": "enabled", "type": "bool"},
+                            {"internalType": "address", "name": "rewardToken", "type": "address"},
+                            {"internalType": "uint256", "name": "pool", "type": "uint256"},
+                            {"internalType": "bool", "name": "resolved", "type": "bool"},
+                            {"internalType": "uint8", "name": "winner", "type": "uint8"},
+                            {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
+                        ], "internalType": "struct FutarchyView", "name": "futarchy", "type": "tuple"},
+                        {"components": [
+                            {"internalType": "address", "name": "voter", "type": "address"},
+                            {"internalType": "uint8", "name": "support", "type": "uint8"},
+                            {"internalType": "uint256", "name": "weight", "type": "uint256"}
+                        ], "internalType": "struct VoterView[]", "name": "voters", "type": "tuple[]"}
+                    ], "internalType": "struct ProposalView[]", "name": "proposals", "type": "tuple[]"},
+                    {"components": [
+                        {"internalType": "uint256", "name": "id", "type": "uint256"},
+                        {"internalType": "address", "name": "sender", "type": "address"},
+                        {"internalType": "uint64", "name": "timestamp", "type": "uint64"},
+                        {"internalType": "string", "name": "content", "type": "string"}
+                    ], "internalType": "struct MessageView[]", "name": "messages", "type": "tuple[]"}
+                ],
+                "internalType": "struct DAOFullState[]",
+                "name": "",
+                "type": "tuple[]"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }];
 
         const DAICO_SCANNER_ABI = [
             'function sales(address dao, address tribTkn) view returns (uint256 tribAmt, uint256 forAmt, address forTkn, uint40 deadline)',
@@ -6744,16 +6869,12 @@
             'function claimableTap(address dao) view returns (uint256)'
         ];
 
+        // Minimal ABI for direct DAO queries (used by fetchAndOpenDAO for deep links)
         const MOLOCH_SCANNER_ABI = [
-            'function name() view returns (string)',
             'function name(uint256) view returns (string)',
-            'function symbol() view returns (string)',
             'function symbol(uint256) view returns (string)',
-            'function shares() view returns (address)',
-            'function loot() view returns (address)',
             'function sharesToken() view returns (address)',
-            'function lootToken() view returns (address)',
-            'function contractURI() view returns (string)'
+            'function lootToken() view returns (address)'
         ];
 
         const ERC20_ABI = [
@@ -6770,135 +6891,119 @@
         let currentSaleTab = 'active';
         let scannerProvider = null;
 
+        // Public RPCs for scanning without wallet connection
+        const PUBLIC_RPCS = [
+            'https://eth.llamarpc.com',
+            'https://rpc.ankr.com/eth',
+            'https://ethereum.publicnode.com',
+            'https://1rpc.io/eth'
+        ];
+
         // Initialize scanner with a provider (can be default or connected)
         async function initScanner() {
-            // Use a default provider for scanning (no wallet needed)
+            // Prefer connected provider if available
+            if (provider) {
+                return provider;
+            }
+            // Try public RPCs with fallback
             if (!scannerProvider) {
-                scannerProvider = new ethers.JsonRpcProvider('https://eth.llamarpc.com');
+                for (const rpc of PUBLIC_RPCS) {
+                    try {
+                        const testProvider = new ethers.JsonRpcProvider(rpc);
+                        // Quick test to verify RPC works
+                        await testProvider.getBlockNumber();
+                        scannerProvider = testProvider;
+                        break;
+                    } catch (e) {
+                        // Try next RPC
+                    }
+                }
             }
             return scannerProvider;
         }
 
-        // Scan for active DAICOs using multicall
+        // Scan for active DAICOs using getDAOsFullState + targeted multicall
         async function scanActiveDAICOs() {
             const scanProvider = await initScanner();
 
             const multicall = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI, scanProvider);
             const viewHelper = new ethers.Contract(MOLOCH_VIEW_HELPER, VIEW_HELPER_ABI, scanProvider);
             const daicoIface = new ethers.Interface(DAICO_SCANNER_ABI);
-            const molochIface = new ethers.Interface(MOLOCH_SCANNER_ABI);
             const erc20Iface = new ethers.Interface(ERC20_ABI);
 
-            // Step 1: Get all DAOs
-            const daos = await viewHelper.getDaos(0, 100);
-            if (daos.length === 0) return [];
+            // Step 1: Get all DAOs with full state (efficient single call)
+            // Parameters: daoStart, daoCount, proposalStart, proposalCount, messageStart, messageCount
+            // Using same parameters as Majeur.html for consistency
+            const daoResults = await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5);
+            if (daoResults.length === 0) return [];
 
+            // Build map of DAO info from view helper results
+            const daoInfo = {};
+            for (const daoResult of daoResults) {
+                const daoAddr = daoResult.dao;
+                daoInfo[daoAddr] = {
+                    dao: daoAddr,
+                    name: daoResult.meta.name,
+                    symbol: daoResult.meta.symbol,
+                    contractURI: daoResult.meta.contractURI,
+                    sharesToken: daoResult.meta.sharesToken,
+                    lootToken: daoResult.meta.lootToken,
+                    sales: [],
+                    tap: null,
+                    claimableTap: 0n,
+                    metadata: parseContractURI(daoResult.meta.contractURI)
+                };
+            }
+
+            const daoAddresses = Object.keys(daoInfo);
             const tribTokens = Object.keys(COMMON_TRIB_TOKENS);
-            const now = Math.floor(Date.now() / 1000);
 
-            // Step 2: Build multicall to check sales for each DAO × tribToken
+            // Step 2: Build multicall to check DAICO sales for each DAO × tribToken
+            // This is much smaller: just sales + taps calls to DAICO contract
             const calls = [];
-            const callMeta = []; // Track what each call is for
+            const callMeta = [];
 
-            for (const dao of daos) {
-                // Get DAO name/symbol and token addresses
-                calls.push({
-                    target: dao,
-                    allowFailure: true,
-                    callData: molochIface.encodeFunctionData('name', [0])
-                });
-                callMeta.push({ type: 'name', dao });
-
-                calls.push({
-                    target: dao,
-                    allowFailure: true,
-                    callData: molochIface.encodeFunctionData('symbol', [0])
-                });
-                callMeta.push({ type: 'symbol', dao });
-
-                calls.push({
-                    target: dao,
-                    allowFailure: true,
-                    callData: molochIface.encodeFunctionData('shares', [])
-                });
-                callMeta.push({ type: 'shares', dao });
-
-                calls.push({
-                    target: dao,
-                    allowFailure: true,
-                    callData: molochIface.encodeFunctionData('loot', [])
-                });
-                callMeta.push({ type: 'loot', dao });
-
-                // Get contractURI for image/metadata
-                calls.push({
-                    target: dao,
-                    allowFailure: true,
-                    callData: molochIface.encodeFunctionData('contractURI', [])
-                });
-                callMeta.push({ type: 'contractURI', dao });
-
+            for (const daoAddr of daoAddresses) {
                 // Check sales for each common tribute token
                 for (const tribTkn of tribTokens) {
                     calls.push({
                         target: DAICO_ADDRESS,
                         allowFailure: true,
-                        callData: daicoIface.encodeFunctionData('sales', [dao, tribTkn])
+                        callData: daicoIface.encodeFunctionData('sales', [daoAddr, tribTkn])
                     });
-                    callMeta.push({ type: 'sale', dao, tribTkn });
+                    callMeta.push({ type: 'sale', dao: daoAddr, tribTkn });
                 }
 
                 // Get tap info
                 calls.push({
                     target: DAICO_ADDRESS,
                     allowFailure: true,
-                    callData: daicoIface.encodeFunctionData('taps', [dao])
+                    callData: daicoIface.encodeFunctionData('taps', [daoAddr])
                 });
-                callMeta.push({ type: 'tap', dao });
+                callMeta.push({ type: 'tap', dao: daoAddr });
 
                 calls.push({
                     target: DAICO_ADDRESS,
                     allowFailure: true,
-                    callData: daicoIface.encodeFunctionData('claimableTap', [dao])
+                    callData: daicoIface.encodeFunctionData('claimableTap', [daoAddr])
                 });
-                callMeta.push({ type: 'claimableTap', dao });
+                callMeta.push({ type: 'claimableTap', dao: daoAddr });
             }
 
-            // Execute multicall
+            // Execute multicall for DAICO data
             const results = await multicall.aggregate3(calls);
 
-            // Step 3: Parse results and build DAO info map
-            const daoInfo = {};
+            // Parse DAICO results
             for (let i = 0; i < results.length; i++) {
                 const { success, returnData } = results[i];
                 const meta = callMeta[i];
 
-                if (!daoInfo[meta.dao]) {
-                    daoInfo[meta.dao] = { dao: meta.dao, sales: [], tap: null, claimableTap: 0n };
-                }
-
                 if (!success || returnData === '0x') continue;
 
                 try {
-                    if (meta.type === 'name') {
-                        daoInfo[meta.dao].name = molochIface.decodeFunctionResult('name', returnData)[0];
-                    } else if (meta.type === 'symbol') {
-                        daoInfo[meta.dao].symbol = molochIface.decodeFunctionResult('symbol', returnData)[0];
-                    } else if (meta.type === 'shares') {
-                        daoInfo[meta.dao].sharesToken = molochIface.decodeFunctionResult('shares', returnData)[0];
-                    } else if (meta.type === 'loot') {
-                        daoInfo[meta.dao].lootToken = molochIface.decodeFunctionResult('loot', returnData)[0];
-                    } else if (meta.type === 'contractURI') {
-                        const uri = molochIface.decodeFunctionResult('contractURI', returnData)[0];
-                        daoInfo[meta.dao].contractURI = uri;
-                        // Parse the contractURI to extract metadata
-                        const metadata = parseContractURI(uri);
-                        if (metadata) {
-                            daoInfo[meta.dao].metadata = metadata;
-                        }
-                    } else if (meta.type === 'sale') {
+                    if (meta.type === 'sale') {
                         const [tribAmt, forAmt, forTkn, deadline] = daicoIface.decodeFunctionResult('sales', returnData);
-                        // Track all sales with valid terms (active or completed)
+                        // Track all sales with valid terms
                         if (tribAmt > 0n && forAmt > 0n) {
                             daoInfo[meta.dao].sales.push({
                                 tribTkn: meta.tribTkn,
@@ -6921,15 +7026,15 @@
                 }
             }
 
-            // Step 4: For DAOs with active sales, get remaining supply
-            const activeDaos = Object.values(daoInfo).filter(d => d.sales.length > 0);
-            if (activeDaos.length === 0) return [];
+            // Step 3: For DAOs with sales, get remaining supply
+            const daosWithSales = Object.values(daoInfo).filter(d => d.sales.length > 0);
+            if (daosWithSales.length === 0) return [];
 
-            // Build second multicall for balances
+            // Build balance multicall
             const balanceCalls = [];
             const balanceMeta = [];
 
-            for (const daoData of activeDaos) {
+            for (const daoData of daosWithSales) {
                 for (const sale of daoData.sales) {
                     // Get remaining supply (forTkn balance in DAO)
                     balanceCalls.push({
@@ -6946,27 +7051,22 @@
                         callData: erc20Iface.encodeFunctionData('totalSupply', [])
                     });
                     balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'totalSupply' });
-                }
 
-                // Get DAO tribute token balance (for "raised" display)
-                for (const sale of daoData.sales) {
+                    // Get treasury balance
                     if (sale.tribTkn === ethers.ZeroAddress) {
-                        // ETH - use multicall's getEthBalance
                         balanceCalls.push({
                             target: MULTICALL3_ADDRESS,
                             allowFailure: true,
                             callData: MULTICALL3_ETH_BALANCE_IFACE.encodeFunctionData('getEthBalance', [daoData.dao])
                         });
-                        balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'treasuryBalance' });
                     } else {
-                        // ERC20 tribute token
                         balanceCalls.push({
                             target: sale.tribTkn,
                             allowFailure: true,
                             callData: erc20Iface.encodeFunctionData('balanceOf', [daoData.dao])
                         });
-                        balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'treasuryBalance' });
                     }
+                    balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'treasuryBalance' });
                 }
 
                 // Get DAO ETH balance for tap display
@@ -6990,7 +7090,7 @@
                     if (!success || returnData === '0x') continue;
 
                     try {
-                        const daoData = activeDaos.find(d => d.dao === meta.dao);
+                        const daoData = daosWithSales.find(d => d.dao === meta.dao);
                         if (!daoData) continue;
 
                         if (meta.type === 'remaining') {
@@ -7024,7 +7124,7 @@
             const currentTime = Math.floor(Date.now() / 1000);
 
             // Separate active and completed sales
-            activeDAICOs = activeDaos.filter(d =>
+            activeDAICOs = daosWithSales.filter(d =>
                 d.sales.some(s => {
                     const hasSupply = s.remainingSupply && s.remainingSupply > 0n;
                     const notExpired = s.deadline === 0 || s.deadline > currentTime;
@@ -7032,7 +7132,7 @@
                 })
             );
 
-            completedDAICOs = activeDaos.filter(d =>
+            completedDAICOs = daosWithSales.filter(d =>
                 d.sales.some(s => {
                     const soldOut = !s.remainingSupply || s.remainingSupply === 0n;
                     const expired = s.deadline > 0 && s.deadline <= currentTime;
@@ -7902,9 +8002,10 @@
                 const erc20Iface = new ethers.Interface(ERC20_ABI);
 
                 // Build calls for this specific DAO
+                // Use full signature to disambiguate overloaded functions in ethers v6
                 const calls = [
-                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('name', []) },
-                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('symbol', []) },
+                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('name(uint256)', [0]) },
+                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('symbol(uint256)', [0]) },
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('sharesToken', []) },
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('lootToken', []) },
                     { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('sales', [daoAddr, tribTkn]) },
@@ -7917,8 +8018,8 @@
                 // Parse results
                 const daoData = { dao: daoAddr, sales: [] };
 
-                if (results[0].success) daoData.name = molochIface.decodeFunctionResult('name', results[0].returnData)[0];
-                if (results[1].success) daoData.symbol = molochIface.decodeFunctionResult('symbol', results[1].returnData)[0];
+                if (results[0].success) daoData.name = molochIface.decodeFunctionResult('name(uint256)', results[0].returnData)[0];
+                if (results[1].success) daoData.symbol = molochIface.decodeFunctionResult('symbol(uint256)', results[1].returnData)[0];
                 if (results[2].success) daoData.sharesToken = molochIface.decodeFunctionResult('sharesToken', results[2].returnData)[0];
                 if (results[3].success) daoData.lootToken = molochIface.decodeFunctionResult('lootToken', results[3].returnData)[0];
 
@@ -8134,6 +8235,12 @@
                 return;
             }
 
+            // Footgun prevention: loot sale with no tap and no founders = locked funds
+            if (tokenType === 'loot' && !enableTap && founderShares <= 0) {
+                showStatus('Loot sale requires either Tap or Founder Shares to access funds', 'error');
+                return;
+            }
+
             try {
                 showStatus('Preparing transaction...', 'info');
                 document.getElementById('submitBtn').disabled = true;
@@ -8292,6 +8399,10 @@
                 document.getElementById('successLink').href = `https://majeurdao.eth.limo/#/dao/${daoAddress}`;
 
                 hideStatus();
+
+                // Refresh DAICO list to show the new sale
+                daicoScanTriggered = false;
+                setTimeout(() => triggerDAICOScan(), 3000);
 
             } catch (error) {
                 console.error('Launch failed:', error);
