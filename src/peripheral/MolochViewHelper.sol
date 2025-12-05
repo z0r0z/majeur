@@ -37,6 +37,27 @@ interface ILoot {
 
 interface IERC20 {
     function balanceOf(address) external view returns (uint256);
+    function totalSupply() external view returns (uint256);
+}
+
+interface IDAICO {
+    function sales(address dao, address tribTkn)
+        external
+        view
+        returns (uint256 tribAmt, uint256 forAmt, address forTkn, uint40 deadline);
+
+    function taps(address dao)
+        external
+        view
+        returns (address ops, address tribTkn, uint128 ratePerSec, uint64 lastClaim);
+
+    function lpConfigs(address dao, address tribTkn)
+        external
+        view
+        returns (uint16 lpBps, uint16 maxSlipBps, uint256 feeOrHook);
+
+    function claimableTap(address dao) external view returns (uint256);
+    function pendingTap(address dao) external view returns (uint256);
 }
 
 // Full-ish Moloch surface needed for the view helper
@@ -98,6 +119,9 @@ interface IMoloch {
     // Chat / messages
     function getMessageCount() external view returns (uint256);
     function messages(uint256) external view returns (string memory);
+
+    // Treasury allowance (for tap budget)
+    function allowance(address token, address spender) external view returns (uint256);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -219,6 +243,50 @@ struct UserDAOLens {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                              DAICO STRUCTS                                 */
+/* -------------------------------------------------------------------------- */
+
+struct SaleView {
+    address tribTkn; // payment token (ETH = address(0))
+    uint256 tribAmt; // base pay amount
+    uint256 forAmt; // base receive amount
+    address forTkn; // token being sold
+    uint40 deadline; // unix timestamp (0 = no deadline)
+    uint256 remainingSupply; // forTkn balance in DAO (available for sale)
+    uint256 totalSupply; // forTkn total supply
+    uint256 treasuryBalance; // tribTkn balance in DAO (raised so far)
+    uint256 allowance; // forTkn allowance to DAICO (approved for sale)
+    // LP config
+    uint16 lpBps;
+    uint16 maxSlipBps;
+    uint256 feeOrHook;
+}
+
+struct TapView {
+    address ops; // beneficiary
+    address tribTkn; // token being tapped
+    uint128 ratePerSec; // rate in smallest units/sec
+    uint64 lastClaim; // last claim timestamp
+    uint256 claimable; // currently claimable amount
+    uint256 pending; // pending based on time (ignoring caps)
+    uint256 treasuryBalance; // tribTkn balance in DAO (available to tap)
+    uint256 tapAllowance; // Moloch treasury allowance to DAICO for tribTkn (tap budget)
+}
+
+struct DAICOView {
+    address dao;
+    DAOMeta meta;
+    SaleView[] sales; // active sales (may be multiple tribute tokens)
+    TapView tap; // tap config (if any)
+}
+
+struct DAICOLens {
+    DAOLens dao;
+    SaleView[] sales;
+    TapView tap;
+}
+
+/* -------------------------------------------------------------------------- */
 /*                              VIEW HELPER CONTRACT                          */
 /* -------------------------------------------------------------------------- */
 
@@ -227,6 +295,9 @@ contract MolochViewHelper {
 
     // Summoner factory (same CREATE2 address on all supported networks)
     ISummoner public constant SUMMONER = ISummoner(0x0000000000330B8df9E3bc5E553074DA58eE9138);
+
+    // DAICO contract (same CREATE2 address on all supported networks)
+    IDAICO public constant DAICO = IDAICO(0x000000000033e92DB97B4B3beCD2c255126C60aC);
 
     /* ---------------------------------------------------------------------- */
     /*                             DAO PAGINATION                             */
@@ -238,7 +309,7 @@ contract MolochViewHelper {
     function getDaos(uint256 start, uint256 count) public view returns (address[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (start >= total) {
-            return new address[](total);
+            return new address[](0);
         }
 
         uint256 end = start + count;
@@ -272,7 +343,9 @@ contract MolochViewHelper {
         uint256 messageCount,
         address[] calldata treasuryTokens
     ) public view returns (DAOLens memory out) {
-        out = _buildDAOFullState(dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens);
+        out = _buildDAOFullState(
+            dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+        );
     }
 
     /* ---------------------------------------------------------------------- */
@@ -303,7 +376,7 @@ contract MolochViewHelper {
     ) public view returns (DAOLens[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (daoStart >= total) {
-            return new DAOLens[](total);
+            return new DAOLens[](0);
         }
 
         uint256 daoEnd = daoStart + daoCount;
@@ -314,8 +387,9 @@ contract MolochViewHelper {
 
         for (uint256 i; i < len; ++i) {
             address dao = SUMMONER.daos(daoStart + i);
-            out[i] =
-                _buildDAOFullState(dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens);
+            out[i] = _buildDAOFullState(
+                dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+            );
         }
     }
 
@@ -326,14 +400,15 @@ contract MolochViewHelper {
     /// @notice Find all DAOs (within a slice) where `user` has shares, loot, or a badge seat.
     /// @dev Lightweight summary: no proposals/messages; intended for wallet dashboards.
     /// @param treasuryTokens Array of token addresses to check balances for (address(0) = native ETH)
-    function getUserDAOs(address user, uint256 daoStart, uint256 daoCount, address[] calldata treasuryTokens)
-        public
-        view
-        returns (UserMemberView[] memory out)
-    {
+    function getUserDAOs(
+        address user,
+        uint256 daoStart,
+        uint256 daoCount,
+        address[] calldata treasuryTokens
+    ) public view returns (UserMemberView[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (daoStart >= total) {
-            return new UserMemberView[](total);
+            return new UserMemberView[](0);
         }
 
         uint256 daoEnd = daoStart + daoCount;
@@ -452,7 +527,7 @@ contract MolochViewHelper {
     ) public view returns (UserDAOLens[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (daoStart >= total) {
-            return new UserDAOLens[](total);
+            return new UserDAOLens[](0);
         }
 
         uint256 daoEnd = daoStart + daoCount;
@@ -646,7 +721,7 @@ contract MolochViewHelper {
     {
         uint256 total = M.getProposalCount();
         if (start >= total) {
-            return new ProposalView[](total);
+            return new ProposalView[](0);
         }
 
         uint256 end = start + count;
@@ -752,7 +827,7 @@ contract MolochViewHelper {
         IMoloch M = IMoloch(dao);
         uint256 total = M.getMessageCount();
         if (start >= total) {
-            return new MessageView[](total);
+            return new MessageView[](0);
         }
 
         uint256 end = start + count;
@@ -774,7 +849,11 @@ contract MolochViewHelper {
     ///      missing contracts (returns 0 balance if call fails).
     /// @param dao The DAO address to check balances for
     /// @param tokens Array of token addresses (address(0) = native ETH)
-    function _getTreasury(address dao, address[] calldata tokens) internal view returns (DAOTreasury memory t) {
+    function _getTreasury(address dao, address[] calldata tokens)
+        internal
+        view
+        returns (DAOTreasury memory t)
+    {
         uint256 len = tokens.length;
         t.balances = new TokenBalance[](len);
 
@@ -787,9 +866,8 @@ contract MolochViewHelper {
                 bal = dao.balance;
             } else {
                 // ERC20 - use staticcall to handle missing contracts gracefully
-                (bool success, bytes memory data) = token.staticcall(
-                    abi.encodeWithSelector(IERC20.balanceOf.selector, dao)
-                );
+                (bool success, bytes memory data) =
+                    token.staticcall(abi.encodeWithSelector(IERC20.balanceOf.selector, dao));
                 if (success && data.length >= 32) {
                     bal = abi.decode(data, (uint256));
                 }
@@ -798,5 +876,372 @@ contract MolochViewHelper {
 
             t.balances[i] = TokenBalance({token: token, balance: bal});
         }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*                           DAICO SCAN FUNCTIONS                         */
+    /* ---------------------------------------------------------------------- */
+
+    /// @notice Scan all DAOs for active DAICO sales in a single call.
+    /// @dev Checks each DAO against the provided tribute tokens for active sales.
+    ///      Returns only DAOs with at least one active sale (non-zero terms).
+    /// @param daoStart Starting index for DAO pagination
+    /// @param daoCount Number of DAOs to scan
+    /// @param tribTokens Array of tribute tokens to check for sales (ETH = address(0))
+    /// @return daicos Array of DAICOView structs for DAOs with active sales
+    function scanDAICOs(uint256 daoStart, uint256 daoCount, address[] calldata tribTokens)
+        public
+        view
+        returns (DAICOView[] memory daicos)
+    {
+        uint256 total = SUMMONER.getDAOCount();
+        if (daoStart >= total) {
+            return new DAICOView[](0);
+        }
+
+        uint256 daoEnd = daoStart + daoCount;
+        if (daoEnd > total) daoEnd = total;
+        uint256 len = daoEnd - daoStart;
+
+        // First pass: count DAOs with sales
+        uint256 matchCount;
+        for (uint256 i; i < len; ++i) {
+            address dao = SUMMONER.daos(daoStart + i);
+            if (_hasAnySale(dao, tribTokens)) {
+                ++matchCount;
+            }
+        }
+
+        daicos = new DAICOView[](matchCount);
+        uint256 k;
+
+        // Second pass: build views for DAOs with sales
+        for (uint256 i; i < len; ++i) {
+            address dao = SUMMONER.daos(daoStart + i);
+
+            SaleView[] memory sales = _getSales(dao, tribTokens);
+            if (sales.length == 0) continue;
+
+            TapView memory tap = _getTap(dao);
+            DAOMeta memory meta = _getMeta(dao);
+
+            daicos[k] = DAICOView({dao: dao, meta: meta, sales: sales, tap: tap});
+            ++k;
+        }
+    }
+
+    /// @notice Get DAICO data for a single DAO.
+    /// @param dao The DAO address
+    /// @param tribTokens Array of tribute tokens to check for sales
+    /// @return view DAICO data including sales and tap info
+    function getDAICO(address dao, address[] calldata tribTokens)
+        public
+        view
+        returns (DAICOView memory)
+    {
+        return DAICOView({
+            dao: dao, meta: _getMeta(dao), sales: _getSales(dao, tribTokens), tap: _getTap(dao)
+        });
+    }
+
+    /// @notice Full DAO state + DAICO data in one call.
+    /// @param dao The DAO address
+    /// @param proposalStart Starting index for proposals
+    /// @param proposalCount Number of proposals to fetch
+    /// @param messageStart Starting index for messages
+    /// @param messageCount Number of messages to fetch
+    /// @param treasuryTokens Tokens to check for treasury balances
+    /// @param tribTokens Tribute tokens to check for DAICO sales
+    function getDAOWithDAICO(
+        address dao,
+        uint256 proposalStart,
+        uint256 proposalCount,
+        uint256 messageStart,
+        uint256 messageCount,
+        address[] calldata treasuryTokens,
+        address[] calldata tribTokens
+    ) public view returns (DAICOLens memory out) {
+        out.dao = _buildDAOFullState(
+            dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+        );
+        out.sales = _getSales(dao, tribTokens);
+        out.tap = _getTap(dao);
+    }
+
+    /// @notice Scan multiple DAOs and return full state + DAICO data.
+    /// @dev Combines getDAOsFullState functionality with DAICO scanning.
+    /// @param daoStart Starting index for DAO pagination
+    /// @param daoCount Number of DAOs to fetch
+    /// @param proposalStart Starting index for proposals (per DAO)
+    /// @param proposalCount Number of proposals to fetch (per DAO)
+    /// @param messageStart Starting index for messages (per DAO)
+    /// @param messageCount Number of messages to fetch (per DAO)
+    /// @param treasuryTokens Tokens to check for treasury balances
+    /// @param tribTokens Tribute tokens to check for DAICO sales
+    function getDAOsWithDAICO(
+        uint256 daoStart,
+        uint256 daoCount,
+        uint256 proposalStart,
+        uint256 proposalCount,
+        uint256 messageStart,
+        uint256 messageCount,
+        address[] calldata treasuryTokens,
+        address[] calldata tribTokens
+    ) public view returns (DAICOLens[] memory out) {
+        uint256 total = SUMMONER.getDAOCount();
+        if (daoStart >= total) {
+            return new DAICOLens[](0);
+        }
+
+        uint256 daoEnd = daoStart + daoCount;
+        if (daoEnd > total) daoEnd = total;
+        uint256 len = daoEnd - daoStart;
+
+        out = new DAICOLens[](len);
+
+        for (uint256 i; i < len; ++i) {
+            address dao = SUMMONER.daos(daoStart + i);
+            out[i].dao = _buildDAOFullState(
+                dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+            );
+            out[i].sales = _getSales(dao, tribTokens);
+            out[i].tap = _getTap(dao);
+        }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /*                        DAICO INTERNAL HELPERS                          */
+    /* ---------------------------------------------------------------------- */
+
+    /// @dev Check if DAO has any sale with non-zero terms for given tribute tokens.
+    function _hasAnySale(address dao, address[] calldata tribTokens) internal view returns (bool) {
+        uint256 len = tribTokens.length;
+        for (uint256 i; i < len; ++i) {
+            (uint256 tribAmt, uint256 forAmt, address forTkn,) = _safeSale(dao, tribTokens[i]);
+            if (tribAmt != 0 && forAmt != 0 && forTkn != address(0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// @dev Get all sales for a DAO across given tribute tokens.
+    function _getSales(address dao, address[] calldata tribTokens)
+        internal
+        view
+        returns (SaleView[] memory)
+    {
+        uint256 len = tribTokens.length;
+
+        // First pass: count active sales
+        uint256 saleCount;
+        for (uint256 i; i < len; ++i) {
+            (uint256 tribAmt, uint256 forAmt, address forTkn,) = _safeSale(dao, tribTokens[i]);
+            if (tribAmt != 0 && forAmt != 0 && forTkn != address(0)) {
+                ++saleCount;
+            }
+        }
+
+        SaleView[] memory sales = new SaleView[](saleCount);
+        uint256 k;
+
+        // Second pass: populate sales
+        for (uint256 i; i < len; ++i) {
+            address tribTkn = tribTokens[i];
+            (uint256 tribAmt, uint256 forAmt, address forTkn, uint40 deadline) =
+                _safeSale(dao, tribTkn);
+
+            if (tribAmt == 0 || forAmt == 0 || forTkn == address(0)) continue;
+
+            // Get LP config
+            (uint16 lpBps, uint16 maxSlipBps, uint256 feeOrHook) = _safeLPConfig(dao, tribTkn);
+
+            // Get remaining supply (forTkn balance in DAO)
+            uint256 remainingSupply = _safeBalanceOf(forTkn, dao);
+
+            // Get total supply of forTkn
+            uint256 totalSupply = _safeTotalSupply(forTkn);
+
+            // Get treasury balance (tribTkn in DAO = funds raised)
+            uint256 treasuryBalance;
+            if (tribTkn == address(0)) {
+                treasuryBalance = dao.balance;
+            } else {
+                treasuryBalance = _safeBalanceOf(tribTkn, dao);
+            }
+
+            // Get allowance (forTkn approved to DAICO for sale)
+            uint256 allowance = _safeAllowance(forTkn, dao, address(DAICO));
+
+            sales[k] = SaleView({
+                tribTkn: tribTkn,
+                tribAmt: tribAmt,
+                forAmt: forAmt,
+                forTkn: forTkn,
+                deadline: deadline,
+                remainingSupply: remainingSupply,
+                totalSupply: totalSupply,
+                treasuryBalance: treasuryBalance,
+                allowance: allowance,
+                lpBps: lpBps,
+                maxSlipBps: maxSlipBps,
+                feeOrHook: feeOrHook
+            });
+            ++k;
+        }
+
+        return sales;
+    }
+
+    /// @dev Get tap info for a DAO.
+    function _getTap(address dao) internal view returns (TapView memory tap) {
+        (address ops, address tribTkn, uint128 ratePerSec, uint64 lastClaim) = _safeTap(dao);
+
+        // Only populate if tap is configured
+        if (ops != address(0) && ratePerSec != 0) {
+            uint256 claimable;
+            uint256 pending;
+
+            // Use staticcall for claimable/pending as they can revert
+            (bool successClaimable, bytes memory dataClaimable) =
+                address(DAICO).staticcall(abi.encodeWithSelector(IDAICO.claimableTap.selector, dao));
+            if (successClaimable && dataClaimable.length >= 32) {
+                claimable = abi.decode(dataClaimable, (uint256));
+            }
+
+            (bool successPending, bytes memory dataPending) =
+                address(DAICO).staticcall(abi.encodeWithSelector(IDAICO.pendingTap.selector, dao));
+            if (successPending && dataPending.length >= 32) {
+                pending = abi.decode(dataPending, (uint256));
+            }
+
+            // Get treasury balance for tap token
+            uint256 treasuryBalance;
+            if (tribTkn == address(0)) {
+                treasuryBalance = dao.balance;
+            } else {
+                treasuryBalance = _safeBalanceOf(tribTkn, dao);
+            }
+
+            // Get Moloch treasury allowance to DAICO for tribTkn (tap budget)
+            uint256 tapAllowance = _safeMolochAllowance(dao, tribTkn, address(DAICO));
+
+            tap = TapView({
+                ops: ops,
+                tribTkn: tribTkn,
+                ratePerSec: ratePerSec,
+                lastClaim: lastClaim,
+                claimable: claimable,
+                pending: pending,
+                treasuryBalance: treasuryBalance,
+                tapAllowance: tapAllowance
+            });
+        }
+    }
+
+    /// @dev Get minimal DAO metadata for DAICO views.
+    function _getMeta(address dao) internal view returns (DAOMeta memory meta) {
+        IMoloch M = IMoloch(dao);
+        meta.name = M.name(0);
+        meta.symbol = M.symbol(0);
+        meta.contractURI = M.contractURI();
+        meta.sharesToken = M.shares();
+        meta.lootToken = M.loot();
+        meta.badgesToken = M.badges();
+        meta.renderer = M.renderer();
+    }
+
+    /// @dev Safe balanceOf that returns 0 on failure.
+    function _safeBalanceOf(address token, address account) internal view returns (uint256) {
+        (bool success, bytes memory data) =
+            token.staticcall(abi.encodeWithSelector(IERC20.balanceOf.selector, account));
+        if (success && data.length >= 32) {
+            return abi.decode(data, (uint256));
+        }
+        return 0;
+    }
+
+    /// @dev Safe totalSupply that returns 0 on failure.
+    function _safeTotalSupply(address token) internal view returns (uint256) {
+        (bool success, bytes memory data) =
+            token.staticcall(abi.encodeWithSelector(IERC20.totalSupply.selector));
+        if (success && data.length >= 32) {
+            return abi.decode(data, (uint256));
+        }
+        return 0;
+    }
+
+    /// @dev Safe ERC20 allowance that returns 0 on failure.
+    function _safeAllowance(address token, address owner, address spender)
+        internal
+        view
+        returns (uint256)
+    {
+        (bool success, bytes memory data) = token.staticcall(
+            abi.encodeWithSelector(bytes4(keccak256("allowance(address,address)")), owner, spender)
+        );
+        if (success && data.length >= 32) {
+            return abi.decode(data, (uint256));
+        }
+        return 0;
+    }
+
+    /// @dev Safe Moloch treasury allowance that returns 0 on failure.
+    ///      Moloch.allowance(token, spender) is different from ERC20 allowance.
+    function _safeMolochAllowance(address dao, address token, address spender)
+        internal
+        view
+        returns (uint256)
+    {
+        (bool success, bytes memory data) =
+            dao.staticcall(abi.encodeWithSelector(IMoloch.allowance.selector, token, spender));
+        if (success && data.length >= 32) {
+            return abi.decode(data, (uint256));
+        }
+        return 0;
+    }
+
+    /// @dev Safe DAICO.sales() call that returns zeros on failure.
+    function _safeSale(address dao, address tribTkn)
+        internal
+        view
+        returns (uint256 tribAmt, uint256 forAmt, address forTkn, uint40 deadline)
+    {
+        (bool success, bytes memory data) =
+            address(DAICO).staticcall(abi.encodeWithSelector(IDAICO.sales.selector, dao, tribTkn));
+        if (success && data.length >= 128) {
+            (tribAmt, forAmt, forTkn, deadline) =
+                abi.decode(data, (uint256, uint256, address, uint40));
+        }
+        // Returns zeros if call fails
+    }
+
+    /// @dev Safe DAICO.taps() call that returns zeros on failure.
+    function _safeTap(address dao)
+        internal
+        view
+        returns (address ops, address tribTkn, uint128 ratePerSec, uint64 lastClaim)
+    {
+        (bool success, bytes memory data) =
+            address(DAICO).staticcall(abi.encodeWithSelector(IDAICO.taps.selector, dao));
+        if (success && data.length >= 128) {
+            (ops, tribTkn, ratePerSec, lastClaim) =
+                abi.decode(data, (address, address, uint128, uint64));
+        }
+        // Returns zeros if call fails
+    }
+
+    /// @dev Safe DAICO.lpConfigs() call that returns zeros on failure.
+    function _safeLPConfig(address dao, address tribTkn)
+        internal
+        view
+        returns (uint16 lpBps, uint16 maxSlipBps, uint256 feeOrHook)
+    {
+        (bool success, bytes memory data) = address(DAICO)
+            .staticcall(abi.encodeWithSelector(IDAICO.lpConfigs.selector, dao, tribTkn));
+        if (success && data.length >= 96) {
+            (lpBps, maxSlipBps, feeOrHook) = abi.decode(data, (uint16, uint16, uint256));
+        }
+        // Returns zeros if call fails
     }
 }

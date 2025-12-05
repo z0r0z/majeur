@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='%23000' d='M50,2 L58,18 L78,8 L72,28 L95,30 L80,45 L98,58 L75,62 L82,85 L60,75 L50,98 L40,75 L18,85 L25,62 L2,58 L20,45 L5,30 L28,28 L22,8 L42,18 Z'/><text x='50' y='44' font-family='sans-serif' font-size='18' font-weight='bold' font-style='italic' fill='%23FF8C42' text-anchor='middle'>DAICO</text><text x='50' y='64' font-family='sans-serif' font-size='16' font-weight='bold' font-style='italic' fill='%23FF8C42' text-anchor='middle'>.WTF</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat&family=Oswald:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js" integrity="sha512-UXYETj+vXKSURF1UlgVRLzWRS9ZiQTv3lcL4rbeLyqTXCPNZC6PTLF/Ik3uxm2Zo+E109cUpJPZfLxJsCgKSng==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         :root {
@@ -20,6 +20,7 @@
             --orange: #FF6D00;
             --white: #FFFFFF;
             --cyan: #00FFFF;
+            --red: #FF4757;
 
             --font-hero: clamp(3rem, 12vw, 14rem);
             --font-hero-daico: clamp(3.5rem, 14vw, 18rem);
@@ -41,12 +42,15 @@
         html {
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: none;
         }
 
         body {
             font-family: 'Oswald', sans-serif;
             font-style: italic;
             overflow-x: hidden;
+            background: var(--black);
+            overscroll-behavior-y: none;
         }
 
         /* WALLET CONNECTION HEADER */
@@ -85,21 +89,6 @@
             color: var(--black);
         }
 
-        .network-badge {
-            font-family: 'Oswald', sans-serif;
-            font-style: normal;
-            font-size: 0.75rem;
-            padding: 0.4em 0.8em;
-            background: var(--green);
-            color: var(--black);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .network-badge.wrong {
-            background: var(--orange);
-        }
-
         /* ATTRIBUTION BOX */
         .attribution-box {
             position: fixed;
@@ -134,40 +123,132 @@
             color: var(--blue);
         }
 
-        /* TESTNET TOGGLE */
-        .testnet-toggle {
+        /* GITHUB LINK */
+        .github-link {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            padding: 0.5em 0.8em;
-            font-family: 'Oswald', sans-serif;
-            font-size: 0.7rem;
-            font-style: normal;
+            bottom: var(--spacing-sm);
+            left: var(--spacing-sm);
             z-index: 999;
-            opacity: 0;
-            transform: translateY(100%);
-            transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-
-        .testnet-toggle.visible {
-            opacity: 0.6;
-            transform: translateY(0);
-        }
-
-        .testnet-toggle:hover {
-            opacity: 1;
-        }
-
-        .testnet-toggle a {
+            padding: 0.5em 1em;
+            background: transparent;
+            border: 2px solid var(--black);
             color: var(--black);
-            text-decoration: underline;
+            font-family: 'Oswald', sans-serif;
+            font-style: italic;
+            font-size: clamp(0.8rem, 1.5vw, 1rem);
+            letter-spacing: 0.05em;
             cursor: pointer;
+            transition: all 0.15s ease-out;
+            text-decoration: none;
+            text-transform: uppercase;
         }
 
-        .testnet-toggle.active a {
-            color: var(--orange);
-            font-weight: bold;
+        .github-link:hover {
+            background: var(--black);
+            color: var(--green);
         }
+
+        /* NETWORK SELECTOR (in header) */
+        .network-selector {
+            position: relative;
+        }
+
+        .network-selector .network-badge {
+            background: var(--black);
+            border: 2px solid var(--cyan);
+            font-family: 'Oswald', sans-serif;
+            font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4em;
+            padding: 0.5em 0.8em;
+            color: var(--cyan);
+            transition: all 0.2s ease;
+        }
+
+        .network-selector .network-badge:hover {
+            background: var(--cyan);
+            color: var(--black);
+        }
+
+        .network-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        .network-selector[data-network="sepolia"] .network-dot {
+            background: var(--orange);
+        }
+
+        .dropdown-arrow {
+            font-size: 0.6rem;
+            transition: transform 0.2s ease;
+        }
+
+        .network-selector.open .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .network-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--black);
+            border: 2px solid var(--cyan);
+            flex-direction: column;
+            min-width: 120px;
+            margin-top: 0.3em;
+            z-index: 1001;
+        }
+
+        .network-selector.open .network-dropdown {
+            display: flex;
+        }
+
+        .network-option {
+            background: transparent;
+            border: none;
+            padding: 0.6em 0.8em;
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            color: var(--cyan);
+            transition: all 0.15s ease;
+        }
+
+        .network-option:hover {
+            background: var(--cyan);
+            color: var(--black);
+        }
+
+        .network-option.active {
+            background: var(--cyan);
+            color: var(--black);
+        }
+
+        .network-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .network-icon.ethereum { background: #627EEA; }
+        .network-icon.base { background: #0052FF; }
+        .network-icon.sepolia { background: var(--orange); }
 
         /* HERO SECTION */
         .hero {
@@ -502,6 +583,146 @@
 
             .how-it-works-list li {
                 margin-bottom: 0.1em;
+            }
+        }
+
+        /* TAGLINE POST-IT NOTE (right side) */
+        .tagline-note {
+            position: absolute;
+            bottom: calc(var(--spacing-lg) + 60px);
+            right: var(--spacing-md);
+            background: #1a1a1a;
+            color: var(--cyan);
+            padding: 0.6em 0.9em;
+            z-index: 10;
+            transform: rotate(1.5deg);
+            box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            animation: noteSlideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) 1.2s forwards;
+            font-family: 'Oswald', sans-serif;
+            font-style: italic;
+            font-size: clamp(0.55rem, 1.1vw, 0.7rem);
+            letter-spacing: 0.05em;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        @media (max-width: 600px) {
+            .tagline-note {
+                right: var(--spacing-sm);
+                bottom: 50px;
+                font-size: 0.5rem;
+                padding: 0.4em 0.6em;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .tagline-note {
+                font-size: 0.45rem;
+                padding: 0.3em 0.5em;
+                bottom: 45px;
+            }
+        }
+
+        /* Venn diagram link */
+        .venn-diagram-link {
+            position: absolute;
+            top: 160px;
+            right: 20%;
+            width: clamp(110px, 15vw, 170px);
+            opacity: 0.85;
+            z-index: 50;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .venn-diagram-link:hover {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
+        .venn-diagram-link svg {
+            width: 100%;
+            height: auto;
+        }
+
+        @media (max-width: 600px) {
+            .venn-diagram-link {
+                right: var(--spacing-sm);
+                top: 70px;
+                width: 100px;
+                opacity: 0.9;
+            }
+            .venn-diagram-link:hover {
+                transform: scale(1.05);
+            }
+        }
+
+        @media (max-width: 380px) {
+            .venn-diagram-link {
+                width: 90px;
+                top: 65px;
+            }
+        }
+
+        /* Handwritten note */
+        .handwritten-note {
+            position: absolute;
+            top: 45%;
+            left: 12%;
+            font-family: 'Caveat', cursive;
+            font-size: clamp(1rem, 2vw, 1.4rem);
+            color: rgba(0, 0, 0, 0.35);
+            transform: rotate(-8deg);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .handwritten-note-right {
+            left: auto;
+            right: 18%;
+            top: 300px;
+            transform: rotate(4deg);
+        }
+
+        .handwritten-note-bottom {
+            left: auto;
+            right: 12%;
+            top: auto;
+            bottom: 30%;
+            transform: rotate(-3deg);
+        }
+
+        @media (max-width: 600px) {
+            .handwritten-note {
+                top: auto;
+                bottom: 18%;
+                left: var(--spacing-sm);
+                font-size: 0.9rem;
+            }
+            .handwritten-note-right {
+                left: auto;
+                right: var(--spacing-sm);
+                top: 160px;
+                transform: rotate(4deg);
+            }
+            .handwritten-note-bottom {
+                left: 50%;
+                right: auto;
+                bottom: auto;
+                top: 50%;
+                transform: translateX(-50%) rotate(-3deg);
+            }
+        }
+
+        @media (max-width: 380px) {
+            .handwritten-note {
+                bottom: 16%;
+                font-size: 0.8rem;
+            }
+            .handwritten-note-right {
+                top: 150px;
+            }
+            .handwritten-note-bottom {
+                top: 48%;
             }
         }
 
@@ -1627,6 +1848,25 @@
             font-style: normal;
         }
 
+        .wallet-option.disconnect {
+            background: rgba(255, 71, 87, 0.15);
+            border: 2px solid var(--red);
+            justify-content: center;
+        }
+
+        .wallet-option.disconnect:hover {
+            background: var(--red);
+        }
+
+        .wallet-option.disconnect .wallet-option-name {
+            color: var(--red);
+            font-weight: 500;
+        }
+
+        .wallet-option.disconnect:hover .wallet-option-name {
+            color: var(--white);
+        }
+
         /* SIMPLE WIZARD MODAL */
         .wizard-overlay {
             position: fixed;
@@ -2474,12 +2714,118 @@
             margin-top: 0.3em;
         }
 
-        .summary-loot-note {
+        .summary-template-note {
             font-size: clamp(0.7rem, 1.5vw, 0.9rem);
-            color: var(--yellow);
             font-style: normal;
             opacity: 0.8;
             margin-top: 0.5em;
+        }
+
+        .summary-template-note.buterin { color: var(--green); }
+        .summary-template-note.club { color: var(--yellow); }
+        .summary-template-note.builder { color: var(--orange); }
+        .summary-template-note.ungovern { color: var(--pink); }
+
+        /* TEMPLATE SELECTOR */
+        .template-selector {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .template-btn {
+            font-family: 'Oswald', sans-serif;
+            font-style: italic;
+            font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+            padding: 0.5em 1em;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            transition: all 0.15s ease-out;
+            position: relative;
+        }
+
+        .template-btn:hover {
+            color: var(--white);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .template-btn.active {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            background: rgba(0, 255, 255, 0.1);
+        }
+
+        .template-btn.buterin.active {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .template-btn.club.active {
+            border-color: var(--yellow);
+            color: var(--yellow);
+            background: rgba(255, 255, 0, 0.1);
+        }
+
+        .template-btn.builder.active {
+            border-color: var(--orange);
+            color: var(--orange);
+            background: rgba(255, 165, 0, 0.1);
+        }
+
+        .template-btn.ungovern.active {
+            border-color: var(--pink);
+            color: var(--pink);
+            background: rgba(255, 100, 200, 0.1);
+        }
+
+        .template-btn .template-hint {
+            display: block;
+            font-size: 0.65em;
+            font-style: normal;
+            opacity: 0.6;
+            margin-top: 0.2em;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        /* Card template badges in gallery */
+        .daico-template-badge {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.65rem;
+            font-style: italic;
+            padding: 0.2em 0.5em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .daico-template-badge.buterin {
+            background: var(--green);
+            color: var(--black);
+        }
+
+        .daico-template-badge.club {
+            background: var(--yellow);
+            color: var(--black);
+        }
+
+        .daico-template-badge.builder {
+            background: var(--orange);
+            color: var(--black);
+        }
+
+        .daico-template-badge.ungovern {
+            background: var(--pink);
+            color: var(--black);
         }
 
         .summary-token-icon {
@@ -2846,17 +3192,84 @@
         }
 
         .daico-progress {
-            height: 14px;
-            background: rgba(255, 255, 255, 0.15);
-            margin-bottom: 0.75rem;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            margin-bottom: 0.5rem;
             overflow: hidden;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            position: relative;
         }
 
         .daico-progress-bar {
             height: 100%;
-            background: var(--green);
-            transition: width 0.3s ease-out;
+            background: linear-gradient(90deg, var(--green) 0%, var(--cyan) 100%);
+            transition: width 0.5s ease-out;
+            position: relative;
+            min-width: 2px;
+        }
+
+        .daico-progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.2) 50%,
+                transparent 100%
+            );
+            animation: progressShine 2s ease-in-out infinite;
+        }
+
+        @keyframes progressShine {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+
+        .daico-progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.7rem;
+            font-style: normal;
+            font-weight: 500;
+            color: var(--white);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+            z-index: 1;
+        }
+
+        .daico-progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.75rem;
+            font-style: normal;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 0.75rem;
+        }
+
+        .daico-progress-labels .progress-sold {
+            color: var(--green);
+            font-weight: 500;
+        }
+
+        .daico-progress-labels .progress-total {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Completed/sold out progress bar */
+        .daico-progress.sold-out .daico-progress-bar {
+            background: linear-gradient(90deg, var(--orange) 0%, var(--yellow) 100%);
+        }
+
+        .daico-progress.sold-out .daico-progress-bar::after {
+            animation: none;
         }
 
         .daico-stats {
@@ -2943,6 +3356,7 @@
             color: var(--white);
             display: -webkit-box;
             -webkit-line-clamp: 5;
+            line-clamp: 5;
             -webkit-box-orient: vertical;
             overflow: hidden;
             word-break: break-word;
@@ -3005,6 +3419,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
 
         .purchase-title {
@@ -3014,6 +3430,10 @@
             color: var(--green);
             text-transform: uppercase;
             letter-spacing: 0.05em;
+        }
+
+        .purchase-header .daico-template-badge {
+            align-self: center;
         }
 
         .purchase-description {
@@ -3054,6 +3474,87 @@
         .purchase-info-row span:last-child {
             color: var(--white);
             font-weight: bold;
+        }
+
+        /* Purchase Modal Progress Bar */
+        .purchase-progress-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(0, 255, 255, 0.2);
+        }
+
+        .purchase-progress {
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+
+        .purchase-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green) 0%, var(--cyan) 100%);
+            transition: width 0.5s ease-out;
+            position: relative;
+            min-width: 2px;
+        }
+
+        .purchase-progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.2) 50%,
+                transparent 100%
+            );
+            animation: progressShine 2s ease-in-out infinite;
+        }
+
+        .purchase-progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.8rem;
+            font-style: normal;
+            font-weight: 500;
+            color: var(--white);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+            z-index: 1;
+        }
+
+        .purchase-progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.8rem;
+            font-style: normal;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .purchase-progress-labels .progress-sold {
+            color: var(--green);
+            font-weight: 500;
+        }
+
+        .purchase-progress-labels .progress-remaining {
+            color: var(--cyan);
+        }
+
+        .purchase-progress.sold-out .purchase-progress-bar {
+            background: linear-gradient(90deg, var(--orange) 0%, var(--yellow) 100%);
+        }
+
+        .purchase-progress.sold-out .purchase-progress-bar::after {
+            animation: none;
         }
 
         .swap-container {
@@ -3441,9 +3942,9 @@
                 font-size: 0.85rem;
             }
 
-            .network-badge {
-                font-size: 0.65rem;
-                padding: 0.3em 0.5em;
+            .network-selector .network-badge {
+                font-size: 0.7rem;
+                padding: 0.4em 0.6em;
             }
 
             /* Launch button */
@@ -3591,6 +4092,11 @@
                 right: 8px;
             }
 
+            .daico-template-badge {
+                font-size: 0.55rem;
+                padding: 0.15em 0.4em;
+            }
+
             .daico-name {
                 font-size: 1.4rem;
             }
@@ -3614,7 +4120,16 @@
             }
 
             .daico-progress {
-                height: 10px;
+                height: 16px;
+            }
+
+            .daico-progress-text {
+                font-size: 0.6rem;
+            }
+
+            .daico-progress-labels {
+                font-size: 0.65rem;
+                margin-bottom: 0.5rem;
             }
 
             .daico-stats {
@@ -3638,6 +4153,7 @@
             .daico-desc-text {
                 font-size: 0.55rem;
                 -webkit-line-clamp: 4;
+                line-clamp: 4;
             }
 
             .daico-card-content {
@@ -3665,6 +4181,18 @@
             .purchase-info-row {
                 font-size: 0.9rem;
                 padding: 0.35rem 0;
+            }
+
+            .purchase-progress {
+                height: 20px;
+            }
+
+            .purchase-progress-text {
+                font-size: 0.7rem;
+            }
+
+            .purchase-progress-labels {
+                font-size: 0.7rem;
             }
 
             .swap-box {
@@ -3734,6 +4262,20 @@
             }
 
             /* Summary section */
+            .template-selector {
+                gap: 0.5rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .template-btn {
+                font-size: 0.7rem;
+                padding: 0.4em 0.75em;
+            }
+
+            .template-btn .template-hint {
+                font-size: 0.6em;
+            }
+
             .summary-sentence {
                 font-size: clamp(1rem, 4vw, 1.4rem);
                 line-height: 1.8;
@@ -3941,6 +4483,7 @@
             .daico-desc-text {
                 font-size: 0.5rem;
                 -webkit-line-clamp: 3;
+                line-clamp: 3;
             }
 
             .purchase-title,
@@ -4121,19 +4664,37 @@
     <!-- LAUNCH BUTTON - Fixed top left, visible on all pages -->
     <button id="launchBtn" class="launch-btn" onclick="document.getElementById('summary-section').scrollIntoView({behavior: 'smooth'})">Launch DAICO</button>
 
-    <!-- WALLET HEADER -->
+    <!-- WALLET HEADER (Network & Wallet - top right) -->
     <div class="wallet-header">
-        <div id="networkBadge" class="network-badge" style="display: none;">Mainnet</div>
+        <div class="network-selector" id="networkSelector" data-network="ethereum">
+            <button class="network-badge" onclick="toggleNetworkDropdown()">
+                <span class="network-dot"></span>
+                <span id="networkName">Ethereum</span>
+                <span class="dropdown-arrow">▼</span>
+            </button>
+            <div class="network-dropdown" id="networkDropdown">
+                <button class="network-option active" data-network="ethereum" onclick="switchNetwork('ethereum')">
+                    <span class="network-icon ethereum">E</span>
+                    Ethereum
+                </button>
+                <button class="network-option" data-network="base" onclick="switchNetwork('base')">
+                    <span class="network-icon base">B</span>
+                    Base
+                </button>
+                <button class="network-option" data-network="sepolia" onclick="switchNetwork('sepolia')">
+                    <span class="network-icon sepolia">S</span>
+                    Sepolia
+                </button>
+            </div>
+        </div>
         <button id="walletBtn" class="wallet-btn" onclick="connectWallet()">Connect</button>
     </div>
 
     <div class="attribution-box" id="attributionBox">
-        <span>built by </span><a href="https://majeurdao.eth.limo/#/dao/0x5E58BA0e06ED0F5558f83bE732a4b899a674053E" target="_blank" rel="noopener">zOrg</a><span> for </span><a href="https://zamm.finance/" target="_blank" rel="noopener">zamm.finance</a>
+        <span>built by </span><a href="https://majeurdao.eth.limo/#/dao/1/0x5E58BA0e06ED0F5558f83bE732a4b899a674053E" target="_blank" rel="noopener">zOrg</a><span> for </span><a href="https://zamm.finance/" target="_blank" rel="noopener">zamm.finance</a>
     </div>
 
-    <div class="testnet-toggle" id="testnetToggle">
-        <a onclick="toggleTestnet()">testnet</a>
-    </div>
+    <a href="https://github.com/z0r0z/majeur" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">GitHub</a>
 
     <!-- HERO -->
     <section class="hero">
@@ -4170,12 +4731,34 @@
         <div class="how-it-works">
             <div class="how-it-works-header">How it works</div>
             <ul class="how-it-works-list">
-                <li data-num="1.">crowdfund as dao</li>
-                <li data-num="2.">ops gets streamed</li>
-                <li data-num="3.">dao can shut off tap</li>
-                <li data-num="4.">dao can do whatever</li>
+                <li data-num="1.">crowdfund a dao</li>
+                <li data-num="2.">ops gets vesting</li>
+                <li data-num="3.">dao can turn off</li>
+                <li data-num="4.">refund whenever</li>
             </ul>
         </div>
+
+        <!-- Tagline Note -->
+        <div class="tagline-note">DAOs if they didn't suck</div>
+
+        <!-- Venn Diagram Link -->
+        <a href="https://ethresear.ch/t/explanation-of-daicos/465/1" target="_blank" rel="noopener" class="venn-diagram-link" title="Read Vitalik's DAICO explanation">
+            <svg viewBox="0 0 170 100">
+                <defs>
+                    <clipPath id="leftClip"><ellipse cx="50" cy="55" rx="45" ry="35"/></clipPath>
+                </defs>
+                <text x="50" y="14" font-family="sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#000">DAO</text>
+                <text x="120" y="14" font-family="sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#000">ICO</text>
+                <ellipse cx="50" cy="55" rx="45" ry="35" fill="none" stroke="#000" stroke-width="1.5"/>
+                <ellipse cx="120" cy="55" rx="45" ry="35" fill="none" stroke="#000" stroke-width="1.5"/>
+                <ellipse cx="120" cy="55" rx="45" ry="35" fill="rgba(0,0,0,0.15)" clip-path="url(#leftClip)"/>
+            </svg>
+        </a>
+
+        <!-- Handwritten notes -->
+        <div class="handwritten-note">moloch + ico</div>
+        <div class="handwritten-note handwritten-note-right">tokens that do things</div>
+        <div class="handwritten-note handwritten-note-bottom">refundable programmable fundraises</div>
 
         <a href="#fund-section" class="scroll-hint">
             <span>Scroll</span>
@@ -4187,7 +4770,7 @@
     <section class="section section-fund" id="fund-section">
         <div class="theme">FUND</div>
         <div class="content">
-            <p>Sell tokens. Raise capital. Seed liquidity. Automatically.</p>
+            <p>Sell tokens. Raise funds. Do things onchain. Automatically.</p>
             <div class="crossed-word crossed-snipers">
                 <span class="crossed-text">snipers</span>
                 <svg class="cross-lines" viewBox="0 0 100 50">
@@ -4222,7 +4805,7 @@
     <section class="section section-ctrl" id="ctrl-section">
         <div class="theme">CTRL</div>
         <div class="content">
-            <p>Token holders control funding at all times. Vote on treasury proposals based on your share of contributions. Adjust the TAP to OPS. Ragequit for refund. No meetings. Always online as a DAO.</p>
+            <p>Token holders control funds. Vote on spending based on your share. Adjust TAP to OPS. Ragequit for refund. No meetings. Always online as a DAO.</p>
             <!-- Hand-drawn diagram -->
             <div class="ctrl-diagram">
                 <svg class="diagram-svg" viewBox="0 0 400 200">
@@ -4294,7 +4877,7 @@
     <section class="section section-grow" id="grow-section">
         <div class="theme">GROW</div>
         <div class="content">
-            <p>Plug into open financial opportunities on the <a href="https://ethereum.org/" target="_blank" rel="noopener" class="world-computer-link">World Computer</a>. Farm yield, airdrops, and unlock passive earnings from Day 1. Put grants and venture into hyperdrive.</p>
+            <p>Plug into open finance on the <a href="https://ethereum.org/" target="_blank" rel="noopener" class="world-computer-link">World Computer</a>. Cut out the middleman and put that money back into your ventures.</p>
         </div>
         <div class="section-daico">DAICO.WTF</div>
 
@@ -4361,6 +4944,26 @@
 
     <!-- INTERACTIVE SUMMARY SECTION -->
     <section class="section-summary" id="summary-section">
+        <!-- TEMPLATE SELECTOR -->
+        <div class="template-selector">
+            <button class="template-btn buterin active" onclick="applyTemplate('buterin')">
+                Buterin
+                <span class="template-hint">tap + governance</span>
+            </button>
+            <button class="template-btn club" onclick="applyTemplate('club')">
+                Club
+                <span class="template-hint">vote on spends</span>
+            </button>
+            <button class="template-btn builder" onclick="applyTemplate('builder')">
+                Builder
+                <span class="template-hint">builder controls</span>
+            </button>
+            <button class="template-btn ungovern" onclick="applyTemplate('ungovern')">
+                Ungovern
+                <span class="template-hint">tap + ragequit</span>
+            </button>
+        </div>
+
         <div class="summary-sentence">
             <span class="summary-static">Raise</span>
             <span class="summary-editable edit-raise" id="editRaise" onclick="editSummaryField('raise')">10</span>
@@ -4368,6 +4971,7 @@
             <span class="summary-static">selling</span>
             <span class="summary-editable edit-supply" id="editSupply" onclick="editSummaryField('supply')">1,000,000,000</span>
             <span class="summary-editable edit-token-type" id="editTokenType" onclick="toggleSummaryTokenType()">Shares</span><span class="summary-static">.</span>
+            <span id="governanceLine">
             <br>
             <span class="summary-editable edit-quorum" id="editQuorum" onclick="editSummaryField('quorum')">10%</span>
             <span class="summary-static">quorum.</span>
@@ -4375,6 +4979,7 @@
             <span class="summary-static">day voting.</span>
             <span class="summary-editable edit-timelock" id="editTimelock" onclick="editSummaryField('timelock')">1</span>
             <span class="summary-static">day timelock.</span>
+            </span>
             <br>
             <span class="summary-static">Tap</span>
             <span class="summary-editable edit-tap-pct" id="editTapPct" onclick="editTapPctField()">100%</span>
@@ -4386,8 +4991,8 @@
 
         <div id="summaryPricePreview" class="summary-price-preview"></div>
         <div id="summaryTapPreview" class="summary-tap-preview"></div>
-        <div id="summaryLootNote" class="summary-loot-note" style="display: none;">
-            No governance. Holders can ragequit. Tap releases funds to ops.
+        <div id="summaryTemplateNote" class="summary-template-note buterin">
+            All holders vote. Tap releases funds automatically to ops.
         </div>
 
         <div class="summary-name-section">
@@ -4427,6 +5032,7 @@
         <div class="purchase-container">
             <div class="purchase-header">
                 <div class="purchase-title" id="purchaseDaoName">Buy Tokens</div>
+                <div id="purchaseTemplateBadge" class="daico-template-badge" style="display: none; position: static; margin-left: 0.5rem;"></div>
                 <button class="wizard-close" onclick="closePurchaseModal()">&times;</button>
             </div>
 
@@ -4448,6 +5054,18 @@
                 <div class="purchase-info-row">
                     <span>Price</span>
                     <span id="purchasePrice">--</span>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="purchase-progress-section">
+                    <div class="purchase-progress" id="purchaseProgress">
+                        <div class="purchase-progress-bar" id="purchaseProgressBar" style="width: 0%"></div>
+                        <div class="purchase-progress-text" id="purchaseProgressText">0% sold</div>
+                    </div>
+                    <div class="purchase-progress-labels">
+                        <span class="progress-sold" id="purchaseProgressSold">0 sold</span>
+                        <span class="progress-remaining" id="purchaseProgressRemaining">0 remaining</span>
+                    </div>
                 </div>
             </div>
 
@@ -4514,8 +5132,8 @@
                     <span>Team Funding (TAP)</span>
                     <span id="tapClaimable" class="tap-amount">0 ETH</span>
                 </div>
-                <div id="tapOpsRow" class="tap-ops-row" style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.5rem;">
-                    Operator: <span id="tapOpsDisplay" style="font-family: 'Roboto Mono', monospace;"></span>
+                <div id="tapOpsRow" class="tap-ops-row" style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 1.25rem; color: rgba(255, 255, 255, 0.7);">
+                    Operator: <span id="tapOpsDisplay" style="font-family: 'Roboto Mono', monospace; color: var(--orange);"></span>
                 </div>
                 <button id="claimTapBtn" class="tap-claim-btn" onclick="claimTap()">Claim TAP</button>
             </div>
@@ -5054,58 +5672,214 @@
     <script>
         // Network configuration
         const NETWORKS = {
-            mainnet: {
+            ethereum: {
                 chainId: 1n,
-                name: 'Mainnet',
+                chainIdHex: '0x1',
+                name: 'Ethereum',
+                shortName: 'ETH',
                 rpcs: [
                     'https://eth.llamarpc.com',
                     'https://rpc.ankr.com/eth',
                     'https://ethereum.publicnode.com',
                     'https://1rpc.io/eth'
                 ],
-                swissKnifeChainId: 1
+                explorer: 'https://etherscan.io',
+                swissKnifeChainId: 1,
+                treasuryTokens: [
+                    ethers.ZeroAddress, // ETH
+                    '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC
+                    '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT
+                    '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI
+                    '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0', // wstETH
+                    '0xae78736Cd615f374D3085123A210448E74Fc6393'  // rETH
+                ],
+                tokenMeta: {
+                    [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 },
+                    '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48': { symbol: 'USDC', decimals: 6 },
+                    '0xdAC17F958D2ee523a2206206994597C13D831ec7': { symbol: 'USDT', decimals: 6 },
+                    '0x6B175474E89094C44Da98b954EedeAC495271d0F': { symbol: 'DAI', decimals: 18 },
+                    '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0': { symbol: 'wstETH', decimals: 18 },
+                    '0xae78736Cd615f374D3085123A210448E74Fc6393': { symbol: 'rETH', decimals: 18 }
+                }
+            },
+            base: {
+                chainId: 8453n,
+                chainIdHex: '0x2105',
+                name: 'Base',
+                shortName: 'BASE',
+                rpcs: [
+                    'https://mainnet.base.org',
+                    'https://base.llamarpc.com',
+                    'https://base.publicnode.com',
+                    'https://1rpc.io/base'
+                ],
+                explorer: 'https://basescan.org',
+                swissKnifeChainId: 8453,
+                treasuryTokens: [
+                    ethers.ZeroAddress, // ETH
+                    '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+                    '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2', // USDT (bridged)
+                    '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb', // DAI
+                    '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452', // wstETH
+                    '0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c'  // rETH
+                ],
+                tokenMeta: {
+                    [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 },
+                    '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913': { symbol: 'USDC', decimals: 6 },
+                    '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2': { symbol: 'USDT', decimals: 6 },
+                    '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb': { symbol: 'DAI', decimals: 18 },
+                    '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452': { symbol: 'wstETH', decimals: 18 },
+                    '0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c': { symbol: 'rETH', decimals: 18 }
+                }
             },
             sepolia: {
                 chainId: 11155111n,
+                chainIdHex: '0xaa36a7',
                 name: 'Sepolia',
+                shortName: 'SEP',
                 rpcs: [
                     'https://rpc.sepolia.org',
                     'https://rpc2.sepolia.org',
                     'https://ethereum-sepolia.publicnode.com',
                     'https://sepolia.drpc.org'
                 ],
-                swissKnifeChainId: 11155111
+                explorer: 'https://sepolia.etherscan.io',
+                swissKnifeChainId: 11155111,
+                treasuryTokens: [
+                    ethers.ZeroAddress // ETH only for testnet
+                ],
+                tokenMeta: {
+                    [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 }
+                }
             }
         };
 
         // Current network (persisted in localStorage)
-        let currentNetwork = localStorage.getItem('daico_network') || 'mainnet';
+        let currentNetwork = localStorage.getItem('daico_network') || 'ethereum';
+        // Migrate old setting
+        if (currentNetwork === 'mainnet') {
+            currentNetwork = 'ethereum';
+            localStorage.setItem('daico_network', 'ethereum');
+        }
 
         function getNetwork() {
             return NETWORKS[currentNetwork];
         }
 
-        // Contract addresses (same on Mainnet and Sepolia)
+        function getNetworkByChainId(chainId) {
+            const chainIdBigInt = typeof chainId === 'bigint' ? chainId : BigInt(chainId);
+            for (const [key, network] of Object.entries(NETWORKS)) {
+                if (network.chainId === chainIdBigInt) {
+                    return { key, network };
+                }
+            }
+            return null;
+        }
+
+        function isOnSupportedNetwork(chainId) {
+            return getNetworkByChainId(chainId) !== null;
+        }
+
+        // Contract addresses (same on all supported networks)
         const DAICO_ADDRESS = '0x000000000033e92DB97B4B3beCD2c255126C60aC';
         const SUMMONER_ADDRESS = '0x0000000000330B8df9E3bc5E553074DA58eE9138';
         const DEFAULT_RENDERER = '0x000000000011c799980827f52d3137b4abd6e654';
         const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
-        const MOLOCH_VIEW_HELPER = '0x000000000066317bd3662A649D8901c076268Df9';
+        const MOLOCH_VIEW_HELPER = '0x00000000006631040967E58e3430e4B77921a2db';
 
-        // Implementation addresses for CREATE2 prediction (must match Summoner's implementations)
-        const MOLOCH_IMPL = '0x643A45B599D81be3f3A68F37EB3De55fF10673C1';
-        const SHARES_IMPL = '0x71E9b38d301b5A58cb998C1295045FE276Acf600';
-        const LOOT_IMPL = '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5';
-
-        // Common tribute tokens to scan for active sales
-        const COMMON_TRIB_TOKENS = {
-            [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 },
-            '0x6B175474E89094C44Da98b954EedeAC495271d0F': { symbol: 'DAI', decimals: 18 },
-            '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48': { symbol: 'USDC', decimals: 6 },
-            '0xdAC17F958D2ee523a2206206994597C13D831ec7': { symbol: 'USDT', decimals: 6 },
-            '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0': { symbol: 'wstETH', decimals: 18 },
-            '0xae78736Cd615f374D3085123A210448E74Fc6393': { symbol: 'rETH', decimals: 18 }
+        // Implementation addresses per network (L2s have different addresses due to EVM differences)
+        const IMPLEMENTATIONS = {
+            ethereum: {
+                moloch: '0x643A45B599D81be3f3A68F37EB3De55fF10673C1',
+                shares: '0x71E9b38d301b5A58cb998C1295045FE276Acf600',
+                loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+            },
+            base: {
+                moloch: '0x0c969b771afded8e7c1bec050b2472b1f00a033d',
+                shares: '0x36aeeb011e66ddb191d18124c8096b8c35451b77',
+                loot: '0x44fe15d5d2913e654c699e08c7bbbd65faf529cc'
+            },
+            sepolia: {
+                moloch: '0x643A45B599D81be3f3A68F37EB3De55fF10673C1',
+                shares: '0x71E9b38d301b5A58cb998C1295045FE276Acf600',
+                loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+            }
         };
+
+        // Get implementation addresses for current network
+        function getImplementations() {
+            return IMPLEMENTATIONS[currentNetwork] || IMPLEMENTATIONS.ethereum;
+        }
+
+        // Prompt user to switch networks when following a deep link
+        async function promptNetworkSwitch(networkKey, targetNetwork, dao, tribTkn) {
+            const currentNet = getNetwork();
+            const msg = `This link is for ${targetNetwork.name}, but you're on ${currentNet.name}. Switch networks?`;
+
+            if (!confirm(msg)) {
+                // Clear the hash so user isn't stuck
+                clearUrlHash();
+                return;
+            }
+
+            // Switch the app's network setting
+            currentNetwork = networkKey;
+            localStorage.setItem('daico_network', networkKey);
+            updateNetworkUI();
+
+            // If wallet is connected, prompt to switch wallet network too
+            if (window.ethereum && connectedAddress) {
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: targetNetwork.chainIdHex }]
+                    });
+                } catch (switchError) {
+                    // Chain not added - try to add it
+                    if (switchError.code === 4902) {
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: targetNetwork.chainIdHex,
+                                    chainName: targetNetwork.name,
+                                    rpcUrls: targetNetwork.rpcs,
+                                    blockExplorerUrls: [targetNetwork.explorer]
+                                }]
+                            });
+                        } catch (addError) {
+                            console.error('Failed to add network:', addError);
+                        }
+                    }
+                }
+            }
+
+            // Re-scan DAICOs on the new network
+            activeDAICOs = [];
+            completedDAICOs = [];
+            daicoScanTriggered = false;
+
+            // Re-trigger deep link handling
+            setTimeout(() => handleDeepLink(), 100);
+        }
+
+        // Dynamic proxy for network-aware token metadata lookup
+        const COMMON_TRIB_TOKENS = new Proxy({}, {
+            get(target, prop) {
+                const network = getNetwork();
+                return network.tokenMeta[prop] || null;
+            },
+            ownKeys() {
+                return Object.keys(getNetwork().tokenMeta);
+            },
+            getOwnPropertyDescriptor(target, prop) {
+                const meta = getNetwork().tokenMeta[prop];
+                if (meta) {
+                    return { configurable: true, enumerable: true, value: meta };
+                }
+                return undefined;
+            }
+        });
 
         // Token icons (SVG)
         const TOKEN_ICONS = {
@@ -5370,13 +6144,14 @@
                     [initHolders, initShares, userSalt]
                 )
             );
-            return computeCreate2Address(SUMMONER_ADDRESS, summonerSalt, MOLOCH_IMPL);
+            return computeCreate2Address(SUMMONER_ADDRESS, summonerSalt, getImplementations().moloch);
         }
 
         // State
         let provider = null;
         let signer = null;
         let connectedAddress = null;
+        let connectedWalletProvider = null; // Raw wallet provider for network switching
         let connectedWallet = null;
         let isConnecting = false;
         const eip6963Providers = new Map();
@@ -5524,8 +6299,8 @@
                         </div>
                         <div style="font-size: 0.9rem; color: rgba(255,255,255,0.7); word-break: break-all;">${connectedAddress}</div>
                     </div>
-                    <div class="wallet-option" onclick="disconnectWallet()" style="justify-content: center; background: rgba(255,100,100,0.1); border-color: var(--red);">
-                        <span class="wallet-option-name" style="color: var(--red);">Disconnect</span>
+                    <div class="wallet-option disconnect" onclick="disconnectWallet()">
+                        <span class="wallet-option-name">Disconnect</span>
                     </div>
                 `;
             } else if (wallets.length === 0) {
@@ -5592,6 +6367,7 @@
                 signer = await provider.getSigner();
                 connectedAddress = await signer.getAddress();
                 connectedWallet = walletKey;
+                connectedWalletProvider = walletProvider; // Store for network switching
 
                 // Save preference
                 saveWalletPreference(walletKey);
@@ -5600,22 +6376,40 @@
                 document.getElementById('walletBtn').textContent = shortAddress;
                 document.getElementById('walletBtn').classList.add('connected');
 
-                // Check network
-                const network = await provider.getNetwork();
-                const networkBadge = document.getElementById('networkBadge');
-                const expectedNetwork = getNetwork();
-                if (network.chainId === expectedNetwork.chainId) {
-                    networkBadge.textContent = expectedNetwork.name;
-                    networkBadge.classList.remove('wrong');
+                // Check network and sync currentNetwork with wallet
+                // Get chainId directly from wallet provider to avoid ethers caching issues
+                const chainIdHex = await walletProvider.request({ method: 'eth_chainId' });
+                const chainId = BigInt(chainIdHex);
+                const detectedNetwork = getNetworkByChainId(chainId);
+
+                if (detectedNetwork) {
+                    // Wallet is on a supported network - sync our state
+                    const networkChanged = currentNetwork !== detectedNetwork.key;
+                    currentNetwork = detectedNetwork.key;
+                    localStorage.setItem('daico_network', currentNetwork);
+                    // Update network selector UI
+                    updateNetworkUI();
+                    // Reset scanner for correct network and rescan if network changed
+                    scannerProvider = null;
+                    scannerNetworkKey = null;
+                    if (networkChanged) {
+                        activeDAICOs = [];
+                        completedDAICOs = [];
+                        daicoScanTriggered = false;
+                        triggerDAICOScan();
+                    }
                 } else {
-                    networkBadge.textContent = 'Wrong Network';
-                    networkBadge.classList.add('wrong');
+                    // Unsupported network - show status message
+                    showStatus('Please switch to a supported network (Ethereum, Base, or Sepolia)', 'error');
                 }
-                networkBadge.style.display = 'block';
+
+                // Remove any existing listeners before adding new ones (prevent duplicates)
+                walletProvider.removeListener?.('accountsChanged', handleAccountsChanged);
+                walletProvider.removeListener?.('chainChanged', handleChainChanged);
 
                 // Setup listeners
                 walletProvider.on('accountsChanged', handleAccountsChanged);
-                walletProvider.on('chainChanged', () => window.location.reload());
+                walletProvider.on('chainChanged', handleChainChanged);
 
             } catch (error) {
                 console.error('Connection failed:', error);
@@ -5628,14 +6422,19 @@
         }
 
         function disconnectWallet() {
+            // Remove event listeners to prevent memory leaks
+            if (connectedWalletProvider) {
+                connectedWalletProvider.removeListener?.('accountsChanged', handleAccountsChanged);
+                connectedWalletProvider.removeListener?.('chainChanged', handleChainChanged);
+            }
             provider = null;
             signer = null;
             connectedAddress = null;
             connectedWallet = null;
+            connectedWalletProvider = null;
             clearWalletPreference();
             document.getElementById('walletBtn').textContent = 'Connect';
             document.getElementById('walletBtn').classList.remove('connected');
-            document.getElementById('networkBadge').style.display = 'none';
             closeWalletModal();
         }
 
@@ -5645,6 +6444,10 @@
             } else {
                 window.location.reload();
             }
+        }
+
+        function handleChainChanged() {
+            window.location.reload();
         }
 
         // Auto-reconnect on page load
@@ -6320,12 +7123,29 @@
                 return;
             }
 
-            // Check network
-            const network = await provider.getNetwork();
-            if (network.chainId !== getNetwork().chainId) {
-                showWizardStatus(`Please switch to ${getNetwork().name}`, 'error');
+            // Check network - get chainId directly from wallet provider to avoid ethers NETWORK_ERROR
+            const walletChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+            const walletChainId = BigInt(walletChainIdHex);
+            const expectedNetwork = getNetwork();
+            if (walletChainId !== expectedNetwork.chainId) {
+                showWizardStatus(`Please switch wallet to ${expectedNetwork.name}`, 'error');
+                try {
+                    await connectedWalletProvider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: expectedNetwork.chainIdHex }]
+                    });
+                    return;
+                } catch (error) {
+                    if (!isUserRejection(error)) {
+                        console.error('Failed to switch network:', error);
+                    }
+                }
                 return;
             }
+
+            // Recreate provider/signer to ensure we're on the correct network
+            provider = new ethers.BrowserProvider(connectedWalletProvider);
+            signer = await provider.getSigner();
 
             const name = document.getElementById('wizardName').value.trim();
             const symbol = document.getElementById('wizardSymbol').value.trim().toUpperCase();
@@ -6381,11 +7201,12 @@
 
                 const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
 
+                const impls = getImplementations();
                 const summonConfig = {
                     summoner: SUMMONER_ADDRESS,
-                    molochImpl: MOLOCH_IMPL,
-                    sharesImpl: SHARES_IMPL,
-                    lootImpl: LOOT_IMPL
+                    molochImpl: impls.moloch,
+                    sharesImpl: impls.shares,
+                    lootImpl: impls.loot
                 };
 
                 const saleSupplyWei = ethers.parseEther(WIZARD_DEFAULTS.saleSupply.toString());
@@ -6500,7 +7321,7 @@
                     );
                 }
 
-                showWizardStatus(`Transaction submitted! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View on Etherscan</a>`, 'info');
+                showWizardStatus(`Transaction submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View on Explorer</a>`, 'info');
 
                 await tx.wait();
 
@@ -6508,7 +7329,7 @@
                 document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
                 document.getElementById('wizardSuccess').classList.add('active');
                 document.getElementById('wizardSuccessAddress').textContent = predictedDao;
-                document.getElementById('wizardSuccessLink').href = `https://majeurdao.eth.limo/#/dao/${predictedDao}`;
+                document.getElementById('wizardSuccessLink').href = `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}`;
 
                 hideWizardStatus();
 
@@ -6534,13 +7355,14 @@
 
         // ==================== INTERACTIVE SUMMARY ====================
         // Ordered array for tribute token cycling
-        const SUMMARY_TRIBUTE_TOKENS = [
-            { address: ethers.ZeroAddress, symbol: 'ETH', decimals: 18 },
-            { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', symbol: 'DAI', decimals: 18 },
-            { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', decimals: 6 },
-            { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', symbol: 'USDT', decimals: 6 },
-            { address: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0', symbol: 'wstETH', decimals: 18 }
-        ];
+        // Get tribute tokens for current network from NETWORKS config
+        function getSummaryTributeTokens() {
+            const network = getNetwork();
+            return network.treasuryTokens.map(address => {
+                const meta = network.tokenMeta[address] || { symbol: '???', decimals: 18 };
+                return { address, symbol: meta.symbol, decimals: meta.decimals };
+            });
+        }
 
         const summaryState = {
             raise: 10,
@@ -6549,15 +7371,246 @@
             quorum: 10,
             voting: 2,
             timelock: 1,
-            tributeTokenIndex: 0, // Index into SUMMARY_TRIBUTE_TOKENS
+            tributeTokenIndex: 0, // Index into getSummaryTributeTokens()
             tapEnabled: true,
             tapPct: 100,
-            tapMonths: 6
+            tapMonths: 6,
+            founderShares: false, // Whether to mint shares to summoner (for Builder template)
+            template: 'buterin' // Current active template: 'buterin', 'club', 'builder', 'ungovern', or null (custom)
         };
+
+        // Template definitions
+        // Buterin: Classic DAICO per Vitalik's vision - tap + governance + ragequit
+        // Club: Investment club - no tap (vote on each spend), higher quorum
+        // Builder: Loot sale + founder shares + no tap - builder controls treasury, funders can ragequit
+        // Ungovern: Pure loot sale + tap - no governance at all, just ragequit + tap
+        const DAICO_TEMPLATES = {
+            buterin: {
+                name: 'Buterin',
+                description: 'Classic DAICO: tap + governance',
+                tokenType: 'shares',
+                quorum: 10,
+                voting: 2,
+                timelock: 1,
+                tapEnabled: true,
+                tapPct: 100,
+                tapMonths: 6,
+                founderShares: false,
+                signature: { tokenType: 'shares', tapEnabled: true }
+            },
+            club: {
+                name: 'Club',
+                description: 'Investment club: vote on spends',
+                tokenType: 'shares',
+                quorum: 20,
+                voting: 3,
+                timelock: 1,
+                tapEnabled: false,
+                tapPct: 0,
+                tapMonths: 0,
+                founderShares: false,
+                signature: { tokenType: 'shares', tapEnabled: false }
+            },
+            builder: {
+                name: 'Builder',
+                description: 'Builder controls treasury, funders can exit',
+                tokenType: 'loot',
+                quorum: 51,
+                voting: 3,
+                timelock: 3,
+                tapEnabled: false,
+                tapPct: 0,
+                tapMonths: 0,
+                founderShares: true, // Builder gets shares to control DAO
+                signature: { tokenType: 'loot', tapEnabled: false, founderShares: true }
+            },
+            ungovern: {
+                name: 'Ungovern',
+                description: 'No governance: tap + ragequit only',
+                tokenType: 'loot',
+                quorum: 10,
+                voting: 2,
+                timelock: 1,
+                tapEnabled: true,
+                tapPct: 100,
+                tapMonths: 3,
+                founderShares: false, // No founder shares - truly ungoverned
+                signature: { tokenType: 'loot', tapEnabled: true, founderShares: false }
+            }
+        };
+
+        // Apply a template to the summary state
+        function applyTemplate(templateId) {
+            const template = DAICO_TEMPLATES[templateId];
+            if (!template) return;
+
+            // Update state
+            summaryState.tokenType = template.tokenType;
+            summaryState.quorum = template.quorum;
+            summaryState.voting = template.voting;
+            summaryState.timelock = template.timelock;
+            summaryState.tapEnabled = template.tapEnabled;
+            summaryState.tapPct = template.tapPct;
+            summaryState.tapMonths = template.tapMonths;
+            summaryState.founderShares = template.founderShares;
+            summaryState.template = templateId;
+
+            // Update UI elements
+            document.getElementById('editQuorum').textContent = template.quorum + '%';
+            document.getElementById('editVoting').textContent = template.voting;
+            document.getElementById('editTimelock').textContent = template.timelock;
+
+            // Update token type display
+            const tokenTypeEl = document.getElementById('editTokenType');
+            if (template.tokenType === 'loot') {
+                tokenTypeEl.textContent = 'Loot';
+                tokenTypeEl.classList.add('loot');
+            } else {
+                tokenTypeEl.textContent = 'Shares';
+                tokenTypeEl.classList.remove('loot');
+            }
+
+            // Update template note with explanatory text
+            const templateNote = document.getElementById('summaryTemplateNote');
+            templateNote.className = `summary-template-note ${templateId}`;
+            if (templateId === 'buterin') {
+                templateNote.textContent = 'All holders vote. Tap releases funds automatically to ops.';
+            } else if (templateId === 'club') {
+                templateNote.textContent = 'All holders vote on each spend. No automatic fund release.';
+            } else if (templateId === 'builder') {
+                templateNote.textContent = 'Builder controls treasury. Funders can ragequit within timelock.';
+            } else if (templateId === 'ungovern') {
+                templateNote.textContent = 'No governance. Tap releases funds to ops. Holders can ragequit.';
+            }
+
+            // Update tap display
+            updateSummaryTapDisplay();
+
+            // Update template buttons
+            document.querySelectorAll('.template-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.querySelector(`.template-btn.${templateId}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // Hide governance line for Ungovern (no founder shares = no governance)
+            // Show for Builder (founder has shares and controls treasury)
+            const governanceLine = document.getElementById('governanceLine');
+            if (governanceLine) {
+                governanceLine.style.display = (templateId === 'ungovern') ? 'none' : '';
+            }
+
+            // Update price preview
+            updateSummaryPricePreview();
+        }
+
+        // Check if current state matches a template (for button highlight)
+        function detectCurrentTemplate() {
+            for (const [id, template] of Object.entries(DAICO_TEMPLATES)) {
+                if (summaryState.tokenType === template.tokenType &&
+                    summaryState.tapEnabled === template.tapEnabled &&
+                    summaryState.founderShares === template.founderShares &&
+                    summaryState.quorum === template.quorum &&
+                    summaryState.voting === template.voting &&
+                    summaryState.timelock === template.timelock &&
+                    (!template.tapEnabled || (
+                        summaryState.tapPct === template.tapPct &&
+                        summaryState.tapMonths === template.tapMonths
+                    ))) {
+                    return id;
+                }
+            }
+            return null; // Custom configuration
+        }
+
+        // Update template button states based on current state (called when user edits values)
+        function updateTemplateBadge() {
+            const detectedTemplate = detectCurrentTemplate();
+
+            // Update button states
+            document.querySelectorAll('.template-btn').forEach(btn => btn.classList.remove('active'));
+
+            if (detectedTemplate) {
+                summaryState.template = detectedTemplate;
+                const activeBtn = document.querySelector(`.template-btn.${detectedTemplate}`);
+                if (activeBtn) activeBtn.classList.add('active');
+            } else {
+                summaryState.template = null;
+            }
+
+            // Hide governance line when loot without founder shares (no practical governance)
+            // Show when shares, or when loot with founder shares (Builder)
+            const governanceLine = document.getElementById('governanceLine');
+            if (governanceLine) {
+                const hasGovernance = summaryState.tokenType === 'shares' || summaryState.founderShares;
+                governanceLine.style.display = hasGovernance ? '' : 'none';
+            }
+        }
+
+        // Update template note text based on current state
+        function updateTemplateNote() {
+            const templateNote = document.getElementById('summaryTemplateNote');
+            const detected = summaryState.template || detectCurrentTemplate();
+
+            if (detected) {
+                templateNote.className = `summary-template-note ${detected}`;
+                if (detected === 'buterin') {
+                    templateNote.textContent = 'All holders vote. Tap releases funds automatically to ops.';
+                } else if (detected === 'club') {
+                    templateNote.textContent = 'All holders vote on each spend. No automatic fund release.';
+                } else if (detected === 'builder') {
+                    templateNote.textContent = 'Builder controls treasury. Funders can ragequit within timelock.';
+                } else if (detected === 'ungovern') {
+                    templateNote.textContent = 'No governance. Tap releases funds to ops. Holders can ragequit.';
+                }
+            } else {
+                // Custom config - show generic note based on token type
+                templateNote.className = 'summary-template-note';
+                if (summaryState.tokenType === 'loot') {
+                    templateNote.textContent = summaryState.tapEnabled
+                        ? 'Loot holders can ragequit. Tap releases funds to ops.'
+                        : 'Loot holders can ragequit. Proposals control treasury.';
+                } else {
+                    templateNote.textContent = summaryState.tapEnabled
+                        ? 'All holders vote. Tap releases funds automatically.'
+                        : 'All holders vote on each spend.';
+                }
+            }
+        }
+
+        // Detect template from on-chain DAO config (for gallery display)
+        // Uses efficient heuristics based on token type and tap presence
+        function detectDAICOTemplate(sale, dao) {
+            // sale: { tribAmt, forAmt, forTkn, deadline, remainingSupply, totalSupply }
+            // dao: { isLoot, hasTap, tapRate }
+
+            const isLoot = dao?.isLoot || false;
+            const hasTap = dao?.hasTap || (dao?.tapRate && dao.tapRate > 0n);
+
+            // Shares sales
+            if (!isLoot) {
+                // Buterin: Shares + Tap (classic DAICO)
+                if (hasTap) {
+                    return 'buterin';
+                }
+                // Club: Shares + No Tap (vote on spends)
+                return 'club';
+            }
+
+            // Loot sales
+            if (isLoot) {
+                // Ungovern: Loot + Tap (truly ungoverned, tap releases funds)
+                if (hasTap) {
+                    return 'ungovern';
+                }
+                // Builder: Loot sale + No Tap (builder controls treasury via proposals)
+                return 'builder';
+            }
+
+            return null;
+        }
 
         // Initialize price preview on load
         function updateSummaryPricePreview() {
-            const tributeToken = SUMMARY_TRIBUTE_TOKENS[summaryState.tributeTokenIndex];
+            const tributeToken = getSummaryTributeTokens()[summaryState.tributeTokenIndex];
             const price = summaryState.raise / summaryState.supply;
             const pricePerMillion = price * 1_000_000;
             let priceStr;
@@ -6625,6 +7678,9 @@
                 if (field === 'raise' || field === 'tapPct' || field === 'tapMonths') {
                     updateSummaryTapDisplay();
                 }
+                // Check if edit changes template match
+                updateTemplateBadge();
+                updateTemplateNote();
             };
 
             input.addEventListener('blur', finishEdit);
@@ -6651,28 +7707,30 @@
 
         function toggleSummaryTokenType() {
             const el = document.getElementById('editTokenType');
-            const lootNote = document.getElementById('summaryLootNote');
             if (summaryState.tokenType === 'shares') {
                 summaryState.tokenType = 'loot';
                 el.textContent = 'Loot';
                 el.classList.add('loot');
-                lootNote.style.display = 'block';
-                // Auto-enable tap for loot sales (prevents locked funds footgun)
-                if (!summaryState.tapEnabled) {
+                // Reset founderShares when manually switching to loot
+                summaryState.founderShares = false;
+                // Auto-enable tap for loot sales without founder shares (prevents locked funds footgun)
+                if (!summaryState.tapEnabled && !summaryState.founderShares) {
                     summaryState.tapEnabled = true;
                     updateSummaryTapDisplay();
                 }
             } else {
                 summaryState.tokenType = 'shares';
+                summaryState.founderShares = false; // Reset when switching to shares
                 el.textContent = 'Shares';
                 el.classList.remove('loot');
-                lootNote.style.display = 'none';
             }
+            updateTemplateBadge();
+            updateTemplateNote();
         }
 
         function toggleSummaryTribute() {
-            summaryState.tributeTokenIndex = (summaryState.tributeTokenIndex + 1) % SUMMARY_TRIBUTE_TOKENS.length;
-            const tributeToken = SUMMARY_TRIBUTE_TOKENS[summaryState.tributeTokenIndex];
+            summaryState.tributeTokenIndex = (summaryState.tributeTokenIndex + 1) % getSummaryTributeTokens().length;
+            const tributeToken = getSummaryTributeTokens()[summaryState.tributeTokenIndex];
             const el = document.getElementById('editTribute');
             el.textContent = tributeToken.symbol;
             updateSummaryPricePreview();
@@ -6680,13 +7738,15 @@
         }
 
         function toggleSummaryTap() {
-            // Prevent disabling tap for loot sales in simple form (no founders = locked funds footgun)
-            // Users can use Advanced form for loot sales with founders where tap can be disabled
-            if (summaryState.tapEnabled && summaryState.tokenType === 'loot') {
-                return; // Don't allow disabling tap for loot sales in simple form
+            // Prevent disabling tap for loot sales without founder shares (locked funds footgun)
+            // Allow disabling if founderShares is true (Builder pattern - founder controls treasury)
+            if (summaryState.tapEnabled && summaryState.tokenType === 'loot' && !summaryState.founderShares) {
+                return; // Don't allow disabling tap for loot sales without founder control
             }
             summaryState.tapEnabled = !summaryState.tapEnabled;
             updateSummaryTapDisplay();
+            updateTemplateBadge();
+            updateTemplateNote();
         }
 
         function editTapPctField() {
@@ -6694,6 +7754,8 @@
             if (!summaryState.tapEnabled) {
                 summaryState.tapEnabled = true;
                 updateSummaryTapDisplay();
+                updateTemplateBadge();
+                updateTemplateNote();
                 return;
             }
             // Otherwise, edit normally
@@ -6719,7 +7781,7 @@
                 tapMonthsText.style.display = 'inline';
 
                 // Calculate and show daily tap rate
-                const tributeToken = SUMMARY_TRIBUTE_TOKENS[summaryState.tributeTokenIndex];
+                const tributeToken = getSummaryTributeTokens()[summaryState.tributeTokenIndex];
                 const tapAmount = summaryState.raise * (summaryState.tapPct / 100);
                 const daysTotal = summaryState.tapMonths * 30.44; // avg days per month
                 const ratePerDay = tapAmount / daysTotal;
@@ -6768,16 +7830,36 @@
         }
 
         async function launchFromSummary() {
-            if (!signer) {
+            if (!signer || !connectedWalletProvider) {
                 document.getElementById('summaryStatus').innerHTML = 'Please <a href="#" onclick="connectWallet(); return false;" style="color: var(--cyan);">connect wallet</a> first';
                 return;
             }
 
-            const network = await provider.getNetwork();
-            if (network.chainId !== getNetwork().chainId) {
-                document.getElementById('summaryStatus').textContent = `Please switch to ${getNetwork().name}`;
+            // Get chainId directly from wallet provider to avoid ethers NETWORK_ERROR
+            const walletChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+            const walletChainId = BigInt(walletChainIdHex);
+            const expectedNetwork = getNetwork();
+            if (walletChainId !== expectedNetwork.chainId) {
+                document.getElementById('summaryStatus').textContent = `Please switch wallet to ${expectedNetwork.name}`;
+                // Also trigger network switch prompt
+                try {
+                    await connectedWalletProvider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: expectedNetwork.chainIdHex }]
+                    });
+                    // If successful, page will reload via chainChanged handler
+                    return;
+                } catch (error) {
+                    if (!isUserRejection(error)) {
+                        console.error('Failed to switch network:', error);
+                    }
+                }
                 return;
             }
+
+            // Recreate provider/signer to ensure we're on the correct network
+            provider = new ethers.BrowserProvider(connectedWalletProvider);
+            signer = await provider.getSigner();
 
             const name = document.getElementById('summaryName').value.trim();
             const symbol = document.getElementById('summarySymbol').value.trim().toUpperCase();
@@ -6802,14 +7884,15 @@
 
                 const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
 
+                const impls = getImplementations();
                 const summonConfig = {
                     summoner: SUMMONER_ADDRESS,
-                    molochImpl: MOLOCH_IMPL,
-                    sharesImpl: SHARES_IMPL,
-                    lootImpl: LOOT_IMPL
+                    molochImpl: impls.moloch,
+                    sharesImpl: impls.shares,
+                    lootImpl: impls.loot
                 };
 
-                const tributeToken = SUMMARY_TRIBUTE_TOKENS[summaryState.tributeTokenIndex];
+                const tributeToken = getSummaryTributeTokens()[summaryState.tributeTokenIndex];
                 const saleSupplyWei = ethers.parseEther(summaryState.supply.toString());
 
                 // For 6-decimal tokens (USDC/USDT), use larger forAmt to maintain precision
@@ -6832,12 +7915,13 @@
                     feeOrHook: 30
                 };
 
-                // For loot sales, we need founders - default to connected wallet
+                // For Builder template, founder gets shares to control the DAO
+                // For Ungovern template (loot + tap, no founder shares), no one governs
                 let initHolders = [];
                 let initSharesWei = [];
-                if (isLoot) {
+                if (summaryState.founderShares) {
                     initHolders = [connectedAddress];
-                    initSharesWei = [ethers.parseEther('1000000')]; // 1M shares to founder
+                    initSharesWei = [ethers.parseEther('1000000')]; // 1M shares to founder/builder
                 }
 
                 const salt = ethers.hexlify(ethers.randomBytes(32));
@@ -6933,11 +8017,11 @@
                     );
                 }
 
-                document.getElementById('summaryStatus').innerHTML = `Submitted! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View tx</a>`;
+                document.getElementById('summaryStatus').innerHTML = `Submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View tx</a>`;
 
                 await tx.wait();
 
-                document.getElementById('summaryStatus').innerHTML = `Launched! <a href="https://majeurdao.eth.limo/#/dao/${predictedDao}" target="_blank" rel="noopener" style="color: var(--green);">View your DAO</a>`;
+                document.getElementById('summaryStatus').innerHTML = `Launched! <a href="https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}" target="_blank" rel="noopener" style="color: var(--green);">View your DAO</a>`;
 
                 // Refresh DAICO list to show the new sale
                 daicoScanTriggered = false;
@@ -6972,104 +8056,112 @@
             'function aggregate3(tuple(address target, bool allowFailure, bytes callData)[] calls) view returns (tuple(bool success, bytes returnData)[])'
         ];
 
-        // VIEW_HELPER_ABI - getDAOsFullState returns rich DAO data in one call
-        const VIEW_HELPER_ABI = [{
-            "inputs": [
-                {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
-                {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
-                {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
-                {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
-                {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
-                {"internalType": "uint256", "name": "messageCount", "type": "uint256"}
-            ],
-            "name": "getDAOsFullState",
-            "outputs": [{
-                "components": [
-                    {"internalType": "address", "name": "dao", "type": "address"},
-                    {"components": [
-                        {"internalType": "string", "name": "name", "type": "string"},
-                        {"internalType": "string", "name": "symbol", "type": "string"},
-                        {"internalType": "string", "name": "contractURI", "type": "string"},
-                        {"internalType": "address", "name": "sharesToken", "type": "address"},
-                        {"internalType": "address", "name": "lootToken", "type": "address"},
-                        {"internalType": "address", "name": "badgesToken", "type": "address"},
-                        {"internalType": "address", "name": "renderer", "type": "address"}
-                    ], "internalType": "struct DAOMeta", "name": "meta", "type": "tuple"},
-                    {"components": [
-                        {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
-                        {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
-                        {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
-                        {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
-                        {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
-                        {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
-                        {"internalType": "bool", "name": "ragequittable", "type": "bool"},
-                        {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
-                        {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
-                        {"internalType": "address", "name": "rewardToken", "type": "address"}
-                    ], "internalType": "struct DAOGovConfig", "name": "gov", "type": "tuple"},
-                    {"components": [
-                        {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
-                        {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
-                        {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
-                        {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
-                    ], "internalType": "struct DAOTokenSupplies", "name": "supplies", "type": "tuple"},
-                    {"components": [
-                        {"internalType": "uint256", "name": "eth", "type": "uint256"},
-                        {"internalType": "uint256", "name": "usdc", "type": "uint256"},
-                        {"internalType": "uint256", "name": "usdt", "type": "uint256"},
-                        {"internalType": "uint256", "name": "dai", "type": "uint256"},
-                        {"internalType": "uint256", "name": "wsteth", "type": "uint256"},
-                        {"internalType": "uint256", "name": "reth", "type": "uint256"}
-                    ], "internalType": "struct DAOTreasury", "name": "treasury", "type": "tuple"},
-                    {"components": [
-                        {"internalType": "address", "name": "account", "type": "address"},
-                        {"internalType": "uint256", "name": "shares", "type": "uint256"},
-                        {"internalType": "uint256", "name": "loot", "type": "uint256"},
-                        {"internalType": "uint16", "name": "seatId", "type": "uint16"},
-                        {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
-                        {"internalType": "address[]", "name": "delegates", "type": "address[]"},
-                        {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
-                    ], "internalType": "struct MemberView[]", "name": "members", "type": "tuple[]"},
-                    {"components": [
-                        {"internalType": "uint256", "name": "id", "type": "uint256"},
-                        {"internalType": "address", "name": "proposer", "type": "address"},
-                        {"internalType": "uint8", "name": "state", "type": "uint8"},
-                        {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
-                        {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
-                        {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
-                        {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
-                        {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
-                        {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
-                        {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
-                        {"components": [
-                            {"internalType": "bool", "name": "enabled", "type": "bool"},
-                            {"internalType": "address", "name": "rewardToken", "type": "address"},
-                            {"internalType": "uint256", "name": "pool", "type": "uint256"},
-                            {"internalType": "bool", "name": "resolved", "type": "bool"},
-                            {"internalType": "uint8", "name": "winner", "type": "uint8"},
-                            {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
-                            {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
-                        ], "internalType": "struct FutarchyView", "name": "futarchy", "type": "tuple"},
-                        {"components": [
-                            {"internalType": "address", "name": "voter", "type": "address"},
-                            {"internalType": "uint8", "name": "support", "type": "uint8"},
-                            {"internalType": "uint256", "name": "weight", "type": "uint256"}
-                        ], "internalType": "struct VoterView[]", "name": "voters", "type": "tuple[]"}
-                    ], "internalType": "struct ProposalView[]", "name": "proposals", "type": "tuple[]"},
-                    {"components": [
-                        {"internalType": "uint256", "name": "id", "type": "uint256"},
-                        {"internalType": "address", "name": "sender", "type": "address"},
-                        {"internalType": "uint64", "name": "timestamp", "type": "uint64"},
-                        {"internalType": "string", "name": "content", "type": "string"}
-                    ], "internalType": "struct MessageView[]", "name": "messages", "type": "tuple[]"}
+        // VIEW_HELPER_ABI - scanDAICOs returns all DAOs with active sales in one batched call
+        const VIEW_HELPER_ABI = [
+            // scanDAICOs - efficient batched scan for DAOs with active sales
+            {
+                "inputs": [
+                    {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
+                    {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
+                    {"internalType": "address[]", "name": "tribTokens", "type": "address[]"}
                 ],
-                "internalType": "struct DAOFullState[]",
-                "name": "",
-                "type": "tuple[]"
-            }],
-            "stateMutability": "view",
-            "type": "function"
-        }];
+                "name": "scanDAICOs",
+                "outputs": [{
+                    "components": [
+                        {"internalType": "address", "name": "dao", "type": "address"},
+                        {"components": [
+                            {"internalType": "string", "name": "name", "type": "string"},
+                            {"internalType": "string", "name": "symbol", "type": "string"},
+                            {"internalType": "string", "name": "contractURI", "type": "string"},
+                            {"internalType": "address", "name": "sharesToken", "type": "address"},
+                            {"internalType": "address", "name": "lootToken", "type": "address"},
+                            {"internalType": "address", "name": "badgesToken", "type": "address"},
+                            {"internalType": "address", "name": "renderer", "type": "address"}
+                        ], "internalType": "struct DAOMeta", "name": "meta", "type": "tuple"},
+                        {"components": [
+                            {"internalType": "address", "name": "tribTkn", "type": "address"},
+                            {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
+                            {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
+                            {"internalType": "address", "name": "forTkn", "type": "address"},
+                            {"internalType": "uint40", "name": "deadline", "type": "uint40"},
+                            {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                            {"internalType": "uint256", "name": "allowance", "type": "uint256"},
+                            {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
+                            {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
+                            {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
+                        ], "internalType": "struct SaleView[]", "name": "sales", "type": "tuple[]"},
+                        {"components": [
+                            {"internalType": "address", "name": "ops", "type": "address"},
+                            {"internalType": "address", "name": "tribTkn", "type": "address"},
+                            {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
+                            {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
+                            {"internalType": "uint256", "name": "claimable", "type": "uint256"},
+                            {"internalType": "uint256", "name": "pending", "type": "uint256"},
+                            {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                            {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
+                        ], "internalType": "struct TapView", "name": "tap", "type": "tuple"}
+                    ],
+                    "internalType": "struct DAICOView[]",
+                    "name": "daicos",
+                    "type": "tuple[]"
+                }],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            // getDAICO - single DAO DAICO data
+            {
+                "inputs": [
+                    {"internalType": "address", "name": "dao", "type": "address"},
+                    {"internalType": "address[]", "name": "tribTokens", "type": "address[]"}
+                ],
+                "name": "getDAICO",
+                "outputs": [{
+                    "components": [
+                        {"internalType": "address", "name": "dao", "type": "address"},
+                        {"components": [
+                            {"internalType": "string", "name": "name", "type": "string"},
+                            {"internalType": "string", "name": "symbol", "type": "string"},
+                            {"internalType": "string", "name": "contractURI", "type": "string"},
+                            {"internalType": "address", "name": "sharesToken", "type": "address"},
+                            {"internalType": "address", "name": "lootToken", "type": "address"},
+                            {"internalType": "address", "name": "badgesToken", "type": "address"},
+                            {"internalType": "address", "name": "renderer", "type": "address"}
+                        ], "internalType": "struct DAOMeta", "name": "meta", "type": "tuple"},
+                        {"components": [
+                            {"internalType": "address", "name": "tribTkn", "type": "address"},
+                            {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
+                            {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
+                            {"internalType": "address", "name": "forTkn", "type": "address"},
+                            {"internalType": "uint40", "name": "deadline", "type": "uint40"},
+                            {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                            {"internalType": "uint256", "name": "allowance", "type": "uint256"},
+                            {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
+                            {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
+                            {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
+                        ], "internalType": "struct SaleView[]", "name": "sales", "type": "tuple[]"},
+                        {"components": [
+                            {"internalType": "address", "name": "ops", "type": "address"},
+                            {"internalType": "address", "name": "tribTkn", "type": "address"},
+                            {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
+                            {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
+                            {"internalType": "uint256", "name": "claimable", "type": "uint256"},
+                            {"internalType": "uint256", "name": "pending", "type": "uint256"},
+                            {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                            {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
+                        ], "internalType": "struct TapView", "name": "tap", "type": "tuple"}
+                    ],
+                    "internalType": "struct DAICOView",
+                    "name": "",
+                    "type": "tuple"
+                }],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
 
         const DAICO_SCANNER_ABI = [
             'function sales(address dao, address tribTkn) view returns (uint256 tribAmt, uint256 forAmt, address forTkn, uint40 deadline)',
@@ -7129,204 +8221,63 @@
             return scannerProvider;
         }
 
-        // Scan for active DAICOs using getDAOsFullState + targeted multicall
+        // Scan for active DAICOs using the view helper's efficient batched scanDAICOs function
+        // This replaces 3 RPC calls with a single call that batches all queries on-chain
         async function scanActiveDAICOs() {
             const scanProvider = await initScanner();
-
-            const multicall = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI, scanProvider);
+            if (!scanProvider) {
+                throw new Error('No provider available - check network connection');
+            }
             const viewHelper = new ethers.Contract(MOLOCH_VIEW_HELPER, VIEW_HELPER_ABI, scanProvider);
-            const daicoIface = new ethers.Interface(DAICO_SCANNER_ABI);
-            const erc20Iface = new ethers.Interface(ERC20_ABI);
 
-            // Step 1: Get all DAOs with full state (efficient single call)
-            // Parameters: daoStart, daoCount, proposalStart, proposalCount, messageStart, messageCount
-            // Using same parameters as Majeur.html for consistency
-            const daoResults = await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5);
-            if (daoResults.length === 0) return [];
+            // Get tribute tokens for current network
+            const tribTokens = getNetwork().treasuryTokens;
 
-            // Build map of DAO info from view helper results
-            const daoInfo = {};
-            for (const daoResult of daoResults) {
-                const daoAddr = daoResult.dao;
-                daoInfo[daoAddr] = {
-                    dao: daoAddr,
-                    name: daoResult.meta.name,
-                    symbol: daoResult.meta.symbol,
-                    contractURI: daoResult.meta.contractURI,
-                    sharesToken: daoResult.meta.sharesToken,
-                    lootToken: daoResult.meta.lootToken,
-                    sales: [],
-                    tap: null,
-                    claimableTap: 0n,
-                    metadata: parseContractURI(daoResult.meta.contractURI)
-                };
-            }
+            // Single efficient call - view helper batches all DAICO queries internally:
+            // - Scans all DAOs for active sales
+            // - Gets sales terms, remaining supply, total supply, treasury balance, allowance
+            // - Gets tap config with claimable/pending amounts
+            // - Returns only DAOs with active sales (filters on-chain)
+            const daicoResults = await viewHelper.scanDAICOs(0, 100, tribTokens);
 
-            const daoAddresses = Object.keys(daoInfo);
-            const tribTokens = Object.keys(COMMON_TRIB_TOKENS);
+            // Transform view helper results to our internal format
+            const daosWithSales = daicoResults.map(daico => ({
+                dao: daico.dao,
+                name: daico.meta.name,
+                symbol: daico.meta.symbol,
+                contractURI: daico.meta.contractURI,
+                sharesToken: daico.meta.sharesToken,
+                lootToken: daico.meta.lootToken,
+                metadata: parseContractURI(daico.meta.contractURI),
+                sales: daico.sales.map(sale => ({
+                    tribTkn: sale.tribTkn,
+                    tribAmt: sale.tribAmt,
+                    forAmt: sale.forAmt,
+                    forTkn: sale.forTkn,
+                    deadline: Number(sale.deadline),
+                    remainingSupply: sale.remainingSupply,
+                    totalSupply: sale.totalSupply,
+                    treasuryBalance: sale.treasuryBalance,
+                    allowance: sale.allowance,
+                    lpBps: Number(sale.lpBps),
+                    maxSlipBps: Number(sale.maxSlipBps),
+                    feeOrHook: sale.feeOrHook
+                })),
+                tap: daico.tap.ops !== ethers.ZeroAddress && daico.tap.ratePerSec > 0n ? {
+                    ops: daico.tap.ops,
+                    tribTkn: daico.tap.tribTkn,
+                    ratePerSec: daico.tap.ratePerSec,
+                    lastClaim: Number(daico.tap.lastClaim),
+                    claimable: daico.tap.claimable,
+                    pending: daico.tap.pending,
+                    treasuryBalance: daico.tap.treasuryBalance,
+                    tapAllowance: daico.tap.tapAllowance
+                } : null,
+                claimableTap: daico.tap.claimable || 0n,
+                ethBalance: daico.tap.tribTkn === ethers.ZeroAddress ? daico.tap.treasuryBalance : 0n
+            }));
 
-            // Step 2: Build multicall to check DAICO sales for each DAO × tribToken
-            // This is much smaller: just sales + taps calls to DAICO contract
-            const calls = [];
-            const callMeta = [];
-
-            for (const daoAddr of daoAddresses) {
-                // Check sales for each common tribute token
-                for (const tribTkn of tribTokens) {
-                    calls.push({
-                        target: DAICO_ADDRESS,
-                        allowFailure: true,
-                        callData: daicoIface.encodeFunctionData('sales', [daoAddr, tribTkn])
-                    });
-                    callMeta.push({ type: 'sale', dao: daoAddr, tribTkn });
-                }
-
-                // Get tap info
-                calls.push({
-                    target: DAICO_ADDRESS,
-                    allowFailure: true,
-                    callData: daicoIface.encodeFunctionData('taps', [daoAddr])
-                });
-                callMeta.push({ type: 'tap', dao: daoAddr });
-
-                calls.push({
-                    target: DAICO_ADDRESS,
-                    allowFailure: true,
-                    callData: daicoIface.encodeFunctionData('claimableTap', [daoAddr])
-                });
-                callMeta.push({ type: 'claimableTap', dao: daoAddr });
-            }
-
-            // Execute multicall for DAICO data
-            const results = await multicall.aggregate3(calls);
-
-            // Parse DAICO results
-            for (let i = 0; i < results.length; i++) {
-                const { success, returnData } = results[i];
-                const meta = callMeta[i];
-
-                if (!success || returnData === '0x') continue;
-
-                try {
-                    if (meta.type === 'sale') {
-                        const [tribAmt, forAmt, forTkn, deadline] = daicoIface.decodeFunctionResult('sales', returnData);
-                        // Track all sales with valid terms
-                        if (tribAmt > 0n && forAmt > 0n) {
-                            daoInfo[meta.dao].sales.push({
-                                tribTkn: meta.tribTkn,
-                                tribAmt,
-                                forAmt,
-                                forTkn,
-                                deadline: Number(deadline)
-                            });
-                        }
-                    } else if (meta.type === 'tap') {
-                        const [ops, tribTkn, ratePerSec, lastClaim] = daicoIface.decodeFunctionResult('taps', returnData);
-                        if (ops !== ethers.ZeroAddress && ratePerSec > 0n) {
-                            daoInfo[meta.dao].tap = { ops, tribTkn, ratePerSec, lastClaim: Number(lastClaim) };
-                        }
-                    } else if (meta.type === 'claimableTap') {
-                        daoInfo[meta.dao].claimableTap = daicoIface.decodeFunctionResult('claimableTap', returnData)[0];
-                    }
-                } catch (e) {
-                    // Skip decode errors
-                }
-            }
-
-            // Step 3: For DAOs with sales, get remaining supply
-            const daosWithSales = Object.values(daoInfo).filter(d => d.sales.length > 0);
             if (daosWithSales.length === 0) return [];
-
-            // Build balance multicall
-            const balanceCalls = [];
-            const balanceMeta = [];
-
-            for (const daoData of daosWithSales) {
-                for (const sale of daoData.sales) {
-                    // Get remaining supply (forTkn balance in DAO)
-                    balanceCalls.push({
-                        target: sale.forTkn,
-                        allowFailure: true,
-                        callData: erc20Iface.encodeFunctionData('balanceOf', [daoData.dao])
-                    });
-                    balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'remaining' });
-
-                    // Get total supply for percentage calc
-                    balanceCalls.push({
-                        target: sale.forTkn,
-                        allowFailure: true,
-                        callData: erc20Iface.encodeFunctionData('totalSupply', [])
-                    });
-                    balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'totalSupply' });
-
-                    // Get treasury balance
-                    if (sale.tribTkn === ethers.ZeroAddress) {
-                        balanceCalls.push({
-                            target: MULTICALL3_ADDRESS,
-                            allowFailure: true,
-                            callData: MULTICALL3_ETH_BALANCE_IFACE.encodeFunctionData('getEthBalance', [daoData.dao])
-                        });
-                    } else {
-                        balanceCalls.push({
-                            target: sale.tribTkn,
-                            allowFailure: true,
-                            callData: erc20Iface.encodeFunctionData('balanceOf', [daoData.dao])
-                        });
-                    }
-                    balanceMeta.push({ dao: daoData.dao, tribTkn: sale.tribTkn, type: 'treasuryBalance' });
-                }
-
-                // Get DAO ETH balance for tap display
-                if (daoData.tap) {
-                    balanceCalls.push({
-                        target: MULTICALL3_ADDRESS,
-                        allowFailure: true,
-                        callData: MULTICALL3_ETH_BALANCE_IFACE.encodeFunctionData('getEthBalance', [daoData.dao])
-                    });
-                    balanceMeta.push({ dao: daoData.dao, type: 'ethBalance' });
-                }
-            }
-
-            if (balanceCalls.length > 0) {
-                const balanceResults = await multicall.aggregate3(balanceCalls);
-
-                for (let i = 0; i < balanceResults.length; i++) {
-                    const { success, returnData } = balanceResults[i];
-                    const meta = balanceMeta[i];
-
-                    if (!success || returnData === '0x') continue;
-
-                    try {
-                        const daoData = daosWithSales.find(d => d.dao === meta.dao);
-                        if (!daoData) continue;
-
-                        if (meta.type === 'remaining') {
-                            const sale = daoData.sales.find(s => s.tribTkn === meta.tribTkn);
-                            if (sale) {
-                                sale.remainingSupply = erc20Iface.decodeFunctionResult('balanceOf', returnData)[0];
-                            }
-                        } else if (meta.type === 'totalSupply') {
-                            const sale = daoData.sales.find(s => s.tribTkn === meta.tribTkn);
-                            if (sale) {
-                                sale.totalSupply = erc20Iface.decodeFunctionResult('totalSupply', returnData)[0];
-                            }
-                        } else if (meta.type === 'treasuryBalance') {
-                            const sale = daoData.sales.find(s => s.tribTkn === meta.tribTkn);
-                            if (sale) {
-                                if (meta.tribTkn === ethers.ZeroAddress) {
-                                    sale.treasuryBalance = MULTICALL3_ETH_BALANCE_IFACE.decodeFunctionResult('getEthBalance', returnData)[0];
-                                } else {
-                                    sale.treasuryBalance = erc20Iface.decodeFunctionResult('balanceOf', returnData)[0];
-                                }
-                            }
-                        } else if (meta.type === 'ethBalance') {
-                            daoData.ethBalance = MULTICALL3_ETH_BALANCE_IFACE.decodeFunctionResult('getEthBalance', returnData)[0];
-                        }
-                    } catch (e) {
-                        // Skip decode errors
-                    }
-                }
-            }
 
             const currentTime = Math.floor(Date.now() / 1000);
 
@@ -7458,6 +8409,11 @@
                 const isExpired = sale.deadline > 0 && sale.deadline <= now;
                 const isCompleted = isSoldOut || isExpired;
 
+                // Calculate progress percentage
+                const totalSupplyNum = sale.totalSupply ? Number(ethers.formatEther(sale.totalSupply)) : 0;
+                const soldNum = totalSupplyNum > 0 ? totalSupplyNum - remainingNum : 0;
+                const progressPct = totalSupplyNum > 0 ? Math.min((soldNum / totalSupplyNum) * 100, 100) : 0;
+
                 // Status badge for completed sales
                 let statusBadge = '';
                 if (isCompleted) {
@@ -7468,8 +8424,30 @@
                     }
                 }
 
+                // Detect template type from on-chain config
+                const hasTap = daoData.tap && daoData.tap.ratePerSec > 0n;
+                const detectedTemplate = detectDAICOTemplate(sale, { isLoot, hasTap });
+                let templateBadgeHtml = '';
+                if (detectedTemplate && DAICO_TEMPLATES[detectedTemplate]) {
+                    const tmpl = DAICO_TEMPLATES[detectedTemplate];
+                    templateBadgeHtml = `<div class="daico-template-badge ${detectedTemplate}">${tmpl.name}</div>`;
+                }
+
+                // Progress bar HTML
+                const progressHtml = totalSupplyNum > 0 ? `
+                    <div class="daico-progress ${isSoldOut ? 'sold-out' : ''}">
+                        <div class="daico-progress-bar" style="width: ${progressPct}%"></div>
+                        <div class="daico-progress-text">${progressPct.toFixed(1)}% sold</div>
+                    </div>
+                    <div class="daico-progress-labels">
+                        <span class="progress-sold">${soldNum.toLocaleString()} sold</span>
+                        <span class="progress-total">${totalSupplyNum.toLocaleString()} total</span>
+                    </div>
+                ` : '';
+
                 return `
                     <div class="daico-card ${isCompleted ? 'completed' : ''}" onclick="openDAICODetail('${daoData.dao}', '${sale.tribTkn}')">
+                        ${templateBadgeHtml}
                         ${statusBadge}
                         <div class="daico-card-content">
                             ${imageHtml}
@@ -7482,6 +8460,7 @@
                                     <span class="daico-trib-icon">${tribIcon}</span>
                                     ${pricePerMillion.toFixed(6)} ${tribInfo.symbol} / 1M ${tokenType}
                                 </div>
+                                ${progressHtml}
                                 <div class="daico-stats">
                                     <span class="daico-raised">
                                         <span class="daico-trib-icon-sm">${tribIcon}</span>
@@ -7599,6 +8578,21 @@
             // Sale info
             const tribInfo = COMMON_TRIB_TOKENS[tribTkn] || { symbol: '???', decimals: 18 };
             const isLoot = sale.forTkn.toLowerCase() === daoData.lootToken?.toLowerCase();
+
+            // Show template badge if detected
+            const hasTap = daoData.tap && daoData.tap.ratePerSec > 0n;
+            const detectedTemplate = detectDAICOTemplate(sale, { isLoot, hasTap });
+            const templateBadgeEl = document.getElementById('purchaseTemplateBadge');
+            if (detectedTemplate && DAICO_TEMPLATES[detectedTemplate]) {
+                const tmpl = DAICO_TEMPLATES[detectedTemplate];
+                templateBadgeEl.textContent = tmpl.name;
+                templateBadgeEl.className = `daico-template-badge ${detectedTemplate}`;
+                templateBadgeEl.style.display = 'inline-block';
+                templateBadgeEl.style.position = 'static';
+                templateBadgeEl.style.marginLeft = '0.5rem';
+            } else {
+                templateBadgeEl.style.display = 'none';
+            }
             const tokenType = isLoot ? 'Loot' : 'Shares';
 
             const remainingNum = Number(ethers.formatEther(sale.remainingSupply || 0n));
@@ -7628,6 +8622,25 @@
             const forAmtNum = Number(ethers.formatEther(sale.forAmt));
             const pricePerMillion = (tribAmtNum / forAmtNum) * 1_000_000;
             document.getElementById('purchasePrice').textContent = `${pricePerMillion.toFixed(6)} ${tribInfo.symbol} / 1M ${tokenType}`;
+
+            // Progress bar - calculate sold vs total
+            const totalSupplyNum = sale.totalSupply ? Number(ethers.formatEther(sale.totalSupply)) : 0;
+            const soldNum = totalSupplyNum > 0 ? totalSupplyNum - remainingNum : 0;
+            const progressPct = totalSupplyNum > 0 ? Math.min((soldNum / totalSupplyNum) * 100, 100) : 0;
+            const isSoldOut = remainingNum <= 0;
+
+            document.getElementById('purchaseProgressBar').style.width = `${progressPct}%`;
+            document.getElementById('purchaseProgressText').textContent = `${progressPct.toFixed(1)}% sold`;
+            document.getElementById('purchaseProgressSold').textContent = `${soldNum.toLocaleString()} ${tokenType} sold`;
+            document.getElementById('purchaseProgressRemaining').textContent = `${remainingNum.toLocaleString()} remaining`;
+
+            // Update progress bar styling for sold out
+            const progressEl = document.getElementById('purchaseProgress');
+            if (isSoldOut) {
+                progressEl.classList.add('sold-out');
+            } else {
+                progressEl.classList.remove('sold-out');
+            }
 
             // Token displays
             document.getElementById('payTokenIcon').innerHTML = getTokenIcon(tribTkn);
@@ -7684,7 +8697,7 @@
             }
 
             // Majeur link
-            document.getElementById('majeurLink').href = `https://majeurdao.eth.limo/#/dao/${dao}`;
+            document.getElementById('majeurLink').href = `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${dao}`;
 
             // Clear inputs
             document.getElementById('payAmountInput').value = '';
@@ -7700,6 +8713,7 @@
 
         function closePurchaseModal() {
             stopTapAccrual();
+            clearTimeout(quoteDebounce); // Clear any pending quote requests
             clearUrlHash();
             document.getElementById('purchaseModal').style.display = 'none';
             currentPurchase = { dao: null, tribTkn: null, sale: null, daoData: null, slippage: 0.5, inputMode: 'pay', payBalance: 0n, allowance: 0n, tapInfo: null };
@@ -7774,7 +8788,7 @@
         async function handlePayInput() {
             currentPurchase.inputMode = 'pay';
             const payStr = document.getElementById('payAmountInput').value.trim();
-            if (!payStr || parseFloat(payStr) <= 0) {
+            if (!payStr || isNaN(parseFloat(payStr)) || parseFloat(payStr) <= 0) {
                 document.getElementById('receiveAmountInput').value = '';
                 updatePurchaseButton();
                 return;
@@ -7788,7 +8802,7 @@
         async function handleReceiveInput() {
             currentPurchase.inputMode = 'receive';
             const receiveStr = document.getElementById('receiveAmountInput').value.trim();
-            if (!receiveStr || parseFloat(receiveStr) <= 0) {
+            if (!receiveStr || isNaN(parseFloat(receiveStr)) || parseFloat(receiveStr) <= 0) {
                 document.getElementById('payAmountInput').value = '';
                 updatePurchaseButton();
                 return;
@@ -7890,7 +8904,7 @@
             const payStr = document.getElementById('payAmountInput').value.trim();
             const receiveStr = document.getElementById('receiveAmountInput').value.trim();
 
-            if (!payStr || parseFloat(payStr) <= 0 || !receiveStr || parseFloat(receiveStr) <= 0) {
+            if (!payStr || isNaN(parseFloat(payStr)) || parseFloat(payStr) <= 0 || !receiveStr || isNaN(parseFloat(receiveStr)) || parseFloat(receiveStr) <= 0) {
                 buyBtn.textContent = 'Enter Amount';
                 buyBtn.disabled = true;
                 approveBtn.style.display = 'none';
@@ -8004,7 +9018,7 @@
                 }
 
                 buyBtn.textContent = 'Processing...';
-                showPurchaseStatus(`Transaction submitted! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View</a>`, 'info');
+                showPurchaseStatus(`Transaction submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View</a>`, 'info');
 
                 await tx.wait();
 
@@ -8051,13 +9065,13 @@
             const tapInfo = currentPurchase.tapInfo;
             if (!tapInfo) return;
 
-            // Calculate elapsed time since modal opened (in seconds)
+            // Calculate elapsed time since modal opened (in milliseconds)
             const elapsedMs = Date.now() - tapInfo.startTime;
-            const elapsedSec = elapsedMs / 1000;
 
-            // Calculate accrued amount: base + (ratePerSec * elapsed)
-            // ratePerSec is in wei, so we need BigInt math
-            const accruedWei = BigInt(Math.floor(Number(tapInfo.ratePerSec) * elapsedSec));
+            // Calculate accrued amount using BigInt math to avoid precision loss
+            // accruedWei = (ratePerSec * elapsedMs) / 1000
+            // Using BigInt division: multiply first, then divide to minimize precision loss
+            const accruedWei = (tapInfo.ratePerSec * BigInt(elapsedMs)) / 1000n;
             const totalClaimable = tapInfo.baseClaimable + accruedWei;
 
             // Format with more precision for the ticking effect
@@ -8091,7 +9105,7 @@
                 const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, signer);
                 const tx = await daicoContract.claimTap(currentPurchase.dao);
 
-                showPurchaseStatus(`Claim submitted! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View</a>`, 'info');
+                showPurchaseStatus(`Claim submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View</a>`, 'info');
 
                 await tx.wait();
 
@@ -8141,12 +9155,13 @@
         }
 
         // ==================== URL DEEP LINKING ====================
-        // URL format: #/sale/0xDAO or #/sale/0xDAO/0xTribToken
-        // This mirrors Majeur.html pattern: #/dao/0x...
+        // URL format: #/sale/{chainId}/{dao} or #/sale/{chainId}/{dao}/{tribToken}
+        // Also supports legacy format: #/sale/0xDAO or #/sale/0xDAO/0xTribToken
 
-        // Update URL hash when opening a sale
+        // Update URL hash when opening a sale (includes chain ID)
         function updateUrlHash(dao, tribTkn) {
-            let hash = `#/sale/${dao}`;
+            const chainId = getNetwork().chainId.toString();
+            let hash = `#/sale/${chainId}/${dao}`;
             if (tribTkn && tribTkn !== ethers.ZeroAddress) {
                 hash += `/${tribTkn}`;
             }
@@ -8161,19 +9176,40 @@
         }
 
         // Parse URL hash and open sale if specified
-        // Supports: #/sale/0xDAO and #/sale/0xDAO/0xTribToken
+        // Supports: #/sale/{chainId}/0xDAO, #/sale/{chainId}/0xDAO/0xTribToken
+        // Also supports legacy: #/sale/0xDAO and #/sale/0xDAO/0xTribToken
         async function handleDeepLink() {
             if (!window.location.hash) return;
 
             try {
                 const hash = window.location.hash;
 
-                // Match format: #/sale/0x... or #/sale/0x.../0x...
-                const saleMatch = hash.match(/^#\/sale\/(0x[a-fA-F0-9]{40})(?:\/(0x[a-fA-F0-9]{40}))?$/);
-                if (!saleMatch) return;
+                // Try new format with chain ID: #/sale/{chainId}/0x.../0x...
+                let saleMatch = hash.match(/^#\/sale\/(\d+)\/(0x[a-fA-F0-9]{40})(?:\/(0x[a-fA-F0-9]{40}))?$/);
+                let linkChainId = null;
+                let dao, tribTkn;
 
-                const dao = saleMatch[1];
-                const tribTkn = saleMatch[2] || ethers.ZeroAddress;
+                if (saleMatch) {
+                    linkChainId = saleMatch[1];
+                    dao = saleMatch[2];
+                    tribTkn = saleMatch[3] || ethers.ZeroAddress;
+                } else {
+                    // Fall back to legacy format: #/sale/0x.../0x...
+                    saleMatch = hash.match(/^#\/sale\/(0x[a-fA-F0-9]{40})(?:\/(0x[a-fA-F0-9]{40}))?$/);
+                    if (!saleMatch) return;
+                    dao = saleMatch[1];
+                    tribTkn = saleMatch[2] || ethers.ZeroAddress;
+                }
+
+                // Check if we need to switch networks
+                if (linkChainId) {
+                    const linkNetwork = getNetworkByChainId(BigInt(linkChainId));
+                    if (linkNetwork && linkNetwork.network.chainId !== getNetwork().chainId) {
+                        // Prompt user to switch networks
+                        await promptNetworkSwitch(linkNetwork.key, linkNetwork.network, dao, tribTkn);
+                        return; // handleDeepLink will be called again after network switch
+                    }
+                }
 
                 if (!dao || !ethers.isAddress(dao)) return;
 
@@ -8393,18 +9429,35 @@
 
         // Launch DAICO
         async function launchDAICO() {
-            if (!signer) {
+            if (!signer || !connectedWalletProvider) {
                 showStatus('Please connect your wallet first', 'error');
                 showWalletModal();
                 return;
             }
 
-            // Check network
-            const network = await provider.getNetwork();
-            if (network.chainId !== getNetwork().chainId) {
-                showStatus(`Please switch to ${getNetwork().name}`, 'error');
+            // Check network - get chainId directly from wallet provider to avoid ethers NETWORK_ERROR
+            const walletChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+            const walletChainId = BigInt(walletChainIdHex);
+            const expectedNetwork = getNetwork();
+            if (walletChainId !== expectedNetwork.chainId) {
+                showStatus(`Please switch wallet to ${expectedNetwork.name}`, 'error');
+                try {
+                    await connectedWalletProvider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: expectedNetwork.chainIdHex }]
+                    });
+                    return;
+                } catch (error) {
+                    if (!isUserRejection(error)) {
+                        console.error('Failed to switch network:', error);
+                    }
+                }
                 return;
             }
+
+            // Recreate provider/signer to ensure we're on the correct network
+            provider = new ethers.BrowserProvider(connectedWalletProvider);
+            signer = await provider.getSigner();
 
             // Gather form data
             const name = document.getElementById('daoName').value.trim();
@@ -8475,11 +9528,12 @@
                 const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
 
                 // Build summon config
+                const impls = getImplementations();
                 const summonConfig = {
                     summoner: SUMMONER_ADDRESS,
-                    molochImpl: MOLOCH_IMPL,
-                    sharesImpl: SHARES_IMPL,
-                    lootImpl: LOOT_IMPL
+                    molochImpl: impls.moloch,
+                    sharesImpl: impls.shares,
+                    lootImpl: impls.loot
                 };
 
                 // Build DAICO config
@@ -8612,7 +9666,7 @@
                     );
                 }
 
-                showStatus(`Transaction submitted! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener">View on Etherscan</a>`, 'info');
+                showStatus(`Transaction submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener">View on Explorer</a>`, 'info');
 
                 const receipt = await tx.wait();
 
@@ -8623,7 +9677,7 @@
                 document.getElementById('launchForm').style.display = 'none';
                 document.getElementById('successPanel').style.display = 'block';
                 document.getElementById('successAddress').textContent = daoAddress;
-                document.getElementById('successLink').href = `https://majeurdao.eth.limo/#/dao/${daoAddress}`;
+                document.getElementById('successLink').href = `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${daoAddress}`;
 
                 hideStatus();
 
@@ -8792,7 +9846,6 @@
 
         // Attribution box - show after scrolling past hero (throttled)
         const attributionBox = document.getElementById('attributionBox');
-        const testnetToggle = document.getElementById('testnetToggle');
         let attributionScrollTimeout;
         window.addEventListener('scroll', () => {
             if (attributionScrollTimeout) return;
@@ -8800,47 +9853,136 @@
                 attributionScrollTimeout = null;
                 if (window.scrollY > window.innerHeight * 0.5) {
                     attributionBox.classList.add('visible');
-                    testnetToggle.classList.add('visible');
                 } else {
                     attributionBox.classList.remove('visible');
-                    testnetToggle.classList.remove('visible');
                 }
             }, 100);
         }, { passive: true });
 
-        // Testnet toggle function
-        function toggleTestnet() {
-            currentNetwork = currentNetwork === 'mainnet' ? 'sepolia' : 'mainnet';
-            localStorage.setItem('daico_network', currentNetwork);
-            // Force scanner to reinitialize with new network
-            scannerProvider = null;
-            scannerNetworkKey = null;
-            // Clear cached DAICOs
-            activeDAICOs = [];
-            completedDAICOs = [];
-            // Update UI
-            updateTestnetToggleUI();
-            // Disconnect wallet to force reconnect on correct network
-            if (connectedAddress) {
-                disconnectWallet();
-            }
-            // Reload page to reset all state cleanly
-            window.location.reload();
+        // Network selector functions
+        function toggleNetworkDropdown() {
+            const selector = document.getElementById('networkSelector');
+            selector.classList.toggle('open');
         }
 
-        function updateTestnetToggleUI() {
-            const toggle = document.getElementById('testnetToggle');
-            if (currentNetwork === 'sepolia') {
-                toggle.classList.add('active');
-                toggle.querySelector('a').textContent = 'testnet ✓';
+        function closeNetworkDropdown() {
+            const selector = document.getElementById('networkSelector');
+            selector.classList.remove('open');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const selector = document.getElementById('networkSelector');
+            if (selector && !selector.contains(e.target)) {
+                closeNetworkDropdown();
+            }
+        });
+
+        async function switchNetwork(networkKey) {
+            closeNetworkDropdown();
+
+            const targetNetwork = NETWORKS[networkKey];
+            if (!targetNetwork) return;
+
+            // If wallet is connected, request network switch via wallet
+            if (connectedWalletProvider) {
+                // Check if already on target network
+                try {
+                    const currentChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+                    if (currentChainIdHex === targetNetwork.chainIdHex) {
+                        // Already on target network, just update UI state
+                        currentNetwork = networkKey;
+                        localStorage.setItem('daico_network', networkKey);
+                        updateNetworkUI();
+                        // Reset scanner for correct network
+                        scannerProvider = null;
+                        scannerNetworkKey = null;
+                        activeDAICOs = [];
+                        completedDAICOs = [];
+                        daicoScanTriggered = false;
+                        triggerDAICOScan();
+                        return;
+                    }
+                } catch (e) {
+                    // Continue with switch attempt
+                }
+
+                try {
+                    await connectedWalletProvider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: targetNetwork.chainIdHex }]
+                    });
+
+                    // Some wallets don't fire chainChanged event reliably
+                    // Verify the switch and update UI manually
+                    const newChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+                    if (newChainIdHex === targetNetwork.chainIdHex) {
+                        // Switch successful - update state and reload to refresh everything
+                        currentNetwork = networkKey;
+                        localStorage.setItem('daico_network', networkKey);
+                        window.location.reload();
+                    }
+                    return;
+                } catch (error) {
+                    // Error code 4902 means the chain hasn't been added to the wallet
+                    if (error.code === 4902) {
+                        try {
+                            await connectedWalletProvider.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: targetNetwork.chainIdHex,
+                                    chainName: targetNetwork.name,
+                                    rpcUrls: targetNetwork.rpcs,
+                                    blockExplorerUrls: [targetNetwork.explorer]
+                                }]
+                            });
+                        } catch (addError) {
+                            console.error('Failed to add network:', addError);
+                            showStatus(`Failed to add ${targetNetwork.name} network`, 'error');
+                        }
+                    } else if (!isUserRejection(error)) {
+                        console.error('Failed to switch network:', error);
+                        showStatus(`Failed to switch to ${targetNetwork.name}`, 'error');
+                    }
+                }
             } else {
-                toggle.classList.remove('active');
-                toggle.querySelector('a').textContent = 'testnet';
+                // No wallet connected - just switch the display network
+                currentNetwork = networkKey;
+                localStorage.setItem('daico_network', networkKey);
+                // Force scanner to reinitialize with new network
+                scannerProvider = null;
+                scannerNetworkKey = null;
+                // Clear cached DAICOs and reset scan trigger
+                activeDAICOs = [];
+                completedDAICOs = [];
+                daicoScanTriggered = false;
+                // Update UI
+                updateNetworkUI();
+                // Rescan for DAICOs on new network
+                showStatus(`Switching to ${targetNetwork.name}...`, 'info');
+                await triggerDAICOScan();
             }
         }
 
-        // Initialize testnet toggle state
-        updateTestnetToggleUI();
+        function updateNetworkUI() {
+            const selector = document.getElementById('networkSelector');
+            const networkName = document.getElementById('networkName');
+            const network = getNetwork();
+
+            // Update selector data attribute for styling
+            selector.setAttribute('data-network', currentNetwork);
+
+            // Update network name
+            networkName.textContent = network.name;
+
+            // Update active state on options
+            document.querySelectorAll('.network-option').forEach(opt => {
+                opt.classList.toggle('active', opt.getAttribute('data-network') === currentNetwork);
+            });
+        }
+
+        // Initialize network UI on load
+        updateNetworkUI();
 
         // Theme boxes pop animation on scroll
         const themeObserver = new IntersectionObserver((entries) => {

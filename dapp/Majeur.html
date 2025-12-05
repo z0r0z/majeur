@@ -248,17 +248,145 @@
       .hide-nav-buttons .summon-link,
       .hide-nav-buttons .litepaper-link,
       .hide-nav-buttons .github-link,
-      .hide-nav-buttons .wallet-button {
+      .hide-nav-buttons .wallet-button,
+      .hide-nav-buttons .network-selector {
         opacity: 0;
         pointer-events: none;
       }
 
-      /* WALLET CONNECTION */
-      .wallet-button {
+      /* WALLET & NETWORK CONNECTION */
+      .wallet-network-container {
         position: fixed;
         top: 20px;
         right: 20px;
         z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .network-selector {
+        position: relative;
+      }
+
+      .network-badge {
+        padding: 8px 12px;
+        background: rgba(10, 0, 21, 0.9);
+        border: 1px solid rgba(157, 123, 255, 0.5);
+        color: #9d7bff;
+        font-family: "Cinzel", serif;
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-transform: uppercase;
+      }
+
+      .network-badge:hover {
+        background: rgba(157, 123, 255, 0.15);
+        border-color: #9d7bff;
+      }
+
+      .network-badge.unsupported {
+        border-color: #ff6b6b;
+        color: #ff6b6b;
+      }
+
+      .network-badge .network-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #4ade80;
+      }
+
+      .network-badge.unsupported .network-dot {
+        background: #ff6b6b;
+      }
+
+      .network-badge .dropdown-arrow {
+        font-size: 0.5rem;
+        opacity: 0.7;
+        transition: transform 0.2s ease;
+      }
+
+      .network-selector.open .dropdown-arrow {
+        transform: rotate(180deg);
+      }
+
+      .network-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        min-width: 140px;
+        background: rgba(10, 0, 21, 0.98);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        backdrop-filter: blur(10px);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .network-selector.open .network-dropdown {
+        display: flex;
+      }
+
+      .network-option {
+        padding: 10px 14px;
+        color: rgba(230, 217, 255, 0.8);
+        font-family: "EB Garamond", serif;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        background: transparent;
+        text-align: left;
+        width: 100%;
+      }
+
+      .network-option:hover {
+        background: rgba(157, 123, 255, 0.15);
+        color: #e6d9ff;
+      }
+
+      .network-option.active {
+        background: rgba(157, 123, 255, 0.2);
+        color: #9d7bff;
+      }
+
+      .network-option .network-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6rem;
+        font-weight: bold;
+        font-family: "Cinzel", serif;
+      }
+
+      .network-option .network-icon.ethereum {
+        background: linear-gradient(135deg, #627eea, #8c9eff);
+        color: white;
+      }
+
+      .network-option .network-icon.base {
+        background: linear-gradient(135deg, #0052ff, #3b82f6);
+        color: white;
+      }
+
+      .network-option .network-icon.sepolia {
+        background: linear-gradient(135deg, #f59e0b, #fbbf24);
+        color: white;
+      }
+
+      .wallet-button {
         padding: 10px 18px;
         background: rgba(10, 0, 21, 0.9);
         border: 1px solid #9d7bff;
@@ -5051,10 +5179,33 @@
       Summon
     </button>
 
-    <!-- Wallet Connect Button (top right) -->
-    <button class="wallet-button" id="walletBtn" onclick="connectWallet()">
-      CONNECT WALLET
-    </button>
+    <!-- Network & Wallet (top right) -->
+    <div class="wallet-network-container">
+      <div class="network-selector" id="networkSelector">
+        <button class="network-badge" id="networkBadge" onclick="toggleNetworkDropdown()">
+          <span class="network-dot"></span>
+          <span id="networkName">Ethereum</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="network-dropdown" id="networkDropdown">
+          <button class="network-option" data-network="ethereum" onclick="switchNetwork('ethereum')">
+            <span class="network-icon ethereum">E</span>
+            Ethereum
+          </button>
+          <button class="network-option" data-network="base" onclick="switchNetwork('base')">
+            <span class="network-icon base">B</span>
+            Base
+          </button>
+          <button class="network-option" data-network="sepolia" onclick="switchNetwork('sepolia')">
+            <span class="network-icon sepolia">S</span>
+            Sepolia
+          </button>
+        </div>
+      </div>
+      <button class="wallet-button" id="walletBtn" onclick="connectWallet()">
+        CONNECT WALLET
+      </button>
+    </div>
 
     <!-- Lite Paper Link (bottom right) -->
     <a href="https://wp.majeurdao.eth.limo" target="_blank" rel="noopener noreferrer" class="litepaper-link" title="Read the Majeur lite paper">
@@ -9047,8 +9198,375 @@
         }
       ];
 
-      const VIEW_HELPER_ADDRESS = '0x000000000066317bd3662A649D8901c076268Df9';
+      const VIEW_HELPER_ADDRESS = '0x00000000006631040967E58e3430e4B77921a2db';
       const TRIBUTE_ADDRESS = '0x000000000066524fcf78Dc1E41E9D525d9ea73D0';
+
+      // ==================== NETWORK CONFIGURATION ====================
+      const NETWORKS = {
+        ethereum: {
+          chainId: 1n,
+          chainIdHex: '0x1',
+          name: 'Ethereum',
+          shortName: 'ETH',
+          rpcs: [
+            'https://eth.llamarpc.com',
+            'https://rpc.ankr.com/eth',
+            'https://ethereum.publicnode.com',
+            'https://1rpc.io/eth'
+          ],
+          explorer: 'https://etherscan.io',
+          treasuryTokens: [
+            ethers.ZeroAddress, // ETH
+            '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC
+            '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT
+            '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI
+            '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0', // wstETH
+            '0xae78736Cd615f374D3085123A210448E74Fc6393'  // rETH
+          ],
+          tokenMeta: {
+            [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 },
+            '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48': { symbol: 'USDC', decimals: 6 },
+            '0xdAC17F958D2ee523a2206206994597C13D831ec7': { symbol: 'USDT', decimals: 6 },
+            '0x6B175474E89094C44Da98b954EedeAC495271d0F': { symbol: 'DAI', decimals: 18 },
+            '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0': { symbol: 'wstETH', decimals: 18 },
+            '0xae78736Cd615f374D3085123A210448E74Fc6393': { symbol: 'rETH', decimals: 18 }
+          }
+        },
+        base: {
+          chainId: 8453n,
+          chainIdHex: '0x2105',
+          name: 'Base',
+          shortName: 'BASE',
+          rpcs: [
+            'https://mainnet.base.org',
+            'https://base.llamarpc.com',
+            'https://base.publicnode.com',
+            'https://1rpc.io/base'
+          ],
+          explorer: 'https://basescan.org',
+          treasuryTokens: [
+            ethers.ZeroAddress, // ETH
+            '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+            '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2', // USDT (bridged)
+            '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb', // DAI
+            '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452', // wstETH
+            '0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c'  // rETH
+          ],
+          tokenMeta: {
+            [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 },
+            '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913': { symbol: 'USDC', decimals: 6 },
+            '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2': { symbol: 'USDT', decimals: 6 },
+            '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb': { symbol: 'DAI', decimals: 18 },
+            '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452': { symbol: 'wstETH', decimals: 18 },
+            '0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c': { symbol: 'rETH', decimals: 18 }
+          }
+        },
+        sepolia: {
+          chainId: 11155111n,
+          chainIdHex: '0xaa36a7',
+          name: 'Sepolia',
+          shortName: 'SEP',
+          rpcs: [
+            'https://rpc.sepolia.org',
+            'https://ethereum-sepolia.publicnode.com',
+            'https://sepolia.drpc.org',
+            'https://rpc2.sepolia.org'
+          ],
+          explorer: 'https://sepolia.etherscan.io',
+          treasuryTokens: [
+            ethers.ZeroAddress // ETH only for testnet
+          ],
+          tokenMeta: {
+            [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 }
+          }
+        }
+      };
+
+      // Current network (auto-detected from wallet, or defaults to ethereum)
+      let currentNetwork = 'ethereum';
+
+      function getNetwork() {
+        return NETWORKS[currentNetwork];
+      }
+
+      function getNetworkByChainId(chainId) {
+        const chainIdBigInt = typeof chainId === 'bigint' ? chainId : BigInt(chainId);
+        for (const [key, network] of Object.entries(NETWORKS)) {
+          if (network.chainId === chainIdBigInt) {
+            return { key, network };
+          }
+        }
+        return null;
+      }
+
+      function isOnSupportedNetwork(chainId) {
+        return getNetworkByChainId(chainId) !== null;
+      }
+
+      // ==================== NETWORK UI FUNCTIONS ====================
+      function toggleNetworkDropdown() {
+        const selector = document.getElementById('networkSelector');
+        selector.classList.toggle('open');
+      }
+
+      function closeNetworkDropdown() {
+        const selector = document.getElementById('networkSelector');
+        selector.classList.remove('open');
+      }
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        const selector = document.getElementById('networkSelector');
+        if (selector && !selector.contains(e.target)) {
+          selector.classList.remove('open');
+        }
+      });
+
+      function updateNetworkUI() {
+        const networkBadge = document.getElementById('networkBadge');
+        const networkName = document.getElementById('networkName');
+        const options = document.querySelectorAll('.network-option');
+
+        const network = getNetwork();
+        networkName.textContent = network.shortName;
+
+        // Update active state on options
+        options.forEach(opt => {
+          opt.classList.toggle('active', opt.dataset.network === currentNetwork);
+        });
+
+        // Remove unsupported class if on supported network
+        networkBadge.classList.remove('unsupported');
+      }
+
+      function showUnsupportedNetwork() {
+        const networkBadge = document.getElementById('networkBadge');
+        const networkName = document.getElementById('networkName');
+
+        networkName.textContent = 'UNSUPPORTED';
+        networkBadge.classList.add('unsupported');
+      }
+
+      async function switchNetwork(networkKey) {
+        closeNetworkDropdown();
+
+        const targetNetwork = NETWORKS[networkKey];
+        if (!targetNetwork) return;
+
+        // If wallet is connected, request network switch via wallet provider
+        if (connectedWalletProvider) {
+          // Check if already on target network
+          try {
+            const currentChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+            if (currentChainIdHex === targetNetwork.chainIdHex) {
+              // Already on target network, just update UI state
+              currentNetwork = networkKey;
+              updateNetworkUI();
+              readOnlyProvider = null;
+              showStatus(`Switched to ${targetNetwork.name} - refreshing...`, false);
+              await fetchUserDAOs();
+              await fetchAllDAOs();
+              showStatus(`Connected to ${targetNetwork.name}`, false);
+              return;
+            }
+          } catch (e) {
+            // Continue with switch attempt
+          }
+
+          try {
+            await connectedWalletProvider.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: targetNetwork.chainIdHex }]
+            });
+
+            // Some wallets don't fire chainChanged event reliably
+            // Verify the switch and update UI manually
+            const newChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+            if (newChainIdHex === targetNetwork.chainIdHex) {
+              // Switch successful - update state and reload to refresh everything
+              currentNetwork = networkKey;
+              window.location.reload();
+            }
+            return;
+          } catch (error) {
+            // Error code 4902 means the chain hasn't been added to the wallet
+            if (error.code === 4902) {
+              try {
+                await connectedWalletProvider.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: targetNetwork.chainIdHex,
+                    chainName: targetNetwork.name,
+                    rpcUrls: targetNetwork.rpcs,
+                    blockExplorerUrls: [targetNetwork.explorer]
+                  }]
+                });
+              } catch (addError) {
+                console.error('Failed to add network:', addError);
+                showStatus(`Failed to add ${targetNetwork.name} network`, true);
+              }
+            } else if (!isUserRejection(error)) {
+              console.error('Failed to switch network:', error);
+              showStatus(`Failed to switch to ${targetNetwork.name}`, true);
+            }
+          }
+        } else {
+          // No wallet connected - just switch the display network
+          currentNetwork = networkKey;
+          readOnlyProvider = null; // Reset read-only provider for new network
+          updateNetworkUI();
+
+          // Refresh data for new network
+          if (allDAOs.length > 0) {
+            showStatus(`Switched to ${targetNetwork.name} - refreshing...`, false);
+            await fetchAllDAOs();
+            showStatus(`Viewing ${targetNetwork.name}`, false);
+          }
+        }
+      }
+
+      // Get the block explorer URL for the current network
+      function getExplorerUrl() {
+        return getNetwork().explorer;
+      }
+
+      // Get the block explorer link for an address
+      function getExplorerAddressUrl(address) {
+        return `${getExplorerUrl()}/address/${address}`;
+      }
+
+      // Get the block explorer link for a transaction
+      function getExplorerTxUrl(txHash) {
+        return `${getExplorerUrl()}/tx/${txHash}`;
+      }
+
+      // Get the OpenSea URL for an NFT based on current network
+      // Ethereum: https://opensea.io/assets/ethereum/{contract}/{tokenId}
+      // Base: https://opensea.io/assets/base/{contract}/{tokenId}
+      // Sepolia: https://testnets.opensea.io/assets/sepolia/{contract}/{tokenId}
+      function getOpenSeaUrl(contractAddress, tokenId) {
+        const chainId = getNetwork().chainId;
+        if (chainId === 1n) {
+          return `https://opensea.io/assets/ethereum/${contractAddress.toLowerCase()}/${tokenId}`;
+        } else if (chainId === 8453n) {
+          return `https://opensea.io/assets/base/${contractAddress.toLowerCase()}/${tokenId}`;
+        } else if (chainId === 11155111n) {
+          return `https://testnets.opensea.io/assets/sepolia/${contractAddress.toLowerCase()}/${tokenId}`;
+        }
+        // Default to ethereum
+        return `https://opensea.io/assets/ethereum/${contractAddress.toLowerCase()}/${tokenId}`;
+      }
+
+      // Convert treasury.balances array to a list of token objects with metadata
+      // treasury: { balances: [{token: address, balance: uint256}, ...] }
+      function parseTreasuryBalances(treasury) {
+        const network = getNetwork();
+        const tokenMeta = network.tokenMeta;
+        const result = [];
+
+        if (!treasury || !treasury.balances) return result;
+
+        for (const tb of treasury.balances) {
+          const tokenAddr = tb.token;
+          const meta = tokenMeta[tokenAddr] || tokenMeta[tokenAddr.toLowerCase()] || { symbol: '???', decimals: 18 };
+
+          result.push({
+            address: tokenAddr,
+            balance: tb.balance,
+            symbol: meta.symbol,
+            decimals: meta.decimals,
+            icon: getTokenIcon(tokenAddr)
+          });
+        }
+
+        return result;
+      }
+
+      // Get icon for a token address
+      function getTokenIcon(address) {
+        const addr = address?.toLowerCase();
+        if (!addr || addr === ethers.ZeroAddress.toLowerCase()) return TOKEN_ICONS.eth;
+
+        // Check for common tokens across networks
+        const symbolMap = {
+          'eth': TOKEN_ICONS.eth,
+          'usdc': TOKEN_ICONS.usdc,
+          'usdt': TOKEN_ICONS.usdt,
+          'dai': TOKEN_ICONS.dai,
+          'wsteth': TOKEN_ICONS.wsteth,
+          'reth': TOKEN_ICONS.reth
+        };
+
+        const network = getNetwork();
+        const meta = network.tokenMeta[address] || network.tokenMeta[addr];
+        if (meta) {
+          const iconKey = meta.symbol.toLowerCase();
+          if (symbolMap[iconKey]) return symbolMap[iconKey];
+        }
+
+        return TOKEN_ICONS.defaultCoin || `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="14" fill="none" stroke="#9d7bff" stroke-width="2"/><circle cx="16" cy="16" r="8" fill="none" stroke="#9d7bff" stroke-width="1.5" opacity="0.5"/></svg>`;
+      }
+
+      // Get tribute/payment tokens for current network (used for token selection dropdowns)
+      function getNetworkTributeTokens() {
+        const network = getNetwork();
+        const result = [];
+
+        for (const tokenAddr of network.treasuryTokens) {
+          if (tokenAddr === ethers.ZeroAddress) continue; // Skip ETH for tribute tokens
+          const meta = network.tokenMeta[tokenAddr];
+          if (meta) {
+            result.push({
+              address: tokenAddr,
+              symbol: meta.symbol,
+              decimals: meta.decimals,
+              icon: getTokenIcon(tokenAddr)
+            });
+          }
+        }
+
+        return result;
+      }
+
+      // Get all supported tokens including ETH for current network
+      function getNetworkTokens() {
+        const network = getNetwork();
+        const result = [];
+
+        for (const tokenAddr of network.treasuryTokens) {
+          const meta = network.tokenMeta[tokenAddr];
+          if (meta) {
+            result.push({
+              address: tokenAddr,
+              symbol: meta.symbol,
+              decimals: meta.decimals,
+              icon: getTokenIcon(tokenAddr)
+            });
+          }
+        }
+
+        return result;
+      }
+
+      // Get token address by symbol for current network
+      function getTokenAddressBySymbol(symbol) {
+        const network = getNetwork();
+        const symbolLower = symbol.toLowerCase();
+
+        for (const [addr, meta] of Object.entries(network.tokenMeta)) {
+          if (meta.symbol.toLowerCase() === symbolLower) {
+            return addr;
+          }
+        }
+        return null;
+      }
+
+      // Get token metadata by address for current network
+      function getTokenMetaByAddress(address) {
+        const network = getNetwork();
+        return network.tokenMeta[address] || network.tokenMeta[address.toLowerCase()] || null;
+      }
+
       const VIEW_HELPER_ABI = [
         {
           "inputs": [
@@ -9058,7 +9576,8 @@
             {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
             {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
             {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "messageCount", "type": "uint256"}
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"}
           ],
           "name": "getUserDAOsFullState",
           "outputs": [
@@ -9111,12 +9630,15 @@
                     },
                     {
                       "components": [
-                        {"internalType": "uint256", "name": "eth", "type": "uint256"},
-                        {"internalType": "uint256", "name": "usdc", "type": "uint256"},
-                        {"internalType": "uint256", "name": "usdt", "type": "uint256"},
-                        {"internalType": "uint256", "name": "dai", "type": "uint256"},
-                        {"internalType": "uint256", "name": "wsteth", "type": "uint256"},
-                        {"internalType": "uint256", "name": "reth", "type": "uint256"}
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "token", "type": "address"},
+                            {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                          ],
+                          "internalType": "struct TokenBalance[]",
+                          "name": "balances",
+                          "type": "tuple[]"
+                        }
                       ],
                       "internalType": "struct DAOTreasury",
                       "name": "treasury",
@@ -9221,7 +9743,8 @@
             {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
             {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
             {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "messageCount", "type": "uint256"}
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"}
           ],
           "name": "getDAOsFullState",
           "outputs": [
@@ -9272,12 +9795,15 @@
                 },
                 {
                   "components": [
-                    {"internalType": "uint256", "name": "eth", "type": "uint256"},
-                    {"internalType": "uint256", "name": "usdc", "type": "uint256"},
-                    {"internalType": "uint256", "name": "usdt", "type": "uint256"},
-                    {"internalType": "uint256", "name": "dai", "type": "uint256"},
-                    {"internalType": "uint256", "name": "wsteth", "type": "uint256"},
-                    {"internalType": "uint256", "name": "reth", "type": "uint256"}
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "token", "type": "address"},
+                        {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                      ],
+                      "internalType": "struct TokenBalance[]",
+                      "name": "balances",
+                      "type": "tuple[]"
+                    }
                   ],
                   "internalType": "struct DAOTreasury",
                   "name": "treasury",
@@ -9930,25 +10456,48 @@
       const CLONE_PREFIX = '0x602d5f8160095f39f35f5f365f5f37365f73';
       const CLONE_SUFFIX = '0x5af43d5f5f3e6029573d5ffd5b3d5ff3';
 
-      // Implementation addresses
-      const IMPLEMENTATIONS = {
-        moloch: '0x643A45B599D81be3f3A68F37EB3De55fF10673C1',
-        shares: '0x71E9b38d301b5A58cb998C1295045FE276Acf600',
-        badges: '0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5',
-        loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+      // Implementation addresses per network (L2s have different addresses due to EVM differences)
+      const IMPLEMENTATIONS_BY_NETWORK = {
+        ethereum: {
+          moloch: '0x643A45B599D81be3f3A68F37EB3De55fF10673C1',
+          shares: '0x71E9b38d301b5A58cb998C1295045FE276Acf600',
+          badges: '0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5',
+          loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+        },
+        base: {
+          moloch: '0x0c969b771afded8e7c1bec050b2472b1f00a033d',
+          shares: '0x36aeeb011e66ddb191d18124c8096b8c35451b77',
+          badges: '0x8741e4edf2ebc11e1c50dae575d738443f2e75c0',
+          loot: '0x44fe15d5d2913e654c699e08c7bbbd65faf529cc'
+        },
+        sepolia: {
+          moloch: '0x643A45B599D81be3f3A68F37EB3De55fF10673C1',
+          shares: '0x71E9b38d301b5A58cb998C1295045FE276Acf600',
+          badges: '0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5',
+          loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+        }
       };
+
+      // Dynamic getter for current network's implementations
+      const IMPLEMENTATIONS = new Proxy({}, {
+        get(target, prop) {
+          const networkImpls = IMPLEMENTATIONS_BY_NETWORK[currentNetwork] || IMPLEMENTATIONS_BY_NETWORK.ethereum;
+          return networkImpls[prop];
+        }
+      });
 
       // DAICO contract address (external OTC sale peripheral)
       const DAICO_ADDRESS = '0x000000000033e92DB97B4B3beCD2c255126C60aC';
 
-      // Token addresses from MolochViewHelper
-      const TOKEN_ADDRESSES = {
-        usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-        usdt: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-        dai: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-        wsteth: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
-        reth: '0xae78736Cd615f374D3085123A210448E74Fc6393'
-      };
+      // Token addresses - dynamically returns addresses for current network
+      // This is a getter object that looks up addresses by symbol
+      const TOKEN_ADDRESSES = new Proxy({}, {
+        get(target, prop) {
+          const symbol = prop.toLowerCase();
+          const addr = getTokenAddressBySymbol(symbol);
+          return addr || ethers.ZeroAddress;
+        }
+      });
 
       // Shared interfaces (created once, reused throughout)
       const INTERFACES = {
@@ -10131,13 +10680,36 @@
         MESSAGE_FETCH_LIMIT: 10
       };
 
-      // Public RPC for read-only access (deep links, browsing without wallet)
-      const PUBLIC_RPC_URL = 'https://eth.llamarpc.com';
+      // Read-only provider for access without wallet
       let readOnlyProvider = null;
+      let readOnlyNetworkKey = null;
 
       // Helper to get active provider (wallet provider or read-only fallback)
       function getActiveProvider() {
         return provider || readOnlyProvider;
+      }
+
+      // Get or create read-only provider for current network
+      async function getReadOnlyProvider() {
+        // Reset if network changed
+        if (readOnlyNetworkKey !== currentNetwork) {
+          readOnlyProvider = null;
+          readOnlyNetworkKey = currentNetwork;
+        }
+        if (!readOnlyProvider) {
+          const network = getNetwork();
+          for (const rpc of network.rpcs) {
+            try {
+              const testProvider = new ethers.JsonRpcProvider(rpc);
+              await testProvider.getBlockNumber();
+              readOnlyProvider = testProvider;
+              break;
+            } catch (e) {
+              // Try next RPC
+            }
+          }
+        }
+        return readOnlyProvider;
       }
 
       let provider = null;
@@ -10145,6 +10717,7 @@
       let memberIdCounter = 1;
       let connectedWallet = null;
       let connectedAddress = null;
+      let connectedWalletProvider = null; // Raw wallet provider for network switching
       let userDAOs = [];
       let allDAOs = [];
       let currentDAO = null;
@@ -10536,15 +11109,22 @@
           const address = await signer.getAddress();
           const shortAddress = address.slice(0, 6) + '...' + address.slice(-4);
 
-          // Check network early
-          const network = await provider.getNetwork();
-          if (network.chainId !== 1n) {
-            showStatus('Please switch to Ethereum Mainnet', true);
+          // Check and set network - get chainId directly from wallet provider to avoid ethers caching issues
+          const chainIdHex = await walletProvider.request({ method: 'eth_chainId' });
+          const chainId = BigInt(chainIdHex);
+          const networkResult = getNetworkByChainId(chainId);
+          if (networkResult) {
+            currentNetwork = networkResult.key;
+            updateNetworkUI();
+          } else {
+            showUnsupportedNetwork();
+            showStatus('Please switch to a supported network (Ethereum, Base, or Sepolia)', true);
           }
 
           // Store connected wallet info
           connectedWallet = walletKey;
           connectedAddress = address;
+          connectedWalletProvider = walletProvider; // Store for network switching
 
           // Save preference to localStorage
           saveWalletPreference(walletKey);
@@ -10570,10 +11150,25 @@
           await fetchAllDAOs();
 
           // Check for deep link and open DAO if specified
-          const deepLinkAddress = parseDAODeepLink();
-          if (deepLinkAddress) {
+          const deepLink = parseDAODeepLink();
+          if (deepLink) {
+            // Check if we need to switch networks
+            if (deepLink.chainId) {
+              const linkNetwork = getNetworkByChainId(BigInt(deepLink.chainId));
+              if (linkNetwork && linkNetwork.network.chainId !== getNetwork().chainId) {
+                // Prompt user to switch networks
+                const switched = await promptNetworkSwitch(linkNetwork.key, linkNetwork.network);
+                if (switched) {
+                  // Re-fetch DAOs on new network
+                  showStatus('Fetching DAOs on new network...', false);
+                  await fetchUserDAOs();
+                  await fetchAllDAOs();
+                }
+              }
+            }
+
             showStatus('Opening linked DAO...', false);
-            const opened = await openDAOByAddress(deepLinkAddress);
+            const opened = await openDAOByAddress(deepLink.address);
             if (opened) {
               // Scroll to the DAO dashboard so user doesn't have to scroll past hero/summoning form
               // Use requestAnimationFrame to ensure DOM has painted, then scroll
@@ -10658,14 +11253,21 @@
         const chainChangedHandler = async (chainId) => {
           try {
             const network = await provider?.getNetwork();
-            if (network && network.chainId !== 1n) {
-              showStatus('Please switch to Ethereum Mainnet', true);
-            } else if (network) {
-              showStatus('Network changed - refreshing data...', false);
-              // Refresh DAOs instead of reloading page
+            if (!network) return;
+
+            const networkResult = getNetworkByChainId(network.chainId);
+            if (networkResult) {
+              currentNetwork = networkResult.key;
+              updateNetworkUI();
+              showStatus(`Switched to ${networkResult.network.name} - refreshing data...`, false);
+              // Reset read-only provider and refresh DAOs
+              readOnlyProvider = null;
               await fetchUserDAOs();
               await fetchAllDAOs();
-              showStatus('Network updated', false);
+              showStatus(`Connected to ${networkResult.network.name}`, false);
+            } else {
+              showUnsupportedNetwork();
+              showStatus('Please switch to a supported network (Ethereum, Base, or Sepolia)', true);
             }
           } catch (error) {
             console.error('Error handling chain change:', error);
@@ -10711,6 +11313,7 @@
         signer = null;
         connectedWallet = null;
         connectedAddress = null;
+        connectedWalletProvider = null;
         userDAOs = [];
         allDAOs = [];
         currentDAO = null;
@@ -10802,14 +11405,7 @@
         tokenList.innerHTML = '';
 
         const treasury = currentDAO.dao.treasury;
-        const tokens = [
-          { symbol: 'ETH', address: ethers.ZeroAddress, balance: treasury.eth, decimals: 18, icon: TOKEN_ICONS.eth },
-          { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, balance: treasury.usdc, decimals: 6, icon: TOKEN_ICONS.usdc },
-          { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, balance: treasury.usdt, decimals: 6, icon: TOKEN_ICONS.usdt },
-          { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, balance: treasury.dai, decimals: 18, icon: TOKEN_ICONS.dai },
-          { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, balance: treasury.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth },
-          { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, balance: treasury.reth, decimals: 18, icon: TOKEN_ICONS.reth }
-        ];
+        const tokens = parseTreasuryBalances(treasury);
 
         // Add custom sale tokens if any
         if (customSaleTokens.length > 0) {
@@ -11089,10 +11685,10 @@
           showStatus('Executing ragequit...', false);
           const tx = await daoContract.ragequit(tokenAddresses, sharesToBurn, lootToBurn);
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
-          showStatus(`✨ Ragequit executed successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`✨ Ragequit executed successfully! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
           closeRagequitModal();
 
           // Refresh DAO data
@@ -11257,7 +11853,7 @@
             return;
           }
 
-          if (!amountInput || parseFloat(amountInput) <= 0) {
+          if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
             showStatus('Please enter a valid amount', true);
             return;
           }
@@ -11302,10 +11898,10 @@
           showStatus('Transferring receipt...', false);
           const tx = await daoContract.transfer(recipientAddress, receiptIdHex, amount);
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
-          showStatus(`✨ Receipt transferred successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`✨ Receipt transferred successfully! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
 
           closeTransferReceiptModal();
 
@@ -11365,15 +11961,8 @@
 
         depositAssets = [];
 
-        // Add standard assets with icons
-        const standardAssets = [
-          { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18, icon: TOKEN_ICONS.eth },
-          { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6, icon: TOKEN_ICONS.usdc },
-          { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6, icon: TOKEN_ICONS.usdt },
-          { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18, icon: TOKEN_ICONS.dai },
-          { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth },
-          { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18, icon: TOKEN_ICONS.reth }
-        ];
+        // Add standard assets with icons (network-specific)
+        const standardAssets = getNetworkTokens();
 
         for (const asset of standardAssets) {
           depositAssets.push(asset);
@@ -11517,7 +12106,7 @@
           const asset = depositAssets[selectedDepositAssetIndex];
           const amountInput = document.getElementById('depositAmount').value.trim();
 
-          if (!amountInput || parseFloat(amountInput) <= 0) {
+          if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
             showStatus('Please enter a valid amount', true);
             return;
           }
@@ -11543,10 +12132,10 @@
               value: amount
             });
 
-            showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+            showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
             await tx.wait();
 
-            showStatus(`✨ Deposited ${amountInput} ETH successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+            showStatus(`✨ Deposited ${amountInput} ETH successfully! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
           } else {
             // ERC20 deposit - transfer to DAO
             const tokenContract = new ethers.Contract(asset.address, ERC20_ABI, signer);
@@ -11554,10 +12143,10 @@
             showStatus(`Depositing ${asset.symbol}...`, false);
             const tx = await tokenContract.transfer(daoAddress, amount);
 
-            showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+            showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
             await tx.wait();
 
-            showStatus(`✨ Deposited ${amountInput} ${asset.symbol} successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+            showStatus(`✨ Deposited ${amountInput} ${asset.symbol} successfully! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
           }
 
           closeDepositModal();
@@ -11614,15 +12203,8 @@
         tributeDropdown.innerHTML = '';
         tributeAssets = [];
 
-        // Add standard assets
-        const standardAssets = [
-          { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18, icon: TOKEN_ICONS.eth },
-          { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6, icon: TOKEN_ICONS.usdc },
-          { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6, icon: TOKEN_ICONS.usdt },
-          { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18, icon: TOKEN_ICONS.dai },
-          { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth },
-          { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18, icon: TOKEN_ICONS.reth }
-        ];
+        // Add standard assets (network-specific)
+        const standardAssets = getNetworkTokens();
 
         for (const asset of standardAssets) {
           tributeAssets.push(asset);
@@ -11784,12 +12366,12 @@
           const tribAmountInput = document.getElementById('tributeAmount').value.trim();
           const reqAmountInput = document.getElementById('requestAmount').value.trim();
 
-          if (!tribAmountInput || parseFloat(tribAmountInput) <= 0) {
+          if (!tribAmountInput || isNaN(parseFloat(tribAmountInput)) || parseFloat(tribAmountInput) <= 0) {
             showStatus('Please enter a valid tribute amount', true);
             return;
           }
 
-          if (!reqAmountInput || parseFloat(reqAmountInput) <= 0) {
+          if (!reqAmountInput || isNaN(parseFloat(reqAmountInput)) || parseFloat(reqAmountInput) <= 0) {
             showStatus('Please enter a valid request amount', true);
             return;
           }
@@ -11822,7 +12404,7 @@
             if (allowance < tribAmt) {
               showStatus('Approving token transfer...', false);
               const approveTx = await tokenContract.approve(TRIBUTE_ADDRESS, tribAmt);
-              showStatus(`Approval submitted. <a href="https://etherscan.io/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+              showStatus(`Approval submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
               await approveTx.wait();
               showStatus('Approval confirmed. Creating tribute...', false);
             }
@@ -11836,10 +12418,10 @@
             );
           }
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
-          showStatus(`✨ Tribute offer created successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`✨ Tribute offer created successfully! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
 
           closeTributeModal();
           await renderTributes();
@@ -12063,10 +12645,10 @@
           const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, signer);
           const tx = await tributeContract.cancelTribute(currentDAO.dao.dao, tribute.tribTkn);
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
-          showStatus(`✨ Tribute cancelled and refunded! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`✨ Tribute cancelled and refunded! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
 
           // Refresh tributes display
           await renderTributes();
@@ -12182,6 +12764,7 @@
 
         try {
           const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
+          const treasuryTokens = getNetwork().treasuryTokens;
 
           // Default params: start at DAO 0, fetch up to 10 DAOs, recent 20 proposals, recent 20 messages
           const result = await viewHelper.getUserDAOsFullState(
@@ -12191,7 +12774,8 @@
             0,  // proposalStart
             20, // proposalCount (increased for better visibility)
             0,  // messageStart
-            20  // messageCount (increased for better visibility)
+            20, // messageCount (increased for better visibility)
+            treasuryTokens
           );
 
           userDAOs = result;
@@ -12279,11 +12863,17 @@
 
       // Fetch all DAOs from View Helper (not filtered by user)
       async function fetchAllDAOs() {
-        const activeProvider = getActiveProvider();
+        let activeProvider = getActiveProvider();
+
+        // If no wallet connected, try to get a read-only provider
+        if (!activeProvider) {
+          activeProvider = await getReadOnlyProvider();
+        }
         if (!activeProvider) return;
 
         try {
           const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
+          const treasuryTokens = getNetwork().treasuryTokens;
 
           // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 5 proposals, recent 5 messages
           const result = await viewHelper.getDAOsFullState(
@@ -12292,7 +12882,8 @@
             0, // proposalStart
             5, // proposalCount (fewer details for browse view)
             0, // messageStart
-            5 // messageCount (fewer details for browse view)
+            5, // messageCount (fewer details for browse view)
+            treasuryTokens
           );
 
           allDAOs = result;
@@ -12837,7 +13428,7 @@
               </a>
             </div>
             <div style="font-size: 0.85rem; color: #e6d9ff;">
-              <a href="https://etherscan.io/address/${currentDAO.dao.meta.renderer}"
+              <a href="${getNetwork().explorer}/address/${currentDAO.dao.meta.renderer}"
                  target="_blank"
                  rel="noopener noreferrer"
                  style="color: #9d7bff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;"
@@ -12881,15 +13472,8 @@
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
 
-          // Check sales for all supported tokens
-          const tokens = [
-            { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18 },
-            { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6 },
-            { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6 },
-            { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18 },
-            { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18 },
-            { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18 }
-          ];
+          // Check sales for all supported tokens (network-specific)
+          const tokens = getNetworkTokens();
 
           // Parse chat messages for SALE tags to find custom token sales
           // SALE tags can appear in two places:
@@ -13106,13 +13690,13 @@
             const tokenContractLink = sale.token.address === ethers.ZeroAddress
               ? ''
               : `<div style="margin-top: 0.5rem; font-size: 0.7rem;">
-                   <a href="https://etherscan.io/token/${sale.token.address}"
+                   <a href="${getNetwork().explorer}/token/${sale.token.address}"
                       target="_blank"
                       rel="noopener noreferrer"
                       style="color: rgba(157, 123, 255, 0.8); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;"
                       onmouseover="this.style.color='#9d7bff'; this.style.textDecoration='underline';"
                       onmouseout="this.style.color='rgba(157, 123, 255, 0.8)'; this.style.textDecoration='none';">
-                     <span>🔍</span> View ${sale.token.symbol} on Etherscan
+                     <span>🔍</span> View ${sale.token.symbol} on Explorer
                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                        <polyline points="15 3 21 3 21 9"></polyline>
@@ -13266,7 +13850,7 @@
                 </div>
                 <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.7); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem;">
                   <span style="color: #ffb464;">Ops:</span>
-                  <a href="https://etherscan.io/address/${tapInfo.ops}" target="_blank" rel="noopener" style="color: rgba(230, 217, 255, 0.8); text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${opsShort}</a>
+                  <a href="${getNetwork().explorer}/address/${tapInfo.ops}" target="_blank" rel="noopener" style="color: rgba(230, 217, 255, 0.8); text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${opsShort}</a>
                   <a href="#" onclick="event.preventDefault(); prepareTapOpsProposal('${tapInfo.ops}'); switchDaoView('dao');"
                      title="Create proposal to change tap ops address"
                      style="color: #ffb464; opacity: 0.6; line-height: 1; margin-left: 0.25rem;">
@@ -13325,15 +13909,7 @@
         treasuryAssets.innerHTML = '';
 
         const treasury = currentDAO.dao.treasury;
-
-        const assets = [
-          { symbol: 'ETH', balance: treasury.eth, decimals: 18, icon: TOKEN_ICONS.eth, address: ethers.ZeroAddress },
-          { symbol: 'USDC', balance: treasury.usdc, decimals: 6, icon: TOKEN_ICONS.usdc, address: TOKEN_ADDRESSES.usdc },
-          { symbol: 'USDT', balance: treasury.usdt, decimals: 6, icon: TOKEN_ICONS.usdt, address: TOKEN_ADDRESSES.usdt },
-          { symbol: 'DAI', balance: treasury.dai, decimals: 18, icon: TOKEN_ICONS.dai, address: TOKEN_ADDRESSES.dai },
-          { symbol: 'wstETH', balance: treasury.wsteth, decimals: 18, icon: TOKEN_ICONS.wsteth, address: TOKEN_ADDRESSES.wsteth },
-          { symbol: 'rETH', balance: treasury.reth, decimals: 18, icon: TOKEN_ICONS.reth, address: TOKEN_ADDRESSES.reth }
-        ];
+        const assets = parseTreasuryBalances(treasury);
 
         // Add custom sale tokens if any
         if (customSaleTokens.length > 0) {
@@ -13522,17 +14098,6 @@
         } catch (error) {
           return 18;
         }
-      }
-
-      // Helper to get token icon
-      function getTokenIcon(tokenAddress) {
-        const lowerAddr = tokenAddress.toLowerCase();
-        if (lowerAddr === TOKEN_ADDRESSES.usdc.toLowerCase()) return TOKEN_ICONS.usdc;
-        if (lowerAddr === TOKEN_ADDRESSES.usdt.toLowerCase()) return TOKEN_ICONS.usdt;
-        if (lowerAddr === TOKEN_ADDRESSES.dai.toLowerCase()) return TOKEN_ICONS.dai;
-        if (lowerAddr === TOKEN_ADDRESSES.wsteth.toLowerCase()) return TOKEN_ICONS.wsteth;
-        if (lowerAddr === TOKEN_ADDRESSES.reth.toLowerCase()) return TOKEN_ICONS.reth;
-        return TOKEN_ICONS.defaultCoin;
       }
 
       // Prepare transfer proposal from treasury asset
@@ -14476,7 +15041,7 @@
           <div style="margin-bottom: 0.75rem;">
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Current Renderer</label>
             <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.5); margin-bottom: 0.75rem; font-family: 'Courier New', monospace;">
-              <a href="https://etherscan.io/address/${currentRenderer}" target="_blank" rel="noopener noreferrer" style="color: #9d7bff; text-decoration: none;">${currentRenderer}</a>
+              <a href="${getNetwork().explorer}/address/${currentRenderer}" target="_blank" rel="noopener noreferrer" style="color: #9d7bff; text-decoration: none;">${currentRenderer}</a>
             </div>
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Renderer Address</label>
             <input type="text" id="rendererAddress" placeholder="0x..."
@@ -15683,7 +16248,7 @@
       async function executePurchase(payToken, tokenDecimals, isLoot) {
         try {
           const amountInput = document.getElementById('purchaseAmount').value.trim();
-          if (!amountInput || parseFloat(amountInput) <= 0) {
+          if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
             showStatus('Please enter a valid amount', true);
             return;
           }
@@ -15725,7 +16290,7 @@
               // Request approval for exact amount needed (or can use MaxUint256 for unlimited)
               const approveTx = await tokenContract.approve(currentDAO.dao.dao, cost);
 
-              showStatus(`Approval transaction submitted. <a href="https://etherscan.io/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+              showStatus(`Approval transaction submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
 
               await approveTx.wait();
 
@@ -15743,11 +16308,11 @@
           }
 
           const tokenType = isLoot ? 'LOOT' : 'SHARES';
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
 
           await tx.wait();
 
-          showStatus(`✨ Purchase successful! You received ${amountInput} ${tokenType}. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`✨ Purchase successful! You received ${amountInput} ${tokenType}. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`, false);
 
           closePurchaseModal();
           await refreshCurrentDAO();
@@ -15879,7 +16444,7 @@
 
         if (!costEl) return;
 
-        if (!amountInput || parseFloat(amountInput) <= 0) {
+        if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
           costEl.textContent = `-- ${tokenSymbol}`;
           return;
         }
@@ -15904,7 +16469,7 @@
       async function executeDaicoPurchase(tribToken, tokenDecimals, isLoot, tribAmt, forAmt) {
         try {
           const amountInput = document.getElementById('purchaseAmount').value.trim();
-          if (!amountInput || parseFloat(amountInput) <= 0) {
+          if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
             showStatus('Please enter a valid amount', true);
             return;
           }
@@ -15946,7 +16511,7 @@
               // Request approval for the DAICO contract
               const approveTx = await tokenContract.approve(DAICO_ADDRESS, maxPay);
 
-              showStatus(`Approval transaction submitted. <a href="https://etherscan.io/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View on Etherscan</a>`, false);
+              showStatus(`Approval transaction submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View on Explorer</a>`, false);
 
               await approveTx.wait();
 
@@ -15967,11 +16532,11 @@
           }
 
           const tokenType = isLoot ? 'LOOT' : 'SHARES';
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View on Explorer</a>`, false);
 
           await tx.wait();
 
-          showStatus(`✨ DAICO purchase successful! You received ${amountInput} ${tokenType}. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`✨ DAICO purchase successful! You received ${amountInput} ${tokenType}. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View transaction</a>`, false);
 
           closePurchaseModal();
           await refreshCurrentDAO();
@@ -16017,11 +16582,11 @@
 
           const tx = await daicoContract.claimTap(daoAddress);
 
-          showStatus(`Tap claim submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Tap claim submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: underline;">View on Explorer</a>`, false);
 
           const receipt = await tx.wait();
 
-          showStatus(`Tap claimed successfully! <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: underline;">View transaction</a>`, false);
+          showStatus(`Tap claimed successfully! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: underline;">View transaction</a>`, false);
 
           // Refresh sales info to update claimable amount
           await renderSalesInfo();
@@ -16995,7 +17560,7 @@
           </div>
           <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px;">
             <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.35rem;">
-              Current Ops: <a href="https://etherscan.io/address/${currentOps}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${currentOpsShort}</a>
+              Current Ops: <a href="${getNetwork().explorer}/address/${currentOps}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${currentOpsShort}</a>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
               The ops address receives claimed tap funds
@@ -17065,7 +17630,7 @@
 
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(100, 200, 150, 0.1); border: 1px solid rgba(100, 200, 150, 0.3); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
-            ✓ Valid address: <a href="https://etherscan.io/address/${newOps}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${newOps.slice(0, 10)}...${newOps.slice(-8)}</a>
+            ✓ Valid address: <a href="${getNetwork().explorer}/address/${newOps}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${newOps.slice(0, 10)}...${newOps.slice(-8)}</a>
           </div>
         `;
       }
@@ -17851,15 +18416,15 @@
           const supplyInput = document.getElementById('daicoProposalSupply').value.trim();
 
           // Validate inputs
-          if (!tribAmtInput || parseFloat(tribAmtInput) <= 0) {
+          if (!tribAmtInput || isNaN(parseFloat(tribAmtInput)) || parseFloat(tribAmtInput) <= 0) {
             showStatus('Please enter a valid tribute amount', true);
             return;
           }
-          if (!forAmtInput || parseFloat(forAmtInput) <= 0) {
+          if (!forAmtInput || isNaN(parseFloat(forAmtInput)) || parseFloat(forAmtInput) <= 0) {
             showStatus('Please enter a valid "for" amount', true);
             return;
           }
-          if (!supplyInput || parseFloat(supplyInput) <= 0) {
+          if (!supplyInput || isNaN(parseFloat(supplyInput)) || parseFloat(supplyInput) <= 0) {
             showStatus('Please enter a valid sale supply', true);
             return;
           }
@@ -17889,11 +18454,11 @@
               showStatus('Please enter a valid Ops address for the tap', true);
               return;
             }
-            if (!tapRateInput || parseFloat(tapRateInput) <= 0) {
+            if (!tapRateInput || isNaN(parseFloat(tapRateInput)) || parseFloat(tapRateInput) <= 0) {
               showStatus('Please enter a valid tap rate', true);
               return;
             }
-            if (!tapBudgetInput || parseFloat(tapBudgetInput) <= 0) {
+            if (!tapBudgetInput || isNaN(parseFloat(tapBudgetInput)) || parseFloat(tapBudgetInput) <= 0) {
               showStatus('Please enter a valid tap budget', true);
               return;
             }
@@ -18356,7 +18921,7 @@
         }
 
         const amountInput = document.getElementById('spendAllowanceAmount')?.value;
-        if (!amountInput || parseFloat(amountInput) <= 0) {
+        if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
           showStatus('Please enter a valid amount', true);
           return;
         }
@@ -18489,13 +19054,13 @@
           const active = document.getElementById('proposalSaleActive').value === 'true';
           const isLoot = document.getElementById('proposalSaleTokenType').value === 'true';
 
-          if (!priceInput || parseFloat(priceInput) <= 0) {
+          if (!priceInput || isNaN(parseFloat(priceInput)) || parseFloat(priceInput) <= 0) {
             showStatus('Please enter a valid price', true);
             return;
           }
 
           // GOVERNANCE SAFETY CHECK for existing DAOs
-          const cap = capInput && parseFloat(capInput) > 0 ? ethers.parseEther(capInput) : 0n;
+          const cap = capInput && !isNaN(parseFloat(capInput)) && parseFloat(capInput) > 0 ? ethers.parseEther(capInput) : 0n;
           if (!isLoot && minting && active && currentDAO?.dao?.gov) {
             const proposalThreshold = BigInt(currentDAO.dao.gov.proposalThreshold || 0);
             if (proposalThreshold > 0n) {
@@ -18610,8 +19175,9 @@
         if (!currentDAO) return;
 
         const daoAddress = currentDAO.dao.dao;
-        // Build the shareable URL using the current origin and the DAO hash
-        const shareUrl = `${window.location.origin}${window.location.pathname}#/dao/${daoAddress}`;
+        const chainId = getNetwork().chainId.toString();
+        // Build the shareable URL using the current origin and the DAO hash with chain ID
+        const shareUrl = `${window.location.origin}${window.location.pathname}#/dao/${chainId}/${daoAddress}`;
 
         try {
           await navigator.clipboard.writeText(shareUrl);
@@ -18630,17 +19196,75 @@
         }
       }
 
-      // Parse URL hash for deep linking - returns DAO address if present
+      // Parse URL hash for deep linking - returns { chainId, address } or null
+      // Supports: #/dao/{chainId}/{address} and legacy #/dao/{address}
       function parseDAODeepLink() {
         const hash = window.location.hash;
         if (!hash) return null;
 
-        // Match format: #/dao/0x... (42 char address)
-        const match = hash.match(/^#\/dao\/(0x[a-fA-F0-9]{40})$/i);
+        // Try new format with chain ID: #/dao/{chainId}/0x...
+        let match = hash.match(/^#\/dao\/(\d+)\/(0x[a-fA-F0-9]{40})$/i);
         if (match) {
-          return match[1];
+          return { chainId: match[1], address: match[2] };
+        }
+
+        // Fall back to legacy format: #/dao/0x...
+        match = hash.match(/^#\/dao\/(0x[a-fA-F0-9]{40})$/i);
+        if (match) {
+          return { chainId: null, address: match[1] };
         }
         return null;
+      }
+
+      // Prompt user to switch networks when following a deep link
+      async function promptNetworkSwitch(networkKey, targetNetwork) {
+        const currentNet = getNetwork();
+        const msg = `This link is for ${targetNetwork.name}, but you're on ${currentNet.name}. Switch networks?`;
+
+        if (!confirm(msg)) {
+          // Clear the hash so user isn't stuck
+          if (window.location.hash) {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+          return false;
+        }
+
+        // Switch the app's network setting
+        currentNetwork = networkKey;
+        updateNetworkUI();
+
+        // If wallet is connected, prompt to switch wallet network too
+        if (window.ethereum && connectedAddress) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: targetNetwork.chainIdHex }]
+            });
+          } catch (switchError) {
+            // Chain not added - try to add it
+            if (switchError.code === 4902) {
+              try {
+                await window.ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: targetNetwork.chainIdHex,
+                    chainName: targetNetwork.name,
+                    rpcUrls: targetNetwork.rpcs,
+                    blockExplorerUrls: [targetNetwork.explorer]
+                  }]
+                });
+              } catch (addError) {
+                console.error('Failed to add network:', addError);
+              }
+            }
+          }
+        }
+
+        // Re-fetch DAOs on the new network
+        allDAOs = [];
+        userDAOs = [];
+
+        return true;
       }
 
       // Open DAO by address (for deep linking)
@@ -18698,11 +19322,11 @@
         const daoAddress = currentDAO.dao.dao;
         const etherscanLink = DOMCache.daoEtherscanLink;
         const addressText = DOMCache.daoAddressText;
-        etherscanLink.href = `https://etherscan.io/address/${daoAddress}`;
+        etherscanLink.href = `${getNetwork().explorer}/address/${daoAddress}`;
         addressText.textContent = `${daoAddress.slice(0, 6)}...${daoAddress.slice(-4)}`;
 
         // Update URL hash for deep linking (allows sharing direct links to this DAO)
-        history.replaceState(null, '', `#/dao/${daoAddress}`);
+        history.replaceState(null, '', `#/dao/${getNetwork().chainId}/${daoAddress}`);
 
         renderChatroom();
         await renderProposals();
@@ -18854,7 +19478,7 @@
         // Update Etherscan links for tokens
         if (dao.meta && dao.meta.sharesToken) {
           const sharesLink = document.getElementById('sharesEtherscanLink');
-          sharesLink.href = `https://etherscan.io/token/${dao.meta.sharesToken}`;
+          sharesLink.href = `${getNetwork().explorer}/token/${dao.meta.sharesToken}`;
           sharesLink.style.display = 'inline';
           sharesLink.onmouseover = () => { sharesLink.style.opacity = '1'; sharesLink.style.transform = 'translateY(-1px)'; };
           sharesLink.onmouseout = () => { sharesLink.style.opacity = '0.7'; sharesLink.style.transform = 'translateY(0)'; };
@@ -18862,7 +19486,7 @@
 
         if (dao.meta && dao.meta.lootToken) {
           const lootLink = document.getElementById('lootEtherscanLink');
-          lootLink.href = `https://etherscan.io/token/${dao.meta.lootToken}`;
+          lootLink.href = `${getNetwork().explorer}/token/${dao.meta.lootToken}`;
           lootLink.style.display = 'inline';
           lootLink.onmouseover = () => { lootLink.style.opacity = '1'; lootLink.style.transform = 'translateY(-1px)'; };
           lootLink.onmouseout = () => { lootLink.style.opacity = '0.7'; lootLink.style.transform = 'translateY(0)'; };
@@ -18870,7 +19494,7 @@
 
         if (dao.meta && dao.meta.badgesToken) {
           const badgeLink = document.getElementById('badgeEtherscanLink');
-          badgeLink.href = `https://etherscan.io/token/${dao.meta.badgesToken}`;
+          badgeLink.href = `${getNetwork().explorer}/token/${dao.meta.badgesToken}`;
           badgeLink.style.display = 'inline';
           badgeLink.onmouseover = () => { badgeLink.style.opacity = '1'; badgeLink.style.transform = 'translateY(-1px)'; };
           badgeLink.onmouseout = () => { badgeLink.style.opacity = '0.7'; badgeLink.style.transform = 'translateY(0)'; };
@@ -18938,8 +19562,8 @@
             }
           }
 
-          // OpenSea link
-          const openseaLink = `https://opensea.io/assets/ethereum/${badgesAddr.toLowerCase()}/${seatId}`;
+          // OpenSea link (network-aware)
+          const openseaLink = getOpenSeaUrl(badgesAddr, seatId);
 
           badgeContent.innerHTML = `
             <div style="cursor: pointer;" onclick="openNFTModal(${JSON.stringify(metadata).replace(/"/g, '&quot;')}, 'Member Badge')">
@@ -20460,7 +21084,7 @@
                 <div class="member-label">Ownership</div>
                 <div class="member-value">${ownershipPercent}%</div>
               </div>
-              <a href="https://etherscan.io/address/${memberAddress}" target="_blank" rel="noopener noreferrer" class="member-link" title="View on Etherscan" onclick="event.stopPropagation();">
+              <a href="${getNetwork().explorer}/address/${memberAddress}" target="_blank" rel="noopener noreferrer" class="member-link" title="View on Explorer" onclick="event.stopPropagation();">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                   <polyline points="15 3 21 3 21 9"></polyline>
@@ -20829,15 +21453,17 @@
       async function sendChatMessage() {
         if (!currentDAO || !signer) return;
 
-        // Prevent race condition: don't allow multiple simultaneous messages
+        // Prevent race condition: set flag immediately before any async work
         if (isSendingMessage) return;
+        isSendingMessage = true;
 
         const chatInput = document.getElementById('chatInput');
         const message = chatInput.value.trim();
 
-        if (!message) return;
-
-        isSendingMessage = true;
+        if (!message) {
+          isSendingMessage = false;
+          return;
+        }
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
 
@@ -21205,16 +21831,16 @@
           return;
         }
 
-        // Prevent race condition: don't allow multiple simultaneous votes
+        // Prevent race condition: set flag immediately before any async work
         if (isVoting) return;
+        isVoting = true;
 
         // Validate proposalId before converting to BigInt
         if (!proposalId || proposalId === '' || (typeof proposalId === 'string' && !/^\d+$/.test(proposalId))) {
           showStatus('Invalid proposal ID', true);
+          isVoting = false;
           return;
         }
-
-        isVoting = true;
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
 
@@ -21226,7 +21852,7 @@
 
           const tx = await molochContract.castVote(proposalIdBigInt, support);
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
           showStatus(`✨ Vote ${voteType} cast! Refreshing...`, false);
@@ -21278,16 +21904,16 @@
           return;
         }
 
+        // Prevent race condition: set flag immediately before any async work
+        if (isCancellingVote) return;
+        isCancellingVote = true;
+
         // Validate proposalId before converting to BigInt
         if (!proposalId || proposalId === '' || (typeof proposalId === 'string' && !/^\d+$/.test(proposalId))) {
           showStatus('Invalid proposal ID', true);
+          isCancellingVote = false;
           return;
         }
-
-        // Prevent race condition: don't allow multiple simultaneous vote cancellations
-        if (isCancellingVote) return;
-
-        isCancellingVote = true;
         try {
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
 
@@ -21297,7 +21923,7 @@
           showStatus('Cancelling vote...', false);
           const tx = await molochContract.cancelVote(proposalIdBigInt);
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
           showStatus(`✨ Vote cancelled! Refreshing...`, false);
@@ -21363,7 +21989,7 @@
           showStatus('Claiming futarchy rewards...', false);
           const tx = await molochContract.cashOutFutarchy(proposalIdBigInt, amount);
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           const receipt = await tx.wait();
 
           showStatus(`✨ Rewards claimed! Refreshing...`, false);
@@ -22168,7 +22794,7 @@
             proposalData.nonce
           );
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`, false);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
 
           showStatus(`✨ Proposal executed! Refreshing...`, false);
@@ -22220,6 +22846,7 @@
           }
 
           const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
+          const treasuryTokens = getNetwork().treasuryTokens;
 
           // Fetch more proposals and messages (20 each) to ensure we see new items
           // Note: fetches from start (0), so we get the most recent items
@@ -22230,7 +22857,8 @@
             0,  // proposalStart (0 = most recent)
             20, // proposalCount (fetch more proposals)
             0,  // messageStart (0 = most recent)
-            20  // messageCount (fetch more messages)
+            20, // messageCount (fetch more messages)
+            treasuryTokens
           );
 
           // Find current DAO in updated list
@@ -23457,11 +24085,37 @@
         summonBtn.textContent = 'SUMMONING...';
 
         try {
-          // Check network
-          const network = await provider.getNetwork();
-          if (network.chainId !== 1n) {
-            throw new Error('Please switch to Ethereum Mainnet');
+          // Check network - get chainId directly from wallet provider to avoid ethers NETWORK_ERROR
+          if (!connectedWalletProvider) {
+            throw new Error('Wallet not connected');
           }
+          const walletChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+          const walletChainId = BigInt(walletChainIdHex);
+          const expectedNetwork = NETWORKS[currentNetwork];
+          if (!isOnSupportedNetwork(walletChainId)) {
+            throw new Error('Please switch to a supported network (Ethereum, Base, or Sepolia)');
+          }
+          if (walletChainId !== expectedNetwork.chainId) {
+            // Wallet is on different network than UI - prompt switch
+            showStatus(`Please switch wallet to ${expectedNetwork.name}`, true);
+            try {
+              await connectedWalletProvider.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: expectedNetwork.chainIdHex }]
+              });
+              // If successful, page will reload via chainChanged handler
+              return;
+            } catch (switchError) {
+              if (!isUserRejection(switchError)) {
+                throw new Error(`Please switch wallet to ${expectedNetwork.name}`);
+              }
+              return;
+            }
+          }
+
+          // Recreate provider/signer to ensure we're on the correct network
+          provider = new ethers.BrowserProvider(connectedWalletProvider);
+          signer = await provider.getSigner();
 
           // Gather form data
           const daoName = document.getElementById('daoName').value;
@@ -23618,9 +24272,6 @@
             }
             
             // To mint loot during init, we use the predicted loot proxy address
-            // The loot implementation is shared by all Moloch clones
-            const LOOT_IMPL_ADDRESS = '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5';
-            
             // Create direct loot minting calls
             
             let lootCallsAdded = 0;
@@ -23754,15 +24405,15 @@
             const saleSupplyInput = document.getElementById('daicoSaleSupply').value?.replace(/,/g, '');
 
             // Validate inputs
-            if (!tribAmtInput || parseFloat(tribAmtInput) <= 0) {
+            if (!tribAmtInput || isNaN(parseFloat(tribAmtInput)) || parseFloat(tribAmtInput) <= 0) {
               showStatus('Please enter a valid payment amount for the sale', true);
               throw new Error('Invalid payment amount');
             }
-            if (!forAmtInput || parseFloat(forAmtInput) <= 0) {
+            if (!forAmtInput || isNaN(parseFloat(forAmtInput)) || parseFloat(forAmtInput) <= 0) {
               showStatus('Please enter a valid token amount to receive', true);
               throw new Error('Invalid receive amount');
             }
-            if (!saleSupplyInput || parseFloat(saleSupplyInput) <= 0) {
+            if (!saleSupplyInput || isNaN(parseFloat(saleSupplyInput)) || parseFloat(saleSupplyInput) <= 0) {
               showStatus('Please enter a valid total sale supply', true);
               throw new Error('Invalid sale supply');
             }
@@ -23864,11 +24515,11 @@
                 showStatus('Please enter a valid Ops address for the tap', true);
                 throw new Error('Invalid tap ops address');
               }
-              if (!tapRateInput || parseFloat(tapRateInput) <= 0) {
+              if (!tapRateInput || isNaN(parseFloat(tapRateInput)) || parseFloat(tapRateInput) <= 0) {
                 showStatus('Please enter a valid tap rate', true);
                 throw new Error('Invalid tap rate');
               }
-              if (!tapBudgetInput || parseFloat(tapBudgetInput) <= 0) {
+              if (!tapBudgetInput || isNaN(parseFloat(tapBudgetInput)) || parseFloat(tapBudgetInput) <= 0) {
                 showStatus('Please enter a valid tap budget', true);
                 throw new Error('Invalid tap budget');
               }
@@ -23989,7 +24640,7 @@
             { value: initialEthDeposit }
           );
 
-          showStatus(`Transaction submitted. <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Etherscan</a>`);
+          showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`);
 
           const receipt = await tx.wait();
 
@@ -24006,7 +24657,7 @@
 
           const daoAddress = event?.args?.dao;
 
-          showStatus(`✨ DAO summoned successfully at: <a href="https://etherscan.io/address/${daoAddress}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">${daoAddress}</a> | <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`);
+          showStatus(`✨ DAO summoned successfully at: <a href="${getNetwork().explorer}/address/${daoAddress}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">${daoAddress}</a> | <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View transaction</a>`);
 
           // Refresh DAO lists to include newly summoned DAO
           if (connectedAddress) {
@@ -24090,24 +24741,40 @@
 
         // Initialize read-only provider for deep links and browsing without wallet
         try {
-          readOnlyProvider = new ethers.JsonRpcProvider(PUBLIC_RPC_URL);
+          readOnlyProvider = new ethers.JsonRpcProvider(getNetwork().rpcs[0]);
         } catch (error) {
           console.error('Failed to initialize read-only provider:', error);
         }
 
         // Check for deep link - if present, load DAOs immediately (read-only)
-        const deepLinkAddress = parseDAODeepLink();
-        if (deepLinkAddress && readOnlyProvider) {
+        const deepLink = parseDAODeepLink();
+        if (deepLink && readOnlyProvider) {
           try {
+            // Check if we need to switch networks first
+            if (deepLink.chainId) {
+              const linkNetwork = getNetworkByChainId(BigInt(deepLink.chainId));
+              if (linkNetwork && linkNetwork.network.chainId !== getNetwork().chainId) {
+                // Prompt user to switch networks
+                const switched = await promptNetworkSwitch(linkNetwork.key, linkNetwork.network);
+                if (!switched) {
+                  // User declined, just show default view
+                  return;
+                }
+                // Update read-only provider for new network
+                readOnlyProvider = new ethers.JsonRpcProvider(getNetwork().rpcs[0]);
+              }
+            }
+
             showStatus('Loading DAO...', false);
 
             // Fetch all DAOs using read-only provider
             const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, readOnlyProvider);
-            const result = await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5);
+            const treasuryTokens = getNetwork().treasuryTokens;
+            const result = await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5, treasuryTokens);
             allDAOs = result;
 
             // Try to open the deep-linked DAO
-            const opened = await openDAOByAddress(deepLinkAddress);
+            const opened = await openDAOByAddress(deepLink.address);
             if (!opened) {
               // DAO not found, show galleries instead
               renderAllDAOsGallery();
@@ -24149,16 +24816,17 @@
           }
         }
 
-        // If we loaded a deep-linked DAO and didn't auto-reconnect (which has its own scroll),
-        // scroll to the dashboard now
-        if (deepLinkAddress && currentDAO && !autoReconnected) {
+        // If we have a deep link and a DAO was loaded (either read-only or via auto-reconnect),
+        // ensure we scroll to the dashboard
+        if (deepLink && currentDAO) {
+          // Use a longer delay to ensure DOM is fully rendered after auto-reconnect
           requestAnimationFrame(() => {
             setTimeout(() => {
               const dashboard = document.getElementById('daoDashboard');
               if (dashboard) {
                 dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }
-            }, 100);
+            }, autoReconnected ? 500 : 100);
           });
         }
       });
