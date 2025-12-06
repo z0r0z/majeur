@@ -6,17 +6,32 @@
 
 [![IPFS Image](https://content.wrappr.wtf/ipfs/bafybeih2mxprvjigedatwn5tdgjx6mcpktfd75t736kkrpjfepcll2n3o4)](https://content.wrappr.wtf/ipfs/bafybeih2mxprvjigedatwn5tdgjx6mcpktfd75t736kkrpjfepcll2n3o4)
 
-**A minimal yet feature-rich DAO governance framework** — Wyoming DUNA-protected, futarchy-enabled membership organizations with weighted delegation and soulbound top-256 badges.
+**Opinionated DAO governance** — members can always exit with their share of the treasury. Built-in futarchy, weighted delegation, and soulbound badges.
+
+## Why Majeur?
+
+| Feature | Majeur | Governor (OZ) | Aragon OSx |
+|---------|--------|---------------|------------|
+| Ragequit (exit with treasury share) | Yes | No | No |
+| Futarchy (prediction markets on votes) | Yes | No | No |
+| Split delegation (60% Alice, 40% Bob) | Yes | No | No |
+| Fully on-chain metadata (SVG) | Yes | No | No |
+| Single-contract deployment | Yes | Multi-contract | Plugin system |
+| DUNA legal wrapper support | Yes | No | No |
+
+**Majeur is for DAOs that prioritize member protection.** Ragequit means no one can be trapped — if you disagree with the majority, burn your shares and leave with your proportional treasury. Futarchy rewards voters who bet correctly on outcomes, not just those who show up. Split delegation lets you diversify representation instead of all-or-nothing.
 
 ## Deployments
 
-Summoner: [`0x0000000000330B8df9E3bc5E553074DA58eE9138`](https://contractscan.xyz/contract/0x0000000000330B8df9E3bc5E553074DA58eE9138)
+All contracts are deployed at the same CREATE2 addresses across supported networks.
 
-Renderer: [`0x000000000011C799980827F52d3137b4abD6E654`](https://contractscan.xyz/contract/0x000000000011C799980827F52d3137b4abD6E654)
-
-MolochViewHelper: [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db)
-
-DAICO: [`0x000000000033e92DB97B4B3beCD2c255126C60aC`](https://contractscan.xyz/contract/0x000000000033e92DB97B4B3beCD2c255126C60aC)
+| Contract | Address | Description |
+|----------|---------|-------------|
+| Summoner | [`0x0000000000330B8df9E3bc5E553074DA58eE9138`](https://contractscan.xyz/contract/0x0000000000330B8df9E3bc5E553074DA58eE9138) | Factory for deploying new DAOs |
+| Renderer | [`0x000000000011C799980827F52d3137b4abD6E654`](https://contractscan.xyz/contract/0x000000000011C799980827F52d3137b4abD6E654) | On-chain SVG metadata renderer |
+| MolochViewHelper | [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db) | Batch read helper for dApps |
+| Tribute | [`0x000000000066524fcf78Dc1E41E9D525d9ea73D0`](https://contractscan.xyz/contract/0x000000000066524fcf78Dc1E41E9D525d9ea73D0) | OTC escrow for tribute proposals |
+| DAICO | [`0x000000000033e92DB97B4B3beCD2c255126C60aC`](https://contractscan.xyz/contract/0x000000000033e92DB97B4B3beCD2c255126C60aC) | Token sale with tap mechanism |
 
 ## Dapps
 
@@ -24,102 +39,77 @@ DAICO: [`0x000000000033e92DB97B4B3beCD2c255126C60aC`](https://contractscan.xyz/c
 
 > [daicowtf.eth](https://daicowtf.eth.limo/)
 
-## TL;DR
+## At a Glance
 
-Moloch (Majeur) is a DAO framework where:
-- **Members vote** with shares (tokens) on proposals that can execute any on-chain action
-- **Delegation can be split** between multiple people (e.g., 60% voting power to Alice, 40% to Bob)
-- **Prediction markets** can be attached to proposals, rewarding voters on the winning side (futarchy)
-- **Members can exit** anytime with their proportional share of the treasury (ragequit)
-- **Top 256 shareholders** get automatic badges that unlock exclusive features like member chat
-- **Everything is on-chain** including visual metadata (on-chain SVG rendering)
+```
+Vote with shares → Split delegation → Futarchy markets → Ragequit exit
+     ↓                    ↓                  ↓                ↓
+Execute any         60% Alice          Reward correct    Leave with your
+on-chain action     40% Bob            predictions       treasury share
+```
 
-## Overview
+## Token System
 
-Moloch (Majeur) is a comprehensive DAO framework that manages multiple token systems:
-- **ERC-20 Shares** (separate contract): Voting power tokens with delegation and split delegation support
-- **ERC-20 Loot** (separate contract): Non-voting economic tokens for profit sharing
-- **ERC-6909 Receipts** (within Moloch): Multi-token vote receipts that become redeemable in futarchy markets
-- **ERC-721 Badges** (separate contract): Soulbound (non-transferable) badges automatically issued to top 256 shareholders
-- **Advanced Governance**: Snapshot voting, timelocks, pre-authorized permits, token sales, and ragequit functionality
+| Token | Standard | Purpose |
+|-------|----------|---------|
+| **Shares** | ERC-20 | Voting power + economic rights (delegatable) |
+| **Loot** | ERC-20 | Economic rights only — no voting |
+| **Receipts** | ERC-6909 | Vote receipts for futarchy payouts |
+| **Badges** | ERC-721 | Soulbound NFTs for top 256 shareholders |
+
+All tokens are deployed as separate contracts via minimal proxy clones. The DAO controls minting, burning, and transfer locks.
 
 ## Architecture
 
 ![Majeur Architecture](./assets/architecture.svg)
 
-## Core Concepts (Simplified)
+## Core Concepts
 
-### 🗳️ What are Shares vs Loot?
-- **Shares**: Your voting power AND economic rights (like stock with voting)
-- **Loot**: Just economic rights, no voting (like non-voting preferred stock)
-- **Why both?**: Some members may want profits without governance responsibility
+### Ragequit
+The defining feature of Moloch-style DAOs: **members can always exit**.
 
-### 🎯 What is Futarchy?
-Think of it as "prediction markets for governance":
-1. Anyone can fund a reward pool for a proposal (using ETH, shares, or loot)
-2. When you vote (YES, NO, or ABSTAIN), you get a receipt token
-3. After the proposal resolves:
-   - If it **passes** → YES voters share the reward pool proportionally
-   - If it **fails** → NO voters share the reward pool proportionally
-   - ABSTAIN voters never claim rewards
-4. You burn your receipt tokens to claim your share
-5. This incentivizes voting for outcomes you genuinely believe will happen
+Burn your shares/loot → receive your proportional share of the treasury. Own 10% of shares? Claim 10% of every treasury token. This creates a floor price for membership and protects minorities from majority tyranny.
 
-### 🏃 What is Ragequit?
-Your "exit door" from the DAO:
-- Burn your shares and/or loot → Get your proportional share of the treasury
-- Example: You own 10% of shares → Burn them to claim 10% of each treasury token
-- **Important**: You can only claim external tokens (like ETH, USDC, etc.)
-- You **cannot** ragequit internal DAO tokens (shares, loot, or badges themselves)
+*Limitation: You can only claim external tokens (ETH, USDC, etc.) — not the DAO's own shares, loot, or badges.*
 
-### 👥 What is Split Delegation?
-Instead of "all-or-nothing" delegation:
-- Traditional: 100% of your votes → Alice
-- Split: 60% → Alice, 40% → Bob
-- Useful for diversifying representation
+### Futarchy
+Skin-in-the-game governance through prediction markets:
 
-### 🏅 What are Badges?
-- Automatic NFTs for top 256 shareholders
-- Soulbound (non-transferable)
-- Unlocks features like member chat
-- Updates automatically as balances change
+1. Anyone funds a reward pool for a proposal
+2. Vote YES, NO, or ABSTAIN → receive receipt tokens
+3. Proposal passes → YES voters split the pool; fails → NO voters win
+4. Burn your receipts to claim winnings
 
-## Core Concepts (Technical)
+This shifts incentives from "vote with the crowd" to "vote for what you believe will actually succeed."
 
-### 1. Token System
+### Split Delegation
+Distribute voting power across multiple delegates:
 
-The Majeur framework uses a multi-token architecture:
-
-```solidity
-// Token types and their roles:
-shares   // Voting + economic rights (delegatable)
-loot     // Economic rights only (non-voting)  
-badges   // Top 256 holder badges (soulbound NFTs)
-receipts // Vote receipts (ERC-6909 for futarchy)
+```
+Traditional:  100% → Alice
+Split:        60% → Alice, 40% → Bob, or any combination
 ```
 
-### 2. Proposal Lifecycle
+Useful when you trust different people for different expertise, or want to hedge your representation.
+
+### Badges
+Soulbound NFTs automatically minted for the top 256 shareholders. They update in real-time as balances change and gate access to member-only features like on-chain chat.
+
+## Proposal Lifecycle
 
 ![Proposal Lifecycle](./assets/proposal-lifecycle.svg)
 
-**How Proposals Pass:**
-A proposal succeeds when ALL of these conditions are met:
-- Quorum is reached (either absolute count or percentage of supply, whichever is configured)
-- `FOR` votes **exceed** `AGAINST` votes (ties fail)
-- Minimum YES votes threshold is met (if configured)
-- Proposal hasn't expired (TTL not exceeded)
+```
+Unopened → Active → Succeeded → Queued (if timelock) → Executed
+                 ↘ Defeated
+                 ↘ Expired (TTL)
+```
 
-If a proposal succeeds and timelocks are enabled, it moves to `Queued` state before becoming executable.
-
-### 3. Futarchy Markets
-
-Proposals can have optional prediction markets where YES/NO voters compete:
-- Anyone can fund a reward pool for any active proposal
-- Reward pool can be in ETH, shares, loot, or other tokens
-- When the proposal executes (passes), YES voters win
-- When the proposal is defeated/expired, NO voters win
-- Winners split the pool proportionally based on their vote weight
-- Voters burn their vote receipt tokens to claim rewards
+**Pass conditions** (all must be true):
+- Quorum reached (absolute or percentage)
+- FOR > AGAINST (ties fail)
+- Minimum YES threshold met (if configured)
+- Not expired
 
 ## Visual Card Examples
 
@@ -310,55 +300,48 @@ dao.on("Executed", (id, executor, op, target, value) => {
 });
 ```
 
-## Key Features
+## Features
 
-### Wyoming DUNA Compliance
+### Governance
+| Feature | Description |
+|---------|-------------|
+| Snapshot voting | Block N-1 snapshot prevents vote buying after proposal opens |
+| Flexible quorum | Absolute (e.g., 1000 votes) or percentage (e.g., 20%) |
+| Timelocks | Configurable delay between passing and execution |
+| Proposal TTL | Auto-expire stale proposals |
+| Vote/proposal cancellation | Change your mind before execution |
 
-The framework includes built-in support for Wyoming's **Decentralized Unincorporated Nonprofit Association (DUNA)** structure, providing legal recognition for DAOs.
+### Economics
+| Feature | Description |
+|---------|-------------|
+| Ragequit | Exit with proportional treasury share |
+| Token sales | Built-in share/loot sales at configurable price |
+| DAICO | External sale contract with tap mechanism (controlled fund release) |
+| Tribute | OTC escrow for membership trades |
+| Futarchy | Prediction markets reward correct voters |
 
-#### What is a DUNA?
-A DUNA (Wyoming Statute 17-32-101) is a legal entity that:
-- Exists purely through smart contracts—no paperwork or incorporation process
-- Grants **limited liability** to members (like an LLC)
-- Operates as a nonprofit (but can still hold treasury and issue tokens)
-- Is recognized by Wyoming law as a legal person
+### Technical
+| Feature | Description |
+|---------|-------------|
+| Split delegation | Divide voting power across multiple delegates |
+| ERC-6909 receipts | Gas-efficient multi-token for vote tracking |
+| Clone pattern | ~80% deployment gas savings |
+| Transient storage | EIP-1153 reentrancy guards |
+| On-chain SVG | Fully decentralized metadata — no IPFS, no servers |
 
-#### Why This Matters for Your DAO:
-✅ **Legal protection**: Members aren't personally liable for DAO actions
-✅ **Real-world contracts**: Your DAO can legally sign agreements and own property
-✅ **Treasury ownership**: The DAO legally owns its funds, not individual members
-✅ **On-chain governance**: All votes and actions are permanent records
-✅ **Exit rights**: Ragequit provides a legal self-help remedy for members
-✅ **No admin burden**: No annual filings, board meetings, or traditional corporate formalities
+## Wyoming DUNA
 
-#### How Majeur Supports DUNA:
-Every DAO deployed through Majeur includes:
-- An on-chain **legal covenant** displayed in the DAO's metadata (see DAO Contract Card above)
-- **Member registry** through the top-256 badge system
-- **Permanent governance records** (all votes stored on-chain forever)
-- **Exit mechanism** via ragequit
-- **Full transparency** of all DAO actions on the blockchain
+Majeur supports Wyoming's **Decentralized Unincorporated Nonprofit Association (DUNA)** — a legal entity that exists purely through smart contracts (Wyoming Statute 17-32-101).
 
-### Advanced Governance
-- **Snapshot voting** at block N-1 prevents vote buying after proposals open
-- **Flexible quorum**: Can set absolute thresholds (e.g., 1000 votes minimum) or percentage-based (e.g., 20% of supply)
-- **Timelocks** for high-impact decisions—configurable delay between passing and execution
-- **Proposal expiry** (TTL) prevents old proposals from being executed unexpectedly
-- **Vote cancellation** allows voters to change their mind before execution
-- **Proposal cancellation** by proposer if no votes have been cast yet
+| DUNA Benefit | How Majeur Implements It |
+|--------------|--------------------------|
+| Limited liability | On-chain legal covenant in metadata |
+| Member registry | Top-256 badge system |
+| Governance records | All votes stored permanently on-chain |
+| Exit rights | Ragequit (legal self-help remedy) |
+| No admin burden | No filings, meetings, or formalities |
 
-### Economic Features
-- **Ragequit** - Exit with proportional treasury share
-- **Token sales** - Fundraising with price discovery
-- **Futarchy markets** - Prediction markets on proposals
-- **Split economics** - Shares (voting) vs Loot (non-voting)
-
-### Technical Innovation
-- **Weighted delegation** - Split voting power across multiple delegates
-- **ERC-6909 receipts** - Efficient multi-token for vote tracking
-- **Clones pattern** - Gas-efficient deployment
-- **Transient storage** - Optimized reentrancy guards
-- **On-chain SVG** - Fully decentralized metadata
+A DUNA lets your DAO sign real-world agreements, own property, and shield members from personal liability — without incorporating.
 
 ## Contract Architecture
 
@@ -398,6 +381,100 @@ Renderer (Singleton)
 └── Badge cards
 ```
 
+## Peripheral Contracts
+
+### Tribute (OTC Escrow)
+
+Simple escrow for "tribute proposals" — trade external assets for DAO membership:
+
+```solidity
+// 1. Proposer locks tribute (e.g., 10 ETH for 1000 shares)
+tribute.proposeTribute{value: 10 ether}(
+    dao,           // target DAO
+    address(0),    // tribTkn (ETH)
+    0,             // tribAmt (use msg.value for ETH)
+    sharesToken,   // forTkn (what proposer wants)
+    1000e18        // forAmt (how much)
+);
+
+// 2. DAO votes to accept, then claims (executes the swap)
+// DAO receives tribute, proposer receives shares
+dao.executeByVotes(...); // calls tribute.claimTribute(proposer, tribTkn)
+```
+
+**Key functions:**
+- `proposeTribute()` - Lock assets and create offer
+- `cancelTribute()` - Proposer withdraws (before DAO claims)
+- `claimTribute()` - DAO accepts and executes swap
+- `getActiveDaoTributes()` - View all pending tributes for a DAO
+
+### DAICO (Token Sale + Tap)
+
+Inspired by Vitalik's DAICO concept — controlled fundraising with investor protection:
+
+```solidity
+// 1. DAO configures a sale
+dao.executeByVotes(...); // calls DAICO.setSaleWithTap(...)
+
+// 2. Users buy shares/loot
+daico.buy(dao, address(0), 1 ether, minShares);  // exact-in
+daico.buyExactOut(dao, address(0), 1000e18, maxPay);  // exact-out
+
+// 3. Ops team claims vested funds via tap
+daico.claimTap(dao);  // anyone can trigger, funds go to ops
+```
+
+**Sale Features:**
+- Fixed-price OTC sales (tribAmt:forAmt ratio)
+- Optional deadline expiry
+- Optional LP integration with ZAMM (auto-adds liquidity)
+- Drift protection prevents buyer underflow when spot > OTC price
+
+**Tap Mechanism:**
+- `ratePerSec` - Funds release rate (smallest units/second)
+- `ops` - Beneficiary address (can be updated by DAO)
+- Rate changes are non-retroactive (prevents gaming)
+- Dynamically caps to min(owed, allowance, balance) — respects ragequits
+
+**Summon Helpers:**
+```solidity
+// Deploy DAO with pre-configured DAICO sale
+daico.summonDAICO(summonConfig, "MyDAO", "DAO", ..., daicoConfig);
+daico.summonDAICOWithTap(..., tapConfig);  // includes tap
+```
+
+### MolochViewHelper (Batch Reader)
+
+Gas-efficient view contract for dApp frontends:
+
+```solidity
+// Fetch full state for multiple DAOs in one call
+DAOLens[] memory daos = helper.getDAOsFullState(
+    0,      // daoStart
+    10,     // daoCount
+    0,      // proposalStart
+    5,      // proposalCount
+    0,      // messageStart
+    10,     // messageCount
+    tokens  // treasury tokens to check
+);
+
+// User portfolio: find all DAOs where user is a member
+UserMemberView[] memory myDaos = helper.getUserDAOs(
+    user, 0, 100, tokens
+);
+
+// DAICO scanner: find all DAOs with active sales
+DAICOView[] memory sales = helper.scanDAICOs(0, 100, tribTokens);
+```
+
+**Returned Data:**
+- `DAOLens` - Full DAO state (meta, config, supplies, members, proposals, messages, treasury)
+- `MemberView` - Account balances, seat ID, voting power, delegation splits
+- `ProposalView` - Tallies, state, voters, futarchy config
+- `SaleView` - Active DAICO sale terms, remaining supply, LP config
+- `TapView` - Tap config, claimable amount, treasury balance
+
 ## Quick Reference
 
 ### Essential Functions
@@ -419,34 +496,47 @@ Renderer (Singleton)
 
 | Function | Purpose |
 |----------|---------|
-| `setSale()` | Enable token sales |
+| `setSale()` | Enable built-in token sales |
 | `setPermit()` | Issue execution permits |
+| `setAllowance()` | Set treasury spending allowance |
 | `setTimelockDelay()` | Set execution delay |
 | `setQuorumBps()` | Set quorum percentage |
 | `setRagequittable()` | Enable/disable ragequit |
+| `setTransfersLocked()` | Lock/unlock share/loot transfers |
+| `setAutoFutarchy()` | Configure auto-funded futarchy |
 | `bumpConfig()` | Invalidate old proposals |
 
-## User Stories
+### Tribute Contract Functions
 
-### As a DAO Member
-- **Vote on proposals** with your shares (voting power)
-- **Delegate voting power** to trusted members (even split between multiple delegates)
-- **Buy more shares** during token sales
-- **Ragequit** to exit with your proportional share of treasury
-- **Chat** with other top holders (if you have a badge)
+| Function | Purpose | Who Can Call |
+|----------|---------|--------------|
+| `proposeTribute()` | Lock assets, create offer | Anyone |
+| `cancelTribute()` | Withdraw locked tribute | Original proposer |
+| `claimTribute()` | Accept and execute swap | DAO (via proposal) |
+| `getActiveDaoTributes()` | View pending tributes | Anyone (view) |
 
-### As a Proposal Creator
-- **Submit proposals** for DAO actions (treasury, governance, operations)
-- **Fund futarchy markets** to incentivize participation
-- **Set timelocks** for important decisions
-- **Cancel proposals** you created (before votes cast)
+### DAICO Contract Functions
 
-### As an App Developer
-- **Monitor governance** via events
-- **Build delegation UIs** for split voting interfaces
-- **Create futarchy dashboards** showing market predictions
-- **Integrate chat features** for badge holders
-- **Display on-chain SVGs** for proposals, receipts, and badges
+| Function | Purpose | Who Can Call |
+|----------|---------|--------------|
+| `setSale()` | Configure token sale | DAO |
+| `setSaleWithTap()` | Sale + tap in one call | DAO |
+| `setLPConfig()` | Configure LP auto-add | DAO |
+| `setTapOps()` | Update tap beneficiary | DAO |
+| `setTapRate()` | Adjust tap rate | DAO |
+| `buy()` | Exact-in purchase | Anyone |
+| `buyExactOut()` | Exact-out purchase | Anyone |
+| `claimTap()` | Release vested funds | Anyone (funds go to ops) |
+| `quoteBuy()` | Preview exact-in | Anyone (view) |
+| `quotePayExactOut()` | Preview exact-out | Anyone (view) |
+
+## Who Is This For?
+
+**DAO Members** — Vote, delegate (even split across multiple people), buy shares, ragequit, chat with top holders.
+
+**Proposal Creators** — Submit proposals, fund futarchy markets, set timelocks, cancel before votes are cast.
+
+**Developers** — Monitor events, build delegation UIs, create futarchy dashboards, display on-chain SVGs. Use `MolochViewHelper` for efficient batch reads.
 
 ## Common Pitfalls & Solutions
 
@@ -478,32 +568,70 @@ uint32[] memory bps = [6000, 3000]; // 90% total
 uint32[] memory bps = [6000, 4000]; // 100% total
 ```
 
-## Deployment
+## Development
+
+### Build & Test
 
 ```bash
 # Install Foundry
 curl -L https://foundry.paradigm.xyz | bash
-source ~/.bashrc
 foundryup
 
 # Build
 forge build
 
-# Test
+# Run all tests
 forge test
 
-# Deploy
+# Run with verbosity
+forge test -vvv
+
+# Run specific test file
+forge test --match-path test/Moloch.t.sol
+
+# Run specific test
+forge test --match-test test_Ragequit
+
+# Gas snapshot
+forge snapshot
+```
+
+### Test Suite
+
+| File | Coverage |
+|------|----------|
+| `Moloch.t.sol` | Core governance: voting, delegation, execution, ragequit, futarchy, badges |
+| `DAICO.t.sol` | Token sales, tap mechanism, LP config, summon helpers |
+| `Tribute.t.sol` | OTC escrow: propose, cancel, claim tributes |
+| `MolochViewHelper.t.sol` | Batch read functions for dApps |
+| `ContractURI.t.sol` | On-chain metadata and DUNA covenant |
+| `URIVisualization.t.sol` | SVG rendering for cards |
+| `Bytecodesize.t.sol` | Contract size limits |
+
+**Key test scenarios:**
+- Proposal lifecycle (open → vote → queue → execute)
+- Split delegation with multiple delegates
+- Futarchy funding and payout
+- Ragequit with multiple tokens
+- Badge auto-updates on balance changes
+- DAICO tap claims and rate changes
+- Tribute propose/cancel/claim flows
+
+### Deploy
+
+```bash
 forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 ```
 
-## Security Considerations
+## Security Model
 
-- **Snapshot voting** (block N-1): Voting power determined at the block before proposal opens, preventing vote buying/flash loans
-- **Reentrancy protection**: Uses transient storage (EIP-1153) for gas-efficient reentrancy guards on all financial operations
-- **Timelock delays**: Configurable delay between proposal success and execution gives members time to ragequit if they disagree
-- **Ragequit protection**: Members can always exit with their treasury share, preventing 51% attacks on funds
-- **Config versioning**: DAO can invalidate all pending proposals via `bumpConfig()` in emergencies
-- **Sorted token arrays**: Ragequit requires tokens in ascending address order to prevent reentrancy via malicious token contracts
+| Protection | Mechanism |
+|------------|-----------|
+| Flash loan attacks | Snapshot at block N-1 |
+| Reentrancy | Transient storage guards (EIP-1153) |
+| Majority tyranny | Ragequit — minorities can exit with their share |
+| Malicious proposals | Timelocks give time to ragequit; `bumpConfig()` invalidates all pending |
+| Token reentrancy | Ragequit requires sorted token arrays |
 
 ## Complete Workflow Example
 
@@ -539,30 +667,12 @@ dao.ragequit(tokens, myShares, 0);
 
 ## Gas Optimization
 
-The framework uses several optimization techniques:
-
-### Clone Pattern
-- **Deployment cost**: ~500k gas (vs ~3M for individual contracts)
-- **How**: Minimal proxy clones for Shares, Loot, Badges
-- **Savings**: ~80% on deployment
-
-### Transient Storage (EIP-1153)
-- **Reentrancy guards**: Uses `TSTORE`/`TLOAD`
-- **Savings**: ~5k gas per guarded function
-
-### Bitmap for Badges
-- **Storage**: 256 holders in single storage slot
-- **Operations**: O(1) updates using bit manipulation
-- **Savings**: ~20k gas per badge update
-
-### Packed Structs
-```solidity
-struct Tally {
-    uint96 forVotes;      // Packed into
-    uint96 againstVotes;  // single
-    uint96 abstainVotes;  // storage slot
-}
-```
+| Technique | Savings | Details |
+|-----------|---------|---------|
+| Clone pattern | ~80% deployment | Minimal proxy clones for Shares, Loot, Badges |
+| Transient storage | ~5k/call | EIP-1153 for reentrancy guards |
+| Badge bitmap | ~20k/update | 256 holders in single storage slot |
+| Packed structs | ~20k/write | Tallies fit in one slot (3 × uint96) |
 
 ## FAQ
 
@@ -596,7 +706,16 @@ struct Tally {
 **A:** A version number that's part of every proposal ID. The DAO can increment it via `bumpConfig()` to invalidate all old/pending proposal IDs and permits. This is a governance "emergency brake" if malicious proposals were created.
 
 ### Q: Can I build a front-end for this?
-**A:** Yes! All metadata is on-chain (including SVGs). No external dependencies needed.
+**A:** Yes! All metadata is on-chain (including SVGs). Use MolochViewHelper for batch reads.
+
+### Q: What's the difference between built-in sales and DAICO?
+**A:** Built-in `setSale()` is simpler — direct minting at a fixed price. DAICO adds tap mechanisms (controlled fund release), optional LP initialization, and operates as an external escrow contract for investor protection.
+
+### Q: How does the tap mechanism protect investors?
+**A:** The tap limits how fast the ops team can withdraw raised funds. DAO members can vote to lower the rate (or freeze it) if they lose confidence. If members ragequit, the tap auto-adjusts to the reduced treasury.
+
+### Q: Can I offer assets in exchange for DAO membership?
+**A:** Yes, use the Tribute contract. Lock your assets, propose the trade to the DAO, and if they vote to accept, the swap executes atomically.
 
 ## Disclaimer
 

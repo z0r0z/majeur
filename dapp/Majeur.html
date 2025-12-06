@@ -9932,6 +9932,193 @@
           ],
           "stateMutability": "view",
           "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "dao", "type": "address"},
+            {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
+            {"internalType": "address[]", "name": "tribTokens", "type": "address[]"}
+          ],
+          "name": "getDAOWithDAICO",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "components": [
+                    {"internalType": "address", "name": "dao", "type": "address"},
+                    {
+                      "components": [
+                        {"internalType": "string", "name": "name", "type": "string"},
+                        {"internalType": "string", "name": "symbol", "type": "string"},
+                        {"internalType": "string", "name": "contractURI", "type": "string"},
+                        {"internalType": "address", "name": "sharesToken", "type": "address"},
+                        {"internalType": "address", "name": "lootToken", "type": "address"},
+                        {"internalType": "address", "name": "badgesToken", "type": "address"},
+                        {"internalType": "address", "name": "renderer", "type": "address"}
+                      ],
+                      "internalType": "struct DAOMeta",
+                      "name": "meta",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
+                        {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
+                        {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
+                        {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
+                        {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
+                        {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
+                        {"internalType": "bool", "name": "ragequittable", "type": "bool"},
+                        {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
+                        {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
+                        {"internalType": "address", "name": "rewardToken", "type": "address"}
+                      ],
+                      "internalType": "struct DAOGovConfig",
+                      "name": "gov",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
+                      ],
+                      "internalType": "struct DAOTokenSupplies",
+                      "name": "supplies",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "token", "type": "address"},
+                            {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                          ],
+                          "internalType": "struct TokenBalance[]",
+                          "name": "balances",
+                          "type": "tuple[]"
+                        }
+                      ],
+                      "internalType": "struct DAOTreasury",
+                      "name": "treasury",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "account", "type": "address"},
+                        {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                        {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                        {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                        {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                        {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                        {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                      ],
+                      "internalType": "struct MemberView[]",
+                      "name": "members",
+                      "type": "tuple[]"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "id", "type": "uint256"},
+                        {"internalType": "address", "name": "proposer", "type": "address"},
+                        {"internalType": "uint8", "name": "state", "type": "uint8"},
+                        {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
+                        {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
+                        {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
+                        {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
+                        {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
+                        {
+                          "components": [
+                            {"internalType": "bool", "name": "enabled", "type": "bool"},
+                            {"internalType": "address", "name": "rewardToken", "type": "address"},
+                            {"internalType": "uint256", "name": "pool", "type": "uint256"},
+                            {"internalType": "bool", "name": "resolved", "type": "bool"},
+                            {"internalType": "uint8", "name": "winner", "type": "uint8"},
+                            {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
+                          ],
+                          "internalType": "struct FutarchyView",
+                          "name": "futarchy",
+                          "type": "tuple"
+                        },
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "voter", "type": "address"},
+                            {"internalType": "uint8", "name": "support", "type": "uint8"},
+                            {"internalType": "uint256", "name": "weight", "type": "uint256"}
+                          ],
+                          "internalType": "struct VoterView[]",
+                          "name": "voters",
+                          "type": "tuple[]"
+                        }
+                      ],
+                      "internalType": "struct ProposalView[]",
+                      "name": "proposals",
+                      "type": "tuple[]"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "index", "type": "uint256"},
+                        {"internalType": "string", "name": "text", "type": "string"}
+                      ],
+                      "internalType": "struct MessageView[]",
+                      "name": "messages",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct DAOLens",
+                  "name": "dao",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "tribTkn", "type": "address"},
+                    {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
+                    {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
+                    {"internalType": "address", "name": "forTkn", "type": "address"},
+                    {"internalType": "uint40", "name": "deadline", "type": "uint40"},
+                    {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                    {"internalType": "uint256", "name": "allowance", "type": "uint256"},
+                    {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
+                    {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
+                    {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
+                  ],
+                  "internalType": "struct SaleView[]",
+                  "name": "sales",
+                  "type": "tuple[]"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "ops", "type": "address"},
+                    {"internalType": "address", "name": "tribTkn", "type": "address"},
+                    {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
+                    {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
+                    {"internalType": "uint256", "name": "claimable", "type": "uint256"},
+                    {"internalType": "uint256", "name": "pending", "type": "uint256"},
+                    {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                    {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
+                  ],
+                  "internalType": "struct TapView",
+                  "name": "tap",
+                  "type": "tuple"
+                }
+              ],
+              "internalType": "struct DAICOLens",
+              "name": "out",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
         }
       ];
 
@@ -10778,6 +10965,7 @@
       let userDAOs = [];
       let allDAOs = [];
       let currentDAO = null;
+      let currentDAICO = null; // Cached DAICO data (sales, tap) for current DAO
       let currentDaoTributes = [];
       let tributeRefreshTimestamp = 0;
 
@@ -11510,6 +11698,7 @@
         userDAOs = [];
         allDAOs = [];
         currentDAO = null;
+        currentDAICO = null;
 
         // Clear connection state
         isConnecting = false;
@@ -12987,6 +13176,37 @@
         }
       }
 
+      // Fetch DAICO data (sales, tap) for a specific DAO using batched view helper
+      // This replaces many individual RPC calls with a single efficient call
+      async function fetchDAICOData(daoAddress) {
+        if (!daoAddress) return null;
+
+        const treasuryTokens = getNetwork().treasuryTokens;
+        const tribTokens = getNetwork().treasuryTokens; // Same tokens for tribute
+
+        try {
+          const result = await withRpcFallback(async (activeProvider) => {
+            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
+
+            // Single batched call that gets DAO state + DAICO sales + tap info
+            return await viewHelper.getDAOWithDAICO(
+              daoAddress,
+              0,  // proposalStart (we already have proposals from initial load)
+              0,  // proposalCount (skip proposals, already loaded)
+              0,  // messageStart
+              0,  // messageCount (skip messages, already loaded)
+              treasuryTokens,
+              tribTokens
+            );
+          });
+
+          return result;
+        } catch (error) {
+          console.error('Error fetching DAICO data:', error);
+          return null;
+        }
+      }
+
       // Render all DAOs gallery
       function renderAllDAOsGallery() {
         const allDaosTiles = DOMCache.allDaosTiles;
@@ -13758,89 +13978,72 @@
               decimals: sale.token.decimals
             }));
 
-          // Also query DAICO contract for external OTC sales
-          const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, provider);
+          // Fetch DAICO data using batched view helper (single RPC call for all sales + tap)
           const daoAddress = currentDAO.dao.dao;
+          currentDAICO = await fetchDAICOData(daoAddress);
 
-          // Query DAICO for sales with each supported payment token
-          const daicoSalePromises = allTokens.map(token =>
-            daicoContract.sales(daoAddress, token.address)
-              .then(sale => ({ token, sale }))
-              .catch(err => {
-                console.error(`Error fetching DAICO sale for ${token.symbol}:`, err);
-                return { token, sale: { tribAmt: 0n, forAmt: 0n, forTkn: ethers.ZeroAddress, deadline: 0 } };
-              })
-          );
-
-          const daicoSalesResults = await Promise.all(daicoSalePromises);
-
-          // Also query tap info (per DAO, not per token)
+          // Process DAICO sales from batched response
+          const activeDaicoSales = [];
           let tapInfo = null;
           let claimableTap = 0n;
-          try {
-            const tap = await daicoContract.taps(daoAddress);
-            if (tap.ratePerSec > 0n) {
+
+          if (currentDAICO) {
+            const now = Math.floor(Date.now() / 1000);
+            const sharesAddress = currentDAO.dao.meta.sharesToken?.toLowerCase();
+            const lootAddress = currentDAO.dao.meta.lootToken?.toLowerCase();
+
+            // Process sales from view helper response
+            for (const sale of currentDAICO.sales) {
+              // Check if sale is active: tribAmt > 0, forAmt > 0, not expired
+              const isExpired = sale.deadline > 0 && Number(sale.deadline) < now;
+              if (sale.tribAmt > 0n && sale.forAmt > 0n && sale.forTkn !== ethers.ZeroAddress && !isExpired) {
+                const forTknLower = sale.forTkn.toLowerCase();
+                const isLoot = forTknLower === lootAddress;
+
+                // Find token info for the tribute token
+                const token = allTokens.find(t => t.address.toLowerCase() === sale.tribTkn.toLowerCase()) || {
+                  symbol: sale.tribTkn === ethers.ZeroAddress ? 'ETH' : 'Token',
+                  address: sale.tribTkn,
+                  decimals: 18
+                };
+
+                // LP config is already included in SaleView
+                let lpConfig = null;
+                if (sale.lpBps > 0) {
+                  lpConfig = {
+                    lpBps: Number(sale.lpBps),
+                    maxSlipBps: Number(sale.maxSlipBps),
+                    feeOrHook: sale.feeOrHook
+                  };
+                }
+
+                activeDaicoSales.push({
+                  token: token,
+                  tribAmt: sale.tribAmt,
+                  forTkn: sale.forTkn,
+                  forAmt: sale.forAmt,
+                  deadline: sale.deadline,
+                  isLoot: isLoot,
+                  available: sale.allowance, // Already fetched by view helper
+                  remainingSupply: sale.remainingSupply,
+                  totalSupply: sale.totalSupply,
+                  treasuryBalance: sale.treasuryBalance,
+                  lpConfig: lpConfig,
+                  isDaico: true
+                });
+              }
+            }
+
+            // Process tap info from view helper response
+            const tap = currentDAICO.tap;
+            if (tap && tap.ops !== ethers.ZeroAddress && tap.ratePerSec > 0n) {
               tapInfo = {
                 ops: tap.ops,
                 tribTkn: tap.tribTkn,
                 ratePerSec: tap.ratePerSec,
-                lastClaim: tap.lastClaim
+                lastClaim: Number(tap.lastClaim)
               };
-              claimableTap = await daicoContract.claimableTap(daoAddress);
-            }
-          } catch (err) {
-            console.error('Error fetching DAICO tap info:', err);
-          }
-
-          // Process DAICO sales - a sale is active if tribAmt > 0 and forAmt > 0 and not expired
-          const activeDaicoSales = [];
-          const now = Math.floor(Date.now() / 1000);
-          for (const result of daicoSalesResults) {
-            const { token, sale } = result;
-            // Check deadline: 0 = no deadline, otherwise must be in the future
-            const isExpired = sale.deadline > 0 && Number(sale.deadline) < now;
-            if (sale.tribAmt > 0n && sale.forAmt > 0n && sale.forTkn !== ethers.ZeroAddress && !isExpired) {
-              // Determine if forTkn is shares or loot by comparing addresses
-              const sharesAddress = currentDAO.dao.meta.sharesToken?.toLowerCase();
-              const lootAddress = currentDAO.dao.meta.lootToken?.toLowerCase();
-              const forTknLower = sale.forTkn.toLowerCase();
-              const isLoot = forTknLower === lootAddress;
-
-              // Get allowance to determine available supply
-              let available = 0n;
-              try {
-                const forTknContract = new ethers.Contract(sale.forTkn, ERC20_ABI, provider);
-                available = await forTknContract.allowance(daoAddress, DAICO_ADDRESS);
-              } catch (err) {
-                console.error(`Error fetching DAICO allowance:`, err);
-              }
-
-              // Query LP config for this sale
-              let lpConfig = null;
-              try {
-                const lp = await daicoContract.lpConfigs(daoAddress, token.address);
-                if (lp.lpBps > 0) {
-                  lpConfig = {
-                    lpBps: Number(lp.lpBps),
-                    maxSlipBps: Number(lp.maxSlipBps),
-                    feeOrHook: lp.feeOrHook
-                  };
-                }
-              } catch (err) {
-                console.error(`Error fetching DAICO LP config for ${token.symbol}:`, err);
-              }
-
-              activeDaicoSales.push({
-                token: token, // payment token
-                tribAmt: sale.tribAmt,
-                forTkn: sale.forTkn,
-                forAmt: sale.forAmt,
-                deadline: sale.deadline,
-                isLoot: isLoot,
-                available: available,
-                lpConfig: lpConfig,
-                isDaico: true
-              });
+              claimableTap = tap.claimable;
             }
           }
 
@@ -14002,15 +14205,16 @@
                 </div>
                 ${(() => {
                   // Deadline display with countdown
-                  if (!sale.deadline || sale.deadline === 0) {
+                  const deadlineNum = Number(sale.deadline);
+                  if (!deadlineNum || deadlineNum === 0) {
                     return '<div style="font-size: 0.7rem; color: rgba(100, 200, 150, 0.7); margin-bottom: 0.5rem;">⏳ No deadline</div>';
                   }
                   const now = Math.floor(Date.now() / 1000);
-                  const secsLeft = sale.deadline - now;
+                  const secsLeft = deadlineNum - now;
                   if (secsLeft <= 0) {
                     return '<div style="font-size: 0.7rem; color: rgba(255, 100, 100, 0.8); margin-bottom: 0.5rem;">⏰ Ended</div>';
                   }
-                  const deadlineDate = new Date(sale.deadline * 1000);
+                  const deadlineDate = new Date(deadlineNum * 1000);
                   const dateStr = deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                   const timeStr = deadlineDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                   const days = Math.floor(secsLeft / 86400);
@@ -16587,10 +16791,29 @@
           const tribAmtFormatted = parseFloat(ethers.formatUnits(tribAmtBn, tokenDecimals)).toFixed(6);
           const forAmtFormatted = parseFloat(ethers.formatEther(forAmtBn)).toFixed(4);
 
+          // Build DAICO sale page link
+          const chainId = getNetwork().chainId;
+          const daicoSaleUrl = `https://daicowtf.eth.limo/#/sale/${chainId}/${currentDAO.dao.dao}`;
+
           content.innerHTML = `
             <div style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(100, 200, 150, 0.1); border-left: 3px solid #64c896; font-size: 0.85rem; color: rgba(230, 217, 255, 0.9);">
-              <strong style="color: #64c896;">DAICO Sale</strong><br>
-              Ratio: ${tribAmtFormatted} ${tokenSymbol} = ${forAmtFormatted} ${targetSymbol}
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <strong style="color: #64c896;">DAICO Sale</strong><br>
+                  Ratio: ${tribAmtFormatted} ${tokenSymbol} = ${forAmtFormatted} ${targetSymbol}
+                </div>
+                <a href="${daicoSaleUrl}" target="_blank" rel="noopener noreferrer"
+                   style="display: flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.6rem; background: rgba(100, 200, 150, 0.15); border: 1px solid rgba(100, 200, 150, 0.3); border-radius: 4px; color: #64c896; text-decoration: none; font-size: 0.7rem; font-family: 'Cinzel', serif; letter-spacing: 0.05em; transition: all 0.2s ease;"
+                   onmouseover="this.style.background='rgba(100, 200, 150, 0.25)'; this.style.borderColor='#64c896';"
+                   onmouseout="this.style.background='rgba(100, 200, 150, 0.15)'; this.style.borderColor='rgba(100, 200, 150, 0.3)';">
+                  View on DAICO
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                </a>
+              </div>
             </div>
             <div style="margin-bottom: 1rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
@@ -19592,6 +19815,7 @@
       // Back to gallery
       function backToGallery() {
         currentDAO = null;
+        currentDAICO = null;
         DOMCache.daoDashboard.classList.remove('show');
         DOMCache.daoGallery.classList.add('show');
         DOMCache.allDaosGallery.classList.add('show');

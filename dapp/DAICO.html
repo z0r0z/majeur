@@ -5904,11 +5904,14 @@
         function getTokenIcon(address) {
             const addr = address?.toLowerCase();
             if (!addr || addr === ethers.ZeroAddress.toLowerCase()) return TOKEN_ICONS.eth;
-            if (addr === '0x6b175474e89094c44da98b954eedeac495271d0f') return TOKEN_ICONS.dai;
-            if (addr === '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48') return TOKEN_ICONS.usdc;
-            if (addr === '0xdac17f958d2ee523a2206206994597c13d831ec7') return TOKEN_ICONS.usdt;
-            if (addr === '0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0') return TOKEN_ICONS.wsteth;
-            if (addr === '0xae78736cd615f374d3085123a210448e74fc6393') return TOKEN_ICONS.reth;
+
+            // Look up symbol from current network's token metadata
+            const tokenMeta = COMMON_TRIB_TOKENS[address];
+            if (tokenMeta?.symbol) {
+                const iconKey = tokenMeta.symbol.toLowerCase();
+                if (TOKEN_ICONS[iconKey]) return TOKEN_ICONS[iconKey];
+            }
+
             return TOKEN_ICONS.default;
         }
 
@@ -8325,6 +8328,33 @@
             return baseOptions;
         }
 
+        // Initialize and return an RPC provider for read-only calls (quotes, deep links)
+        // Tries connected wallet provider first, then falls back to public RPCs
+        async function initScanner() {
+            const network = getNetwork();
+
+            // Try connected wallet provider first (if not WalletConnect)
+            if (provider && !walletConnectProvider) {
+                return provider;
+            }
+
+            // Try each public RPC until one works
+            for (const rpc of network.rpcs) {
+                try {
+                    const rpcProvider = new ethers.JsonRpcProvider(rpc);
+                    // Quick test to ensure RPC is responsive
+                    await rpcProvider.getBlockNumber();
+                    return rpcProvider;
+                } catch (e) {
+                    console.warn(`RPC ${rpc} failed:`, e.message);
+                    // Continue to next RPC
+                }
+            }
+
+            console.error('All RPC endpoints failed - check network connection');
+            return null;
+        }
+
         // Execute a scan function with RPC fallback
         // Tries connected provider first, then each public RPC until one succeeds
         async function withRpcFallback(scanFn) {
@@ -9024,7 +9054,7 @@
             if (!signer) {
                 buyBtn.textContent = 'Connect Wallet';
                 buyBtn.disabled = false;
-                buyBtn.onclick = () => { closePurchaseModal(); openWalletModal(); };
+                buyBtn.onclick = () => { closePurchaseModal(); showWalletModal(); };
                 approveBtn.style.display = 'none';
                 return;
             }
