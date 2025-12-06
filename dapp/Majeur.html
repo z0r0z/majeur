@@ -10,6 +10,8 @@
     />
     <meta name="theme-color" content="#0a0015" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js" integrity="sha512-UXYETj+vXKSURF1UlgVRLzWRS9ZiQTv3lcL4rbeLyqTXCPNZC6PTLF/Ik3uxm2Zo+E109cUpJPZfLxJsCgKSng==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- WalletConnect v2 for mobile QR code scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.10.0/dist/index.umd.js" integrity="sha384-ACTo60vL1/AfeYkCCXRvB1G0ugjHF0/SHU9YN7e4/KH/mitAIYpLcw5PKXW/+ekM" crossorigin="anonymous"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Cinzel:wght@400;500;600&display=swap");
 
@@ -310,6 +312,11 @@
         font-size: 0.5rem;
         opacity: 0.7;
         transition: transform 0.2s ease;
+      }
+
+      /* Full names shown on desktop, short names on mobile */
+      .network-badge .network-name-short {
+        display: none;
       }
 
       .network-selector.open .dropdown-arrow {
@@ -1522,14 +1529,48 @@
           bottom: 20px;
         }
 
+        .wallet-network-container {
+          flex-direction: column-reverse;
+          align-items: flex-end;
+          gap: 6px;
+          top: 12px;
+          right: 12px;
+        }
+
         .wallet-button {
-          font-size: 0.65rem;
-          padding: 8px 14px;
+          font-size: 0.6rem;
+          padding: 6px 10px;
+        }
+
+        .network-badge {
+          font-size: 0.55rem;
+          padding: 5px 8px;
+          gap: 4px;
+        }
+
+        .network-badge .network-dot {
+          width: 5px;
+          height: 5px;
+        }
+
+        .network-badge .dropdown-arrow {
+          font-size: 0.4rem;
+        }
+
+        /* Show short network names on mobile */
+        .network-badge .network-name-full {
+          display: none;
+        }
+
+        .network-badge .network-name-short {
+          display: inline;
         }
 
         .summon-link {
-          font-size: 0.8rem;
-          padding: 8px 14px;
+          font-size: 0.75rem;
+          padding: 6px 10px;
+          top: 12px;
+          left: 12px;
         }
 
         .litepaper-link {
@@ -5184,7 +5225,8 @@
       <div class="network-selector" id="networkSelector">
         <button class="network-badge" id="networkBadge" onclick="toggleNetworkDropdown()">
           <span class="network-dot"></span>
-          <span id="networkName">Ethereum</span>
+          <span class="network-name-full" id="networkName">Ethereum</span>
+          <span class="network-name-short" id="networkNameShort">ETH</span>
           <span class="dropdown-arrow">▼</span>
         </button>
         <div class="network-dropdown" id="networkDropdown">
@@ -9209,10 +9251,12 @@
           name: 'Ethereum',
           shortName: 'ETH',
           rpcs: [
-            'https://eth.llamarpc.com',
-            'https://rpc.ankr.com/eth',
+            'https://1rpc.io/eth',
+            'https://eth.drpc.org',
             'https://ethereum.publicnode.com',
-            'https://1rpc.io/eth'
+            'https://rpc.payload.de',
+            'https://eth.merkle.io',
+            'https://eth.llamarpc.com'
           ],
           explorer: 'https://etherscan.io',
           treasuryTokens: [
@@ -9239,9 +9283,11 @@
           shortName: 'BASE',
           rpcs: [
             'https://mainnet.base.org',
-            'https://base.llamarpc.com',
             'https://base.publicnode.com',
-            'https://1rpc.io/base'
+            'https://1rpc.io/base',
+            'https://base.drpc.org',
+            'https://base.meowrpc.com',
+            'https://base.llamarpc.com'
           ],
           explorer: 'https://basescan.org',
           treasuryTokens: [
@@ -9267,9 +9313,10 @@
           name: 'Sepolia',
           shortName: 'SEP',
           rpcs: [
-            'https://rpc.sepolia.org',
             'https://ethereum-sepolia.publicnode.com',
+            'https://1rpc.io/sepolia',
             'https://sepolia.drpc.org',
+            'https://rpc.sepolia.org',
             'https://rpc2.sepolia.org'
           ],
           explorer: 'https://sepolia.etherscan.io',
@@ -9306,12 +9353,12 @@
       // ==================== NETWORK UI FUNCTIONS ====================
       function toggleNetworkDropdown() {
         const selector = document.getElementById('networkSelector');
-        selector.classList.toggle('open');
+        if (selector) selector.classList.toggle('open');
       }
 
       function closeNetworkDropdown() {
         const selector = document.getElementById('networkSelector');
-        selector.classList.remove('open');
+        if (selector) selector.classList.remove('open');
       }
 
       // Close dropdown when clicking outside
@@ -9325,10 +9372,12 @@
       function updateNetworkUI() {
         const networkBadge = document.getElementById('networkBadge');
         const networkName = document.getElementById('networkName');
+        const networkNameShort = document.getElementById('networkNameShort');
         const options = document.querySelectorAll('.network-option');
 
         const network = getNetwork();
-        networkName.textContent = network.shortName;
+        if (networkName) networkName.textContent = network.name;
+        if (networkNameShort) networkNameShort.textContent = network.shortName;
 
         // Update active state on options
         options.forEach(opt => {
@@ -9336,15 +9385,17 @@
         });
 
         // Remove unsupported class if on supported network
-        networkBadge.classList.remove('unsupported');
+        if (networkBadge) networkBadge.classList.remove('unsupported');
       }
 
       function showUnsupportedNetwork() {
         const networkBadge = document.getElementById('networkBadge');
         const networkName = document.getElementById('networkName');
+        const networkNameShort = document.getElementById('networkNameShort');
 
-        networkName.textContent = 'UNSUPPORTED';
-        networkBadge.classList.add('unsupported');
+        if (networkName) networkName.textContent = 'UNSUPPORTED';
+        if (networkNameShort) networkNameShort.textContent = '???';
+        if (networkBadge) networkBadge.classList.add('unsupported');
       }
 
       async function switchNetwork(networkKey) {
@@ -10681,35 +10732,40 @@
       };
 
       // Read-only provider for access without wallet
-      let readOnlyProvider = null;
-      let readOnlyNetworkKey = null;
+      // Execute a function with RPC fallback
+      // Tries connected provider first (unless WalletConnect), then each public RPC until one succeeds
+      async function withRpcFallback(fn) {
+        const network = getNetwork();
 
-      // Helper to get active provider (wallet provider or read-only fallback)
-      function getActiveProvider() {
-        return provider || readOnlyProvider;
-      }
-
-      // Get or create read-only provider for current network
-      async function getReadOnlyProvider() {
-        // Reset if network changed
-        if (readOnlyNetworkKey !== currentNetwork) {
-          readOnlyProvider = null;
-          readOnlyNetworkKey = currentNetwork;
-        }
-        if (!readOnlyProvider) {
-          const network = getNetwork();
-          for (const rpc of network.rpcs) {
-            try {
-              const testProvider = new ethers.JsonRpcProvider(rpc);
-              await testProvider.getBlockNumber();
-              readOnlyProvider = testProvider;
-              break;
-            } catch (e) {
-              // Try next RPC
-            }
+        // Try connected wallet provider first (if not WalletConnect - its RPCs are unreliable)
+        if (provider && !walletConnectProvider) {
+          try {
+            return await fn(provider);
+          } catch (e) {
+            console.warn('Connected provider failed, trying public RPCs:', e.message);
           }
         }
-        return readOnlyProvider;
+
+        // Try each public RPC until one works
+        for (const rpc of network.rpcs) {
+          try {
+            const rpcProvider = new ethers.JsonRpcProvider(rpc);
+            return await fn(rpcProvider);
+          } catch (e) {
+            console.warn(`RPC ${rpc} failed:`, e.message);
+            // Continue to next RPC
+          }
+        }
+
+        throw new Error('All RPC endpoints failed - check network connection');
+      }
+
+      // Get transaction overrides for WalletConnect (skips unreliable local gas estimation)
+      function getWalletConnectTxOverrides(baseOptions = {}) {
+        if (walletConnectProvider) {
+          return { ...baseOptions, gasLimit: 1_000_000n };
+        }
+        return baseOptions;
       }
 
       let provider = null;
@@ -10718,6 +10774,7 @@
       let connectedWallet = null;
       let connectedAddress = null;
       let connectedWalletProvider = null; // Raw wallet provider for network switching
+      let walletConnectProvider = null; // WalletConnect provider instance
       let userDAOs = [];
       let allDAOs = [];
       let currentDAO = null;
@@ -10726,6 +10783,7 @@
 
       // Connection state management
       let isConnecting = false;
+      let connectionJustCompleted = false; // Guard against spurious events right after connection
       let connectionTimeout = null;
       let eip6963Providers = new Map();
 
@@ -10788,7 +10846,9 @@
         if (message.includes('user rejected') ||
             message.includes('user denied') ||
             message.includes('transaction cancelled') ||
-            message.includes('cancelled by user')) {
+            message.includes('cancelled by user') ||
+            message.includes('user closed') ||
+            message.includes('qr code modal closed')) {
           return true;
         }
 
@@ -10875,6 +10935,10 @@
           icon: '👻',
           detect: () => window.phantom?.ethereum,
           getProvider: () => window.phantom?.ethereum
+        },
+        walletconnect: {
+          name: 'WalletConnect',
+          icon: '📱'
         }
       };
 
@@ -10894,8 +10958,9 @@
         const detected = [];
         const seenNames = new Set();
 
-        // First, detect legacy injected wallets
+        // First, detect legacy injected wallets (skip walletconnect - handled separately below)
         for (const [key, wallet] of Object.entries(WALLET_CONFIG)) {
+          if (key === 'walletconnect') continue;
           if (wallet.detect()) {
             detected.push({ key, ...wallet });
             seenNames.add(wallet.name.toLowerCase());
@@ -10916,6 +10981,17 @@
             });
             seenNames.add(nameLower);
           }
+        }
+
+        // Always add WalletConnect as an option (for mobile QR scanning)
+        const wcModule = (typeof globalThis !== 'undefined' ? globalThis : window)['@walletconnect/ethereum-provider'];
+        if (wcModule?.EthereumProvider) {
+          detected.push({
+            key: 'walletconnect',
+            name: 'WalletConnect',
+            icon: '📱',
+            isWalletConnect: true
+          });
         }
 
         return detected;
@@ -11021,7 +11097,7 @@
                 <div class="wallet-icon">${wallet.icon}</div>
                 <div class="wallet-info">
                   <div class="wallet-name">${wallet.name}</div>
-                  <div class="wallet-status installed">Detected</div>
+                  <div class="wallet-status installed">${wallet.isWalletConnect ? 'QR Code' : 'Detected'}</div>
                 </div>
               </div>
             `).join('');
@@ -11054,49 +11130,127 @@
 
         closeWalletModal();
 
-        // Get wallet config - support both legacy and EIP-6963 wallets
         let wallet;
-        if (walletKey.startsWith('eip6963_')) {
-          const uuid = walletKey.replace('eip6963_', '');
-          const eip6963Wallet = eip6963Providers.get(uuid);
-          if (eip6963Wallet) {
-            wallet = {
-              name: eip6963Wallet.info.name,
-              icon: eip6963Wallet.info.icon ? `<img src="${eip6963Wallet.info.icon}" style="width: 1.2rem; height: 1.2rem;"/>` : '🔌',
-              getProvider: () => eip6963Wallet.provider
-            };
+        let walletProvider;
+
+        // Handle WalletConnect separately
+        if (walletKey === 'walletconnect') {
+          wallet = WALLET_CONFIG.walletconnect;
+
+          // Access via globalThis (standard) or window (fallback)
+          const wcModule = (typeof globalThis !== 'undefined' ? globalThis : window)['@walletconnect/ethereum-provider'];
+          const WCProvider = wcModule?.EthereumProvider;
+
+          if (!WCProvider?.init) {
+            showStatus('WalletConnect provider not available. Please refresh the page.', true);
+            return;
+          }
+
+          // Clean up any existing WalletConnect provider to prevent listener accumulation
+          if (walletConnectProvider) {
+            try {
+              walletConnectProvider.removeAllListeners?.();
+              await walletConnectProvider.disconnect?.();
+            } catch (e) {
+              // Ignore cleanup errors
+            }
+            walletConnectProvider = null;
+          }
+
+          isConnecting = true;
+          showStatus('Opening WalletConnect...', false);
+
+          try {
+            // Initialize WalletConnect v2 provider
+            walletConnectProvider = await WCProvider.init({
+              projectId: '1e8390ef1c1d8a185e035912a1409749',
+              chains: [1], // Required: at least one chain
+              optionalChains: [8453, 11155111], // Base, Sepolia
+              showQrModal: true,
+              rpcMap: {
+                1: 'https://1rpc.io/eth',
+                8453: 'https://mainnet.base.org',
+                11155111: 'https://1rpc.io/sepolia'
+              },
+              metadata: {
+                name: 'MAJ·DAO',
+                description: 'Summon and manage DAOs',
+                url: window.location.origin,
+                icons: ['https://daico.wtf/icon.png']
+              }
+            });
+
+            // Enable will show QR code modal and connect
+            await walletConnectProvider.enable();
+            walletProvider = walletConnectProvider;
+            // Note: disconnect listener is added in setupWalletEventListeners
+          } catch (error) {
+            isConnecting = false;
+            if (!isUserRejection(error)) {
+              showStatus('WalletConnect failed: ' + (error.message || 'Unknown error'), true);
+            } else {
+              showStatus('', false);
+            }
+            return;
           }
         } else {
-          wallet = WALLET_CONFIG[walletKey];
-        }
+          // Get wallet config - support both legacy and EIP-6963 wallets
+          if (walletKey.startsWith('eip6963_')) {
+            const uuid = walletKey.replace('eip6963_', '');
+            const eip6963Wallet = eip6963Providers.get(uuid);
+            if (eip6963Wallet) {
+              wallet = {
+                name: eip6963Wallet.info.name,
+                icon: eip6963Wallet.info.icon ? `<img src="${eip6963Wallet.info.icon}" style="width: 1.2rem; height: 1.2rem;"/>` : '🔌',
+                getProvider: () => eip6963Wallet.provider
+              };
+            }
+          } else {
+            wallet = WALLET_CONFIG[walletKey];
+          }
 
-        if (!wallet) {
-          console.error('Unknown wallet:', walletKey);
-          return;
-        }
+          if (!wallet) {
+            console.error('Unknown wallet:', walletKey);
+            return;
+          }
 
-        const walletProvider = wallet.getProvider();
-        if (!walletProvider) {
-          showStatus(`${wallet.name} not found`, true);
-          return;
-        }
+          walletProvider = wallet.getProvider();
+          if (!walletProvider) {
+            showStatus(`${wallet.name} not found`, true);
+            return;
+          }
 
-        isConnecting = true;
-        showStatus(`Connecting to ${wallet.name}...`, false);
+          isConnecting = true;
+          showStatus(`Connecting to ${wallet.name}...`, false);
+
+          try {
+            // Set connection timeout (30 seconds)
+            const timeoutPromise = new Promise((_, reject) => {
+              connectionTimeout = setTimeout(() => {
+                reject(new Error('Connection timeout - please try again'));
+              }, 30000);
+            });
+
+            // Request accounts with timeout
+            const accountsPromise = walletProvider.request({ method: 'eth_requestAccounts' });
+            await Promise.race([accountsPromise, timeoutPromise]);
+          } catch (error) {
+            isConnecting = false;
+            if (connectionTimeout) {
+              clearTimeout(connectionTimeout);
+              connectionTimeout = null;
+            }
+            if (!isUserRejection(error)) {
+              showStatus('Connection failed: ' + (error.message || 'Unknown error'), true);
+            } else {
+              showStatus('', false);
+            }
+            return;
+          }
+        }
 
         try {
-          // Set connection timeout (30 seconds)
-          const timeoutPromise = new Promise((_, reject) => {
-            connectionTimeout = setTimeout(() => {
-              reject(new Error('Connection timeout - please try again'));
-            }, 30000);
-          });
-
-          // Request accounts with timeout
-          const accountsPromise = walletProvider.request({ method: 'eth_requestAccounts' });
-          await Promise.race([accountsPromise, timeoutPromise]);
-
-          // Clear timeout
+          // Clear timeout (for non-WalletConnect)
           if (connectionTimeout) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
@@ -11129,15 +11283,22 @@
           // Save preference to localStorage
           saveWalletPreference(walletKey);
 
-          document.getElementById('walletBtn').textContent = shortAddress;
-          document.getElementById('walletBtn').classList.add('connected');
-          document.getElementById('summonBtn').disabled = false;
-          document.getElementById('summonBtn').textContent = 'SUMMON DAO';
+          const walletBtn = document.getElementById('walletBtn');
+          const summonBtn = document.getElementById('summonBtn');
+          if (walletBtn) {
+            walletBtn.textContent = shortAddress;
+            walletBtn.classList.add('connected');
+          }
+          if (summonBtn) {
+            summonBtn.disabled = false;
+            summonBtn.textContent = 'SUMMON DAO';
+          }
 
           // Initialize first member with connected wallet
-          if (document.getElementById('foundingMembersList').children.length === 0) {
+          const foundingMembersList = document.getElementById('foundingMembersList');
+          if (foundingMembersList && foundingMembersList.children.length === 0) {
             const memberRow = createMemberRow(address, '1', true);
-            document.getElementById('foundingMembersList').appendChild(memberRow);
+            foundingMembersList.appendChild(memberRow);
             updateLootInputs();
           }
 
@@ -11148,6 +11309,11 @@
           showStatus('Fetching your DAOs...', false);
           await fetchUserDAOs();
           await fetchAllDAOs();
+
+          // Render user DAO gallery (ensures UI is updated after fetching)
+          if (userDAOs.length > 0) {
+            renderDAOGallery();
+          }
 
           // Check for deep link and open DAO if specified
           const deepLink = parseDAODeepLink();
@@ -11182,7 +11348,7 @@
               });
             }
           } else {
-            showStatus(`Connected to ${wallet.name}`, false);
+            showStatus(`Connected to ${wallet?.name || 'wallet'}`, false);
           }
         } catch (error) {
           console.error(error);
@@ -11198,10 +11364,11 @@
             return;
           }
 
-          let errorMessage = `Failed to connect ${wallet.name}`;
+          const walletName = wallet?.name || 'wallet';
+          let errorMessage = `Failed to connect ${walletName}`;
 
           if (error.code === -32002) {
-            errorMessage = `Please check ${wallet.name} - a connection request is pending`;
+            errorMessage = `Please check ${walletName} - a connection request is pending`;
           } else if (error.message?.includes('timeout')) {
             errorMessage = 'Connection timeout - please try again';
           } else if (error.shortMessage) {
@@ -11218,6 +11385,9 @@
           showStatus(errorMessage, true);
         } finally {
           isConnecting = false;
+          // Set grace period flag to ignore spurious events right after connection
+          connectionJustCompleted = true;
+          setTimeout(() => { connectionJustCompleted = false; }, 2000);
         }
       }
 
@@ -11234,13 +11404,16 @@
         if (!walletProvider || !walletProvider.on) return;
 
         const accountsChangedHandler = async (accounts) => {
+          // Ignore spurious events during or right after connection
+          if (isConnecting || connectionJustCompleted) return;
+
           try {
             if (accounts.length === 0) {
               // User disconnected from wallet
               disconnectWallet();
             } else {
               // Account switched - reconnect with the same wallet
-              if (connectedWallet && !isConnecting) {
+              if (connectedWallet) {
                 await connectWithWallet(connectedWallet);
               }
             }
@@ -11251,6 +11424,9 @@
         };
 
         const chainChangedHandler = async (chainId) => {
+          // Ignore spurious events during or right after connection
+          if (isConnecting || connectionJustCompleted) return;
+
           try {
             const network = await provider?.getNetwork();
             if (!network) return;
@@ -11271,12 +11447,16 @@
             }
           } catch (error) {
             console.error('Error handling chain change:', error);
-            // Fallback to page reload if handling fails
-            window.location.reload();
+            // Only reload if we're not connecting and have a valid connection
+            if (!isConnecting && connectedAddress) {
+              window.location.reload();
+            }
           }
         };
 
         const disconnectHandler = () => {
+          // Ignore spurious disconnect events during/after connection or if already disconnected
+          if (isConnecting || connectionJustCompleted || !connectedAddress) return;
           disconnectWallet();
         };
 
@@ -11308,6 +11488,19 @@
       }
 
       function disconnectWallet() {
+        // Clean up event listeners FIRST to prevent spurious events during disconnect
+        cleanupWalletEventListeners();
+
+        // Disconnect WalletConnect session if active
+        if (walletConnectProvider) {
+          try {
+            walletConnectProvider.disconnect();
+          } catch (e) {
+            console.warn('WalletConnect disconnect error:', e);
+          }
+          walletConnectProvider = null;
+        }
+
         // Clear wallet connection state
         provider = null;
         signer = null;
@@ -11325,24 +11518,25 @@
           connectionTimeout = null;
         }
 
-        // Clean up event listeners
-        cleanupWalletEventListeners();
-
         // Clear wallet preference
         clearWalletPreference();
 
         // Reset UI
         const walletBtn = document.getElementById('walletBtn');
-        walletBtn.textContent = 'CONNECT WALLET';
-        walletBtn.classList.remove('connected');
+        if (walletBtn) {
+          walletBtn.textContent = 'CONNECT WALLET';
+          walletBtn.classList.remove('connected');
+        }
 
         const summonBtn = document.getElementById('summonBtn');
-        summonBtn.disabled = true;
-        summonBtn.textContent = 'CONNECT WALLET TO SUMMON';
+        if (summonBtn) {
+          summonBtn.disabled = true;
+          summonBtn.textContent = 'CONNECT WALLET TO SUMMON';
+        }
 
         // Clear the first member if it was auto-added
         const foundingMembersList = document.getElementById('foundingMembersList');
-        if (foundingMembersList.children.length > 0) {
+        if (foundingMembersList && foundingMembersList.children.length > 0) {
           const firstMember = foundingMembersList.children[0];
           const addressInput = firstMember.querySelector('.member-address');
           if (addressInput && addressInput.hasAttribute('readonly')) {
@@ -11683,7 +11877,7 @@
           const daoContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
 
           showStatus('Executing ragequit...', false);
-          const tx = await daoContract.ragequit(tokenAddresses, sharesToBurn, lootToBurn);
+          const tx = await daoContract.ragequit(tokenAddresses, sharesToBurn, lootToBurn, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
@@ -11896,7 +12090,7 @@
           const receiptIdHex = currentTransferReceipt.receiptId;
 
           showStatus('Transferring receipt...', false);
-          const tx = await daoContract.transfer(recipientAddress, receiptIdHex, amount);
+          const tx = await daoContract.transfer(recipientAddress, receiptIdHex, amount, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
@@ -12127,10 +12321,10 @@
           if (asset.address === ethers.ZeroAddress) {
             // ETH deposit - simple transfer
             showStatus('Depositing ETH...', false);
-            const tx = await signer.sendTransaction({
+            const tx = await signer.sendTransaction(getWalletConnectTxOverrides({
               to: daoAddress,
               value: amount
-            });
+            }));
 
             showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
             await tx.wait();
@@ -12141,7 +12335,7 @@
             const tokenContract = new ethers.Contract(asset.address, ERC20_ABI, signer);
 
             showStatus(`Depositing ${asset.symbol}...`, false);
-            const tx = await tokenContract.transfer(daoAddress, amount);
+            const tx = await tokenContract.transfer(daoAddress, amount, getWalletConnectTxOverrides());
 
             showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
             await tx.wait();
@@ -12393,7 +12587,7 @@
               0,
               reqAsset.address,
               forAmt,
-              { value: tribAmt }
+              getWalletConnectTxOverrides({ value: tribAmt })
             );
           } else {
             // ERC20 tribute - check allowance and approve if needed
@@ -12403,7 +12597,7 @@
 
             if (allowance < tribAmt) {
               showStatus('Approving token transfer...', false);
-              const approveTx = await tokenContract.approve(TRIBUTE_ADDRESS, tribAmt);
+              const approveTx = await tokenContract.approve(TRIBUTE_ADDRESS, tribAmt, getWalletConnectTxOverrides());
               showStatus(`Approval submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
               await approveTx.wait();
               showStatus('Approval confirmed. Creating tribute...', false);
@@ -12414,7 +12608,8 @@
               tribAsset.address,
               tribAmt,
               reqAsset.address,
-              forAmt
+              forAmt,
+              getWalletConnectTxOverrides()
             );
           }
 
@@ -12643,7 +12838,7 @@
           showStatus('Canceling tribute...', false);
 
           const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, signer);
-          const tx = await tributeContract.cancelTribute(currentDAO.dao.dao, tribute.tribTkn);
+          const tx = await tributeContract.cancelTribute(currentDAO.dao.dao, tribute.tribTkn, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
@@ -12760,23 +12955,28 @@
 
       // Fetch user's DAOs from View Helper
       async function fetchUserDAOs() {
-        if (!provider || !connectedAddress) return;
+        if (!connectedAddress) return [];
+
+        const treasuryTokens = getNetwork().treasuryTokens;
+        const userAddr = connectedAddress; // Capture in case it changes
 
         try {
-          const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-          const treasuryTokens = getNetwork().treasuryTokens;
+          // Use RPC fallback for reliability (especially important for WalletConnect)
+          const result = await withRpcFallback(async (activeProvider) => {
+            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
 
-          // Default params: start at DAO 0, fetch up to 10 DAOs, recent 20 proposals, recent 20 messages
-          const result = await viewHelper.getUserDAOsFullState(
-            connectedAddress,
-            0,  // daoStart
-            10, // daoCount
-            0,  // proposalStart
-            20, // proposalCount (increased for better visibility)
-            0,  // messageStart
-            20, // messageCount (increased for better visibility)
-            treasuryTokens
-          );
+            // Default params: start at DAO 0, fetch up to 10 DAOs, recent 20 proposals, recent 20 messages
+            return await viewHelper.getUserDAOsFullState(
+              userAddr,
+              0,  // daoStart
+              10, // daoCount
+              0,  // proposalStart
+              20, // proposalCount (increased for better visibility)
+              0,  // messageStart
+              20, // messageCount (increased for better visibility)
+              treasuryTokens
+            );
+          });
 
           userDAOs = result;
 
@@ -12863,28 +13063,24 @@
 
       // Fetch all DAOs from View Helper (not filtered by user)
       async function fetchAllDAOs() {
-        let activeProvider = getActiveProvider();
-
-        // If no wallet connected, try to get a read-only provider
-        if (!activeProvider) {
-          activeProvider = await getReadOnlyProvider();
-        }
-        if (!activeProvider) return;
+        const treasuryTokens = getNetwork().treasuryTokens;
 
         try {
-          const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
-          const treasuryTokens = getNetwork().treasuryTokens;
+          // Use RPC fallback for reliability
+          const result = await withRpcFallback(async (activeProvider) => {
+            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
 
-          // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 5 proposals, recent 5 messages
-          const result = await viewHelper.getDAOsFullState(
-            0, // daoStart
-            50, // daoCount (get more DAOs than user filter)
-            0, // proposalStart
-            5, // proposalCount (fewer details for browse view)
-            0, // messageStart
-            5, // messageCount (fewer details for browse view)
-            treasuryTokens
-          );
+            // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 5 proposals, recent 5 messages
+            return await viewHelper.getDAOsFullState(
+              0, // daoStart
+              50, // daoCount (get more DAOs than user filter)
+              0, // proposalStart
+              5, // proposalCount (fewer details for browse view)
+              0, // messageStart
+              5, // messageCount (fewer details for browse view)
+              treasuryTokens
+            );
+          });
 
           allDAOs = result;
           renderAllDAOsGallery();
@@ -16288,7 +16484,7 @@
               showStatus('Approving token spend... Please confirm in wallet', false);
 
               // Request approval for exact amount needed (or can use MaxUint256 for unlimited)
-              const approveTx = await tokenContract.approve(currentDAO.dao.dao, cost);
+              const approveTx = await tokenContract.approve(currentDAO.dao.dao, cost, getWalletConnectTxOverrides());
 
               showStatus(`Approval transaction submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
 
@@ -16302,9 +16498,9 @@
 
           let tx;
           if (payToken === ethers.ZeroAddress) {
-            tx = await molochContract.buyShares(payToken, shareAmount, maxPay, { value: cost });
+            tx = await molochContract.buyShares(payToken, shareAmount, maxPay, getWalletConnectTxOverrides({ value: cost }));
           } else {
-            tx = await molochContract.buyShares(payToken, shareAmount, maxPay);
+            tx = await molochContract.buyShares(payToken, shareAmount, maxPay, getWalletConnectTxOverrides());
           }
 
           const tokenType = isLoot ? 'LOOT' : 'SHARES';
@@ -16509,7 +16705,7 @@
               showStatus('Approving token spend... Please confirm in wallet', false);
 
               // Request approval for the DAICO contract
-              const approveTx = await tokenContract.approve(DAICO_ADDRESS, maxPay);
+              const approveTx = await tokenContract.approve(DAICO_ADDRESS, maxPay, getWalletConnectTxOverrides());
 
               showStatus(`Approval transaction submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View on Explorer</a>`, false);
 
@@ -16525,10 +16721,10 @@
           // Use buyExactOut for exact output amount
           if (tribToken === ethers.ZeroAddress) {
             // ETH payment - send maxPay as value, contract will refund excess
-            tx = await daicoContract.buyExactOut(daoAddress, tribToken, buyAmount, maxPay, { value: maxPay });
+            tx = await daicoContract.buyExactOut(daoAddress, tribToken, buyAmount, maxPay, getWalletConnectTxOverrides({ value: maxPay }));
           } else {
             // ERC20 payment
-            tx = await daicoContract.buyExactOut(daoAddress, tribToken, buyAmount, maxPay);
+            tx = await daicoContract.buyExactOut(daoAddress, tribToken, buyAmount, maxPay, getWalletConnectTxOverrides());
           }
 
           const tokenType = isLoot ? 'LOOT' : 'SHARES';
@@ -16580,7 +16776,7 @@
 
           const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
 
-          const tx = await daicoContract.claimTap(daoAddress);
+          const tx = await daicoContract.claimTap(daoAddress, getWalletConnectTxOverrides());
 
           showStatus(`Tap claim submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #ffb464; text-decoration: underline;">View on Explorer</a>`, false);
 
@@ -18945,7 +19141,7 @@
 
           // Call spendAllowance(address token, uint256 amount)
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
-          const tx = await molochContract.spendAllowance(tokenAddress, amount);
+          const tx = await molochContract.spendAllowance(tokenAddress, amount, getWalletConnectTxOverrides());
 
           showStatus('Transaction submitted, waiting for confirmation...', false);
           await tx.wait();
@@ -20037,7 +20233,8 @@
             currentDAO.dao.dao, // to = self
             0, // value = 0
             bumpConfigCalldata, // data = bumpConfig()
-            emergencyNonce // nonce
+            emergencyNonce, // nonce
+            getWalletConnectTxOverrides()
           );
 
           showStatus('Transaction submitted. Waiting for confirmation...', false);
@@ -20577,7 +20774,7 @@
 
             // Call delegate function
             showStatus('Submitting delegation transaction...', false);
-            const tx = await sharesContract.delegate(address);
+            const tx = await sharesContract.delegate(address, getWalletConnectTxOverrides());
             showStatus('Transaction submitted! Waiting for confirmation...', false);
             await tx.wait();
             showStatus('Delegation updated successfully!', false);
@@ -20676,7 +20873,7 @@
 
             // Call setSplitDelegation
             showStatus('Submitting split delegation transaction...', false);
-            const tx = await sharesContract.setSplitDelegation(finalAddresses, bps);
+            const tx = await sharesContract.setSplitDelegation(finalAddresses, bps, getWalletConnectTxOverrides());
             showStatus('Transaction submitted! Waiting for confirmation...', false);
             await tx.wait();
             showStatus('Split delegation updated successfully!', false);
@@ -20717,7 +20914,7 @@
           const sharesContract = new ethers.Contract(sharesAddress, SHARES_DELEGATION_ABI, signer);
 
           showStatus('Clearing delegation...', false);
-          const tx = await sharesContract.clearSplitDelegation();
+          const tx = await sharesContract.clearSplitDelegation(getWalletConnectTxOverrides());
           showStatus('Transaction submitted! Waiting for confirmation...', false);
           await tx.wait();
           showStatus('Delegation cleared! Now self-delegating.', false);
@@ -21470,7 +21667,7 @@
           chatInput.value = 'Sending...';
           chatInput.disabled = true;
 
-          const tx = await molochContract.chat(message);
+          const tx = await molochContract.chat(message, getWalletConnectTxOverrides());
           await tx.wait();
 
           chatInput.value = '';
@@ -21850,7 +22047,7 @@
           const voteType = support === 1 ? 'For' : support === 0 ? 'Against' : 'Abstain';
           showStatus(`Casting vote ${voteType}...`, false);
 
-          const tx = await molochContract.castVote(proposalIdBigInt, support);
+          const tx = await molochContract.castVote(proposalIdBigInt, support, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
@@ -21921,7 +22118,7 @@
           const proposalIdBigInt = BigInt(proposalId);
 
           showStatus('Cancelling vote...', false);
-          const tx = await molochContract.cancelVote(proposalIdBigInt);
+          const tx = await molochContract.cancelVote(proposalIdBigInt, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           await tx.wait();
@@ -21987,7 +22184,7 @@
           const amount = BigInt(amountStr);
 
           showStatus('Claiming futarchy rewards...', false);
-          const tx = await molochContract.cashOutFutarchy(proposalIdBigInt, amount);
+          const tx = await molochContract.cashOutFutarchy(proposalIdBigInt, amount, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
           const receipt = await tx.wait();
@@ -22619,7 +22816,7 @@
 
           // Execute multicall (chat + openProposal in one transaction)
           showStatus('Creating proposal...', false);
-          const tx = await molochContract.multicall([chatCalldata, openProposalCalldata]);
+          const tx = await molochContract.multicall([chatCalldata, openProposalCalldata], getWalletConnectTxOverrides());
 
           showStatus('Transaction submitted. Waiting for confirmation...', false);
           await tx.wait();
@@ -22695,7 +22892,7 @@
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, signer);
 
           showStatus('Queueing proposal...', false);
-          const tx = await molochContract.queue(proposalIdBigInt);
+          const tx = await molochContract.queue(proposalIdBigInt, getWalletConnectTxOverrides());
 
           showStatus('Transaction submitted. Waiting for confirmation...', false);
           await tx.wait();
@@ -22791,7 +22988,8 @@
             proposalData.to,
             valueBigInt,  // Use BigInt, not string
             proposalData.data,
-            proposalData.nonce
+            proposalData.nonce,
+            getWalletConnectTxOverrides()
           );
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
@@ -24626,6 +24824,12 @@
           // Call summon
           showStatus('Please confirm the transaction in your wallet...');
 
+          // For WalletConnect, skip local gas estimation (use generous limit, wallet will refine)
+          const txOptions = { value: initialEthDeposit };
+          if (walletConnectProvider) {
+            txOptions.gasLimit = 2_000_000n;
+          }
+
           const tx = await summoner.summon(
             daoName,
             daoSymbol,
@@ -24636,8 +24840,8 @@
             salt,
             initHolders,
             initShares,
-            initCalls, 
-            { value: initialEthDeposit }
+            initCalls,
+            txOptions
           );
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`);
@@ -24767,10 +24971,12 @@
 
             showStatus('Loading DAO...', false);
 
-            // Fetch all DAOs using read-only provider
-            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, readOnlyProvider);
+            // Fetch all DAOs using RPC fallback for reliability
             const treasuryTokens = getNetwork().treasuryTokens;
-            const result = await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5, treasuryTokens);
+            const result = await withRpcFallback(async (rpcProvider) => {
+              const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, rpcProvider);
+              return await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5, treasuryTokens);
+            });
             allDAOs = result;
 
             // Try to open the deep-linked DAO
@@ -24792,12 +24998,16 @@
 
         // Auto-reconnect logic with improved wallet preference handling
         let autoReconnected = false;
-        if (window.ethereum) {
+        const preferredWallet = getWalletPreference();
+
+        // WalletConnect sessions don't persist across page reloads - clear stale preference
+        if (preferredWallet === 'walletconnect') {
+          clearWalletPreference();
+        } else if (window.ethereum) {
           try {
             const accounts = await window.ethereum.request({ method: 'eth_accounts' });
             if (accounts.length > 0) {
               // Try to reconnect with the user's preferred wallet
-              const preferredWallet = getWalletPreference();
               const wallets = detectWallets();
 
               if (preferredWallet && wallets.some(w => w.key === preferredWallet)) {
@@ -24805,9 +25015,12 @@
                 await connectWithWallet(preferredWallet);
                 autoReconnected = true;
               } else if (wallets.length > 0) {
-                // Fallback: connect with first detected wallet
-                await connectWithWallet(wallets[0].key);
-                autoReconnected = true;
+                // Fallback: connect with first detected wallet (skip walletconnect)
+                const nonWCWallet = wallets.find(w => w.key !== 'walletconnect');
+                if (nonWCWallet) {
+                  await connectWithWallet(nonWCWallet.key);
+                  autoReconnected = true;
+                }
               }
             }
           } catch (error) {

@@ -10,6 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat&family=Oswald:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js" integrity="sha512-UXYETj+vXKSURF1UlgVRLzWRS9ZiQTv3lcL4rbeLyqTXCPNZC6PTLF/Ik3uxm2Zo+E109cUpJPZfLxJsCgKSng==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- WalletConnect v2 for mobile QR code scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.10.0/dist/index.umd.js" integrity="sha384-ACTo60vL1/AfeYkCCXRvB1G0ugjHF0/SHU9YN7e4/KH/mitAIYpLcw5PKXW/+ekM" crossorigin="anonymous"></script>
     <style>
         :root {
             --pink: #FFB6D9;
@@ -5678,10 +5680,12 @@
                 name: 'Ethereum',
                 shortName: 'ETH',
                 rpcs: [
-                    'https://eth.llamarpc.com',
-                    'https://rpc.ankr.com/eth',
+                    'https://1rpc.io/eth',
+                    'https://eth.drpc.org',
                     'https://ethereum.publicnode.com',
-                    'https://1rpc.io/eth'
+                    'https://rpc.payload.de',
+                    'https://eth.merkle.io',
+                    'https://eth.llamarpc.com'
                 ],
                 explorer: 'https://etherscan.io',
                 swissKnifeChainId: 1,
@@ -5709,9 +5713,11 @@
                 shortName: 'BASE',
                 rpcs: [
                     'https://mainnet.base.org',
-                    'https://base.llamarpc.com',
                     'https://base.publicnode.com',
-                    'https://1rpc.io/base'
+                    'https://1rpc.io/base',
+                    'https://base.drpc.org',
+                    'https://base.meowrpc.com',
+                    'https://base.llamarpc.com'
                 ],
                 explorer: 'https://basescan.org',
                 swissKnifeChainId: 8453,
@@ -5738,10 +5744,11 @@
                 name: 'Sepolia',
                 shortName: 'SEP',
                 rpcs: [
-                    'https://rpc.sepolia.org',
-                    'https://rpc2.sepolia.org',
                     'https://ethereum-sepolia.publicnode.com',
-                    'https://sepolia.drpc.org'
+                    'https://1rpc.io/sepolia',
+                    'https://sepolia.drpc.org',
+                    'https://rpc.sepolia.org',
+                    'https://rpc2.sepolia.org'
                 ],
                 explorer: 'https://sepolia.etherscan.io',
                 swissKnifeChainId: 11155111,
@@ -5828,17 +5835,17 @@
             updateNetworkUI();
 
             // If wallet is connected, prompt to switch wallet network too
-            if (window.ethereum && connectedAddress) {
+            if (connectedWalletProvider && connectedAddress) {
                 try {
-                    await window.ethereum.request({
+                    await connectedWalletProvider.request({
                         method: 'wallet_switchEthereumChain',
                         params: [{ chainId: targetNetwork.chainIdHex }]
                     });
                 } catch (switchError) {
-                    // Chain not added - try to add it
-                    if (switchError.code === 4902) {
+                    // Chain not added - try to add it (not supported by WalletConnect, but works for injected)
+                    if (switchError.code === 4902 && connectedWalletProvider.request) {
                         try {
-                            await window.ethereum.request({
+                            await connectedWalletProvider.request({
                                 method: 'wallet_addEthereumChain',
                                 params: [{
                                     chainId: targetNetwork.chainIdHex,
@@ -5960,7 +5967,7 @@
             }
             // Check error message for rejection patterns
             const msg = (error.message || '').toLowerCase();
-            if (msg.includes('user rejected') || msg.includes('user denied') || msg.includes('rejected the request')) {
+            if (msg.includes('user rejected') || msg.includes('user denied') || msg.includes('rejected the request') || msg.includes('user closed') || msg.includes('qr code modal closed')) {
                 return true;
             }
             return false;
@@ -6154,6 +6161,8 @@
         let connectedWalletProvider = null; // Raw wallet provider for network switching
         let connectedWallet = null;
         let isConnecting = false;
+        let connectionJustCompleted = false; // Guard against spurious events right after connection
+        let walletConnectProvider = null; // WalletConnect provider instance
         const eip6963Providers = new Map();
 
         // Wallet detection config
@@ -6211,6 +6220,10 @@
                 icon: '💎',
                 detect: () => window.ethereum?.isZerion,
                 getProvider: () => window.ethereum
+            },
+            walletconnect: {
+                name: 'WalletConnect',
+                icon: '📱'
             }
         };
 
@@ -6228,8 +6241,9 @@
             const detected = [];
             const seenNames = new Set();
 
-            // Detect legacy injected wallets
+            // Detect legacy injected wallets (skip walletconnect - handled separately below)
             for (const [key, config] of Object.entries(WALLET_CONFIG)) {
+                if (key === 'walletconnect') continue;
                 if (config.detect()) {
                     detected.push({ key, ...config });
                     seenNames.add(config.name.toLowerCase());
@@ -6255,6 +6269,17 @@
             // Fallback to generic injected provider
             if (detected.length === 0 && window.ethereum) {
                 detected.push({ key: 'injected', name: 'Browser Wallet', icon: '🔗', getProvider: () => window.ethereum });
+            }
+
+            // Always add WalletConnect as an option (for mobile QR scanning)
+            const wcModule = (typeof globalThis !== 'undefined' ? globalThis : window)['@walletconnect/ethereum-provider'];
+            if (wcModule?.EthereumProvider) {
+                detected.push({
+                    key: 'walletconnect',
+                    name: 'WalletConnect',
+                    icon: '📱',
+                    isWalletConnect: true
+                });
             }
 
             return detected;
@@ -6304,6 +6329,7 @@
                     </div>
                 `;
             } else if (wallets.length === 0) {
+                // This only happens if WalletConnect failed to load AND no browser wallets
                 container.innerHTML = `
                     <p style="color: rgba(255,255,255,0.6); text-align: center; font-style: normal; margin-bottom: 1rem;">No wallet detected</p>
                     <div class="wallet-option" onclick="window.open('https://metamask.io/download/', '_blank')">
@@ -6346,13 +6372,59 @@
             try {
                 closeWalletModal();
 
-                // Get provider - support both legacy and EIP-6963
                 let walletProvider;
-                if (walletKey.startsWith('eip6963_')) {
+
+                // Handle WalletConnect separately
+                if (walletKey === 'walletconnect') {
+                    // Access via globalThis (standard) or window (fallback)
+                    const wcModule = (typeof globalThis !== 'undefined' ? globalThis : window)['@walletconnect/ethereum-provider'];
+                    const WCProvider = wcModule?.EthereumProvider;
+
+                    if (!WCProvider?.init) {
+                        throw new Error('WalletConnect provider not available. Please refresh the page.');
+                    }
+
+                    // Clean up any existing WalletConnect provider to prevent listener accumulation
+                    if (walletConnectProvider) {
+                        try {
+                            walletConnectProvider.removeAllListeners?.();
+                            await walletConnectProvider.disconnect?.();
+                        } catch (e) {
+                            // Ignore cleanup errors
+                        }
+                        walletConnectProvider = null;
+                    }
+
+                    // Initialize WalletConnect v2 provider
+                    walletConnectProvider = await WCProvider.init({
+                        projectId: '1e8390ef1c1d8a185e035912a1409749',
+                        chains: [1], // Required: at least one chain
+                        optionalChains: [8453, 11155111], // Base, Sepolia
+                        showQrModal: true,
+                        rpcMap: {
+                            1: 'https://1rpc.io/eth',
+                            8453: 'https://mainnet.base.org',
+                            11155111: 'https://1rpc.io/sepolia'
+                        },
+                        metadata: {
+                            name: 'DAICO.wtf',
+                            description: 'Launch and manage DAICOs',
+                            url: window.location.origin,
+                            icons: ['https://daico.wtf/icon.png']
+                        }
+                    });
+
+                    // Enable will show QR code modal and connect
+                    await walletConnectProvider.enable();
+                    walletProvider = walletConnectProvider;
+
+                } else if (walletKey.startsWith('eip6963_')) {
+                    // EIP-6963 wallets
                     const uuid = walletKey.replace('eip6963_', '');
                     const eip6963Wallet = eip6963Providers.get(uuid);
                     walletProvider = eip6963Wallet?.provider;
                 } else {
+                    // Legacy injected wallets
                     const config = WALLET_CONFIG[walletKey] || { getProvider: () => window.ethereum };
                     walletProvider = config.getProvider();
                 }
@@ -6361,7 +6433,10 @@
                     throw new Error('Wallet provider not found');
                 }
 
-                await walletProvider.request({ method: 'eth_requestAccounts' });
+                // For non-WalletConnect, request accounts
+                if (walletKey !== 'walletconnect') {
+                    await walletProvider.request({ method: 'eth_requestAccounts' });
+                }
 
                 provider = new ethers.BrowserProvider(walletProvider);
                 signer = await provider.getSigner();
@@ -6389,9 +6464,7 @@
                     localStorage.setItem('daico_network', currentNetwork);
                     // Update network selector UI
                     updateNetworkUI();
-                    // Reset scanner for correct network and rescan if network changed
-                    scannerProvider = null;
-                    scannerNetworkKey = null;
+                    // Rescan if network changed
                     if (networkChanged) {
                         activeDAICOs = [];
                         completedDAICOs = [];
@@ -6411,6 +6484,11 @@
                 walletProvider.on('accountsChanged', handleAccountsChanged);
                 walletProvider.on('chainChanged', handleChainChanged);
 
+                // WalletConnect-specific: listen for disconnect from mobile wallet
+                if (walletKey === 'walletconnect' && walletConnectProvider) {
+                    walletConnectProvider.on('disconnect', handleWalletConnectDisconnect);
+                }
+
             } catch (error) {
                 console.error('Connection failed:', error);
                 if (!isUserRejection(error)) {
@@ -6418,6 +6496,9 @@
                 }
             } finally {
                 isConnecting = false;
+                // Set grace period flag to ignore spurious events right after connection
+                connectionJustCompleted = true;
+                setTimeout(() => { connectionJustCompleted = false; }, 2000);
             }
         }
 
@@ -6427,18 +6508,34 @@
                 connectedWalletProvider.removeListener?.('accountsChanged', handleAccountsChanged);
                 connectedWalletProvider.removeListener?.('chainChanged', handleChainChanged);
             }
+            // Disconnect WalletConnect session if active
+            if (walletConnectProvider) {
+                try {
+                    walletConnectProvider.removeListener?.('disconnect', handleWalletConnectDisconnect);
+                    walletConnectProvider.disconnect();
+                } catch (e) {
+                    console.warn('WalletConnect disconnect error:', e);
+                }
+                walletConnectProvider = null;
+            }
             provider = null;
             signer = null;
             connectedAddress = null;
             connectedWallet = null;
             connectedWalletProvider = null;
             clearWalletPreference();
-            document.getElementById('walletBtn').textContent = 'Connect';
-            document.getElementById('walletBtn').classList.remove('connected');
+            const walletBtn = document.getElementById('walletBtn');
+            if (walletBtn) {
+                walletBtn.textContent = 'Connect';
+                walletBtn.classList.remove('connected');
+            }
             closeWalletModal();
         }
 
         function handleAccountsChanged(accounts) {
+            // Ignore spurious events during or right after connection
+            if (isConnecting || connectionJustCompleted) return;
+
             if (accounts.length === 0) {
                 disconnectWallet();
             } else {
@@ -6447,13 +6544,29 @@
         }
 
         function handleChainChanged() {
+            // Ignore spurious events during or right after connection
+            if (isConnecting || connectionJustCompleted) return;
+
             window.location.reload();
+        }
+
+        function handleWalletConnectDisconnect() {
+            // Ignore spurious disconnect events during/after connection or if already disconnected
+            if (isConnecting || connectionJustCompleted || !connectedAddress) return;
+            disconnectWallet();
         }
 
         // Auto-reconnect on page load
         async function tryAutoReconnect() {
             const savedWallet = getWalletPreference();
             if (!savedWallet) return;
+
+            // WalletConnect session restoration is complex for static sites
+            // Simpler to have user re-scan QR code each session
+            if (savedWallet === 'walletconnect') {
+                clearWalletPreference();
+                return;
+            }
 
             // Wait a bit for EIP-6963 providers to announce
             await new Promise(r => setTimeout(r, 100));
@@ -7252,6 +7365,9 @@
                 // Encode calldata and show verify link
                 let calldata;
                 let tx;
+                // For WalletConnect, skip local gas estimation (use generous limit, wallet will refine)
+                const txOverrides = walletConnectProvider ? { gasLimit: 2_000_000n } : {};
+
                 if (wizardState.enableTap) {
                     // Calculate tap config using user-selected percentage and duration
                     const tapAllowanceNum = wizardState.raiseAmount * wizardState.tapPct / 100;
@@ -7291,7 +7407,8 @@
                         false, // lootLocked
                         daicoConfig,
                         tapConfig,
-                        customCalls
+                        customCalls,
+                        txOverrides
                     );
                 } else {
                     calldata = DAICO_IFACE.encodeFunctionData('summonDAICOCustom', [
@@ -7317,7 +7434,8 @@
                         false, // sharesLocked
                         false, // lootLocked
                         daicoConfig,
-                        customCalls
+                        customCalls,
+                        txOverrides
                     );
                 }
 
@@ -7334,7 +7452,8 @@
                 hideWizardStatus();
 
                 // Refresh DAICO list to show the new sale
-                setTimeout(() => scanForDAICOs(), 3000);
+                daicoScanTriggered = false;
+                setTimeout(() => triggerDAICOScan(), 3000);
 
             } catch (error) {
                 console.error('Launch failed:', error);
@@ -7948,6 +8067,9 @@
                 // Encode calldata and show verify link
                 let calldata;
                 let tx;
+                // For WalletConnect, skip local gas estimation (use generous limit, wallet will refine)
+                const txOverrides = walletConnectProvider ? { gasLimit: 2_000_000n } : {};
+
                 if (summaryState.tapEnabled) {
                     // Calculate tap config
                     const tapAllowanceNum = summaryState.raise * summaryState.tapPct / 100;
@@ -7987,7 +8109,8 @@
                         false,
                         daicoConfig,
                         tapConfig,
-                        customCalls
+                        customCalls,
+                        txOverrides
                     );
                 } else {
                     calldata = DAICO_IFACE.encodeFunctionData('summonDAICOCustom', [
@@ -8013,7 +8136,8 @@
                         false,
                         false,
                         daicoConfig,
-                        customCalls
+                        customCalls,
+                        txOverrides
                     );
                 }
 
@@ -8190,55 +8314,61 @@
         let activeDAICOs = [];
         let completedDAICOs = [];
         let currentSaleTab = 'active';
-        let scannerProvider = null;
-        let scannerNetworkKey = null;
 
-        // Initialize scanner with a provider (can be default or connected)
-        async function initScanner() {
-            // Prefer connected provider if available
-            if (provider) {
-                return provider;
+        // Helper to add gas limit override for WalletConnect transactions
+        // WalletConnect's RPC can fail gas estimation, so we provide a fixed limit
+        // Using 1M as a safe upper bound - mobile wallet will refine the actual gas needed
+        function getWalletConnectTxOverrides(baseOptions = {}) {
+            if (walletConnectProvider) {
+                return { ...baseOptions, gasLimit: 1_000_000n };
             }
-            // Reset scanner if network changed
-            if (scannerNetworkKey !== currentNetwork) {
-                scannerProvider = null;
-                scannerNetworkKey = currentNetwork;
-            }
-            // Try public RPCs with fallback
-            if (!scannerProvider) {
-                for (const rpc of getNetwork().rpcs) {
-                    try {
-                        const testProvider = new ethers.JsonRpcProvider(rpc);
-                        // Quick test to verify RPC works
-                        await testProvider.getBlockNumber();
-                        scannerProvider = testProvider;
-                        break;
-                    } catch (e) {
-                        // Try next RPC
-                    }
+            return baseOptions;
+        }
+
+        // Execute a scan function with RPC fallback
+        // Tries connected provider first, then each public RPC until one succeeds
+        async function withRpcFallback(scanFn) {
+            const network = getNetwork();
+
+            // Try connected wallet provider first (if not WalletConnect)
+            if (provider && !walletConnectProvider) {
+                try {
+                    return await scanFn(provider);
+                } catch (e) {
+                    console.warn('Connected provider scan failed, trying public RPCs:', e.message);
                 }
             }
-            return scannerProvider;
+
+            // Try each public RPC until one works
+            for (const rpc of network.rpcs) {
+                try {
+                    const rpcProvider = new ethers.JsonRpcProvider(rpc);
+                    return await scanFn(rpcProvider);
+                } catch (e) {
+                    console.warn(`RPC ${rpc} failed:`, e.message);
+                    // Continue to next RPC
+                }
+            }
+
+            throw new Error('All RPC endpoints failed - check network connection');
         }
 
         // Scan for active DAICOs using the view helper's efficient batched scanDAICOs function
         // This replaces 3 RPC calls with a single call that batches all queries on-chain
         async function scanActiveDAICOs() {
-            const scanProvider = await initScanner();
-            if (!scanProvider) {
-                throw new Error('No provider available - check network connection');
-            }
-            const viewHelper = new ethers.Contract(MOLOCH_VIEW_HELPER, VIEW_HELPER_ABI, scanProvider);
-
             // Get tribute tokens for current network
             const tribTokens = getNetwork().treasuryTokens;
 
-            // Single efficient call - view helper batches all DAICO queries internally:
-            // - Scans all DAOs for active sales
-            // - Gets sales terms, remaining supply, total supply, treasury balance, allowance
-            // - Gets tap config with claimable/pending amounts
-            // - Returns only DAOs with active sales (filters on-chain)
-            const daicoResults = await viewHelper.scanDAICOs(0, 100, tribTokens);
+            // Use RPC fallback to ensure reliability
+            const daicoResults = await withRpcFallback(async (scanProvider) => {
+                const viewHelper = new ethers.Contract(MOLOCH_VIEW_HELPER, VIEW_HELPER_ABI, scanProvider);
+                // Single efficient call - view helper batches all DAICO queries internally:
+                // - Scans all DAOs for active sales
+                // - Gets sales terms, remaining supply, total supply, treasury balance, allowance
+                // - Gets tap config with claimable/pending amounts
+                // - Returns only DAOs with active sales (filters on-chain)
+                return await viewHelper.scanDAICOs(0, 100, tribTokens);
+            });
 
             // Transform view helper results to our internal format
             const daosWithSales = daicoResults.map(daico => ({
@@ -8947,7 +9077,7 @@
                 approveBtn.textContent = 'Approving...';
 
                 const token = new ethers.Contract(currentPurchase.tribTkn, ERC20_FULL_ABI, signer);
-                const tx = await token.approve(DAICO_ADDRESS, ethers.MaxUint256);
+                const tx = await token.approve(DAICO_ADDRESS, ethers.MaxUint256, getWalletConnectTxOverrides());
 
                 approveBtn.textContent = 'Confirming...';
                 await tx.wait();
@@ -8998,7 +9128,7 @@
                         currentPurchase.tribTkn,
                         payAmt,
                         minOut,
-                        { value: isETH ? payAmt : 0n }
+                        getWalletConnectTxOverrides({ value: isETH ? payAmt : 0n })
                     );
                 } else {
                     // Exact output (buyExactOut)
@@ -9013,7 +9143,7 @@
                         currentPurchase.tribTkn,
                         buyAmt,
                         maxPay,
-                        { value: isETH ? maxPay : 0n }
+                        getWalletConnectTxOverrides({ value: isETH ? maxPay : 0n })
                     );
                 }
 
@@ -9103,7 +9233,7 @@
                 stopTapAccrual();
 
                 const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, signer);
-                const tx = await daicoContract.claimTap(currentPurchase.dao);
+                const tx = await daicoContract.claimTap(currentPurchase.dao, getWalletConnectTxOverrides());
 
                 showPurchaseStatus(`Claim submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View</a>`, 'info');
 
@@ -9599,6 +9729,9 @@
                 let calldata;
                 let tx;
                 const quorumBps = quorumPct * 100;
+                // For WalletConnect, skip local gas estimation (use generous limit, wallet will refine)
+                const txOverrides = walletConnectProvider ? { gasLimit: 2_000_000n } : {};
+
                 if (enableTap && tapRate > 0) {
                     // Use summonDAICOWithTapCustom
                     const SECONDS_PER_MONTH = 2629746n;
@@ -9635,7 +9768,8 @@
                         lootLocked,
                         daicoConfig,
                         tapConfig,
-                        customCalls
+                        customCalls,
+                        txOverrides
                     );
                 } else {
                     // Use summonDAICOCustom
@@ -9662,7 +9796,8 @@
                         sharesLocked,
                         lootLocked,
                         daicoConfig,
-                        customCalls
+                        customCalls,
+                        txOverrides
                     );
                 }
 
@@ -9847,27 +9982,29 @@
         // Attribution box - show after scrolling past hero (throttled)
         const attributionBox = document.getElementById('attributionBox');
         let attributionScrollTimeout;
-        window.addEventListener('scroll', () => {
-            if (attributionScrollTimeout) return;
-            attributionScrollTimeout = setTimeout(() => {
-                attributionScrollTimeout = null;
-                if (window.scrollY > window.innerHeight * 0.5) {
-                    attributionBox.classList.add('visible');
-                } else {
-                    attributionBox.classList.remove('visible');
-                }
-            }, 100);
-        }, { passive: true });
+        if (attributionBox) {
+            window.addEventListener('scroll', () => {
+                if (attributionScrollTimeout) return;
+                attributionScrollTimeout = setTimeout(() => {
+                    attributionScrollTimeout = null;
+                    if (window.scrollY > window.innerHeight * 0.5) {
+                        attributionBox.classList.add('visible');
+                    } else {
+                        attributionBox.classList.remove('visible');
+                    }
+                }, 100);
+            }, { passive: true });
+        }
 
         // Network selector functions
         function toggleNetworkDropdown() {
             const selector = document.getElementById('networkSelector');
-            selector.classList.toggle('open');
+            if (selector) selector.classList.toggle('open');
         }
 
         function closeNetworkDropdown() {
             const selector = document.getElementById('networkSelector');
-            selector.classList.remove('open');
+            if (selector) selector.classList.remove('open');
         }
 
         // Close dropdown when clicking outside
@@ -9894,9 +10031,7 @@
                         currentNetwork = networkKey;
                         localStorage.setItem('daico_network', networkKey);
                         updateNetworkUI();
-                        // Reset scanner for correct network
-                        scannerProvider = null;
-                        scannerNetworkKey = null;
+                        // Rescan on new network
                         activeDAICOs = [];
                         completedDAICOs = [];
                         daicoScanTriggered = false;
@@ -9949,9 +10084,6 @@
                 // No wallet connected - just switch the display network
                 currentNetwork = networkKey;
                 localStorage.setItem('daico_network', networkKey);
-                // Force scanner to reinitialize with new network
-                scannerProvider = null;
-                scannerNetworkKey = null;
                 // Clear cached DAICOs and reset scan trigger
                 activeDAICOs = [];
                 completedDAICOs = [];
@@ -9970,10 +10102,10 @@
             const network = getNetwork();
 
             // Update selector data attribute for styling
-            selector.setAttribute('data-network', currentNetwork);
+            if (selector) selector.setAttribute('data-network', currentNetwork);
 
             // Update network name
-            networkName.textContent = network.name;
+            if (networkName) networkName.textContent = network.name;
 
             // Update active state on options
             document.querySelectorAll('.network-option').forEach(opt => {
