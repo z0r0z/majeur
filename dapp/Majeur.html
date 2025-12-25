@@ -3068,6 +3068,7 @@
       .chatroom-messages {
         max-height: 400px;
         overflow-y: auto;
+        overscroll-behavior: contain;
         margin-bottom: 1.5rem;
         padding-right: 0.5rem;
       }
@@ -3363,6 +3364,7 @@
       #proposalsList {
         max-height: 600px;
         overflow-y: auto;
+        overscroll-behavior: contain;
         padding-right: 0.5rem;
       }
 
@@ -4811,6 +4813,7 @@
       .members-list {
         max-height: 600px;
         overflow-y: auto;
+        overscroll-behavior: contain;
         margin-top: 1.5rem;
       }
 
@@ -25276,6 +25279,22 @@
       window.addEventListener('load', async () => {
         // Initialize DOM cache for performance
         DOMCache.init();
+
+        // Enable wheel scrolling on chatroom/proposals/members without requiring click focus
+        ['chatroomMessages', 'proposalsList', 'membersList'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            // Disable smooth scroll to prevent trembling with manual scrollTop
+            el.style.scrollBehavior = 'auto';
+            el.addEventListener('wheel', (e) => {
+              // Only capture if there's scrollable content
+              if (el.scrollHeight > el.clientHeight) {
+                e.preventDefault();
+                el.scrollTop += e.deltaY * 2.5;
+              }
+            }, { passive: false });
+          }
+        });
 
         // Initialize EIP-6963 support for modern wallet detection
         initEIP6963();
