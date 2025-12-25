@@ -8870,6 +8870,52 @@
           .replace(/'/g, '&#039;');
       }
 
+      // Convert IPFS URLs to gateway URLs (browsers don't support ipfs:// natively)
+      function toGatewayUrl(url) {
+        if (!url || typeof url !== 'string') return url;
+
+        // Check if URL contains any IPFS reference
+        if (!url.includes('ipfs://') && !url.includes('ipfs/') && !url.includes('ipns/')) {
+          return url;
+        }
+
+        // Check for IPNS first (ipfs://ipns/NAME or ipns/NAME)
+        // IPNS names can be long (k51... keys) or domain names
+        const ipnsMatch = url.match(/ipns\/([a-zA-Z0-9._-]+)/);
+        if (ipnsMatch) {
+          return 'https://ipfs.io/ipns/' + ipnsMatch[1];
+        }
+
+        // Extract IPFS CID - look for common CID formats
+        // CIDv0: Qm followed by 44 base58 chars
+        // CIDv1: bafy/bafk followed by base32 chars
+        const cidMatch = url.match(/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[yk][a-zA-Z2-7]{50,})/);
+        if (cidMatch) {
+          return 'https://ipfs.io/ipfs/' + cidMatch[1];
+        }
+
+        // Fallback: strip all ipfs:// prefixes and path segments, use whatever remains
+        let path = url;
+        // Remove any http(s) prefix first
+        path = path.replace(/^https?:\/\/[^\/]+\//, '');
+        // Remove all ipfs:// occurrences
+        while (path.includes('ipfs://')) {
+          path = path.replace('ipfs://', '');
+        }
+        // Remove ipfs/ path segments
+        while (path.includes('ipfs/')) {
+          path = path.replace('ipfs/', '');
+        }
+        // Clean up leading slashes
+        path = path.replace(/^\/+/, '');
+
+        if (path && path.length > 0) {
+          return 'https://ipfs.io/ipfs/' + path;
+        }
+
+        return url;
+      }
+
       // Build contractURI metadata JSON (ERC-7572 compatible)
       // Returns data URI with JSON for on-chain storage, or empty string if no description/image
       // Note: If empty, the on-chain renderer displays default DUNA charter
@@ -20455,16 +20501,11 @@
             metadata = await response.json();
           }
 
-          // Render badge
+          // Render badge (convert IPFS URLs to gateway URLs)
           let imageHTML = '';
           if (metadata.image) {
-            if (metadata.image.startsWith('data:image/svg+xml')) {
-              imageHTML = `<img src="${metadata.image}" class="badge-image" alt="Badge #${seatId}" />`;
-            } else if (metadata.image.startsWith('data:')) {
-              imageHTML = `<img src="${metadata.image}" class="badge-image" alt="Badge #${seatId}" />`;
-            } else {
-              imageHTML = `<img src="${metadata.image}" class="badge-image" alt="Badge #${seatId}" />`;
-            }
+            const imageUrl = toGatewayUrl(metadata.image);
+            imageHTML = `<img src="${imageUrl}" class="badge-image" alt="Badge #${seatId}" />`;
           }
 
           // OpenSea link (network-aware)
@@ -20634,7 +20675,8 @@
 
             if (receipt.metadata) {
               if (receipt.metadata.image) {
-                imageHTML = `<img src="${receipt.metadata.image}" class="receipt-image" alt="Receipt" />`;
+                const imageUrl = toGatewayUrl(receipt.metadata.image);
+                imageHTML = `<img src="${imageUrl}" class="receipt-image" alt="Receipt" />`;
               }
               if (receipt.metadata.name) {
                 nameHTML = `<div class="receipt-name">${receipt.metadata.name}</div>`;
@@ -20765,10 +20807,11 @@
 
             const usesText = Number(permitBalance) === 1 ? '1 use' : `${Number(permitBalance)} uses`;
 
-            // Build image HTML from metadata if available
+            // Build image HTML from metadata if available (convert IPFS URLs to gateway URLs)
             let imageHTML = '';
             if (permitMetadata?.image) {
-              imageHTML = `<img src="${permitMetadata.image}" class="receipt-image" alt="Emergency Permit" style="width: 100%; border-radius: 4px; margin-bottom: 0.75rem;" />`;
+              const imageUrl = toGatewayUrl(permitMetadata.image);
+              imageHTML = `<img src="${imageUrl}" class="receipt-image" alt="Emergency Permit" style="width: 100%; border-radius: 4px; margin-bottom: 0.75rem;" />`;
             }
 
             permitCard.innerHTML = `
@@ -20835,12 +20878,13 @@
 
         const usesText = balance === 1 ? '1 use remaining' : `${balance} uses remaining`;
 
-        // Build image HTML if metadata available
+        // Build image HTML if metadata available (convert IPFS URLs to gateway URLs)
         let imageHTML = '';
         if (metadata?.image) {
+          const imageUrl = toGatewayUrl(metadata.image);
           imageHTML = `
             <div style="text-align: center; margin-bottom: 1.5rem;">
-              <img src="${metadata.image}" alt="Emergency Permit" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid rgba(255, 123, 157, 0.3);" />
+              <img src="${imageUrl}" alt="Emergency Permit" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid rgba(255, 123, 157, 0.3);" />
             </div>
           `;
         }
@@ -21669,10 +21713,11 @@
 
           // If it's a direct image URL, use it directly
           if (isDirectImageURL) {
-            emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+            const imageUrl = toGatewayUrl(contractURI);
+            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
             emblem.classList.add('url-image');
             emblem.style.display = 'block';
-            emblem.onclick = () => openNFTModal({ image: contractURI }, 'DAO Contract');
+            emblem.onclick = () => openNFTModal({ image: imageUrl }, 'DAO Contract');
             return;
           }
 
@@ -21693,16 +21738,30 @@
             emblem.onclick = () => openNFTModal({ image: contractURI }, 'DAO Contract');
             return;
           } else {
-            // Try to fetch as JSON
-            const response = await fetch(contractURI);
+            // Try to fetch as JSON (convert IPFS URLs to gateway URLs)
+            const fetchUrl = toGatewayUrl(contractURI);
+            const response = await fetch(fetchUrl);
+
+            // Check if fetch was successful
+            if (!response.ok) {
+              emblem.style.display = 'none';
+              return;
+            }
+
             const contentType = response.headers.get('content-type');
 
             // Check if response is an image
             if (contentType && contentType.startsWith('image/')) {
-              emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+              emblem.innerHTML = `<img src="${fetchUrl}" alt="DAO Emblem" />`;
               emblem.classList.add('url-image');
               emblem.style.display = 'block';
-              emblem.onclick = () => openNFTModal({ image: contractURI }, 'DAO Contract');
+              emblem.onclick = () => openNFTModal({ image: fetchUrl }, 'DAO Contract');
+              return;
+            }
+
+            // Check if response is JSON before parsing
+            if (!contentType || !contentType.includes('application/json')) {
+              emblem.style.display = 'none';
               return;
             }
 
@@ -21711,13 +21770,14 @@
           }
 
           if (metadata && metadata.image) {
-            emblem.innerHTML = `<img src="${metadata.image}" alt="DAO Emblem" />`;
+            const imageUrl = toGatewayUrl(metadata.image);
+            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
             // Check if image URL is external (not data URI)
             if (!metadata.image.startsWith('data:')) {
               emblem.classList.add('url-image');
             }
             emblem.style.display = 'block';
-            emblem.onclick = () => openNFTModal(metadata, 'DAO Contract');
+            emblem.onclick = () => openNFTModal({ ...metadata, image: imageUrl }, 'DAO Contract');
           } else if (metadata && metadata.description) {
             // No image but has description - show description text elegantly
             emblem.classList.add('description-only');
@@ -21745,9 +21805,10 @@
 
         let imageHTML = '';
         if (metadata.image) {
-          // Add url-image class for external URLs (not data URIs)
-          const urlImageClass = metadata.image.startsWith('data:') ? '' : ' url-image';
-          imageHTML = `<img src="${metadata.image}" class="nft-modal-image${urlImageClass}" alt="${title}" />`;
+          // Convert IPFS URLs to gateway URLs and add url-image class for external URLs
+          const imageUrl = toGatewayUrl(metadata.image);
+          const urlImageClass = imageUrl.startsWith('data:') ? '' : ' url-image';
+          imageHTML = `<img src="${imageUrl}" class="nft-modal-image${urlImageClass}" alt="${title}" />`;
         }
 
         let attributesHTML = '';
@@ -21845,7 +21906,8 @@
 
           // If it's a direct image URL, use it directly
           if (isDirectImageURL) {
-            emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+            const imageUrl = toGatewayUrl(contractURI);
+            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
             emblem.classList.add('url-image');
             return;
           }
@@ -21865,14 +21927,28 @@
             emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
             return;
           } else {
-            // Try to fetch as JSON
-            const response = await fetch(contractURI);
+            // Try to fetch as JSON (convert IPFS URLs to gateway URLs)
+            const fetchUrl = toGatewayUrl(contractURI);
+            const response = await fetch(fetchUrl);
+
+            // Check if fetch was successful
+            if (!response.ok) {
+              // Silently fail for tile emblems (non-critical)
+              return;
+            }
+
             const contentType = response.headers.get('content-type');
 
             // Check if response is an image
             if (contentType && contentType.startsWith('image/')) {
-              emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+              emblem.innerHTML = `<img src="${fetchUrl}" alt="DAO Emblem" />`;
               emblem.classList.add('url-image');
+              return;
+            }
+
+            // Check if response is JSON before parsing
+            if (!contentType || !contentType.includes('application/json')) {
+              // Not JSON, can't parse metadata
               return;
             }
 
@@ -21881,7 +21957,8 @@
           }
 
           if (metadata && metadata.image) {
-            emblem.innerHTML = `<img src="${metadata.image}" alt="DAO Emblem" />`;
+            const imageUrl = toGatewayUrl(metadata.image);
+            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
             // Check if image URL is external (not data URI)
             if (!metadata.image.startsWith('data:')) {
               emblem.classList.add('url-image');
@@ -22119,7 +22196,8 @@
 
                 let imageHTML = '';
                 if (metadata.image) {
-                  imageHTML = `<img src="${metadata.image}" style="width: 100%; border-radius: 8px; margin-bottom: 1rem;" alt="Receipt" />`;
+                  const imageUrl = toGatewayUrl(metadata.image);
+                  imageHTML = `<img src="${imageUrl}" style="width: 100%; border-radius: 8px; margin-bottom: 1rem;" alt="Receipt" />`;
                 }
 
                 collectiblesHTML += `
@@ -22163,7 +22241,8 @@
 
                 let imageHTML = '';
                 if (metadata?.image) {
-                  imageHTML = `<img src="${metadata.image}" style="width: 100%; border-radius: 8px; margin-bottom: 1rem;" alt="Emergency Permit" />`;
+                  const imageUrl = toGatewayUrl(metadata.image);
+                  imageHTML = `<img src="${imageUrl}" style="width: 100%; border-radius: 8px; margin-bottom: 1rem;" alt="Emergency Permit" />`;
                 }
 
                 // Decode the permitData to show what action this permit can execute
