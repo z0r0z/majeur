@@ -24732,7 +24732,7 @@
             const saleTokenType = document.getElementById('saleTokenType').value;
 
             if (salePreset === 'daico' && saleTokenType === 'shares') {
-              const daicoSupplyInput = document.getElementById('daicoSaleSupply').value;
+              const daicoSupplyInput = document.getElementById('daicoSaleSupply').value?.replace(/,/g, '');
               if (daicoSupplyInput && parseFloat(daicoSupplyInput) > 0) {
                 maxPotentialShares += ethers.parseEther(daicoSupplyInput);
               }
