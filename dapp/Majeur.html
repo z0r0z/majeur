@@ -146,7 +146,7 @@
         position: absolute;
         width: 100%;
         height: 100%;
-        background-image: 
+        background-image:
           radial-gradient(2px 2px at 20px 30px, white, transparent),
           radial-gradient(2px 2px at 40px 70px, white, transparent),
           radial-gradient(1px 1px at 50px 50px, white, transparent),
@@ -1075,9 +1075,9 @@
         transform: translateX(-50%);
         width: 2px;
         height: 100px;
-        background: linear-gradient(180deg, 
-          rgba(157, 123, 255, 0.2) 0%, 
-          rgba(157, 123, 255, 0.5) 50%, 
+        background: linear-gradient(180deg,
+          rgba(157, 123, 255, 0.2) 0%,
+          rgba(157, 123, 255, 0.5) 50%,
           rgba(157, 123, 255, 0.2) 100%);
       }
 
@@ -1219,10 +1219,10 @@
       }
 
       @keyframes subtleConverge {
-        0%, 100% { 
+        0%, 100% {
           transform: scale(1);
         }
-        50% { 
+        50% {
           transform: scale(0.92);
         }
       }
@@ -1232,11 +1232,11 @@
       }
 
       @keyframes pulsate {
-        0%, 100% { 
+        0%, 100% {
           r: 15;
           opacity: 1;
         }
-        50% { 
+        50% {
           r: 20;
           opacity: 0.8;
         }
@@ -1292,11 +1292,11 @@
       }
 
       @keyframes subtlePulse {
-        0%, 100% { 
+        0%, 100% {
           transform: translateY(0);
           opacity: 0.6;
         }
-        50% { 
+        50% {
           transform: translateY(3px);
           opacity: 0.4;
         }
@@ -3068,6 +3068,7 @@
       .chatroom-messages {
         max-height: 400px;
         overflow-y: auto;
+        overscroll-behavior: contain;
         margin-bottom: 1.5rem;
         padding-right: 0.5rem;
       }
@@ -3110,6 +3111,23 @@
         font-size: 1rem;
         line-height: 1.6;
         color: rgba(230, 217, 255, 0.9);
+      }
+
+      .chatroom-message-more {
+        display: inline;
+        margin-left: 0.4em;
+        padding: 0.1em 0.4em;
+        font-size: 0.75em;
+        color: #9d7bff;
+        background: rgba(157, 123, 255, 0.1);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        cursor: pointer;
+        vertical-align: middle;
+      }
+
+      .chatroom-message-more:hover {
+        background: rgba(157, 123, 255, 0.2);
+        border-color: rgba(157, 123, 255, 0.5);
       }
 
       .chatroom-send {
@@ -3346,6 +3364,7 @@
       #proposalsList {
         max-height: 600px;
         overflow-y: auto;
+        overscroll-behavior: contain;
         padding-right: 0.5rem;
       }
 
@@ -4794,6 +4813,7 @@
       .members-list {
         max-height: 600px;
         overflow-y: auto;
+        overscroll-behavior: contain;
         margin-top: 1.5rem;
       }
 
@@ -6573,7 +6593,7 @@
           <line x1="1000" y1="0" x2="600" y2="300" stroke="rgba(230, 217, 255, 0.08)" stroke-width="1"/>
         </svg>
       </div>
-      
+
       <div class="intro-content">
         <div class="intro-art">
           <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
@@ -6591,15 +6611,15 @@
                 </feMerge>
               </filter>
             </defs>
-            
+
             <!-- Central core -->
             <circle cx="200" cy="200" r="30" fill="url(#centerGradient)" filter="url(#glow)"/>
-            
+
             <!-- Orbital rings -->
             <circle cx="200" cy="200" r="80" fill="none" stroke="#9d7bff" stroke-width="0.5" opacity="0.3"/>
             <circle cx="200" cy="200" r="120" fill="none" stroke="#9d7bff" stroke-width="0.5" opacity="0.4"/>
             <circle cx="200" cy="200" r="160" fill="none" stroke="#9d7bff" stroke-width="0.5" opacity="0.5"/>
-            
+
             <!-- Radiating nodes -->
             <g class="converging-nodes" transform-origin="200 200">
               <!-- Inner ring nodes -->
@@ -6607,7 +6627,7 @@
               <circle cx="200" cy="120" r="8" fill="#9d7bff" opacity="0.9"/>
               <circle cx="120" cy="200" r="8" fill="#9d7bff" opacity="0.9"/>
               <circle cx="200" cy="280" r="8" fill="#9d7bff" opacity="0.9"/>
-              
+
               <!-- Middle ring nodes -->
               <circle cx="320" cy="200" r="6" fill="#7b5fff" opacity="0.7"/>
               <circle cx="260" cy="140" r="6" fill="#7b5fff" opacity="0.7"/>
@@ -6617,7 +6637,7 @@
               <circle cx="140" cy="260" r="6" fill="#7b5fff" opacity="0.7"/>
               <circle cx="200" cy="320" r="6" fill="#7b5fff" opacity="0.7"/>
               <circle cx="260" cy="260" r="6" fill="#7b5fff" opacity="0.7"/>
-              
+
               <!-- Outer ring nodes -->
               <circle cx="360" cy="200" r="4" fill="#6b46ff" opacity="0.5"/>
               <circle cx="320" cy="120" r="4" fill="#6b46ff" opacity="0.5"/>
@@ -6628,7 +6648,7 @@
               <circle cx="200" cy="360" r="4" fill="#6b46ff" opacity="0.5"/>
               <circle cx="320" cy="280" r="4" fill="#6b46ff" opacity="0.5"/>
             </g>
-            
+
             <!-- Connecting lines -->
             <g class="connections" opacity="0.3">
               <line x1="200" y1="200" x2="280" y2="200" stroke="#9d7bff" stroke-width="1"/>
@@ -6640,24 +6660,24 @@
               <line x1="200" y1="200" x2="140" y2="260" stroke="#7b5fff" stroke-width="0.5"/>
               <line x1="200" y1="200" x2="260" y2="260" stroke="#7b5fff" stroke-width="0.5"/>
             </g>
-            
+
             <!-- Pulsing center -->
             <circle cx="200" cy="200" r="15" fill="#e6d9ff" class="pulse-core"/>
           </svg>
         </div>
-        
+
         <div class="intro-text">
           <h2>Radical Transparency, Unlimited Power</h2>
           <p>
             Majeur is a minimal framework to manage digital organizations at any stage.
-            Built on battle-tested governance primitives, flexible with modular code, 
+            Built on battle-tested governance primitives, flexible with modular code,
             with new ways to reward good governance with real ownership.
           </p>
           <p class="intro-highlight">
             Deploy your DAO in minutes. Govern with clarity. Own your decisions.
           </p>
         </div>
-        
+
         <div class="scroll-hint" onclick="document.getElementById('seats').scrollIntoView({ behavior: 'smooth' });">
           <span>Explore the Features</span>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -6978,7 +6998,7 @@
               The DAO can mint one-shot ERC-6909 "permit receipts" for arbitrary
               calls. Each token is an intent hash: burn exactly one, execute
               exactly once. Permits are soulbound, and plug
-              straight into the same execution path as voted proposals. 
+              straight into the same execution path as voted proposals.
               Great for emergency switches and agents.
             </p>
             <div class="feature-meta">ERC-6909 receipts · One-shot ops</div>
@@ -7117,7 +7137,7 @@
             <div class="feature-tag">Majeur Feature 04</div>
             <h2 class="feature-title" data-word="FUTARCHY">FUTARCHY</h2>
             <p class="feature-copy">
-              Every proposal can grow a prediction market around it. Where each vote is a token. 
+              Every proposal can grow a prediction market around it. Where each vote is a token.
               Vote receipts double as long/short claims on a reward pool, auto-funded
               from shares or loot. When the proposal resolves YES or NO, the
               winning side burns receipts to cash out their slice of the pot.
@@ -7576,7 +7596,7 @@
       <div class="summoner-container">
         <h2 class="summoner-title">Summon DAO</h2>
         <p class="summoner-subtitle">Deploy your Moloch Majeur on Ethereum</p>
-        
+
         <form id="summonForm">
           <!-- Basic Info -->
           <div class="form-group">
@@ -10351,6 +10371,16 @@
           "outputs": [],
           "stateMutability": "nonpayable",
           "type": "function"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {"indexed": true, "name": "from", "type": "address"},
+            {"indexed": true, "name": "index", "type": "uint256"},
+            {"indexed": false, "name": "text", "type": "string"}
+          ],
+          "name": "Message",
+          "type": "event"
         }
       ];
 
@@ -10792,7 +10822,7 @@
       function computeCreate2Address(deployer, salt, implementation) {
         const initCode = minimalProxyInitCode(implementation);
         const initCodeHash = ethers.keccak256(initCode);
-        
+
         const encoded = ethers.solidityPacked(
           ['bytes1', 'address', 'bytes32', 'bytes32'],
           ['0xff', deployer, salt, initCodeHash]
@@ -10814,10 +10844,10 @@
             [initHolders, initShares, userSalt]
           )
         );
-        
+
         // Step 2: Predict Moloch DAO clone
         const dao = computeCreate2Address(SUMMONER_ADDRESS, summonerSalt, IMPLEMENTATIONS.moloch);
-        
+
         // Step 3: Child salt for badges/shares/loot
         // bytes32(bytes20(address(dao))) = dao address right-padded to 32 bytes
         // In Solidity, bytes types are left-aligned (right-padded with zeros)
@@ -10826,12 +10856,12 @@
           throw new Error('Invalid DAO address length');
         }
         const childSalt = '0x' + daoNoPrefix + '000000000000000000000000'; // 12 zero bytes suffix
-        
+
         // Step 4: Predict child clones
         const badges = computeCreate2Address(dao, childSalt, IMPLEMENTATIONS.badges);
         const shares = computeCreate2Address(dao, childSalt, IMPLEMENTATIONS.shares);
         const loot = computeCreate2Address(dao, childSalt, IMPLEMENTATIONS.loot);
-        
+
         return { dao, badges, shares, loot };
       }
 
@@ -13693,13 +13723,14 @@
         let transferabilityText = 'Loading...';
         try {
           const tokenABI = ['function transfersLocked() view returns (bool)'];
-          const sharesContract = new ethers.Contract(currentDAO.dao.meta.sharesToken, tokenABI, provider);
-          const lootContract = new ethers.Contract(currentDAO.dao.meta.lootToken, tokenABI, provider);
-
-          const [sharesLocked, lootLocked] = await Promise.all([
-            sharesContract.transfersLocked(),
-            lootContract.transfersLocked()
-          ]);
+          const [sharesLocked, lootLocked] = await withRpcFallback(async (activeProvider) => {
+            const sharesContract = new ethers.Contract(currentDAO.dao.meta.sharesToken, tokenABI, activeProvider);
+            const lootContract = new ethers.Contract(currentDAO.dao.meta.lootToken, tokenABI, activeProvider);
+            return await Promise.all([
+              sharesContract.transfersLocked(),
+              lootContract.transfersLocked()
+            ]);
+          });
 
           // Store for use in proposal helper
           currentDAO._transferLocks = { sharesLocked, lootLocked };
@@ -13714,7 +13745,7 @@
             transferabilityText = 'Shares transferable, Loot locked';
           }
         } catch (error) {
-          console.error('Error fetching transferability:', error);
+          console.warn('Error fetching transferability:', error.message);
           transferabilityText = 'Unknown';
         }
 
@@ -13886,8 +13917,6 @@
         if (!salesInfo || !salesSection || !currentDAO) return;
 
         try {
-          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
-
           // Check sales for all supported tokens (network-specific)
           const tokens = getNetworkTokens();
 
@@ -13944,16 +13973,18 @@
           const allTokens = [...tokens, ...customTokens];
 
           // Batch all sales queries in parallel to reduce RPC calls
-          const salePromises = allTokens.map(token =>
-            molochContract.sales(token.address)
-              .then(sale => ({ token, sale }))
-              .catch(err => {
-                console.error(`Error fetching sale for ${token.symbol} (${token.address}):`, err);
-                return { token, sale: { active: false } }; // Return inactive on error
-              })
-          );
-
-          const salesResults = await Promise.all(salePromises);
+          const salesResults = await withRpcFallback(async (activeProvider) => {
+            const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, activeProvider);
+            const salePromises = allTokens.map(token =>
+              molochContract.sales(token.address)
+                .then(sale => ({ token, sale }))
+                .catch(err => {
+                  console.warn(`Error fetching sale for ${token.symbol}:`, err.message);
+                  return { token, sale: { active: false } }; // Return inactive on error
+                })
+            );
+            return await Promise.all(salePromises);
+          });
 
           const activeSales = [];
           for (const result of salesResults) {
@@ -21171,8 +21202,10 @@
           // Clear any previous styling classes
           emblem.classList.remove('url-image', 'description-only');
 
-          const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, provider);
-          const contractURI = await molochContract.contractURI();
+          const contractURI = await withRpcFallback(async (activeProvider) => {
+            const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
+            return await molochContract.contractURI();
+          });
 
           if (!contractURI) {
             emblem.style.display = 'none';
@@ -21761,27 +21794,96 @@
         }
       }
 
+      // Toggle long message expand/collapse
+      function toggleMessageExpand(msgId, btn) {
+        const shortEl = document.getElementById(msgId + '-short');
+        const fullEl = document.getElementById(msgId + '-full');
+        if (shortEl.style.display === 'none') {
+          shortEl.style.display = '';
+          fullEl.style.display = 'none';
+          btn.textContent = 'More';
+        } else {
+          shortEl.style.display = 'none';
+          fullEl.style.display = '';
+          btn.textContent = 'Less';
+        }
+      }
+
       // Render chatroom messages
-      function renderChatroom() {
+      let chatroomRenderId = 0; // Counter to track the most recent render
+      async function renderChatroom() {
         const chatroomMessages = document.getElementById('chatroomMessages');
         if (!chatroomMessages || !currentDAO) return;
 
-        chatroomMessages.innerHTML = '';
+        // Increment render ID and capture it - only the most recent render should update DOM
+        const thisRenderId = ++chatroomRenderId;
 
-        if (currentDAO.dao.messages.length === 0) {
+        // Capture DAO state at start to avoid race conditions with async operations
+        const daoAddress = currentDAO.dao.dao;
+        const messages = [...currentDAO.dao.messages];
+
+        // Show loading state immediately (clears old DAO's messages)
+        if (messages.length === 0) {
           chatroomMessages.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.6); font-style: italic;">No messages yet. Be the first to chat!</p>';
           return;
         }
+        chatroomMessages.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.5); font-style: italic;">Loading messages...</p>';
+
+        // Query Message events to get senders (chunked to respect RPC block limits)
+        const messageSenders = {};
+        try {
+          await withRpcFallback(async (activeProvider) => {
+            const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
+            const currentBlock = await activeProvider.getBlockNumber();
+            const chunkSize = 10000;
+
+            // Query backwards until we find all senders or reach block 0
+            for (let toBlock = currentBlock; toBlock >= 0; toBlock -= chunkSize) {
+              const fromBlock = Math.max(0, toBlock - chunkSize + 1);
+              const events = await molochContract.queryFilter(molochContract.filters.Message(), fromBlock, toBlock);
+              events.forEach(e => { messageSenders[String(e.args.index)] = e.args.from; });
+              if (Object.keys(messageSenders).length >= messages.length || fromBlock === 0) break;
+            }
+          });
+        } catch (e) {
+          console.warn('Could not fetch message senders:', e.message);
+        }
+
+        // Check if this render is stale (newer render started, or DAO changed)
+        if (thisRenderId !== chatroomRenderId || currentDAO?.dao?.dao !== daoAddress) {
+          return; // A newer render is in progress, skip this stale one
+        }
+
+        // Clear and render - do this after async work to prevent duplicates from concurrent renders
+        chatroomMessages.innerHTML = '';
 
         // Reverse to show most recent first
-        const messagesReversed = [...currentDAO.dao.messages].reverse();
+        const messagesReversed = [...messages].reverse();
         messagesReversed.forEach(message => {
           const msgDiv = document.createElement('div');
           const proposalData = decodeProposalMessage(message.text);
 
           msgDiv.className = 'chatroom-message' + (proposalData ? ' proposal' : '');
 
-          let messageContent = escapeHtml(message.text);
+          // Get sender address for this message
+          const senderAddress = messageSenders[String(message.index)];
+          const senderDisplay = senderAddress
+            ? ` (${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)})`
+            : '';
+
+          const MAX_MESSAGE_LENGTH = 203;
+          const isLongMessage = !proposalData && message.text.length > MAX_MESSAGE_LENGTH;
+          let messageContent;
+
+          if (isLongMessage) {
+            const truncatedText = escapeHtml(message.text.slice(0, MAX_MESSAGE_LENGTH));
+            const fullText = escapeHtml(message.text);
+            const msgId = `msg-${message.index}`;
+            messageContent = `<span id="${msgId}-short">${truncatedText}...</span><span id="${msgId}-full" style="display: none;">${fullText}</span><button class="chatroom-message-more" onclick="toggleMessageExpand('${msgId}', this)">More</button>`;
+          } else {
+            messageContent = escapeHtml(message.text);
+          }
+
           if (proposalData) {
             // Format proposal message nicely
             const isETHTransfer = proposalData.value !== '0' && proposalData.data === '0x';
@@ -21857,7 +21959,7 @@
 
           msgDiv.innerHTML = `
             <div class="chatroom-message-header">
-              <span>Message #${message.index}</span>
+              <span>Message #${message.index}${senderDisplay}</span>
             </div>
             <div class="chatroom-message-text">
               ${messageContent}
@@ -21865,6 +21967,18 @@
           `;
 
           chatroomMessages.appendChild(msgDiv);
+
+          // Resolve ENS name asynchronously and update display
+          if (senderAddress) {
+            lookupENS(senderAddress).then(ensName => {
+              if (ensName) {
+                const headerSpan = msgDiv.querySelector('.chatroom-message-header span');
+                if (headerSpan) {
+                  headerSpan.textContent = `Message #${message.index} (${ensName})`;
+                }
+              }
+            }).catch(() => {});
+          }
         });
 
         // No auto-scroll since newest messages are now at the top
@@ -21946,11 +22060,13 @@
         let daoConfig;
         let configFetched = false;
         try {
-          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
-          daoConfig = await molochContract.config();
+          daoConfig = await withRpcFallback(async (activeProvider) => {
+            const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, activeProvider);
+            return await molochContract.config();
+          });
           configFetched = true;
         } catch (e) {
-          console.error('Error getting DAO config:', e);
+          console.warn('Error getting DAO config:', e.message);
           daoConfig = 0n; // fallback (but we know it failed)
         }
 
@@ -23371,13 +23487,13 @@
         const row = document.createElement('div');
         row.className = 'member-row';
         row.dataset.memberId = memberIdCounter++;
-        
+
         row.innerHTML = `
           <input type="text" class="form-input member-address" placeholder="0x... or ENS name" value="${address}" ${isFirst ? 'readonly' : ''}>
           <input type="number" class="form-input member-shares" placeholder="Shares" value="${shares}" min="0.000000000000000001" step="any">
           ${!isFirst ? '<button type="button" class="remove-member" onclick="removeMember(this)">×</button>' : ''}
         `;
-        
+
         return row;
       }
 
@@ -23395,7 +23511,7 @@
       function toggleAdvanced() {
         const advanced = document.getElementById('advancedSettings');
         advanced.classList.toggle('show');
-        document.querySelector('.advanced-toggle').textContent = 
+        document.querySelector('.advanced-toggle').textContent =
           advanced.classList.contains('show') ? '▲ Advanced Settings' : '▼ Advanced Settings';
       }
 
@@ -24394,23 +24510,23 @@
       function updateLootInputs() {
         if (!document.getElementById('distributeLoot').checked) return;
         if (document.getElementById('equalLoot').checked) return;
-        
+
         const customLootDiv = document.getElementById('customLootAmounts');
         const memberRows = document.querySelectorAll('.member-row');
-        
+
         customLootDiv.innerHTML = '<div style="font-size: 0.8rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem;">Custom loot per member:</div>';
-        
+
         memberRows.forEach((row, index) => {
           const addressInput = row.querySelector('.member-address').value || `Member ${index + 1}`;
-          const shortAddr = addressInput.startsWith('0x') ? 
-            addressInput.slice(0, 6) + '...' + addressInput.slice(-4) : 
+          const shortAddr = addressInput.startsWith('0x') ?
+            addressInput.slice(0, 6) + '...' + addressInput.slice(-4) :
             addressInput;
-          
+
           const lootInput = document.createElement('div');
           lootInput.style.marginBottom = '0.5rem';
           lootInput.innerHTML = `
             <label style="font-size: 0.8rem; color: rgba(230, 217, 255, 0.7);">${shortAddr}</label>
-            <input type="number" class="form-input custom-loot-amount" data-member-index="${index}" 
+            <input type="number" class="form-input custom-loot-amount" data-member-index="${index}"
                    placeholder="0" min="0" step="any" style="margin-top: 0.25rem;">
           `;
           customLootDiv.appendChild(lootInput);
@@ -24496,7 +24612,7 @@
 
       document.getElementById('summonForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         if (!signer) {
           await connectWallet();
           if (!signer) return;
@@ -24558,13 +24674,13 @@
           for (const row of memberRows) {
             const addressInput = row.querySelector('.member-address').value.trim();
             const sharesInput = row.querySelector('.member-shares').value;
-            
+
             if (addressInput && sharesInput) {
               const address = await resolveENS(addressInput);
               if (!ethers.isAddress(address)) {
                 throw new Error(`Invalid address: ${addressInput}`);
               }
-              
+
               initHolders.push(address);
               // Convert shares to wei (18 decimals) - ethers v6
               initShares.push(ethers.parseEther(sharesInput));
@@ -24631,24 +24747,24 @@
 
           // Connect to summoner
           const summoner = new ethers.Contract(SUMMONER_ADDRESS, SUMMONER_ABI, signer);
-          
+
           // Ensure initShares are BigInt for consistent encoding
           const initSharesForPrediction = initShares.map(s => BigInt(s.toString()));
-          
+
           // Predict all addresses using the Solidity reference implementation
           const predictions = predictMajeurAddresses(
             initHolders,
             initSharesForPrediction,
             salt
           );
-          
+
           const predictedDao = predictions.dao;
           const predictedShares = predictions.shares;
           const predictedLoot = predictions.loot;
 
           // Prepare init calls with predicted DAO address
           const initCalls = [];
-          
+
           // Add proposal TTL setting if specified
           const proposalTTL = getSecondsFromInput('proposalTTL', 'proposalTTLUnit');
           if (proposalTTL > 0) {
@@ -24675,7 +24791,7 @@
             // Collect loot amounts for each member
             const lootAmounts = [];
             const equalLoot = document.getElementById('equalLoot').checked;
-            
+
             if (equalLoot) {
               // Equal distribution
               const lootPerMember = document.getElementById('lootPerMember').value || '100';
@@ -24692,10 +24808,10 @@
                 lootAmounts.push(ethers.parseEther(amount));
               }
             }
-            
+
             // To mint loot during init, we use the predicted loot proxy address
             // Create direct loot minting calls
-            
+
             let lootCallsAdded = 0;
             for (let i = 0; i < initHolders.length; i++) {
               if (lootAmounts[i] > 0n) {
@@ -24711,7 +24827,7 @@
                 lootCallsAdded++;
               }
             }
-            
+
             if (lootCallsAdded > 0) {
               // Successfully added loot minting calls to init sequence
             }
@@ -25098,7 +25214,7 @@
           document.getElementById('foundingMembersList').innerHTML = '';
           const memberRow = createMemberRow(await signer.getAddress(), '1', true);
           document.getElementById('foundingMembersList').appendChild(memberRow);
-          
+
           // Reset time units to defaults
           document.getElementById('proposalTTLUnit').value = '86400';
           document.getElementById('timelockDelayUnit').value = '86400';
@@ -25163,6 +25279,22 @@
       window.addEventListener('load', async () => {
         // Initialize DOM cache for performance
         DOMCache.init();
+
+        // Enable wheel scrolling on chatroom/proposals/members without requiring click focus
+        ['chatroomMessages', 'proposalsList', 'membersList'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            // Disable smooth scroll to prevent trembling with manual scrollTop
+            el.style.scrollBehavior = 'auto';
+            el.addEventListener('wheel', (e) => {
+              // Only capture if there's scrollable content
+              if (el.scrollHeight > el.clientHeight) {
+                e.preventDefault();
+                el.scrollTop += e.deltaY * 2.5;
+              }
+            }, { passive: false });
+          }
+        });
 
         // Initialize EIP-6963 support for modern wallet detection
         initEIP6963();
