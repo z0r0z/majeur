@@ -8649,6 +8649,13 @@
               </div>
             </div>
             <div class="proposal-form-group">
+              <label class="proposal-form-label">Nonce (optional, bytes32 hex)</label>
+              <input type="text" id="proposalNonce" class="proposal-form-input" placeholder="Leave empty for random nonce" style="font-family: monospace; font-size: 0.85rem;" />
+              <div style="margin-top: 0.35rem; font-size: 0.7rem; color: rgba(157, 123, 255, 0.7);">
+                💡 Proposal IDs are calculated deterministically. Paste a nonce here to match a pre-calculated proposal ID (e.g., from a script)
+              </div>
+            </div>
+            <div class="proposal-form-group">
               <label class="proposal-form-label">Description</label>
               <!-- Locked description preview (shown when populated by helper) -->
               <div id="proposalDescriptionLocked" style="display: none; margin-bottom: 0.75rem;">
@@ -23827,8 +23834,23 @@
           return;
         }
 
-        // Generate random nonce (32 bytes)
-        const nonce = ethers.hexlify(ethers.randomBytes(32));
+        // Get nonce from input or generate random one
+        let nonceInput = getEl('proposalNonce').value.trim();
+        let nonce;
+        if (nonceInput) {
+          // Validate nonce format (should be 0x followed by 64 hex chars = 32 bytes)
+          if (!nonceInput.startsWith('0x')) {
+            nonceInput = '0x' + nonceInput;
+          }
+          if (!/^0x[0-9a-fA-F]{64}$/.test(nonceInput)) {
+            showStatus('Invalid nonce format. Must be 32 bytes (64 hex characters after 0x)', true);
+            return;
+          }
+          nonce = nonceInput;
+        } else {
+          // Generate random nonce (32 bytes)
+          nonce = ethers.hexlify(ethers.randomBytes(32));
+        }
 
         isCreatingProposal = true;
         try {
@@ -23869,6 +23891,7 @@
           getEl('proposalTo').value = '';
           getEl('proposalValue').value = '';
           getEl('proposalData').value = '';
+          getEl('proposalNonce').value = '';
           getEl('proposalDescription').value = '';
 
           // Clear locked description if present
