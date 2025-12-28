@@ -882,6 +882,29 @@
         letter-spacing: 0.02em;
       }
 
+      /* Wallet Connect Prompt */
+      .wallet-prompt-section {
+        text-align: center;
+        padding: 3rem 2rem;
+        position: relative;
+        z-index: 1;
+        background: rgba(10, 0, 21, 0.5);
+        border-top: 1px solid var(--accent-gold-3);
+      }
+
+      .wallet-prompt-text {
+        font-family: 'EB Garamond', serif;
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+        color: var(--accent-gold);
+      }
+
+      .wallet-prompt-networks {
+        font-family: 'EB Garamond', serif;
+        font-size: 0.95rem;
+        color: rgba(157, 123, 255, 0.9);
+      }
+
       .form-group {
         margin-bottom: 1.75rem;
       }
@@ -8800,6 +8823,12 @@
       </div>
     </section>
 
+    <!-- Wallet Connect Prompt -->
+    <div class="wallet-prompt-section" id="walletPromptSection">
+      <p class="wallet-prompt-text">Connect a wallet to see all DAOs and the ones you're a part of.</p>
+      <p class="wallet-prompt-networks">Supported networks: Ethereum, Base, Arbitrum, Sepolia</p>
+    </div>
+
     <!-- PURCHASE MODAL -->
     <div class="wallet-modal-overlay" id="purchaseModal">
       <div class="wallet-modal" style="max-width: 500px;">
@@ -12677,6 +12706,8 @@
             summonBtn.disabled = false;
             summonBtn.textContent = 'SUMMON DAO';
           }
+          const walletPrompt = getEl('walletPromptSection');
+          if (walletPrompt) walletPrompt.style.display = 'none';
 
           // Initialize first member with connected wallet
           const foundingMembersList = getEl('foundingMembersList');
@@ -12943,6 +12974,8 @@
           summonBtn.disabled = true;
           summonBtn.textContent = 'CONNECT WALLET TO SUMMON';
         }
+        const walletPrompt = getEl('walletPromptSection');
+        if (walletPrompt) walletPrompt.style.display = '';
 
         // Clear the first member if it was auto-added
         const foundingMembersList = getEl('foundingMembersList');
