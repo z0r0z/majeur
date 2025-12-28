@@ -212,6 +212,117 @@
         90% { transform: translate(-10%, 10%); }
       }
 
+      /* DIVINE ILLUMINATION - Golden Pulse Animation for Radial Convergence */
+      #radial-group line {
+        transform-origin: 50% 25%;
+        transform-box: fill-box;
+        will-change: stroke, opacity, filter, transform;
+      }
+
+      @keyframes divineIllumination {
+        0% {
+          stroke: rgba(230, 217, 255, var(--line-base-opacity, 0.6));
+          filter: url(#goldenGlow) drop-shadow(0 0 0px transparent);
+          opacity: 1;
+          transform: scaleY(1) translateY(0);
+        }
+        15% {
+          stroke: rgba(232, 201, 160, 0.7);
+          filter: url(#goldenGlow) drop-shadow(0 0 2px rgba(212, 165, 116, 0.3));
+          opacity: 1;
+          transform: scaleY(1) translateY(0);
+        }
+        35% {
+          stroke: var(--accent-gold, #d4a574);
+          filter: url(#goldenGlow) drop-shadow(0 0 8px rgba(212, 165, 116, 0.8));
+          opacity: 1;
+          transform: scaleY(1.02) translateY(0);
+        }
+        50% {
+          stroke: var(--accent-gold-light, #e8c9a0);
+          filter: url(#goldenGlow) drop-shadow(0 0 12px rgba(232, 201, 160, 1))
+                  drop-shadow(0 0 20px rgba(212, 165, 116, 0.6));
+          opacity: 1;
+          transform: scaleY(1.04) translateY(-0.5px);
+        }
+        65% {
+          stroke: var(--accent-gold, #d4a574);
+          filter: url(#goldenGlow) drop-shadow(0 0 10px rgba(212, 165, 116, 0.7));
+          opacity: 0.9;
+          transform: scaleY(1.02) translateY(-1px);
+        }
+        80% {
+          stroke: rgba(212, 165, 116, 0.5);
+          filter: url(#goldenGlow) drop-shadow(0 0 6px rgba(212, 165, 116, 0.4));
+          opacity: 0.5;
+          transform: scaleY(0.95) translateY(-3px);
+        }
+        100% {
+          stroke: rgba(212, 165, 116, 0);
+          filter: url(#goldenGlow) drop-shadow(0 0 0px transparent);
+          opacity: 0;
+          transform: scaleY(0.8) translateY(-8px);
+        }
+      }
+
+      @keyframes goldenShimmer {
+        0%, 100% { stroke-opacity: var(--line-base-opacity, 0.6); }
+        25% { stroke-opacity: calc(var(--line-base-opacity, 0.6) * 1.2); }
+        50% { stroke-opacity: 1; }
+        75% { stroke-opacity: calc(var(--line-base-opacity, 0.6) * 1.1); }
+      }
+
+      @keyframes strokePulse {
+        0%, 100% { stroke-width: var(--line-base-width, 0.08); }
+        40%, 60% { stroke-width: calc(var(--line-base-width, 0.08) * 1.5); }
+      }
+
+      #radial-group.divine-awakening line {
+        animation:
+          divineIllumination 2.8s cubic-bezier(0.4, 0, 0.2, 1) forwards,
+          goldenShimmer 0.8s ease-in-out 0.3s 2,
+          strokePulse 1.4s ease-in-out 0.2s 1;
+      }
+
+      #radial-group.divine-awakening line:nth-child(3),
+      #radial-group.divine-awakening line:nth-child(4) {
+        animation-delay: 0s, 0.3s, 0.2s;
+        --line-base-opacity: 0.8;
+        --line-base-width: 0.1;
+      }
+
+      #radial-group.divine-awakening line:nth-child(2),
+      #radial-group.divine-awakening line:nth-child(5) {
+        animation-delay: 0.1s, 0.4s, 0.3s;
+        --line-base-opacity: 0.4;
+        --line-base-width: 0.06;
+      }
+
+      #radial-group.divine-awakening line:nth-child(1),
+      #radial-group.divine-awakening line:nth-child(6) {
+        animation-delay: 0.2s, 0.5s, 0.4s;
+        --line-base-opacity: 0.6;
+        --line-base-width: 0.08;
+      }
+
+      #radial-group.divine-complete {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #radial-group.divine-awakening line {
+          animation: divineIlluminationSimple 1.5s ease-out forwards;
+        }
+
+        @keyframes divineIlluminationSimple {
+          0% { opacity: 1; stroke: rgba(230, 217, 255, 0.6); }
+          50% { opacity: 1; stroke: var(--accent-gold, #d4a574); }
+          100% { opacity: 0; stroke: var(--accent-gold, #d4a574); }
+        }
+      }
+
       /* VIGNETTE EFFECT - subtle edge darkening */
       .vignette-overlay {
         position: fixed;
@@ -327,6 +438,105 @@
           inset 0 0 30px rgba(212, 165, 116, 0.03);
       }
 
+      /* NAV TOGGLE (Hide Intro setting) - Sleek sliding switch */
+      .nav-toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: rgba(10, 0, 21, 0.75);
+        border: 1px solid rgba(157, 123, 255, 0.15);
+        color: rgba(230, 217, 255, 0.55);
+        font-family: var(--font-serif);
+        font-size: 0.78rem;
+        letter-spacing: 0.12em;
+        cursor: pointer;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        text-transform: uppercase;
+        backdrop-filter: blur(12px);
+        user-select: none;
+      }
+
+      .nav-toggle-label:hover {
+        border-color: rgba(157, 123, 255, 0.4);
+        color: rgba(230, 217, 255, 0.95);
+        background: rgba(10, 0, 21, 0.9);
+      }
+
+      .nav-toggle-label input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+      }
+
+      /* Toggle switch track */
+      .toggle-switch {
+        position: relative;
+        width: 36px;
+        height: 18px;
+        background: rgba(30, 20, 50, 0.9);
+        border-radius: 9px;
+        border: 1px solid rgba(157, 123, 255, 0.2);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        flex-shrink: 0;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+      }
+
+      /* Toggle switch knob */
+      .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        background: linear-gradient(135deg, rgba(180, 160, 200, 0.9), rgba(120, 100, 150, 0.8));
+        border-radius: 50%;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+
+      /* Hover state for track */
+      .nav-toggle-label:hover .toggle-switch {
+        border-color: rgba(157, 123, 255, 0.4);
+      }
+
+      .nav-toggle-label:hover .toggle-switch::after {
+        background: linear-gradient(135deg, rgba(200, 180, 220, 1), rgba(140, 120, 170, 0.9));
+        box-shadow: 0 0 8px rgba(157, 123, 255, 0.3);
+      }
+
+      /* Checked/ON state */
+      .nav-toggle-label:has(input:checked) {
+        border-color: rgba(157, 123, 255, 0.5);
+        color: rgba(230, 217, 255, 0.9);
+      }
+
+      .nav-toggle-label:has(input:checked) .toggle-switch {
+        background: linear-gradient(135deg, rgba(157, 123, 255, 0.3), rgba(120, 80, 200, 0.4));
+        border-color: rgba(157, 123, 255, 0.6);
+        box-shadow:
+          inset 0 1px 3px rgba(0, 0, 0, 0.2),
+          0 0 12px rgba(157, 123, 255, 0.2);
+      }
+
+      .nav-toggle-label:has(input:checked) .toggle-switch::after {
+        left: 20px;
+        background: linear-gradient(135deg, #c9b8ff, #9d7bff);
+        box-shadow:
+          0 0 10px rgba(157, 123, 255, 0.6),
+          0 0 20px rgba(157, 123, 255, 0.3);
+      }
+
+      /* Active/press state */
+      .nav-toggle-label:active .toggle-switch::after {
+        width: 16px;
+      }
+
+      .nav-toggle-label:has(input:checked):active .toggle-switch::after {
+        left: 16px;
+      }
+
       /* HAMBURGER MENU TOGGLE (hidden on desktop, top-left on mobile) */
       .hamburger-toggle {
         display: none;
@@ -402,11 +612,16 @@
       /* !important needed to override animation-fill-mode: both which sets opacity: 1 */
       .hide-nav-buttons .nav-links-container,
       .hide-nav-buttons .hamburger-toggle,
-      .hide-nav-buttons .mobile-menu,
-      .hide-nav-buttons .wallet-button,
-      .hide-nav-buttons .network-selector {
+      .hide-nav-buttons .mobile-menu {
         opacity: 0 !important;
         pointer-events: none !important;
+      }
+
+      /* Hide intro sections when toggle is enabled */
+      body.hide-intro .hero,
+      body.hide-intro .intro-panel,
+      body.hide-intro main {
+        display: none;
       }
 
       /* WALLET & NETWORK CONNECTION */
@@ -3449,6 +3664,13 @@
         contain: layout style paint;
       }
 
+      /* Proposals panel stretches to fill available height */
+      .dao-dashboard-content > .dao-panel:last-child {
+        display: flex;
+        flex-direction: column;
+        contain: style paint; /* Allow flex layout */
+      }
+
       .dao-panel-title {
         font-family: "Cinzel", serif;
         font-size: 1.2rem;
@@ -3769,7 +3991,8 @@
 
       /* PROPOSALS */
       #proposalsList {
-        max-height: 600px;
+        flex: 1;
+        min-height: 0; /* Allow flexbox shrinking */
         overflow-y: auto;
         overscroll-behavior: contain;
         padding-right: 0.5rem;
@@ -5442,6 +5665,79 @@
         word-break: break-word;
       }
 
+      /* EMBLEM HOVER POPUP */
+      .emblem-hover-popup {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        pointer-events: none;
+        padding: 1rem;
+        background: rgba(10, 0, 21, 0.95);
+        border: 1px solid rgba(157, 123, 255, 0.5);
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+        max-width: 300px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      }
+
+      .emblem-hover-popup.show {
+        display: block;
+      }
+
+      .emblem-hover-popup img {
+        max-width: 100%;
+        max-height: 150px;
+        display: block;
+        margin: 0 auto 0.75rem;
+        border-radius: 4px;
+      }
+
+      .emblem-hover-name {
+        font-family: "Cinzel", serif;
+        font-size: 0.95rem;
+        color: #e6d9ff;
+        margin-bottom: 0.5rem;
+        text-align: center;
+        letter-spacing: 0.05em;
+      }
+
+      .emblem-hover-description {
+        font-family: 'EB Garamond', serif;
+        font-size: 0.85rem;
+        color: rgba(230, 217, 255, 0.8);
+        line-height: 1.4;
+        max-height: 80px;
+        overflow: hidden;
+      }
+
+      .emblem-hover-attributes {
+        margin-top: 0.75rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .emblem-hover-attribute {
+        background: rgba(157, 123, 255, 0.15);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.7rem;
+      }
+
+      .emblem-hover-attribute-label {
+        color: rgba(157, 123, 255, 0.8);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-family: "Cinzel", serif;
+      }
+
+      .emblem-hover-attribute-value {
+        color: #e6d9ff;
+        margin-top: 0.15rem;
+        font-family: 'EB Garamond', serif;
+      }
+
       /* NFT MODAL */
       .nft-modal {
         display: none;
@@ -5629,6 +5925,29 @@
     </style>
   </head>
   <body>
+    <!-- SVG Filter Definitions for Golden Glow Effect -->
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+      <defs>
+        <filter id="goldenGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+          <feColorMatrix
+            in="blur"
+            type="matrix"
+            values="1.2  0.1  0    0  0.1
+                    0.1  0.9  0    0  0.05
+                    0    0    0.6  0  0
+                    0    0    0    1  0"
+            result="goldBlur"
+          />
+          <feMerge>
+            <feMergeNode in="goldBlur" />
+            <feMergeNode in="goldBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+    </svg>
+
     <!-- Progress Bar -->
     <div class="progress-bar" id="progressBar" style="display: none;">
       <div class="progress-bar-fill"></div>
@@ -5667,6 +5986,12 @@
       <a href="https://github.com/z0r0z/majeur" target="_blank" rel="noopener noreferrer" class="nav-link" title="View on GitHub">
         GitHub
       </a>
+      <button class="nav-link" onclick="showHotkeysModal()" title="Keyboard shortcuts">Hotkeys</button>
+      <label class="nav-toggle-label" title="Hide introductory content">
+        <input type="checkbox" id="hideIntroToggle" onchange="toggleHideIntro(event)">
+        <span class="toggle-switch"></span>
+        <span>Hide Intro</span>
+      </label>
     </div>
 
     <!-- Network & Wallet (top right) -->
@@ -5715,6 +6040,12 @@
       <a href="https://github.com/z0r0z/majeur" target="_blank" rel="noopener noreferrer" class="nav-link" title="View on GitHub">
         GitHub
       </a>
+      <button class="nav-link" onclick="showHotkeysModal(); toggleMobileMenu();" title="Keyboard shortcuts">Hotkeys</button>
+      <label class="nav-toggle-label" title="Hide introductory content">
+        <input type="checkbox" id="hideIntroToggleMobile" onchange="toggleHideIntro(event)">
+        <span class="toggle-switch"></span>
+        <span>Hide Intro</span>
+      </label>
     </div>
 
     <!-- Wallet Selection Modal -->
@@ -5726,6 +6057,48 @@
         </div>
         <div id="walletOptions">
           <!-- Wallet options will be dynamically inserted here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- HOTKEYS MODAL -->
+    <div class="wallet-modal-overlay" id="hotkeysModal">
+      <div class="wallet-modal" style="max-width: 400px;">
+        <div class="wallet-modal-header">
+          <h2 class="wallet-modal-title">Hotkeys</h2>
+          <button class="wallet-modal-close" onclick="closeHotkeysModal()">&times;</button>
+        </div>
+        <div style="font-family: 'EB Garamond', serif; color: rgba(230, 217, 255, 0.9);">
+          <div style="margin-bottom: 1.5rem;">
+            <h3 style="font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.15em; color: #9d7bff; margin-bottom: 0.75rem; text-transform: uppercase;">Navigation</h3>
+            <div style="display: grid; grid-template-columns: 50px 1fr; gap: 0.5rem; font-size: 0.95rem;">
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">0</span>
+              <span>Show Hotkeys</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">1</span>
+              <span>Focus Summon</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">2</span>
+              <span>Focus Your DAOs</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">3</span>
+              <span>Focus All DAOs</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">4</span>
+              <span>Open GitHub / Focus DAO</span>
+            </div>
+          </div>
+          <div>
+            <h3 style="font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.15em; color: #9d7bff; margin-bottom: 0.75rem; text-transform: uppercase;">DAO Management</h3>
+            <div style="display: grid; grid-template-columns: 50px 1fr; gap: 0.5rem; font-size: 0.95rem;">
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">&#9003;</span>
+              <span>Back to Gallery</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">5</span>
+              <span>Focus Chatroom</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">6</span>
+              <span>Focus Treasury</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">7</span>
+              <span>Focus Active Sales</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">8</span>
+              <span>Focus Proposals</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -8896,6 +9269,14 @@
       </div>
     </div>
 
+    <!-- Emblem Hover Popup -->
+    <div id="emblemHoverPopup" class="emblem-hover-popup">
+      <img id="emblemHoverImage" src="" alt="DAO Emblem" style="display: none;" />
+      <div id="emblemHoverName" class="emblem-hover-name"></div>
+      <div id="emblemHoverDescription" class="emblem-hover-description"></div>
+      <div id="emblemHoverAttributes" class="emblem-hover-attributes"></div>
+    </div>
+
     <!-- Web3 Integration Script -->
     <script>
       // DOM element cache (initialized on page load)
@@ -8927,6 +9308,63 @@
 
       // Optimized DOM access - uses cache when available
       const getEl = (id) => DOMCache.get(id);
+
+      // Cache for tile emblem metadata (for hover popups)
+      const tileEmblemMetadata = new Map();
+
+      // Show emblem hover popup
+      function showEmblemPopup(emblemId, event) {
+        const metadata = tileEmblemMetadata.get(emblemId);
+        if (!metadata) return;
+
+        const popup = document.getElementById('emblemHoverPopup');
+        const imageEl = document.getElementById('emblemHoverImage');
+        const nameEl = document.getElementById('emblemHoverName');
+        const descEl = document.getElementById('emblemHoverDescription');
+        const attrsEl = document.getElementById('emblemHoverAttributes');
+
+        // Populate popup
+        if (metadata.image) {
+          imageEl.src = toGatewayUrl(metadata.image);
+          imageEl.style.display = 'block';
+        } else {
+          imageEl.style.display = 'none';
+        }
+
+        nameEl.textContent = metadata.name || '';
+        descEl.textContent = metadata.description || '';
+
+        // Render attributes
+        if (metadata.attributes && Array.isArray(metadata.attributes)) {
+          attrsEl.innerHTML = metadata.attributes.map(attr => `
+            <div class="emblem-hover-attribute">
+              <div class="emblem-hover-attribute-label">${escapeHtml(attr.trait_type || attr.type || 'Attr')}</div>
+              <div class="emblem-hover-attribute-value">${escapeHtml(attr.value)}</div>
+            </div>
+          `).join('');
+        } else {
+          attrsEl.innerHTML = '';
+        }
+
+        // Position popup near cursor
+        const x = event.clientX + 15;
+        const y = event.clientY + 15;
+
+        // Keep popup within viewport
+        const popupWidth = 300;
+        const popupHeight = 250;
+        const adjustedX = Math.min(x, window.innerWidth - popupWidth - 20);
+        const adjustedY = Math.min(y, window.innerHeight - popupHeight - 20);
+
+        popup.style.left = adjustedX + 'px';
+        popup.style.top = adjustedY + 'px';
+        popup.classList.add('show');
+      }
+
+      // Hide emblem hover popup
+      function hideEmblemPopup() {
+        document.getElementById('emblemHoverPopup').classList.remove('show');
+      }
 
       // HTML escape function to prevent XSS attacks
       function escapeHtml(unsafe) {
@@ -9496,7 +9934,6 @@
         const journeyLineContainer = document.getElementById('journey-line-container');
         const journeyLine = document.getElementById('journey-line');
         const journeyEndpoint = document.getElementById('journey-endpoint');
-        const radialGroup = document.getElementById('radial-group');
         const introPanel = document.querySelector('.intro-panel');
         const summonerSection = getEl('summoner');
 
@@ -9515,12 +9952,6 @@
           const summonerRect = summonerSection.getBoundingClientRect();
           const summonerTop = window.pageYOffset + summonerRect.top;
           const summonerBottom = summonerTop + summonerRect.height;
-
-          // Radial convergence: fade out radials as we scroll past intro
-          const introProgress = Math.max(0, Math.min(1, (scrollY - introPanelTop) / introPanelRect.height));
-          if (radialGroup) {
-            radialGroup.style.opacity = Math.max(0, 0.8 * (1 - introProgress * 1.2));
-          }
 
           // Check if summoner is in viewport (hide line when form is visible)
           const summonerInView = summonerRect.top < windowHeight && summonerRect.bottom > 0;
@@ -9604,6 +10035,78 @@
         window.addEventListener('beforeunload', () => {
           if (rafId) cancelAnimationFrame(rafId);
         });
+      })();
+
+      // Divine Illumination - Golden pulse for radial convergence lines
+      (function initRadialDivineIllumination() {
+        const ANIMATION_DELAY_MS = 2000;
+        const ANIMATION_DURATION_MS = 3000;
+        let hasTriggered = false;
+        let scrollListenerActive = false;
+
+        function playDivineIllumination() {
+          if (hasTriggered) return;
+          const radialGroup = document.getElementById('radial-group');
+          const radialSvg = document.getElementById('radial-convergence');
+          if (!radialGroup || !radialSvg) return;
+
+          hasTriggered = true;
+          radialSvg.style.display = '';
+          radialGroup.style.opacity = '';
+          radialGroup.classList.add('divine-awakening');
+
+          setTimeout(() => {
+            radialGroup.classList.remove('divine-awakening');
+            radialGroup.classList.add('divine-complete');
+            setTimeout(() => { radialSvg.style.display = 'none'; }, 100);
+          }, ANIMATION_DURATION_MS);
+
+          if (scrollListenerActive) {
+            window.removeEventListener('scroll', handleScrollForAnimation);
+            scrollListenerActive = false;
+          }
+        }
+
+        function isIntroVisible() {
+          if (document.body.classList.contains('hide-intro')) return false;
+          const hero = document.querySelector('.hero');
+          if (!hero) return false;
+          const rect = hero.getBoundingClientRect();
+          return rect.bottom > window.innerHeight * 0.3 && rect.top < window.innerHeight * 0.5;
+        }
+
+        function didAutoScroll() {
+          if (window.location.hash && window.location.hash.includes('/dao/')) return true;
+          if (window.scrollY > 100) return true;
+          return false;
+        }
+
+        function handleScrollForAnimation() {
+          if (hasTriggered) {
+            window.removeEventListener('scroll', handleScrollForAnimation);
+            scrollListenerActive = false;
+            return;
+          }
+          if (isIntroVisible() && window.scrollY < 100) {
+            setTimeout(playDivineIllumination, 500);
+          }
+        }
+
+        function init() {
+          if (document.body.classList.contains('hide-intro')) return;
+          if (didAutoScroll()) {
+            scrollListenerActive = true;
+            window.addEventListener('scroll', handleScrollForAnimation, { passive: true });
+          } else {
+            setTimeout(playDivineIllumination, ANIMATION_DELAY_MS);
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init);
+        } else {
+          setTimeout(init, 100);
+        }
       })();
 
       // Card Teaser Parallax Animation
@@ -9999,6 +10502,29 @@
         const hamburger = document.getElementById('hamburgerToggle');
         if (mobileMenu) mobileMenu.classList.toggle('open');
         if (hamburger) hamburger.classList.toggle('active');
+      }
+
+      // Hide Intro toggle - persists across sessions
+      function toggleHideIntro(event) {
+        // Get the state from the checkbox that was actually clicked
+        const isChecked = event?.target?.checked ?? false;
+        document.body.classList.toggle('hide-intro', isChecked);
+        localStorage.setItem(CONSTANTS.STORAGE_KEY_HIDE_INTRO, isChecked ? 'true' : 'false');
+        // Sync both checkboxes
+        const desktopToggle = document.getElementById('hideIntroToggle');
+        const mobileToggle = document.getElementById('hideIntroToggleMobile');
+        if (desktopToggle) desktopToggle.checked = isChecked;
+        if (mobileToggle) mobileToggle.checked = isChecked;
+      }
+
+      function initHideIntroSetting() {
+        const saved = localStorage.getItem(CONSTANTS.STORAGE_KEY_HIDE_INTRO);
+        const hideIntro = saved === 'true';
+        document.body.classList.toggle('hide-intro', hideIntro);
+        const desktopToggle = document.getElementById('hideIntroToggle');
+        const mobileToggle = document.getElementById('hideIntroToggleMobile');
+        if (desktopToggle) desktopToggle.checked = hideIntro;
+        if (mobileToggle) mobileToggle.checked = hideIntro;
       }
 
       function scrollToYourDAOs() {
@@ -11550,6 +12076,7 @@
 
         // Storage
         STORAGE_KEY_SUMMON: 'molochSummonDraft',
+        STORAGE_KEY_HIDE_INTRO: 'hideIntro',
 
         // Fetch Limits
         DAO_FETCH_LIMIT: 50,
@@ -11948,12 +12475,30 @@
         getEl('walletModal').classList.remove('show');
       }
 
+      function showHotkeysModal() {
+        getEl('hotkeysModal').classList.add('show');
+      }
+
+      function closeHotkeysModal() {
+        getEl('hotkeysModal').classList.remove('show');
+      }
+
       // Close modal when clicking outside
       document.addEventListener('DOMContentLoaded', () => {
+        // Initialize hide intro setting from localStorage
+        initHideIntroSetting();
+
         const modalOverlay = getEl('walletModal');
         modalOverlay.addEventListener('click', (e) => {
           if (e.target === modalOverlay) {
             closeWalletModal();
+          }
+        });
+
+        const hotkeysModalOverlay = getEl('hotkeysModal');
+        hotkeysModalOverlay.addEventListener('click', (e) => {
+          if (e.target === hotkeysModalOverlay) {
+            closeHotkeysModal();
           }
         });
       });
@@ -12152,6 +12697,15 @@
             renderDAOGallery();
           }
 
+          // Always show and load All DAOs section after wallet connection
+          const allDaosGallery = document.getElementById('allDaosGallery');
+          if (allDaosGallery) {
+            allDaosGallery.classList.add('show');
+            if (!allDAOsLoaded) {
+              fetchAllDAOs(); // Load in background, don't await
+            }
+          }
+
           // Check for deep link and open DAO if specified
           if (deepLink) {
             // Check if we need to switch networks
@@ -12185,7 +12739,8 @@
             }
           } else {
             showStatus(`Connected to ${wallet?.name || 'wallet'}`, false);
-            // Smart scrolling: scroll to "Your DAOs" if user is a member, otherwise scroll to summoning form
+            // Only scroll to "Your DAOs" if user is a member of at least one DAO
+            // If user has no DAOs, let them stay where they are to see the intro/animation
             if (userDAOs.length > 0) {
               setTimeout(() => {
                 const daoGallery = document.getElementById('daoGallery');
@@ -12193,15 +12748,8 @@
                   daoGallery.scrollIntoView({ behavior: 'smooth' });
                 }
               }, 100);
-            } else {
-              // User is logged in but not in any DAO - scroll to summoning form
-              setTimeout(() => {
-                const summoner = document.getElementById('summoner');
-                if (summoner) {
-                  summoner.scrollIntoView({ behavior: 'smooth' });
-                }
-              }, 100);
             }
+            // No auto-scroll for users without DAOs - they can explore the intro
           }
         } catch (error) {
           logger.error(error);
@@ -12438,8 +12986,8 @@
         // Display user's shares and loot
         const shares = ethers.formatUnits(member.shares, 18);
         const loot = ethers.formatUnits(member.loot, 18);
-        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(4);
-        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(4);
+        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(2).replace(/\.00$/, '');
+        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(2).replace(/\.00$/, '');
 
         // Clear inputs
         getEl('ragequitSharesInput').value = '';
@@ -12477,7 +13025,7 @@
         }
 
         tokens.forEach(token => {
-          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(4);
+          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(2).replace(/\.00$/, '');
 
           const tokenDiv = document.createElement('div');
           tokenDiv.style.cssText = 'display: flex; align-items: center; padding: 0.7rem; background: rgba(157, 123, 255, 0.15); border: 2px solid rgba(157, 123, 255, 0.5); cursor: pointer; transition: all 0.2s ease; border-radius: 4px;';
@@ -12592,7 +13140,7 @@
             tokenContract.balanceOf(currentDAO.dao.dao).catch(() => 0n)
           ]);
 
-          const formattedBalance = parseFloat(ethers.formatUnits(balance, decimals)).toFixed(4);
+          const formattedBalance = parseFloat(ethers.formatUnits(balance, decimals)).toFixed(2).replace(/\.00$/, '');
 
           // Create token div
           const tokenDiv = document.createElement('div');
@@ -12818,7 +13366,7 @@
         proposalIdEl.textContent = proposalIdStr.length > 15 ? truncateId(proposalIdStr) : `#${proposalIdStr}`;
         proposalIdEl.onclick = () => toggleFullId(proposalIdEl);
 
-        document.getElementById('transferAvailableAmount').textContent = ethers.formatUnits(receipt.balance, 18);
+        document.getElementById('transferAvailableAmount').textContent = parseFloat(ethers.formatUnits(receipt.balance, 18)).toFixed(2).replace(/\.00$/, '');
 
         // Clear inputs
         document.getElementById('transferRecipient').value = '';
@@ -13104,7 +13652,7 @@
             balance = await tokenContract.balanceOf(await signer.getAddress());
           }
 
-          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(4);
+          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(2).replace(/\.00$/, '');
           getEl('depositUserBalance').textContent = `${formatted} ${asset.symbol}`;
           getEl('depositUserBalance').dataset.rawBalance = balance.toString();
           getEl('depositUserBalance').dataset.decimals = asset.decimals;
@@ -13125,7 +13673,7 @@
         }
 
         try {
-          const formatted = ethers.formatUnits(rawBalance, decimals);
+          const formatted = parseFloat(ethers.formatUnits(rawBalance, decimals)).toFixed(2).replace(/\.00$/, '');
           getEl('depositAmount').value = formatted;
 
           // Visual feedback
@@ -13380,7 +13928,7 @@
             balance = await tokenContract.balanceOf(await signer.getAddress());
           }
 
-          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(4);
+          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(2).replace(/\.00$/, '');
           getEl('tributeUserBalance').textContent = `${formatted} ${asset.symbol}`;
         } catch (error) {
           logger.error('Error fetching balance:', error);
@@ -13537,8 +14085,8 @@
             forDecimals = await getTokenDecimals(tribute.forTkn);
           }
 
-          const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(4);
-          const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(4);
+          const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(2).replace(/\.00$/, '');
+          const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(2).replace(/\.00$/, '');
 
           const daoAddress = currentDAO.dao.dao;
 
@@ -13905,11 +14453,11 @@
             <div class="dao-tile-stats">
               <div class="dao-stat">
                 <div class="dao-stat-label">Total Shares</div>
-                <div class="dao-stat-value">${ethers.formatUnits(dao.supplies.sharesTotalSupply, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(dao.supplies.sharesTotalSupply, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Total Loot</div>
-                <div class="dao-stat-value">${ethers.formatUnits(dao.supplies.lootTotalSupply, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(dao.supplies.lootTotalSupply, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Proposals</div>
@@ -14097,11 +14645,11 @@
             <div class="dao-tile-stats">
               <div class="dao-stat">
                 <div class="dao-stat-label">Your Shares</div>
-                <div class="dao-stat-value">${ethers.formatUnits(sharesBN, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Your Loot</div>
-                <div class="dao-stat-value">${ethers.formatUnits(lootBN, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Proposals</div>
@@ -14241,8 +14789,8 @@
         const totalProposals = dao.proposals.length;
         // Members array structure: [0]=address, [1]=shares, [2]=loot, [3]=seatId
         const totalBadgeMembers = dao.members.filter(m => m[3] && m[3] > 0).length;
-        const totalShares = parseFloat(ethers.formatEther(dao.supplies.sharesTotalSupply)).toFixed(1);
-        const totalLoot = parseFloat(ethers.formatEther(dao.supplies.lootTotalSupply)).toFixed(1);
+        const totalShares = parseFloat(ethers.formatEther(dao.supplies.sharesTotalSupply)).toFixed(2).replace(/\.00$/, '');
+        const totalLoot = parseFloat(ethers.formatEther(dao.supplies.lootTotalSupply)).toFixed(2).replace(/\.00$/, '');
 
         statsBar.innerHTML = `
           <div class="dao-stat-item">
@@ -14324,7 +14872,7 @@
 
         // Calculate quorum percentage
         const quorumBps = Number(gov.quorumBps);
-        const quorumPercent = (quorumBps / 100).toFixed(2);
+        const quorumPercent = (quorumBps / 100).toFixed(2).replace(/\.00$/, '');
 
         // Format ragequittable
         const ragequittable = gov.ragequittable ? 'Enabled' : 'Disabled';
@@ -14335,7 +14883,7 @@
         // Format proposal threshold
         const proposalThreshold = BigInt(gov.proposalThreshold || 0);
         const proposalThresholdFormatted = proposalThreshold > 0n
-          ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2) + ' shares'
+          ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2).replace(/\.00$/, '') + ' shares'
           : 'Disabled';
 
         // Format timelock delay
@@ -14351,8 +14899,8 @@
 
         if (futarchyParam > 0n && futarchyCap > 0n) {
           const paramBps = Number(futarchyParam);
-          const paramPercent = (paramBps / 100).toFixed(2);
-          const capFormatted = parseFloat(ethers.formatEther(futarchyCap)).toFixed(1);
+          const paramPercent = (paramBps / 100).toFixed(2).replace(/\.00$/, '');
+          const capFormatted = parseFloat(ethers.formatEther(futarchyCap)).toFixed(2).replace(/\.00$/, '');
           futarchyText = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
         }
 
@@ -14733,7 +15281,7 @@
             // pricePerShare is a simple integer ratio (token-wei per share-wei)
             const priceRatio = sale.pricePerShare.toString();
             const priceFormatted = `${priceRatio}:1`;
-            const capText = sale.cap > 0n ? `${parseFloat(ethers.formatEther(sale.cap)).toFixed(2)} remaining` : 'Unlimited';
+            const capText = sale.cap > 0n ? `${parseFloat(ethers.formatEther(sale.cap)).toFixed(2).replace(/\.00$/, '')} remaining` : 'Unlimited';
             const sourceText = sale.minting ? 'Minting new' : 'From treasury';
 
             // Detect 1:1 ratio for governance staking/upgrade (18 decimals, price = 1)
@@ -14746,7 +15294,7 @@
               try {
                 const tokenContract = new ethers.Contract(sale.token.address, ERC20_ABI, provider);
                 const balance = await tokenContract.balanceOf(currentDAO.dao.dao);
-                const balanceFormatted = parseFloat(ethers.formatUnits(balance, sale.token.decimals)).toFixed(2);
+                const balanceFormatted = parseFloat(ethers.formatUnits(balance, sale.token.decimals)).toFixed(2).replace(/\.00$/, '');
                 daoBalance = `<div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-top: 0.25rem;">DAO Balance: ${balanceFormatted} ${sale.token.symbol}</div>`;
               } catch (err) {
                 logger.error(`Error fetching DAO balance for ${sale.token.symbol}:`, err);
@@ -14815,23 +15363,23 @@
             // Format price nicely
             let priceFormatted;
             if (pricePerToken >= 0.01) {
-              priceFormatted = `${pricePerToken.toFixed(4)} ${sale.token.symbol}`;
+              priceFormatted = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol}`;
             } else if (pricePerToken >= 0.000001) {
-              priceFormatted = `${pricePerToken.toFixed(8)} ${sale.token.symbol}`;
+              priceFormatted = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol}`;
             } else {
               // Very small prices - show as ratio
-              priceFormatted = `${tribAmtFormatted} ${sale.token.symbol} : ${forAmtFormatted}`;
+              priceFormatted = `${tribAmtFormatted.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol} : ${forAmtFormatted.toFixed(2).replace(/\.00$/, '')}`;
             }
 
             // Available supply based on allowance
             const availableFormatted = parseFloat(ethers.formatEther(sale.available));
-            const capText = availableFormatted > 0 ? `${availableFormatted.toFixed(2)} available` : 'Check allowance';
+            const capText = availableFormatted > 0 ? `${availableFormatted.toFixed(2).replace(/\.00$/, '')} available` : 'Check allowance';
 
             // LP config display
             let lpConfigHTML = '';
             if (sale.lpConfig && sale.lpConfig.lpBps > 0) {
-              const lpPct = (sale.lpConfig.lpBps / 100).toFixed(1);
-              const buyerPct = (100 - sale.lpConfig.lpBps / 100).toFixed(1);
+              const lpPct = (sale.lpConfig.lpBps / 100).toFixed(2).replace(/\.00$/, '');
+              const buyerPct = (100 - sale.lpConfig.lpBps / 100).toFixed(2).replace(/\.00$/, '');
               lpConfigHTML = `
                 <div style="margin-bottom: 0.5rem; padding: 0.4rem; background: rgba(100, 150, 255, 0.1); border-radius: 3px; font-size: 0.7rem; color: rgba(100, 150, 255, 0.9);">
                   <span style="font-weight: 600;">LP Enabled:</span> ${lpPct}% to ZAMM liquidity • Buyers receive ${buyerPct}% of quoted rate
@@ -14943,11 +15491,11 @@
                         </svg>
                       </a>
                     </div>
-                    <div style="font-size: 0.9rem; color: #e6d9ff;">${ratePerMonth.toLocaleString()} ${tapToken.symbol}/mo</div>
+                    <div style="font-size: 0.9rem; color: #e6d9ff;">${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tapToken.symbol}/mo</div>
                   </div>
                   <div>
                     <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">Claimable</div>
-                    <div style="font-size: 0.9rem; color: ${claimableFormatted > 0 ? '#64c896' : '#e6d9ff'};">${claimableFormatted.toLocaleString()} ${tapToken.symbol}</div>
+                    <div style="font-size: 0.9rem; color: ${claimableFormatted > 0 ? '#64c896' : '#e6d9ff'};">${claimableFormatted.toFixed(2).replace(/\.00$/, '')} ${tapToken.symbol}</div>
                   </div>
                 </div>
                 ${claimableFormatted > 0 ? `
@@ -15005,7 +15553,7 @@
           assetDiv.style.cursor = 'pointer';
           assetDiv.title = `Click to create ${asset.symbol} transfer proposal`;
 
-          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(4);
+          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(2).replace(/\.00$/, '');
 
           // Add sale badge for custom sale tokens
           const saleBadge = asset.isCustomSale
@@ -15096,8 +15644,8 @@
               forDecimals = await getTokenDecimals(tribute.forTkn);
             }
 
-            const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(4);
-            const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(4);
+            const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(2).replace(/\.00$/, '');
+            const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(2).replace(/\.00$/, '');
 
             const card = document.createElement('div');
             card.className = 'tribute-card';
@@ -15416,7 +15964,7 @@
         let text = `<strong>${price} ${tokenSymbol}</strong> for <strong>1 ${tokenTypeText}</strong>`;
 
         if (cap && !isNaN(cap) && cap > 0) {
-          text += ` up to <strong>${cap.toLocaleString()} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
+          text += ` up to <strong>${cap.toFixed(2).replace(/\.00$/, '')} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
         } else {
           text += ` <span style="opacity: 0.7;">(unlimited)</span>`;
         }
@@ -15428,7 +15976,7 @@
           // Add cost example
           const exampleAmount = 100;
           const exampleCost = exampleAmount * price;
-          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toLocaleString()} ${tokenSymbol} buys ${exampleAmount} ${tokenTypeText}s</span>`;
+          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toFixed(2).replace(/\.00$/, '')} ${tokenSymbol} buys ${exampleAmount} ${tokenTypeText}s</span>`;
         }
 
         hintText.innerHTML = text;
@@ -15593,7 +16141,7 @@
           // Cache the result
           customTokenCache[checksummedAddress.toLowerCase()] = { name, symbol, decimals: Number(decimals) };
 
-          const balanceFormatted = parseFloat(ethers.formatUnits(daoBalance, decimals)).toFixed(2);
+          const balanceFormatted = parseFloat(ethers.formatUnits(daoBalance, decimals)).toFixed(2).replace(/\.00$/, '');
 
           infoDiv.innerHTML = `
             <div style="padding: 0.5rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff; border-radius: 2px;">
@@ -16192,7 +16740,7 @@
 
         const dao = currentDAO.dao;
         const daoAddress = dao.dao;
-        const currentQuorum = (Number(dao.gov.quorumBps) / 100).toFixed(2);
+        const currentQuorum = (Number(dao.gov.quorumBps) / 100).toFixed(2).replace(/\.00$/, '');
 
         // Scroll to proposal form
         const proposalForm = document.querySelector('.proposal-form');
@@ -16213,8 +16761,8 @@
         const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
         const currentQuorumBps = Number(currentDAO.dao.gov.quorumBps);
         const currentRequiredVotes = (BigInt(currentQuorumBps) * currentTotalSupply) / 10000n;
-        const currentRequiredVotesFormatted = parseFloat(ethers.formatEther(currentRequiredVotes)).toFixed(2);
-        const totalSupplyFormatted = parseFloat(ethers.formatEther(currentTotalSupply)).toFixed(2);
+        const currentRequiredVotesFormatted = parseFloat(ethers.formatEther(currentRequiredVotes)).toFixed(2).replace(/\.00$/, '');
+        const totalSupplyFormatted = parseFloat(ethers.formatEther(currentTotalSupply)).toFixed(2).replace(/\.00$/, '');
 
         // Check if current quorum rounds to 0
         const hasZeroQuorum = currentQuorumBps > 0 && currentTotalSupply > 0n && currentRequiredVotes === 0n;
@@ -16284,7 +16832,7 @@
         const newQuorumBps = Math.floor(newPercent * 100);
         const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
         const newRequiredVotes = (BigInt(newQuorumBps) * currentTotalSupply) / 10000n;
-        const newRequiredVotesFormatted = parseFloat(ethers.formatEther(newRequiredVotes)).toFixed(2);
+        const newRequiredVotesFormatted = parseFloat(ethers.formatEther(newRequiredVotes)).toFixed(2).replace(/\.00$/, '');
 
         const hasZeroQuorum = newQuorumBps > 0 && currentTotalSupply > 0n && newRequiredVotes === 0n;
 
@@ -16637,7 +17185,7 @@
         const dao = currentDAO.dao;
         const daoAddress = dao.dao;
         const currentThreshold = BigInt(dao.gov.proposalThreshold || 0);
-        const currentThresholdFormatted = parseFloat(ethers.formatUnits(currentThreshold, 18)).toFixed(2);
+        const currentThresholdFormatted = parseFloat(ethers.formatUnits(currentThreshold, 18)).toFixed(2).replace(/\.00$/, '');
 
         // Get current total share supply (not including shares held by DAO)
         const totalShares = BigInt(dao.supplies.sharesTotalSupply || 0);
@@ -16681,10 +17229,10 @@
         }
 
         const maxPotentialShares = circulatingShares + daicoSharesAvailable;
-        const maxThreshold = parseFloat(ethers.formatUnits(maxPotentialShares, 18)).toFixed(2);
+        const maxThreshold = parseFloat(ethers.formatUnits(maxPotentialShares, 18)).toFixed(2).replace(/\.00$/, '');
         const hasDaicoShares = daicoSharesAvailable > 0n;
-        const daicoSharesFormatted = parseFloat(ethers.formatUnits(daicoSharesAvailable, 18)).toFixed(2);
-        const circulatingFormatted = parseFloat(ethers.formatUnits(circulatingShares, 18)).toFixed(2);
+        const daicoSharesFormatted = parseFloat(ethers.formatUnits(daicoSharesAvailable, 18)).toFixed(2).replace(/\.00$/, '');
+        const circulatingFormatted = parseFloat(ethers.formatUnits(circulatingShares, 18)).toFixed(2).replace(/\.00$/, '');
 
         // Scroll to proposal form
         const proposalForm = document.querySelector('.proposal-form');
@@ -17255,7 +17803,7 @@
             userBalance = await tokenContract.balanceOf(connectedAddress);
           }
 
-          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(6);
+          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
 
           // Calculate max affordable shares based on user balance
           // pricePerShare is payToken wei per share wei
@@ -17351,11 +17899,11 @@
             // Check user balance
             const userBalance = await tokenContract.balanceOf(connectedAddress);
             if (userBalance < cost) {
-              showStatus(`Insufficient balance. Need ${ethers.formatUnits(cost, tokenDecimals)} tokens`, true);
+              showStatus(`Insufficient balance. Need ${parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(2).replace(/\.00$/, '')} tokens`, true);
               return;
             }
 
-            // Check allowance
+        // Check allowance
             const currentAllowance = await tokenContract.allowance(connectedAddress, currentDAO.dao.dao);
 
             if (currentAllowance < cost) {
@@ -17448,7 +17996,7 @@
             userBalance = await tokenContract.balanceOf(connectedAddress);
           }
 
-          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(6);
+          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
 
           // Calculate the ratio and max affordable
           const tribAmtBn = BigInt(tribAmt);
@@ -17462,8 +18010,8 @@
           }
 
           // Format ratio for display
-          const tribAmtFormatted = parseFloat(ethers.formatUnits(tribAmtBn, tokenDecimals)).toFixed(6);
-          const forAmtFormatted = parseFloat(ethers.formatEther(forAmtBn)).toFixed(4);
+          const tribAmtFormatted = parseFloat(ethers.formatUnits(tribAmtBn, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
+          const forAmtFormatted = parseFloat(ethers.formatEther(forAmtBn)).toFixed(2).replace(/\.00$/, '');
 
           // Build DAICO sale page link
           const chainId = getNetwork().chainId;
@@ -17551,7 +18099,7 @@
           const num = buyAmount * tribAmtBn;
           const cost = (num + forAmtBn - 1n) / forAmtBn;
 
-          const costFormatted = parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(6);
+          const costFormatted = parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
           costEl.textContent = `${costFormatted} ${tokenSymbol}`;
         } catch (e) {
           costEl.textContent = `-- ${tokenSymbol}`;
@@ -17591,7 +18139,7 @@
             // Check user balance
             const userBalance = await tokenContract.balanceOf(connectedAddress);
             if (userBalance < cost) {
-              showStatus(`Insufficient balance. Need ${ethers.formatUnits(cost, tokenDecimals)} tokens`, true);
+              showStatus(`Insufficient balance. Need ${parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(2).replace(/\.00$/, '')} tokens`, true);
               return;
             }
 
@@ -17744,7 +18292,7 @@
           </div>
           <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px;">
             <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.35rem;">
-              Current Rate: <strong>${currentRatePerMonth.toLocaleString()} ${tribTknSymbol}/month</strong>
+              Current Rate: <strong>${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribTknSymbol}/month</strong>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
               Token: ${tribTknSymbol} (${tribTknDecimals} decimals)
@@ -17755,7 +18303,7 @@
           </div>
           <div style="margin-bottom: 0.75rem;">
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Rate (${tribTknSymbol} per month)</label>
-            <input type="text" id="tapRateInput" placeholder="${currentRatePerMonth.toLocaleString()}" value="${currentRatePerMonth.toFixed(2)}"
+            <input type="text" id="tapRateInput" placeholder="${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')}" value="${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')}"
                    oninput="updateTapRatePreview(${tribTknDecimals}, '${tribTknSymbol}')"
                    style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 180, 100, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
             <div style="margin-top: 0.35rem; font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">
@@ -17803,8 +18351,8 @@
         previewDiv.style.display = 'block';
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
-            <div>≈ ${ratePerDay.toFixed(4)} ${symbol}/day</div>
-            <div>≈ ${ratePerYear.toLocaleString()} ${symbol}/year</div>
+            <div>≈ ${ratePerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}/day</div>
+            <div>≈ ${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${symbol}/year</div>
             ${newRatePerMonth === 0 ? '<div style="color: #ffb464; margin-top: 0.35rem;">⚠️ Setting rate to 0 will freeze the tap</div>' : ''}
           </div>
         `;
@@ -17863,7 +18411,7 @@
               Current: <strong>${tribAmtFormatted} ${tribTknSymbol} → ${forAmtFormatted} ${tokenSymbol}</strong>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
-              Price: ${currentPricePerToken.toFixed(6)} ${tribTknSymbol} per ${tokenSymbol} • Deadline: ${deadlineDate}
+              Price: ${currentPricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribTknSymbol} per ${tokenSymbol} • Deadline: ${deadlineDate}
             </div>
           </div>
 
@@ -17956,7 +18504,7 @@
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(100, 200, 150, 0.1); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
             <div>New ratio: ${newTribAmt} ${tribSymbol} = ${newForAmt} ${forSymbol}</div>
-            <div>Price per token: ${newPricePerToken.toFixed(6)} ${tribSymbol}</div>
+            <div>Price per token: ${newPricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}</div>
           </div>
         `;
       }
@@ -18211,7 +18759,7 @@
           const tokenType = document.getElementById('newSaleTokenType')?.value === 'loot' ? 'LOOT' : 'SHARES';
           previewDiv.innerHTML = `
             <div>Ratio: ${tribAmt} ${paymentSymbol} = ${forAmt} ${tokenType}</div>
-            <div>Price per token: ${pricePerToken.toFixed(6)} ${paymentSymbol}</div>
+            <div>Price per token: ${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${paymentSymbol}</div>
           `;
         }
       }
@@ -18836,7 +19384,7 @@
 
           const description = newRatePerMonth === 0
             ? `Freeze tap (set rate to 0)`
-            : `Change tap rate to ${newRatePerMonth.toLocaleString()} ${symbol}/month`;
+            : `Change tap rate to ${newRatePerMonth.toFixed(2).replace(/\.00$/, '')} ${symbol}/month`;
 
           // Machine-readable metadata for tap rate change
           const metadata = `<<<DAICO_TAP action="setRate" ratePerSec="${ratePerSec.toString()}" ratePerMonth="${newRatePerMonth}" symbol="${symbol}" decimals="${decimals}" DAICO_TAP>>>`;
@@ -18935,7 +19483,7 @@
 
           const tokenTypeText = isLoot ? 'LOOT' : 'SHARES';
           const sourceText = minting ? 'minting new tokens' : 'selling from treasury';
-          const capText = cap > 0n ? `${ethers.formatEther(cap)} tokens` : 'unlimited';
+          const capText = cap > 0n ? `${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} tokens` : 'unlimited';
           const statusText = active ? 'ACTIVE' : 'INACTIVE';
 
           let description = `Configure ${symbol} sale: ${priceInput} ${symbol} per ${tokenTypeText} token, ${capText} cap, ${sourceText}, status: ${statusText}`;
@@ -19148,7 +19696,7 @@
         let text = `<strong>${price} ${payToken}</strong> for <strong>1 ${tokenTypeText}</strong>`;
 
         if (cap && !isNaN(cap) && cap > 0) {
-          text += ` up to <strong>${cap.toLocaleString()} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
+          text += ` up to <strong>${cap.toFixed(2).replace(/\.00$/, '')} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
         } else {
           text += ` <span style="opacity: 0.7;">(unlimited)</span>`;
         }
@@ -19160,7 +19708,7 @@
           // Add cost example
           const exampleAmount = 100;
           const exampleCost = exampleAmount * price;
-          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toLocaleString()} ${payToken} buys ${exampleAmount} ${tokenTypeText}s</span>`;
+          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toFixed(2).replace(/\.00$/, '')} ${payToken} buys ${exampleAmount} ${tokenTypeText}s</span>`;
         }
 
         hintText.innerHTML = text;
@@ -19425,17 +19973,17 @@
 
         if (tribAmt > 0 && forAmt > 0) {
           const pricePerToken = tribAmt / forAmt;
-          let text = `${tribAmt} ${tribSymbol} → ${forAmt.toLocaleString()} tokens`;
+          let text = `${tribAmt} ${tribSymbol} → ${forAmt.toFixed(2).replace(/\.00$/, '')} tokens`;
 
           // Show effective rate if LP is enabled
           if (lpBps > 0 && lpBps < 100) {
             const effectiveTokens = forAmt * (100 - lpBps) / 100;
-            text += ` <span style="color: #64b5ff;">(buyer gets ${effectiveTokens.toLocaleString()} after ${lpBps}% LP)</span>`;
+            text += ` <span style="color: #64b5ff;">(buyer gets ${effectiveTokens.toFixed(2).replace(/\.00$/, '')} after ${lpBps}% LP)</span>`;
           }
 
           if (supply > 0) {
             const maxRaise = supply * pricePerToken;
-            text += `<br>Max raise: ~${maxRaise.toLocaleString()} ${tribSymbol}`;
+            text += `<br>Max raise: ~${maxRaise.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}`;
           }
           hintText.innerHTML = text;
           hint.style.display = 'block';
@@ -19478,10 +20026,10 @@
 
         if (ratePerMonth > 0) {
           const ratePerYear = ratePerMonth * 12;
-          let text = `<strong>Tap:</strong> ${ratePerMonth.toLocaleString()} ${tribSymbol}/month (~${ratePerYear.toLocaleString()} ${tribSymbol}/year)`;
+          let text = `<strong>Tap:</strong> ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month (~${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/year)`;
           if (budget > 0) {
             const months = budget / ratePerMonth;
-            text += ` • Budget lasts ~${months.toFixed(1)} months`;
+            text += ` • Budget lasts ~${months.toFixed(2).replace(/\.00$/, '')} months`;
           }
           preview.innerHTML = text;
           preview.style.display = 'block';
@@ -19602,11 +20150,11 @@
             const proposalThreshold = BigInt(currentDAO.dao.gov.proposalThreshold || 0);
             if (proposalThreshold > 0n && saleSupply > proposalThreshold) {
               const continueAnyway = confirm(
-                `⚠️ GOVERNANCE RISK: DAICO sale supply (${ethers.formatEther(saleSupply)} shares) exceeds proposal threshold (${ethers.formatEther(proposalThreshold)} shares).\n\n` +
+                `⚠️ GOVERNANCE RISK: DAICO sale supply (${parseFloat(ethers.formatEther(saleSupply)).toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')} shares).\n\n` +
                 `A single buyer could accumulate enough voting shares to pass proposals unilaterally.\n\n` +
                 `Consider:\n` +
                 `• Selling LOOT (non-voting) instead\n` +
-                `• Reducing supply to ≤ ${ethers.formatEther(proposalThreshold)}\n\n` +
+                `• Reducing supply to ≤ ${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')}\n\n` +
                 `Continue anyway?`
               );
               if (!continueAnyway) return;
@@ -19674,7 +20222,7 @@
           // Build description
           const pricePerToken = parseFloat(tribAmtInput) / parseFloat(forAmtInput);
           let description = `Setup DAICO Sale: ${supplyInput} ${forTokenName} available for purchase`;
-          description += `\n\nSale Terms: ${tribAmtInput} ${tribSymbol} = ${forAmtInput} ${forTokenName} (${pricePerToken.toFixed(6)} ${tribSymbol}/token)`;
+          description += `\n\nSale Terms: ${tribAmtInput} ${tribSymbol} = ${forAmtInput} ${forTokenName} (${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/token)`;
 
           if (enableLP) {
             const lpPct = parseInt(lpBpsInput);
@@ -19683,7 +20231,7 @@
 
           if (enableTap) {
             const ratePerMonth = parseFloat(tapRateInput);
-            description += `\n\nTap: ${ratePerMonth.toLocaleString()} ${tribSymbol}/month to ${tapOpsInput.slice(0, 10)}... (budget: ${parseFloat(tapBudgetInput).toLocaleString()} ${tribSymbol})`;
+            description += `\n\nTap: ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month to ${tapOpsInput.slice(0, 10)}... (budget: ${parseFloat(tapBudgetInput).toFixed(2).replace(/\.00$/, '')} ${tribSymbol})`;
           }
 
           description += `\n\nThis proposal executes ${numActions} actions in a single batch:`;
@@ -19691,7 +20239,7 @@
           description += `\n${actionNum++}. Mint ${supplyInput} ${forTokenName} to DAO`;
           description += `\n${actionNum++}. Approve DAICO contract to transfer tokens`;
           if (enableTap && tapBudget > 0n) {
-            description += `\n${actionNum++}. Grant DAICO tap allowance (${ethers.formatUnits(tapBudget, tribDecimals)} ${tribSymbol})`;
+            description += `\n${actionNum++}. Grant DAICO tap allowance (${parseFloat(ethers.formatUnits(tapBudget, tribDecimals)).toFixed(2).replace(/\.00$/, '')} ${tribSymbol})`;
           }
           description += `\n${actionNum++}. Configure sale via ${saleMethod} on DAICO (${DAICO_ADDRESS.slice(0, 10)}...)`;
 
@@ -19921,7 +20469,7 @@
           allowancesSection.style.display = 'block';
 
           allowancesInfo.innerHTML = allowances.map(a => {
-            const formattedAmount = parseFloat(ethers.formatUnits(a.allowance, a.decimals)).toFixed(4);
+            const formattedAmount = parseFloat(ethers.formatUnits(a.allowance, a.decimals)).toFixed(2).replace(/\.00$/, '');
             return `
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px; margin-bottom: 0.5rem;">
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -19958,7 +20506,7 @@
           document.body.appendChild(modal);
         }
 
-        const maxFormatted = parseFloat(ethers.formatUnits(BigInt(maxAllowance), decimals)).toFixed(6);
+        const maxFormatted = parseFloat(ethers.formatUnits(BigInt(maxAllowance), decimals)).toFixed(2).replace(/\.00$/, '');
 
         modal.innerHTML = `
           <div class="wallet-modal" style="max-width: 400px;">
@@ -20159,15 +20707,15 @@
             if (proposalThreshold > 0n) {
               if (cap === 0n) {
                 // Unlimited minting of voting shares with threshold - dangerous
-                showStatus('⚠️ Cannot set unlimited shares sale with a proposal threshold. Set a cap ≤ ' + ethers.formatEther(proposalThreshold) + ' or sell LOOT instead.', true);
+                showStatus('⚠️ Cannot set unlimited shares sale with a proposal threshold. Set a cap ≤ ' + parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '') + ' or sell LOOT instead.', true);
                 return;
               } else if (cap > proposalThreshold) {
                 const continueAnyway = confirm(
-                  `⚠️ GOVERNANCE RISK: Sale cap (${ethers.formatEther(cap)} shares) exceeds proposal threshold (${ethers.formatEther(proposalThreshold)} shares).\n\n` +
+                  `⚠️ GOVERNANCE RISK: Sale cap (${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')} shares).\n\n` +
                   `A single buyer could accumulate enough voting shares to pass proposals unilaterally.\n\n` +
                   `Consider:\n` +
                   `• Selling LOOT (non-voting) instead\n` +
-                  `• Reducing the cap to ≤ ${ethers.formatEther(proposalThreshold)}\n\n` +
+                  `• Reducing the cap to ≤ ${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')}\n\n` +
                   `Continue anyway?`
                 );
                 if (!continueAnyway) return;
@@ -20229,7 +20777,7 @@
           const tokenType = isLoot ? 'LOOT' : 'SHARES';
           const statusText = active ? 'Enable' : 'Disable';
           const sourceText = minting ? 'mint new' : 'sell from treasury';
-          const capText = cap > 0n ? `, cap ${ethers.formatEther(cap)}` : ', unlimited';
+          const capText = cap > 0n ? `, cap ${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')}` : ', unlimited';
           let description = `${statusText} ${tokenType} sale: ${priceInput} ${tokenName} per token (${sourceText}${capText})`;
 
           // Always add SALE tag for tracking in UI (treasury, sales section, etc.)
@@ -20452,9 +21000,13 @@
           switchDaoView('dao');
         }
 
-        DOMCache.daoGallery.classList.remove('show');
+        // Hide All DAOs gallery (Your DAOs stays visible)
         DOMCache.allDaosGallery.classList.remove('show');
         DOMCache.daoDashboard.classList.add('show');
+
+        // Hide summoner section when entering DAO view
+        const summonerSection = document.getElementById('summoner');
+        if (summonerSection) summonerSection.style.display = 'none';
 
         // Add special gif for index 0, 1, 2, 3, and 4 DAOs
         // Find global index by matching DAO address to ensure correct GIF assignment
@@ -20486,6 +21038,9 @@
             existingGif.style.display = 'none';
           }
         }
+
+        // Scroll to the dashboard
+        DOMCache.daoDashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       // Back to gallery
@@ -20508,6 +21063,10 @@
 
         // Show navigation buttons when back to gallery
         document.body.classList.remove('hide-nav-buttons');
+
+        // Show summoner section when back to gallery
+        const summonerSection = document.getElementById('summoner');
+        if (summonerSection) summonerSection.style.display = '';
 
         // Show center journey line when back to gallery
         const journeyLineContainer = document.getElementById('journey-line-container');
@@ -20572,8 +21131,8 @@
         // Update balances
         const shares = ethers.formatUnits(member.shares, 18);
         const loot = ethers.formatUnits(member.loot, 18);
-        document.getElementById('membershipShares').textContent = parseFloat(shares).toFixed(4);
-        document.getElementById('membershipLoot').textContent = parseFloat(loot).toFixed(4);
+        document.getElementById('membershipShares').textContent = parseFloat(shares).toFixed(2).replace(/\.00$/, '');
+        document.getElementById('membershipLoot').textContent = parseFloat(loot).toFixed(2).replace(/\.00$/, '');
 
         // Update Etherscan links for tokens
         if (dao.meta && dao.meta.sharesToken) {
@@ -20863,7 +21422,7 @@
             // Handle display for claimed vs unclaimed receipts
             const amountDisplay = receipt.claimed || receipt.balance === 0n
               ? '<div class="receipt-amount" style="opacity: 0.6;">Receipt Claimed</div>'
-              : `<div class="receipt-amount">${parseFloat(balanceFormatted).toFixed(4)} receipts</div>`;
+              : `<div class="receipt-amount">${parseFloat(balanceFormatted).toFixed(2).replace(/\.00$/, '')} receipts</div>`;
 
             // Convert receipt ID from hex to decimal for display
             const receiptIdDecimal = BigInt(receipt.receiptId).toString();
@@ -21201,8 +21760,8 @@
           ]);
 
           // Display voting power
-          const ownedFormatted = parseFloat(ethers.formatUnits(ownedShares, 18)).toFixed(2);
-          const votesFormatted = parseFloat(ethers.formatUnits(totalVotes, 18)).toFixed(2);
+          const ownedFormatted = parseFloat(ethers.formatUnits(ownedShares, 18)).toFixed(2).replace(/\.00$/, '');
+          const votesFormatted = parseFloat(ethers.formatUnits(totalVotes, 18)).toFixed(2).replace(/\.00$/, '');
 
           ownedSharesDisplay.textContent = ownedFormatted;
           totalVotesDisplay.textContent = votesFormatted;
@@ -21211,7 +21770,7 @@
           const receivedVotes = totalVotes - ownedShares;
           if (receivedVotes > 0n) {
             totalVotesDisplay.classList.add('has-delegation');
-            const receivedFormatted = parseFloat(ethers.formatUnits(receivedVotes, 18)).toFixed(2);
+            const receivedFormatted = parseFloat(ethers.formatUnits(receivedVotes, 18)).toFixed(2).replace(/\.00$/, '');
             votingPowerBreakdown.innerHTML = `${ownedFormatted} owned + <strong style="color: #66ff66;">${receivedFormatted} delegated</strong>`;
           } else {
             totalVotesDisplay.classList.remove('has-delegation');
@@ -21252,7 +21811,7 @@
             let html = '<div style="margin-top: 0.5rem;">';
             for (let i = 0; i < delegates.length; i++) {
               const info = delegateInfos[i];
-              const percentage = (Number(bps[i]) / 100).toFixed(2);
+              const percentage = (Number(bps[i]) / 100).toFixed(2).replace(/\.00$/, '');
 
               let displayText, displayClass;
               if (info.isSelf) {
@@ -21364,7 +21923,7 @@
 
             delegatorsWithENS.forEach(delegator => {
               const displayName = delegator.ensName || formatAddress(delegator.address);
-              const amountFormatted = parseFloat(ethers.formatUnits(delegator.amount, 18)).toFixed(2);
+              const amountFormatted = parseFloat(ethers.formatUnits(delegator.amount, 18)).toFixed(2).replace(/\.00$/, '');
 
               const item = document.createElement('div');
               item.className = 'received-delegation-item';
@@ -21377,7 +21936,7 @@
                     ${displayName}
                   </span>
                 </div>
-                <span class="delegated-amount" title="${delegator.percentage.toFixed(2)}% of their voting power">
+                <span class="delegated-amount" title="${delegator.percentage.toFixed(2).replace(/\.00$/, '')}% of their voting power">
                   ${amountFormatted} votes
                 </span>
               `;
@@ -21575,7 +22134,7 @@
         const warningDisplay = document.getElementById('delegationWarning');
 
         if (totalDisplay) {
-          totalDisplay.textContent = total.toFixed(2) + '%';
+          totalDisplay.textContent = total.toFixed(2).replace(/\.00$/, '') + '%';
 
           // Color code based on validity
           if (total > 100) {
@@ -21594,7 +22153,7 @@
 
         if (selfDisplay) {
           const remaining = Math.max(0, 100 - total);
-          selfDisplay.textContent = remaining.toFixed(2) + '%';
+          selfDisplay.textContent = remaining.toFixed(2).replace(/\.00$/, '') + '%';
 
           // Show/hide self delegation info based on whether there's a remainder
           const selfInfo = document.getElementById('selfDelegationInfo');
@@ -21735,7 +22294,7 @@
             const totalWeight = weightInputs.reduce((sum, w) => sum + w, 0);
 
             if (totalWeight > 100) {
-              showStatus(`Total weight cannot exceed 100% (currently ${totalWeight.toFixed(2)}%)`, true);
+              showStatus(`Total weight cannot exceed 100% (currently ${totalWeight.toFixed(2).replace(/\.00$/, '')}%)`, true);
               return;
             }
 
@@ -21748,8 +22307,8 @@
 
               // Confirm with user about auto-adding self delegation
               const confirmSelf = confirm(
-                `Your delegation totals ${totalWeight.toFixed(2)}%.\n\n` +
-                `The remaining ${remaining.toFixed(2)}% will be automatically delegated to yourself.\n\n` +
+                `Your delegation totals ${totalWeight.toFixed(2).replace(/\.00$/, '')}%.\n\n` +
+                `The remaining ${remaining.toFixed(2).replace(/\.00$/, '')}% will be automatically delegated to yourself.\n\n` +
                 `Continue?`
               );
 
@@ -21761,7 +22320,7 @@
               finalAddresses.push(connectedAddress);
               finalWeights.push(remaining);
 
-              showStatus(`Auto-adding ${remaining.toFixed(2)}% self-delegation...`, false);
+              showStatus(`Auto-adding ${remaining.toFixed(2).replace(/\.00$/, '')}% self-delegation...`, false);
             }
 
             // Convert percentages to basis points (10000 = 100%)
@@ -21998,10 +22557,10 @@
                     🎉 FUTARCHY REWARDS AVAILABLE
                   </div>
                   <div style="font-family: 'EB Garamond', serif; font-size: 0.9rem; color: rgba(230, 217, 255, 0.9); text-align: center; margin-bottom: 0.75rem;">
-                    You voted on the winning side! You have <strong>${parseFloat(balanceFormatted).toFixed(4)}</strong> winning receipts.
+                    You voted on the winning side! You have <strong>${parseFloat(balanceFormatted).toFixed(2).replace(/\.00$/, '')}</strong> winning receipts.
                   </div>
                   <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); text-align: center; margin-bottom: 1rem;">
-                    Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(4)} LOOT</strong>
+                    Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(2).replace(/\.00$/, '')} LOOT</strong>
                   </div>
                   <button onclick="claimFutarchyFromReceipt('${receiptData.proposalId.toString()}', '${receiptData.balance.toString()}')"
                           style="width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #66ff66 0%, #44cc44 100%); border: none; color: #000; font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; font-weight: 600; border-radius: 4px; transition: all 0.2s ease; min-height: 44px;">
@@ -22060,6 +22619,10 @@
             const imageUrl = toGatewayUrl(contractURI);
             emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
             emblem.classList.add('url-image');
+            // Store minimal metadata for hover popup
+            tileEmblemMetadata.set(emblemId, { image: imageUrl });
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
             return;
           }
 
@@ -22076,6 +22639,10 @@
           } else if (contractURI.startsWith('data:image/')) {
             // Direct data URI image (e.g., data:image/svg+xml,...)
             emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+            // Store minimal metadata for hover popup
+            tileEmblemMetadata.set(emblemId, { image: contractURI });
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
             return;
           } else {
             // Try to fetch as JSON (convert IPFS URLs to gateway URLs)
@@ -22094,6 +22661,10 @@
             if (contentType && contentType.startsWith('image/')) {
               emblem.innerHTML = `<img src="${fetchUrl}" alt="DAO Emblem" />`;
               emblem.classList.add('url-image');
+              // Store minimal metadata for hover popup
+              tileEmblemMetadata.set(emblemId, { image: fetchUrl });
+              emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+              emblem.addEventListener('mouseleave', hideEmblemPopup);
               return;
             }
 
@@ -22114,6 +22685,10 @@
             if (!metadata.image.startsWith('data:')) {
               emblem.classList.add('url-image');
             }
+            // Store metadata for hover popup
+            tileEmblemMetadata.set(emblemId, metadata);
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
           } else if (metadata && metadata.description) {
             // No image but has description - show truncated description in tile
             emblem.classList.add('description-only');
@@ -22121,6 +22696,10 @@
               ? metadata.description.slice(0, 77) + '...'
               : metadata.description;
             emblem.innerHTML = `<div class="tile-emblem-description">${escapeHtml(truncatedDesc)}</div>`;
+            // Store metadata for hover popup
+            tileEmblemMetadata.set(emblemId, metadata);
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
           }
         } catch (error) {
           logger.error('Error rendering tile emblem:', error);
@@ -22187,14 +22766,14 @@
             const memberDiv = document.createElement('div');
             memberDiv.className = 'member-item';
 
-            const shares = parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(4);
-            const loot = parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(4);
+            const shares = parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(2).replace(/\.00$/, '');
+            const loot = parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(2).replace(/\.00$/, '');
             const badgeText = (seatId && seatId > 0) ? `Seat #${seatId}` : 'None';
 
             // Calculate ownership %
             const memberTotal = sharesBN + lootBN;
             const ownershipPercent = totalSupply > 0n
-              ? ((Number(memberTotal) / Number(totalSupply)) * 100).toFixed(2)
+              ? ((Number(memberTotal) / Number(totalSupply)) * 100).toFixed(2).replace(/\.00$/, '')
               : '0.00';
 
             memberDiv.innerHTML = `
@@ -22367,7 +22946,7 @@
                       Voted ${supportLabel}
                     </div>
                     <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.7);">
-                      Balance: ${parseFloat(balanceFormatted).toFixed(4)} receipts
+                      Balance: ${parseFloat(balanceFormatted).toFixed(2).replace(/\.00$/, '')} receipts
                     </div>
                   </div>
                 `;
@@ -22814,9 +23393,9 @@
           const stateText = PROPOSAL_STATES[state] || `State ${state}`;
           const stateClass = stateText.toLowerCase();
 
-          const forVotes = ethers.formatUnits(proposal.forVotes, 18);
-          const againstVotes = ethers.formatUnits(proposal.againstVotes, 18);
-          const abstainVotes = ethers.formatUnits(proposal.abstainVotes, 18);
+          const forVotes = parseFloat(ethers.formatUnits(proposal.forVotes, 18)).toFixed(2).replace(/\.00$/, '');
+          const againstVotes = parseFloat(ethers.formatUnits(proposal.againstVotes, 18)).toFixed(2).replace(/\.00$/, '');
+          const abstainVotes = parseFloat(ethers.formatUnits(proposal.abstainVotes, 18)).toFixed(2).replace(/\.00$/, '');
 
           // Determine button state based on proposal state and timelock settings
           // State 2 = Queued (timelock running), State 3 = Succeeded (passed, ready to execute)
@@ -22977,7 +23556,7 @@
                     const estimatedReward = (userReceiptBalance * payoutPerUnit) / (10n ** 18n);
                     const estimatedRewardFormatted = ethers.formatUnits(estimatedReward, 18);
 
-                    infoDiv.innerHTML = `You have <strong>${parseFloat(receiptAmount).toFixed(4)} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(4)} LOOT</strong>`;
+                    infoDiv.innerHTML = `You have <strong>${parseFloat(receiptAmount).toFixed(2).replace(/\.00$/, '')} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(2).replace(/\.00$/, '')} LOOT</strong>`;
 
                     const claimBtn = document.createElement('button');
                     claimBtn.className = 'proposal-button claim';
@@ -23411,8 +23990,8 @@
             let futarchyDesc = 'Disabled';
             if (param > 0n && cap > 0n) {
               const paramBps = Number(param);
-              const paramPercent = (paramBps / 100).toFixed(2);
-              const capFormatted = parseFloat(ethers.formatEther(cap)).toFixed(1);
+              const paramPercent = (paramBps / 100).toFixed(2).replace(/\.00$/, '');
+              const capFormatted = parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '');
               futarchyDesc = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
             }
 
@@ -23426,7 +24005,7 @@
           else if (isDaoSelfCall && functionSelector === '0x0527aab6' && calldata.length >= 74) {
             const decoded = abiCoder.decode(['uint16'], '0x' + calldata.slice(10));
             const bps = Number(decoded[0]);
-            const percent = (bps / 100).toFixed(2);
+            const percent = (bps / 100).toFixed(2).replace(/\.00$/, '');
 
             translation = `
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Change Quorum</div>
@@ -23490,7 +24069,7 @@
           else if (isDaoSelfCall && functionSelector === '0x80ca42a1' && calldata.length >= 74) {
             const decoded = abiCoder.decode(['uint96'], '0x' + calldata.slice(10));
             const thresholdWei = decoded[0];
-            const thresholdFormatted = parseFloat(ethers.formatUnits(thresholdWei, 18)).toFixed(2);
+            const thresholdFormatted = parseFloat(ethers.formatUnits(thresholdWei, 18)).toFixed(2).replace(/\.00$/, '');
 
             translation = `
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Change Proposal Threshold</div>
@@ -23543,7 +24122,7 @@
             const price = pricePerShare.toString();
             const tokenType = isLoot ? 'LOOT' : 'SHARES';
             const statusText = active ? 'Enable' : 'Disable';
-            const capText = cap > 0n ? `${ethers.formatEther(cap)} cap` : 'unlimited';
+            const capText = cap > 0n ? `${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} cap` : 'unlimited';
             const sourceText = minting ? 'mint new' : 'from treasury';
 
             translation = `
@@ -24018,7 +24597,7 @@
           // Convert stored string value back to BigInt for proper encoding
           const valueBigInt = BigInt(proposalData.value);
 
-          if (!confirm(`Execute proposal:\n\n${proposalData.description}\n\nOp: ${proposalData.op}\nTo: ${proposalData.to}\nValue: ${ethers.formatEther(valueBigInt)} ETH\nData: ${proposalData.data.slice(0, 66)}${proposalData.data.length > 66 ? '...' : ''}`)) {
+          if (!confirm(`Execute proposal:\n\n${proposalData.description}\n\nOp: ${proposalData.op}\nTo: ${proposalData.to}\nValue: ${parseFloat(ethers.formatEther(valueBigInt)).toFixed(2).replace(/\.00$/, '')} ETH\nData: ${proposalData.data.slice(0, 66)}${proposalData.data.length > 66 ? '...' : ''}`)) {
             return;
           }
 
@@ -24405,7 +24984,12 @@
           closeWalletModal();
           closePurchaseModal();
           closeRagequitModal();
+          closeHotkeysModal();
         }
+
+        // Skip hotkeys if focused on input/textarea
+        const tag = document.activeElement.tagName.toLowerCase();
+        const isInputFocused = tag === 'input' || tag === 'textarea';
 
         // Ctrl/Cmd + B to go back to gallery
         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
@@ -24415,10 +24999,58 @@
           }
         }
 
-        // Ctrl/Cmd + / to show keyboard shortcuts
+        // Ctrl/Cmd + / to show keyboard shortcuts modal
         if ((e.ctrlKey || e.metaKey) && e.key === '/') {
           e.preventDefault();
-          showToast('Keyboard Shortcuts: Cmd/Ctrl+B = Back to Gallery | ESC = Close Modals', 'info', 6000);
+          showHotkeysModal();
+        }
+
+        // Number hotkeys (only when no input is focused)
+        if (!isInputFocused && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          // Navigation hotkeys (work everywhere)
+          if (e.key === '0') {
+            e.preventDefault();
+            showHotkeysModal();
+          } else if (e.key === '1') {
+            e.preventDefault();
+            const summonerSection = getEl('summoner');
+            if (summonerSection) {
+              summonerSection.style.display = ''; // Show if hidden
+              summonerSection.scrollIntoView({ behavior: 'smooth' });
+            }
+          } else if (e.key === '2') {
+            e.preventDefault();
+            scrollToYourDAOs();
+          } else if (e.key === '3') {
+            e.preventDefault();
+            scrollToAllDAOs();
+          } else if (e.key === '4') {
+            e.preventDefault();
+            if (currentDAO) {
+              getEl('daoDashboard').scrollIntoView({ behavior: 'smooth' });
+            } else {
+              window.open('https://github.com/z0r0z/majeur', '_blank');
+            }
+          }
+          // DAO management hotkeys (only when in DAO view)
+          if (currentDAO) {
+            if (e.key === 'Backspace') {
+              e.preventDefault();
+              backToGallery();
+            } else if (e.key === '5') {
+              e.preventDefault();
+              getEl('chatroomMessages').scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === '6') {
+              e.preventDefault();
+              document.querySelector('.treasury-section').scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === '7') {
+              e.preventDefault();
+              getEl('salesSection').scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === '8') {
+              e.preventDefault();
+              getEl('proposalsList').scrollIntoView({ behavior: 'smooth' });
+            }
+          }
         }
       });
 
@@ -24726,7 +25358,7 @@
         summaryBox.style.display = 'block';
 
         // Format numbers nicely
-        const formatNum = (n) => n >= 1000 ? n.toLocaleString() : n.toString();
+        const formatNum = (n) => n.toFixed(2).replace(/\.00$/, '');
 
         // Main summary: "1 ETH → 1,000,000 Shares"
         let mainSummary = `<span style="color: #9d7bff;">${formatNum(tribAmt)} ${payName}</span> → <span style="color: #9d7bff;">${formatNum(forAmt)} ${tokenTypeName}</span>`;
@@ -24747,7 +25379,7 @@
         if (pricePerToken < 0.0001) {
           priceStr = `${formatNum(tokensPerUnit)} ${tokenTypeName} per ${payName}`;
         } else {
-          priceStr = `${pricePerToken.toFixed(6)} ${payName} per ${tokenTypeName.slice(0, -1)}`;
+          priceStr = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${payName} per ${tokenTypeName.slice(0, -1)}`;
         }
 
         // Add max raise if supply is set
@@ -25006,10 +25638,10 @@
 
         if (ratePerMonth > 0) {
           const ratePerYear = ratePerMonth * 12;
-          let text = `<strong>Tap:</strong> ${ratePerMonth.toLocaleString()} ${tribSymbol}/month (~${ratePerYear.toLocaleString()} ${tribSymbol}/year)`;
+          let text = `<strong>Tap:</strong> ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month (~${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/year)`;
           if (budget > 0) {
             const months = budget / ratePerMonth;
-            text += ` • Budget lasts ~${months.toFixed(1)} months`;
+            text += ` • Budget lasts ~${months.toFixed(2).replace(/\.00$/, '')} months`;
           }
           preview.innerHTML = text;
           preview.style.display = 'block';
@@ -25148,9 +25780,9 @@
           warning.style.borderLeftColor = '#ffcc66';
 
           if (saleAmount > 0 && saleAmount > thresholdVal) {
-            warningText.innerHTML = `Sale supply (${saleAmount.toLocaleString()} shares) exceeds proposal threshold (${thresholdVal.toLocaleString()} shares). A single buyer could gain enough voting power to pass proposals. Consider selling LOOT instead or reducing the supply.`;
+            warningText.innerHTML = `Sale supply (${saleAmount.toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${thresholdVal.toFixed(2).replace(/\.00$/, '')} shares). A single buyer could gain enough voting power to pass proposals. Consider selling LOOT instead or reducing the supply.`;
           } else if (saleAmount > 0 && saleAmount <= thresholdVal) {
-            warningText.innerHTML = `Sale supply (${saleAmount.toLocaleString()}) is within threshold (${thresholdVal.toLocaleString()}). This is safer, but buyers could still accumulate shares if the sale is renewed.`;
+            warningText.innerHTML = `Sale supply (${saleAmount.toFixed(2).replace(/\.00$/, '')}) is within threshold (${thresholdVal.toFixed(2).replace(/\.00$/, '')}). This is safer, but buyers could still accumulate shares if the sale is renewed.`;
           } else {
             warningText.innerHTML = `Selling voting shares with a proposal threshold may allow buyers to accumulate enough shares to pass proposals. Consider selling LOOT (non-voting) for public sales.`;
           }
@@ -25274,7 +25906,7 @@
         if (totalShares > 0n) {
           // Calculate required votes: floor(quorumBps * totalShares / 10_000)
           const requiredVotes = (BigInt(quorumBps) * totalShares) / 10000n;
-          const totalSharesFormatted = parseFloat(ethers.formatEther(totalShares)).toFixed(2);
+          const totalSharesFormatted = parseFloat(ethers.formatEther(totalShares)).toFixed(2).replace(/\.00$/, '');
 
           votesValue.textContent = ethers.formatEther(requiredVotes);
           totalSupplySpan.textContent = totalSharesFormatted;
@@ -25437,8 +26069,8 @@
 
             if (proposalThresholdWei > maxPotentialShares) {
               const supplyDesc = salePreset === 'daico' && saleTokenType === 'shares'
-                ? `total potential shares (${ethers.formatEther(totalShares)} initial + ${getEl('daicoSaleSupply').value || '0'} DAICO = ${ethers.formatEther(maxPotentialShares)})`
-                : `total initial shares (${ethers.formatEther(totalShares)})`;
+                ? `total potential shares (${parseFloat(ethers.formatEther(totalShares)).toFixed(2).replace(/\.00$/, '')} initial + ${getEl('daicoSaleSupply').value || '0'} DAICO = ${parseFloat(ethers.formatEther(maxPotentialShares)).toFixed(2).replace(/\.00$/, '')})`
+                : `total initial shares (${parseFloat(ethers.formatEther(totalShares)).toFixed(2).replace(/\.00$/, '')})`;
               throw new Error(`Proposal threshold (${proposalThresholdInput}) cannot exceed ${supplyDesc}`);
             }
           }
@@ -25715,11 +26347,11 @@
             if (!isLoot && proposalThresholdWei > 0n && saleSupply > proposalThresholdWei) {
               // DAICO mints new voting shares - supply exceeds threshold
               const continueAnyway = confirm(
-                `⚠️ GOVERNANCE RISK: DAICO sale supply (${ethers.formatEther(saleSupply)} shares) exceeds proposal threshold (${ethers.formatEther(proposalThresholdWei)} shares).\n\n` +
+                `⚠️ GOVERNANCE RISK: DAICO sale supply (${parseFloat(ethers.formatEther(saleSupply)).toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${parseFloat(ethers.formatEther(proposalThresholdWei)).toFixed(2).replace(/\.00$/, '')} shares).\n\n` +
                 `A single buyer could accumulate enough voting shares to pass proposals unilaterally.\n\n` +
                 `Consider:\n` +
                 `• Selling LOOT (non-voting) instead\n` +
-                `• Reducing supply to ≤ ${ethers.formatEther(proposalThresholdWei)}\n\n` +
+                `• Reducing supply to ≤ ${parseFloat(ethers.formatEther(proposalThresholdWei)).toFixed(2).replace(/\.00$/, '')}\n\n` +
                 `Continue anyway?`
               );
               if (!continueAnyway) {
@@ -26078,32 +26710,28 @@
         // Small delay to allow EIP-6963 providers to announce themselves
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Auto-reconnect logic with improved wallet preference handling
+        // Auto-reconnect logic - only reconnect if user has a stored wallet preference
+        // This ensures users who explicitly disconnected stay disconnected
         let autoReconnected = false;
         const preferredWallet = getWalletPreference();
 
         // WalletConnect sessions don't persist across page reloads - clear stale preference
         if (preferredWallet === 'walletconnect') {
           clearWalletPreference();
-        } else if (window.ethereum) {
+        } else if (preferredWallet && window.ethereum) {
+          // Only auto-reconnect if there's an explicit stored preference
           try {
             const accounts = await window.ethereum.request({ method: 'eth_accounts' });
             if (accounts.length > 0) {
               // Try to reconnect with the user's preferred wallet
               const wallets = detectWallets();
 
-              if (preferredWallet && wallets.some(w => w.key === preferredWallet)) {
+              if (wallets.some(w => w.key === preferredWallet)) {
                 // Reconnect with preferred wallet
                 await connectWithWallet(preferredWallet);
                 autoReconnected = true;
-              } else if (wallets.length > 0) {
-                // Fallback: connect with first detected wallet (skip walletconnect)
-                const nonWCWallet = wallets.find(w => w.key !== 'walletconnect');
-                if (nonWCWallet) {
-                  await connectWithWallet(nonWCWallet.key);
-                  autoReconnected = true;
-                }
               }
+              // No fallback - if preferred wallet is not available, user must connect manually
             }
           } catch (error) {
             logger.error('Auto-reconnect failed:', error);

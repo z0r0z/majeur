@@ -6697,7 +6697,7 @@
             // Format per-token (scientific for tiny numbers)
             let perTokenStr;
             if (pricePerToken >= 0.000001) {
-                perTokenStr = pricePerToken.toFixed(10).replace(/\.?0+$/, '') + ' ETH';
+                perTokenStr = pricePerToken.toFixed(2).replace(/\.00$/, '') + ' ETH';
             } else {
                 perTokenStr = pricePerToken.toExponential(2) + ' ETH';
             }
@@ -6707,7 +6707,7 @@
             if (perMillion >= 1) {
                 perMillionStr = perMillion.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ETH';
             } else if (perMillion >= 0.0001) {
-                perMillionStr = perMillion.toFixed(6).replace(/\.?0+$/, '') + ' ETH';
+                perMillionStr = perMillion.toFixed(2).replace(/\.00$/, '') + ' ETH';
             } else {
                 perMillionStr = perMillion.toExponential(2) + ' ETH';
             }
@@ -6901,7 +6901,7 @@
             // Format the effect text
             let effectText = '';
             if (tapAmount > 0) {
-                const tapAmountStr = tapAmount >= 0.01 ? tapAmount.toFixed(2) : tapAmount.toFixed(4);
+                const tapAmountStr = tapAmount.toFixed(2).replace(/\.00$/, '');
                 const dailyStr = formatTapRate(ratePerDay);
                 effectText = `<span style="color: var(--green); font-weight: bold;">${tapAmountStr} ETH</span> over <span style="color: var(--cyan);">${duration} months</span>`;
                 effectText += `<br><span style="opacity: 0.6; font-size: 0.85em;">≈ ${dailyStr}/day to ops</span>`;
@@ -6922,16 +6922,16 @@
         // Format tap rate with appropriate precision
         function formatTapRate(ethPerDay) {
             if (ethPerDay >= 1) {
-                return ethPerDay.toFixed(2) + ' ETH';
+                return ethPerDay.toFixed(2).replace(/\.00$/, '') + ' ETH';
             } else if (ethPerDay >= 0.001) {
-                return ethPerDay.toFixed(4) + ' ETH';
+                return ethPerDay.toFixed(2).replace(/\.00$/, '') + ' ETH';
             } else {
                 // Convert to wei for very small amounts
                 const weiPerDay = ethPerDay * 1e18;
                 if (weiPerDay >= 1e15) {
-                    return (weiPerDay / 1e15).toFixed(2) + ' finney';
+                    return (weiPerDay / 1e15).toFixed(2).replace(/\.00$/, '') + ' finney';
                 } else if (weiPerDay >= 1e12) {
-                    return (weiPerDay / 1e12).toFixed(2) + ' gwei';
+                    return (weiPerDay / 1e12).toFixed(2).replace(/\.00$/, '') + ' gwei';
                 } else {
                     return ethPerDay.toExponential(2) + ' ETH';
                 }
@@ -7193,7 +7193,7 @@
             const founders = isLoot ? getWizardFounders() : { addresses: [], shares: [] };
             if (isLoot) {
                 const totalShares = founders.shares.reduce((a, b) => a + b, 0);
-                document.getElementById('wizardSummaryFounders').textContent = `${founders.addresses.length} founders (${totalShares.toLocaleString()} shares)`;
+                document.getElementById('wizardSummaryFounders').textContent = `${founders.addresses.length} founders (${totalShares.toFixed(2).replace(/\.00$/, '')} shares)`;
                 foundersRow.style.display = 'flex';
             } else {
                 foundersRow.style.display = 'none';
@@ -7205,7 +7205,7 @@
                 const duration = wizardState.tapDuration;
                 const opsAddr = wizardState.tapOps || connectedAddress;
                 const shortOps = opsAddr ? `${opsAddr.slice(0, 6)}...${opsAddr.slice(-4)}` : 'your wallet';
-                const tapAmountStr = tapAmount >= 0.01 ? tapAmount.toFixed(2) : tapAmount.toFixed(4);
+                const tapAmountStr = tapAmount.toFixed(2).replace(/\.00$/, '');
                 document.getElementById('wizardSummaryTap').innerHTML = `${tapAmountStr} ETH / ${duration} mo <span style="opacity: 0.5;">→ ${shortOps}</span>`;
             } else {
                 document.getElementById('wizardSummaryTap').textContent = 'Disabled';
@@ -7781,7 +7781,7 @@
             const pricePerMillion = price * 1_000_000;
             let priceStr;
             if (pricePerMillion >= 0.0001) {
-                priceStr = pricePerMillion.toFixed(6).replace(/\.?0+$/, '');
+                priceStr = pricePerMillion.toFixed(2).replace(/\.00$/, '');
             } else {
                 priceStr = pricePerMillion.toExponential(2);
             }
@@ -7830,7 +7830,7 @@
                 // Format display
                 let displayValue;
                 if (field === 'supply') {
-                    displayValue = newValue.toLocaleString();
+                    displayValue = newValue.toFixed(2).replace(/\.00$/, '');
                 } else if (field === 'quorum' || field === 'tapPct') {
                     displayValue = newValue + '%';
                 } else {
@@ -7859,7 +7859,7 @@
                     // Restore original value
                     let displayValue;
                     if (field === 'supply') {
-                        displayValue = summaryState[field].toLocaleString();
+                        displayValue = summaryState[field].toFixed(2).replace(/\.00$/, '');
                     } else if (field === 'quorum' || field === 'tapPct') {
                         displayValue = summaryState[field] + '%';
                     } else {
@@ -7971,24 +7971,24 @@
             // For stablecoins, just show the amount
             if (symbol === 'USDC' || symbol === 'USDT' || symbol === 'DAI') {
                 if (amountPerDay >= 1) {
-                    return amountPerDay.toFixed(2) + ' ' + symbol;
+                    return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
                 } else if (amountPerDay >= 0.01) {
-                    return amountPerDay.toFixed(4) + ' ' + symbol;
+                    return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
                 } else {
                     return amountPerDay.toExponential(2) + ' ' + symbol;
                 }
             }
             // For ETH and wstETH, use sub-units for small amounts
             if (amountPerDay >= 1) {
-                return amountPerDay.toFixed(2) + ' ' + symbol;
+                return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
             } else if (amountPerDay >= 0.001) {
-                return amountPerDay.toFixed(4) + ' ' + symbol;
+                return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
             } else {
                 const weiPerDay = amountPerDay * 1e18;
                 if (weiPerDay >= 1e15) {
-                    return (weiPerDay / 1e15).toFixed(2) + ' finney';
+                    return (weiPerDay / 1e15).toFixed(2).replace(/\.00$/, '') + ' finney';
                 } else if (weiPerDay >= 1e12) {
-                    return (weiPerDay / 1e12).toFixed(2) + ' gwei';
+                    return (weiPerDay / 1e12).toFixed(2).replace(/\.00$/, '') + ' gwei';
                 } else {
                     return amountPerDay.toExponential(2) + ' ' + symbol;
                 }
@@ -8591,7 +8591,7 @@
                 let tapHtml = '';
                 if (daoData.tap && daoData.claimableTap > 0n) {
                     const tapTribInfo = COMMON_TRIB_TOKENS[daoData.tap.tribTkn] || { symbol: 'ETH', decimals: 18 };
-                    const claimableAmt = Number(ethers.formatUnits(daoData.claimableTap, tapTribInfo.decimals)).toFixed(4);
+                    const claimableAmt = Number(ethers.formatUnits(daoData.claimableTap, tapTribInfo.decimals)).toFixed(2).replace(/\.00$/, '');
                     tapHtml = `<div class="daico-tap">TAP: ${claimableAmt} ${tapTribInfo.symbol} claimable</div>`;
                 }
 
@@ -8599,11 +8599,7 @@
                 const imageHtml = renderDaoImage(daoData.metadata, daoData.name);
 
                 // Format raised amount
-                const raisedStr = treasuryNum >= 1
-                    ? treasuryNum.toFixed(2)
-                    : treasuryNum >= 0.0001
-                        ? treasuryNum.toFixed(4)
-                        : treasuryNum.toFixed(6);
+                const raisedStr = treasuryNum.toFixed(2).replace(/\.00$/, '');
 
                 // Get tribute token icon for visual display
                 const tribIcon = getTokenIcon(sale.tribTkn);
@@ -8641,11 +8637,11 @@
                 const progressHtml = totalSupplyNum > 0 ? `
                     <div class="daico-progress ${isSoldOut ? 'sold-out' : ''}">
                         <div class="daico-progress-bar" style="width: ${progressPct}%"></div>
-                        <div class="daico-progress-text">${progressPct.toFixed(1)}% sold</div>
+                        <div class="daico-progress-text">${progressPct.toFixed(2).replace(/\.00$/, '')}% sold</div>
                     </div>
                     <div class="daico-progress-labels">
-                        <span class="progress-sold">${soldNum.toLocaleString()} sold</span>
-                        <span class="progress-total">${totalSupplyNum.toLocaleString()} total</span>
+                        <span class="progress-sold">${soldNum.toFixed(2).replace(/\.00$/, '')} sold</span>
+                        <span class="progress-total">${totalSupplyNum.toFixed(2).replace(/\.00$/, '')} total</span>
                     </div>
                 ` : '';
 
@@ -8662,7 +8658,7 @@
                                 </div>
                                 <div class="daico-price">
                                     <span class="daico-trib-icon">${tribIcon}</span>
-                                    ${pricePerMillion.toFixed(6)} ${tribInfo.symbol} / 1M ${tokenType}
+                                    ${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${tribInfo.symbol} / 1M ${tokenType}
                                 </div>
                                 ${progressHtml}
                                 <div class="daico-stats">
@@ -8670,7 +8666,7 @@
                                         <span class="daico-trib-icon-sm">${tribIcon}</span>
                                         ${raisedStr} ${tribInfo.symbol} raised
                                     </span>
-                                    <span>${remainingNum.toLocaleString()} ${tokenType} left</span>
+                                    <span>${remainingNum.toFixed(2).replace(/\.00$/, '')} ${tokenType} left</span>
                                 </div>
                                 <div class="daico-deadline">${timeRemaining}</div>
                                 ${tapHtml}
@@ -8800,7 +8796,7 @@
             const tokenType = isLoot ? 'Loot' : 'Shares';
 
             const remainingNum = Number(ethers.formatEther(sale.remainingSupply || 0n));
-            document.getElementById('purchaseRemaining').textContent = remainingNum.toLocaleString() + ' ' + tokenType;
+            document.getElementById('purchaseRemaining').textContent = remainingNum.toFixed(2).replace(/\.00$/, '') + ' ' + tokenType;
 
             // Deadline with readable date
             const now = Math.floor(Date.now() / 1000);
@@ -8825,7 +8821,7 @@
             const tribAmtNum = Number(ethers.formatUnits(sale.tribAmt, tribInfo.decimals));
             const forAmtNum = Number(ethers.formatEther(sale.forAmt));
             const pricePerMillion = (tribAmtNum / forAmtNum) * 1_000_000;
-            document.getElementById('purchasePrice').textContent = `${pricePerMillion.toFixed(6)} ${tribInfo.symbol} / 1M ${tokenType}`;
+            document.getElementById('purchasePrice').textContent = `${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${tribInfo.symbol} / 1M ${tokenType}`;
 
             // Progress bar - calculate sold vs total
             const totalSupplyNum = sale.totalSupply ? Number(ethers.formatEther(sale.totalSupply)) : 0;
@@ -8834,9 +8830,9 @@
             const isSoldOut = remainingNum <= 0;
 
             document.getElementById('purchaseProgressBar').style.width = `${progressPct}%`;
-            document.getElementById('purchaseProgressText').textContent = `${progressPct.toFixed(1)}% sold`;
-            document.getElementById('purchaseProgressSold').textContent = `${soldNum.toLocaleString()} ${tokenType} sold`;
-            document.getElementById('purchaseProgressRemaining').textContent = `${remainingNum.toLocaleString()} remaining`;
+            document.getElementById('purchaseProgressText').textContent = `${progressPct.toFixed(2).replace(/\.00$/, '')}% sold`;
+            document.getElementById('purchaseProgressSold').textContent = `${soldNum.toFixed(2).replace(/\.00$/, '')} ${tokenType} sold`;
+            document.getElementById('purchaseProgressRemaining').textContent = `${remainingNum.toFixed(2).replace(/\.00$/, '')} remaining`;
 
             // Update progress bar styling for sold out
             const progressEl = document.getElementById('purchaseProgress');
@@ -8851,7 +8847,7 @@
             document.getElementById('payTokenSymbol').textContent = tribInfo.symbol;
             document.getElementById('receiveTokenIcon').innerHTML = isLoot ? TOKEN_ICONS.loot : TOKEN_ICONS.shares;
             document.getElementById('receiveTokenSymbol').textContent = tokenType.toUpperCase();
-            document.getElementById('receiveAvailable').textContent = remainingNum.toLocaleString();
+            document.getElementById('receiveAvailable').textContent = remainingNum.toFixed(2).replace(/\.00$/, '');
 
             // Tap section with real-time accrual
             // Show if tap is configured (ratePerSec > 0) even if nothing claimable yet
@@ -8934,7 +8930,7 @@
                     const balance = await provider.getBalance(connectedAddress);
                     currentPurchase.payBalance = balance;
                     currentPurchase.allowance = ethers.MaxUint256; // No approval needed for ETH
-                    document.getElementById('payBalance').textContent = Number(ethers.formatEther(balance)).toFixed(4) + ' ETH';
+                    document.getElementById('payBalance').textContent = Number(ethers.formatEther(balance)).toFixed(2).replace(/\.00$/, '') + ' ETH';
                 } else {
                     // ERC20 balance and allowance
                     const token = new ethers.Contract(currentPurchase.tribTkn, ERC20_FULL_ABI, provider);
@@ -8944,7 +8940,7 @@
                     ]);
                     currentPurchase.payBalance = balance;
                     currentPurchase.allowance = allowance;
-                    document.getElementById('payBalance').textContent = Number(ethers.formatUnits(balance, tribInfo.decimals)).toFixed(4) + ' ' + tribInfo.symbol;
+                    document.getElementById('payBalance').textContent = Number(ethers.formatUnits(balance, tribInfo.decimals)).toFixed(2).replace(/\.00$/, '') + ' ' + tribInfo.symbol;
                 }
 
                 updatePurchaseButton();
@@ -9032,7 +9028,7 @@
                 const buyAmt = await daicoContract.quoteBuy(currentPurchase.dao, currentPurchase.tribTkn, payAmt);
 
                 if (buyAmt > 0n) {
-                    document.getElementById('receiveAmountInput').value = Number(ethers.formatEther(buyAmt)).toFixed(4);
+                    document.getElementById('receiveAmountInput').value = Number(ethers.formatEther(buyAmt)).toFixed(2).replace(/\.00$/, '');
                 } else {
                     document.getElementById('receiveAmountInput').value = '';
                 }
@@ -9059,7 +9055,7 @@
                 const payAmt = await daicoContract.quotePayExactOut(currentPurchase.dao, currentPurchase.tribTkn, buyAmt);
 
                 if (payAmt > 0n) {
-                    document.getElementById('payAmountInput').value = Number(ethers.formatUnits(payAmt, tribInfo.decimals)).toFixed(6);
+                    document.getElementById('payAmountInput').value = Number(ethers.formatUnits(payAmt, tribInfo.decimals)).toFixed(2).replace(/\.00$/, '');
                 } else {
                     document.getElementById('payAmountInput').value = '';
                 }
@@ -9284,11 +9280,11 @@
             // Show more decimal places for small amounts to see the ticking
             let displayStr;
             if (formatted >= 1) {
-                displayStr = formatted.toFixed(4);
+                displayStr = formatted.toFixed(2).replace(/\.00$/, '');
             } else if (formatted >= 0.0001) {
-                displayStr = formatted.toFixed(6);
+                displayStr = formatted.toFixed(2).replace(/\.00$/, '');
             } else {
-                displayStr = formatted.toFixed(8);
+                displayStr = formatted.toFixed(2).replace(/\.00$/, '');
             }
 
             document.getElementById('tapClaimable').textContent = displayStr + ' ' + tapInfo.symbol;
@@ -9592,19 +9588,19 @@
 
             // Update viz panel
             document.getElementById('vizName').textContent = name !== '--' ? `${name} (${symbol || '?'})` : '--';
-            document.getElementById('vizSupply').textContent = supply > 0 ? supply.toLocaleString() + ' tokens' : '--';
+            document.getElementById('vizSupply').textContent = supply > 0 ? supply.toFixed(2).replace(/\.00$/, '') + ' tokens' : '--';
 
             const paySymbol = paymentToken === 'eth' ? 'ETH' : 'tokens';
             document.getElementById('vizPrice').textContent = price > 0 ? `${price} ${paySymbol}` : '--';
 
             const totalRaise = supply * price;
-            document.getElementById('vizRaise').textContent = totalRaise > 0 ? `${totalRaise.toLocaleString()} ${paySymbol}` : '--';
+            document.getElementById('vizRaise').textContent = totalRaise > 0 ? `${totalRaise.toFixed(2).replace(/\.00$/, '')} ${paySymbol}` : '--';
 
             // LP visualization
             if (enableLP && lpPct > 0 && lpPct < 100) {
                 const lpAmount = totalRaise * (lpPct / 100);
                 const treasuryAmount = totalRaise - lpAmount;
-                document.getElementById('vizLP').textContent = `${lpPct}% (${lpAmount.toLocaleString()} ${paySymbol} → Liquidity)`;
+                document.getElementById('vizLP').textContent = `${lpPct}% (${lpAmount.toFixed(2).replace(/\.00$/, '')} ${paySymbol} → Liquidity)`;
                 document.getElementById('vizBarSale').style.width = (100 - lpPct) + '%';
                 document.getElementById('vizBarLP').style.width = lpPct + '%';
             } else {
