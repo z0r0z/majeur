@@ -3447,6 +3447,13 @@
         contain: layout style paint;
       }
 
+      /* Proposals panel stretches to fill available height */
+      .dao-dashboard-content > .dao-panel:last-child {
+        display: flex;
+        flex-direction: column;
+        contain: style paint; /* Allow flex layout */
+      }
+
       .dao-panel-title {
         font-family: "Cinzel", serif;
         font-size: 1.2rem;
@@ -3767,7 +3774,8 @@
 
       /* PROPOSALS */
       #proposalsList {
-        max-height: 600px;
+        flex: 1;
+        min-height: 0; /* Allow flexbox shrinking */
         overflow-y: auto;
         overscroll-behavior: contain;
         padding-right: 0.5rem;
@@ -5438,6 +5446,79 @@
         -webkit-box-orient: vertical;
         overflow: hidden;
         word-break: break-word;
+      }
+
+      /* EMBLEM HOVER POPUP */
+      .emblem-hover-popup {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        pointer-events: none;
+        padding: 1rem;
+        background: rgba(10, 0, 21, 0.95);
+        border: 1px solid rgba(157, 123, 255, 0.5);
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+        max-width: 300px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      }
+
+      .emblem-hover-popup.show {
+        display: block;
+      }
+
+      .emblem-hover-popup img {
+        max-width: 100%;
+        max-height: 150px;
+        display: block;
+        margin: 0 auto 0.75rem;
+        border-radius: 4px;
+      }
+
+      .emblem-hover-name {
+        font-family: "Cinzel", serif;
+        font-size: 0.95rem;
+        color: #e6d9ff;
+        margin-bottom: 0.5rem;
+        text-align: center;
+        letter-spacing: 0.05em;
+      }
+
+      .emblem-hover-description {
+        font-family: 'EB Garamond', serif;
+        font-size: 0.85rem;
+        color: rgba(230, 217, 255, 0.8);
+        line-height: 1.4;
+        max-height: 80px;
+        overflow: hidden;
+      }
+
+      .emblem-hover-attributes {
+        margin-top: 0.75rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .emblem-hover-attribute {
+        background: rgba(157, 123, 255, 0.15);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.7rem;
+      }
+
+      .emblem-hover-attribute-label {
+        color: rgba(157, 123, 255, 0.8);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-family: "Cinzel", serif;
+      }
+
+      .emblem-hover-attribute-value {
+        color: #e6d9ff;
+        margin-top: 0.15rem;
+        font-family: 'EB Garamond', serif;
       }
 
       /* NFT MODAL */
@@ -8938,6 +9019,14 @@
       </div>
     </div>
 
+    <!-- Emblem Hover Popup -->
+    <div id="emblemHoverPopup" class="emblem-hover-popup">
+      <img id="emblemHoverImage" src="" alt="DAO Emblem" style="display: none;" />
+      <div id="emblemHoverName" class="emblem-hover-name"></div>
+      <div id="emblemHoverDescription" class="emblem-hover-description"></div>
+      <div id="emblemHoverAttributes" class="emblem-hover-attributes"></div>
+    </div>
+
     <!-- Web3 Integration Script -->
     <script>
       // DOM element cache (initialized on page load)
@@ -8969,6 +9058,63 @@
 
       // Optimized DOM access - uses cache when available
       const getEl = (id) => DOMCache.get(id);
+
+      // Cache for tile emblem metadata (for hover popups)
+      const tileEmblemMetadata = new Map();
+
+      // Show emblem hover popup
+      function showEmblemPopup(emblemId, event) {
+        const metadata = tileEmblemMetadata.get(emblemId);
+        if (!metadata) return;
+
+        const popup = document.getElementById('emblemHoverPopup');
+        const imageEl = document.getElementById('emblemHoverImage');
+        const nameEl = document.getElementById('emblemHoverName');
+        const descEl = document.getElementById('emblemHoverDescription');
+        const attrsEl = document.getElementById('emblemHoverAttributes');
+
+        // Populate popup
+        if (metadata.image) {
+          imageEl.src = toGatewayUrl(metadata.image);
+          imageEl.style.display = 'block';
+        } else {
+          imageEl.style.display = 'none';
+        }
+
+        nameEl.textContent = metadata.name || '';
+        descEl.textContent = metadata.description || '';
+
+        // Render attributes
+        if (metadata.attributes && Array.isArray(metadata.attributes)) {
+          attrsEl.innerHTML = metadata.attributes.map(attr => `
+            <div class="emblem-hover-attribute">
+              <div class="emblem-hover-attribute-label">${escapeHtml(attr.trait_type || attr.type || 'Attr')}</div>
+              <div class="emblem-hover-attribute-value">${escapeHtml(attr.value)}</div>
+            </div>
+          `).join('');
+        } else {
+          attrsEl.innerHTML = '';
+        }
+
+        // Position popup near cursor
+        const x = event.clientX + 15;
+        const y = event.clientY + 15;
+
+        // Keep popup within viewport
+        const popupWidth = 300;
+        const popupHeight = 250;
+        const adjustedX = Math.min(x, window.innerWidth - popupWidth - 20);
+        const adjustedY = Math.min(y, window.innerHeight - popupHeight - 20);
+
+        popup.style.left = adjustedX + 'px';
+        popup.style.top = adjustedY + 'px';
+        popup.classList.add('show');
+      }
+
+      // Hide emblem hover popup
+      function hideEmblemPopup() {
+        document.getElementById('emblemHoverPopup').classList.remove('show');
+      }
 
       // HTML escape function to prevent XSS attacks
       function escapeHtml(unsafe) {
@@ -14154,11 +14300,11 @@
             <div class="dao-tile-stats">
               <div class="dao-stat">
                 <div class="dao-stat-label">Your Shares</div>
-                <div class="dao-stat-value">${ethers.formatUnits(sharesBN, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(1)}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Your Loot</div>
-                <div class="dao-stat-value">${ethers.formatUnits(lootBN, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(1)}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Proposals</div>
@@ -22117,6 +22263,10 @@
             const imageUrl = toGatewayUrl(contractURI);
             emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
             emblem.classList.add('url-image');
+            // Store minimal metadata for hover popup
+            tileEmblemMetadata.set(emblemId, { image: imageUrl });
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
             return;
           }
 
@@ -22133,6 +22283,10 @@
           } else if (contractURI.startsWith('data:image/')) {
             // Direct data URI image (e.g., data:image/svg+xml,...)
             emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+            // Store minimal metadata for hover popup
+            tileEmblemMetadata.set(emblemId, { image: contractURI });
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
             return;
           } else {
             // Try to fetch as JSON (convert IPFS URLs to gateway URLs)
@@ -22151,6 +22305,10 @@
             if (contentType && contentType.startsWith('image/')) {
               emblem.innerHTML = `<img src="${fetchUrl}" alt="DAO Emblem" />`;
               emblem.classList.add('url-image');
+              // Store minimal metadata for hover popup
+              tileEmblemMetadata.set(emblemId, { image: fetchUrl });
+              emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+              emblem.addEventListener('mouseleave', hideEmblemPopup);
               return;
             }
 
@@ -22171,6 +22329,10 @@
             if (!metadata.image.startsWith('data:')) {
               emblem.classList.add('url-image');
             }
+            // Store metadata for hover popup
+            tileEmblemMetadata.set(emblemId, metadata);
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
           } else if (metadata && metadata.description) {
             // No image but has description - show truncated description in tile
             emblem.classList.add('description-only');
@@ -22178,6 +22340,10 @@
               ? metadata.description.slice(0, 77) + '...'
               : metadata.description;
             emblem.innerHTML = `<div class="tile-emblem-description">${escapeHtml(truncatedDesc)}</div>`;
+            // Store metadata for hover popup
+            tileEmblemMetadata.set(emblemId, metadata);
+            emblem.addEventListener('mouseenter', (e) => showEmblemPopup(emblemId, e));
+            emblem.addEventListener('mouseleave', hideEmblemPopup);
           }
         } catch (error) {
           logger.error('Error rendering tile emblem:', error);
