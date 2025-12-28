@@ -402,9 +402,7 @@
       /* !important needed to override animation-fill-mode: both which sets opacity: 1 */
       .hide-nav-buttons .nav-links-container,
       .hide-nav-buttons .hamburger-toggle,
-      .hide-nav-buttons .mobile-menu,
-      .hide-nav-buttons .wallet-button,
-      .hide-nav-buttons .network-selector {
+      .hide-nav-buttons .mobile-menu {
         opacity: 0 !important;
         pointer-events: none !important;
       }
@@ -5667,6 +5665,7 @@
       <a href="https://github.com/z0r0z/majeur" target="_blank" rel="noopener noreferrer" class="nav-link" title="View on GitHub">
         GitHub
       </a>
+      <button class="nav-link" onclick="showHotkeysModal()" title="Keyboard shortcuts">Hotkeys</button>
     </div>
 
     <!-- Network & Wallet (top right) -->
@@ -5715,6 +5714,7 @@
       <a href="https://github.com/z0r0z/majeur" target="_blank" rel="noopener noreferrer" class="nav-link" title="View on GitHub">
         GitHub
       </a>
+      <button class="nav-link" onclick="showHotkeysModal(); toggleMobileMenu();" title="Keyboard shortcuts">Hotkeys</button>
     </div>
 
     <!-- Wallet Selection Modal -->
@@ -5726,6 +5726,48 @@
         </div>
         <div id="walletOptions">
           <!-- Wallet options will be dynamically inserted here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- HOTKEYS MODAL -->
+    <div class="wallet-modal-overlay" id="hotkeysModal">
+      <div class="wallet-modal" style="max-width: 400px;">
+        <div class="wallet-modal-header">
+          <h2 class="wallet-modal-title">Hotkeys</h2>
+          <button class="wallet-modal-close" onclick="closeHotkeysModal()">&times;</button>
+        </div>
+        <div style="font-family: 'EB Garamond', serif; color: rgba(230, 217, 255, 0.9);">
+          <div style="margin-bottom: 1.5rem;">
+            <h3 style="font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.15em; color: #9d7bff; margin-bottom: 0.75rem; text-transform: uppercase;">Navigation</h3>
+            <div style="display: grid; grid-template-columns: 50px 1fr; gap: 0.5rem; font-size: 0.95rem;">
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">0</span>
+              <span>Show Hotkeys</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">1</span>
+              <span>Focus Summon</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">2</span>
+              <span>Focus Your DAOs</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">3</span>
+              <span>Focus All DAOs</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">4</span>
+              <span>Open GitHub / Focus DAO</span>
+            </div>
+          </div>
+          <div>
+            <h3 style="font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.15em; color: #9d7bff; margin-bottom: 0.75rem; text-transform: uppercase;">DAO Management</h3>
+            <div style="display: grid; grid-template-columns: 50px 1fr; gap: 0.5rem; font-size: 0.95rem;">
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">&#9003;</span>
+              <span>Back to Gallery</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">5</span>
+              <span>Focus Chatroom</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">6</span>
+              <span>Focus Treasury</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">7</span>
+              <span>Focus Active Sales</span>
+              <span style="font-family: monospace; background: rgba(157, 123, 255, 0.15); padding: 0.25rem 0.5rem; border-radius: 3px; text-align: center;">8</span>
+              <span>Focus Proposals</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -11948,12 +11990,27 @@
         getEl('walletModal').classList.remove('show');
       }
 
+      function showHotkeysModal() {
+        getEl('hotkeysModal').classList.add('show');
+      }
+
+      function closeHotkeysModal() {
+        getEl('hotkeysModal').classList.remove('show');
+      }
+
       // Close modal when clicking outside
       document.addEventListener('DOMContentLoaded', () => {
         const modalOverlay = getEl('walletModal');
         modalOverlay.addEventListener('click', (e) => {
           if (e.target === modalOverlay) {
             closeWalletModal();
+          }
+        });
+
+        const hotkeysModalOverlay = getEl('hotkeysModal');
+        hotkeysModalOverlay.addEventListener('click', (e) => {
+          if (e.target === hotkeysModalOverlay) {
+            closeHotkeysModal();
           }
         });
       });
@@ -24405,7 +24462,12 @@
           closeWalletModal();
           closePurchaseModal();
           closeRagequitModal();
+          closeHotkeysModal();
         }
+
+        // Skip hotkeys if focused on input/textarea
+        const tag = document.activeElement.tagName.toLowerCase();
+        const isInputFocused = tag === 'input' || tag === 'textarea';
 
         // Ctrl/Cmd + B to go back to gallery
         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
@@ -24415,10 +24477,54 @@
           }
         }
 
-        // Ctrl/Cmd + / to show keyboard shortcuts
+        // Ctrl/Cmd + / to show keyboard shortcuts modal
         if ((e.ctrlKey || e.metaKey) && e.key === '/') {
           e.preventDefault();
-          showToast('Keyboard Shortcuts: Cmd/Ctrl+B = Back to Gallery | ESC = Close Modals', 'info', 6000);
+          showHotkeysModal();
+        }
+
+        // Number hotkeys (only when no input is focused)
+        if (!isInputFocused && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          // Navigation hotkeys (work everywhere)
+          if (e.key === '0') {
+            e.preventDefault();
+            showHotkeysModal();
+          } else if (e.key === '1') {
+            e.preventDefault();
+            getEl('summoner').scrollIntoView({ behavior: 'smooth' });
+          } else if (e.key === '2') {
+            e.preventDefault();
+            scrollToYourDAOs();
+          } else if (e.key === '3') {
+            e.preventDefault();
+            scrollToAllDAOs();
+          } else if (e.key === '4') {
+            e.preventDefault();
+            if (currentDAO) {
+              getEl('daoDashboard').scrollIntoView({ behavior: 'smooth' });
+            } else {
+              window.open('https://github.com/z0r0z/majeur', '_blank');
+            }
+          }
+          // DAO management hotkeys (only when in DAO view)
+          if (currentDAO) {
+            if (e.key === 'Backspace') {
+              e.preventDefault();
+              backToGallery();
+            } else if (e.key === '5') {
+              e.preventDefault();
+              getEl('chatroomMessages').scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === '6') {
+              e.preventDefault();
+              document.querySelector('.treasury-section').scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === '7') {
+              e.preventDefault();
+              getEl('salesSection').scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === '8') {
+              e.preventDefault();
+              getEl('proposalsList').scrollIntoView({ behavior: 'smooth' });
+            }
+          }
         }
       });
 
