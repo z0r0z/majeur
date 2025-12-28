@@ -8834,7 +8834,20 @@
       <div class="wallet-modal" style="max-width: 500px;">
         <div class="wallet-modal-header">
           <h3 id="purchaseDaoName" style="font-family: 'Cinzel', serif; font-size: 1.2rem; color: #e6d9ff; letter-spacing: 0.1em;">Purchase Tokens</h3>
-          <button onclick="closePurchaseModal()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.5rem;">&times;</button>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <a id="purchaseDaicoLink" href="#" target="_blank" rel="noopener noreferrer"
+               style="display: none; align-items: center; gap: 0.35rem; padding: 0.4rem 0.6rem; background: rgba(100, 200, 150, 0.15); border: 1px solid rgba(100, 200, 150, 0.3); border-radius: 4px; color: #64c896; text-decoration: none; font-size: 0.7rem; font-family: 'Cinzel', serif; letter-spacing: 0.05em; transition: all 0.2s ease;"
+               onmouseover="this.style.background='rgba(100, 200, 150, 0.25)'; this.style.borderColor='#64c896';"
+               onmouseout="this.style.background='rgba(100, 200, 150, 0.15)'; this.style.borderColor='rgba(100, 200, 150, 0.3)';">
+              View on DAICO
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </a>
+            <button onclick="closePurchaseModal()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.5rem;">&times;</button>
+          </div>
         </div>
         <div id="purchaseStatus" style="display: none; padding: 0.75rem 1.5rem; font-size: 0.85rem;"></div>
 
@@ -9403,6 +9416,22 @@
 
     <!-- Web3 Integration Script -->
     <script>
+      // Dev environment link transformer
+      function transformForDev(url) {
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          return url;
+        }
+        const port = window.location.port || '8080';
+        const base = `http://${window.location.hostname}:${port}`;
+        if (url.includes('majeurdao.eth.limo')) {
+          return url.replace('https://majeurdao.eth.limo/', `${base}/Majeur.html`);
+        }
+        if (url.includes('daicowtf.eth.limo')) {
+          return url.replace('https://daicowtf.eth.limo/', `${base}/DAICO.html`);
+        }
+        return url;
+      }
+
       // DOM element cache (initialized on page load)
       const DOMCache = {
         get(id) {
@@ -10218,6 +10247,15 @@
 
         function init() {
           if (document.body.classList.contains('hide-intro')) return;
+          const radialSvg = document.getElementById('radial-convergence');
+
+          // If deep-linked to a DAO page, hide lines immediately - don't show the effect
+          if (window.location.hash && window.location.hash.includes('/dao/')) {
+            if (radialSvg) radialSvg.style.display = 'none';
+            hasTriggered = true;
+            return;
+          }
+
           if (didAutoScroll()) {
             scrollListenerActive = true;
             window.addEventListener('scroll', handleScrollForAnimation, { passive: true });
@@ -17928,6 +17966,10 @@
         const daoSymbol = currentDAO.dao.meta.symbol;
         const targetSymbol = isLoot ? `${daoSymbol}-LOOT` : daoSymbol;
 
+        // Hide DAICO link for internal sales
+        const daicoLink = document.getElementById('purchaseDaicoLink');
+        if (daicoLink) daicoLink.style.display = 'none';
+
         // Show loading state
         content.innerHTML = `
           <div style="text-align: center; padding: 2rem; color: rgba(230, 217, 255, 0.6);">
@@ -18174,6 +18216,13 @@
 
         // Update modal header
         document.getElementById('purchaseDaoName').textContent = `Purchase ${targetSymbol}`;
+
+        // Show and set DAICO link
+        const daicoLink = document.getElementById('purchaseDaicoLink');
+        const chainId = getNetwork().chainId;
+        const daicoUrl = transformForDev(`https://daicowtf.eth.limo/#/sale/${chainId}/${currentDAO.dao.dao}`);
+        daicoLink.href = daicoUrl;
+        daicoLink.style.display = 'flex';
 
         // Calculate and display sale info
         const remainingNum = Number(ethers.formatEther(currentDaicoPurchase.remainingSupply));
@@ -21454,6 +21503,17 @@
 
         // Reset to DAO view
         switchDaoView('dao');
+
+        // Scroll to appropriate section based on user membership
+        setTimeout(() => {
+          if (userDAOs.length > 0) {
+            const daoGallery = document.getElementById('daoGallery');
+            if (daoGallery) daoGallery.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            const allDaosGallery = document.getElementById('allDaosGallery');
+            if (allDaosGallery) allDaosGallery.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
       }
 
       // Switch between DAO dashboard, membership, and members view

@@ -5680,6 +5680,22 @@
     </div>
 
     <script>
+        // Dev environment link transformer
+        function transformForDev(url) {
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                return url;
+            }
+            const port = window.location.port || '8080';
+            const base = `http://${window.location.hostname}:${port}`;
+            if (url.includes('majeurdao.eth.limo')) {
+                return url.replace('https://majeurdao.eth.limo/', `${base}/Majeur.html`);
+            }
+            if (url.includes('daicowtf.eth.limo')) {
+                return url.replace('https://daicowtf.eth.limo/', `${base}/DAICO.html`);
+            }
+            return url;
+        }
+
         // Network configuration
         const NETWORKS = {
             ethereum: {
@@ -7520,7 +7536,7 @@
                 document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
                 document.getElementById('wizardSuccess').classList.add('active');
                 document.getElementById('wizardSuccessAddress').textContent = predictedDao;
-                document.getElementById('wizardSuccessLink').href = `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}`;
+                document.getElementById('wizardSuccessLink').href = transformForDev(`https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}`);
 
                 hideWizardStatus();
 
@@ -8218,7 +8234,7 @@
 
                 await tx.wait();
 
-                document.getElementById('summaryStatus').innerHTML = `Launched! <a href="https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}" target="_blank" rel="noopener" style="color: var(--green);">View your DAO</a>`;
+                document.getElementById('summaryStatus').innerHTML = `Launched! <a href="${transformForDev(`https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}`)}" target="_blank" rel="noopener" style="color: var(--green);">View your DAO</a>`;
 
                 // Refresh DAICO list to show the new sale
                 daicoScanTriggered = false;
@@ -8957,7 +8973,7 @@
             }
 
             // Majeur link
-            document.getElementById('majeurLink').href = `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${dao}`;
+            document.getElementById('majeurLink').href = transformForDev(`https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${dao}`);
 
             // Clear inputs
             document.getElementById('payAmountInput').value = '';
@@ -9942,7 +9958,7 @@
                 document.getElementById('launchForm').style.display = 'none';
                 document.getElementById('successPanel').style.display = 'block';
                 document.getElementById('successAddress').textContent = daoAddress;
-                document.getElementById('successLink').href = `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${daoAddress}`;
+                document.getElementById('successLink').href = transformForDev(`https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${daoAddress}`);
 
                 hideStatus();
 
