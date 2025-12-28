@@ -12986,8 +12986,8 @@
         // Display user's shares and loot
         const shares = ethers.formatUnits(member.shares, 18);
         const loot = ethers.formatUnits(member.loot, 18);
-        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(4);
-        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(4);
+        document.getElementById('ragequitUserShares').textContent = parseFloat(shares).toFixed(2).replace(/\.00$/, '');
+        document.getElementById('ragequitUserLoot').textContent = parseFloat(loot).toFixed(2).replace(/\.00$/, '');
 
         // Clear inputs
         getEl('ragequitSharesInput').value = '';
@@ -13025,7 +13025,7 @@
         }
 
         tokens.forEach(token => {
-          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(4);
+          const formattedBalance = parseFloat(ethers.formatUnits(token.balance, token.decimals)).toFixed(2).replace(/\.00$/, '');
 
           const tokenDiv = document.createElement('div');
           tokenDiv.style.cssText = 'display: flex; align-items: center; padding: 0.7rem; background: rgba(157, 123, 255, 0.15); border: 2px solid rgba(157, 123, 255, 0.5); cursor: pointer; transition: all 0.2s ease; border-radius: 4px;';
@@ -13140,7 +13140,7 @@
             tokenContract.balanceOf(currentDAO.dao.dao).catch(() => 0n)
           ]);
 
-          const formattedBalance = parseFloat(ethers.formatUnits(balance, decimals)).toFixed(4);
+          const formattedBalance = parseFloat(ethers.formatUnits(balance, decimals)).toFixed(2).replace(/\.00$/, '');
 
           // Create token div
           const tokenDiv = document.createElement('div');
@@ -13366,7 +13366,7 @@
         proposalIdEl.textContent = proposalIdStr.length > 15 ? truncateId(proposalIdStr) : `#${proposalIdStr}`;
         proposalIdEl.onclick = () => toggleFullId(proposalIdEl);
 
-        document.getElementById('transferAvailableAmount').textContent = ethers.formatUnits(receipt.balance, 18);
+        document.getElementById('transferAvailableAmount').textContent = parseFloat(ethers.formatUnits(receipt.balance, 18)).toFixed(2).replace(/\.00$/, '');
 
         // Clear inputs
         document.getElementById('transferRecipient').value = '';
@@ -13652,7 +13652,7 @@
             balance = await tokenContract.balanceOf(await signer.getAddress());
           }
 
-          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(4);
+          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(2).replace(/\.00$/, '');
           getEl('depositUserBalance').textContent = `${formatted} ${asset.symbol}`;
           getEl('depositUserBalance').dataset.rawBalance = balance.toString();
           getEl('depositUserBalance').dataset.decimals = asset.decimals;
@@ -13673,7 +13673,7 @@
         }
 
         try {
-          const formatted = ethers.formatUnits(rawBalance, decimals);
+          const formatted = parseFloat(ethers.formatUnits(rawBalance, decimals)).toFixed(2).replace(/\.00$/, '');
           getEl('depositAmount').value = formatted;
 
           // Visual feedback
@@ -13928,7 +13928,7 @@
             balance = await tokenContract.balanceOf(await signer.getAddress());
           }
 
-          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(4);
+          const formatted = parseFloat(ethers.formatUnits(balance, asset.decimals)).toFixed(2).replace(/\.00$/, '');
           getEl('tributeUserBalance').textContent = `${formatted} ${asset.symbol}`;
         } catch (error) {
           logger.error('Error fetching balance:', error);
@@ -14085,8 +14085,8 @@
             forDecimals = await getTokenDecimals(tribute.forTkn);
           }
 
-          const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(4);
-          const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(4);
+          const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(2).replace(/\.00$/, '');
+          const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(2).replace(/\.00$/, '');
 
           const daoAddress = currentDAO.dao.dao;
 
@@ -14453,11 +14453,11 @@
             <div class="dao-tile-stats">
               <div class="dao-stat">
                 <div class="dao-stat-label">Total Shares</div>
-                <div class="dao-stat-value">${ethers.formatUnits(dao.supplies.sharesTotalSupply, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(dao.supplies.sharesTotalSupply, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Total Loot</div>
-                <div class="dao-stat-value">${ethers.formatUnits(dao.supplies.lootTotalSupply, 18)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(dao.supplies.lootTotalSupply, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Proposals</div>
@@ -14645,11 +14645,11 @@
             <div class="dao-tile-stats">
               <div class="dao-stat">
                 <div class="dao-stat-label">Your Shares</div>
-                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(1)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Your Loot</div>
-                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(1)}</div>
+                <div class="dao-stat-value">${parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(2).replace(/\.00$/, '')}</div>
               </div>
               <div class="dao-stat">
                 <div class="dao-stat-label">Proposals</div>
@@ -14789,8 +14789,8 @@
         const totalProposals = dao.proposals.length;
         // Members array structure: [0]=address, [1]=shares, [2]=loot, [3]=seatId
         const totalBadgeMembers = dao.members.filter(m => m[3] && m[3] > 0).length;
-        const totalShares = parseFloat(ethers.formatEther(dao.supplies.sharesTotalSupply)).toFixed(1);
-        const totalLoot = parseFloat(ethers.formatEther(dao.supplies.lootTotalSupply)).toFixed(1);
+        const totalShares = parseFloat(ethers.formatEther(dao.supplies.sharesTotalSupply)).toFixed(2).replace(/\.00$/, '');
+        const totalLoot = parseFloat(ethers.formatEther(dao.supplies.lootTotalSupply)).toFixed(2).replace(/\.00$/, '');
 
         statsBar.innerHTML = `
           <div class="dao-stat-item">
@@ -14872,7 +14872,7 @@
 
         // Calculate quorum percentage
         const quorumBps = Number(gov.quorumBps);
-        const quorumPercent = (quorumBps / 100).toFixed(2);
+        const quorumPercent = (quorumBps / 100).toFixed(2).replace(/\.00$/, '');
 
         // Format ragequittable
         const ragequittable = gov.ragequittable ? 'Enabled' : 'Disabled';
@@ -14883,7 +14883,7 @@
         // Format proposal threshold
         const proposalThreshold = BigInt(gov.proposalThreshold || 0);
         const proposalThresholdFormatted = proposalThreshold > 0n
-          ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2) + ' shares'
+          ? parseFloat(ethers.formatUnits(proposalThreshold, 18)).toFixed(2).replace(/\.00$/, '') + ' shares'
           : 'Disabled';
 
         // Format timelock delay
@@ -14899,8 +14899,8 @@
 
         if (futarchyParam > 0n && futarchyCap > 0n) {
           const paramBps = Number(futarchyParam);
-          const paramPercent = (paramBps / 100).toFixed(2);
-          const capFormatted = parseFloat(ethers.formatEther(futarchyCap)).toFixed(1);
+          const paramPercent = (paramBps / 100).toFixed(2).replace(/\.00$/, '');
+          const capFormatted = parseFloat(ethers.formatEther(futarchyCap)).toFixed(2).replace(/\.00$/, '');
           futarchyText = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
         }
 
@@ -15281,7 +15281,7 @@
             // pricePerShare is a simple integer ratio (token-wei per share-wei)
             const priceRatio = sale.pricePerShare.toString();
             const priceFormatted = `${priceRatio}:1`;
-            const capText = sale.cap > 0n ? `${parseFloat(ethers.formatEther(sale.cap)).toFixed(2)} remaining` : 'Unlimited';
+            const capText = sale.cap > 0n ? `${parseFloat(ethers.formatEther(sale.cap)).toFixed(2).replace(/\.00$/, '')} remaining` : 'Unlimited';
             const sourceText = sale.minting ? 'Minting new' : 'From treasury';
 
             // Detect 1:1 ratio for governance staking/upgrade (18 decimals, price = 1)
@@ -15294,7 +15294,7 @@
               try {
                 const tokenContract = new ethers.Contract(sale.token.address, ERC20_ABI, provider);
                 const balance = await tokenContract.balanceOf(currentDAO.dao.dao);
-                const balanceFormatted = parseFloat(ethers.formatUnits(balance, sale.token.decimals)).toFixed(2);
+                const balanceFormatted = parseFloat(ethers.formatUnits(balance, sale.token.decimals)).toFixed(2).replace(/\.00$/, '');
                 daoBalance = `<div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-top: 0.25rem;">DAO Balance: ${balanceFormatted} ${sale.token.symbol}</div>`;
               } catch (err) {
                 logger.error(`Error fetching DAO balance for ${sale.token.symbol}:`, err);
@@ -15363,23 +15363,23 @@
             // Format price nicely
             let priceFormatted;
             if (pricePerToken >= 0.01) {
-              priceFormatted = `${pricePerToken.toFixed(4)} ${sale.token.symbol}`;
+              priceFormatted = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol}`;
             } else if (pricePerToken >= 0.000001) {
-              priceFormatted = `${pricePerToken.toFixed(8)} ${sale.token.symbol}`;
+              priceFormatted = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol}`;
             } else {
               // Very small prices - show as ratio
-              priceFormatted = `${tribAmtFormatted} ${sale.token.symbol} : ${forAmtFormatted}`;
+              priceFormatted = `${tribAmtFormatted.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol} : ${forAmtFormatted.toFixed(2).replace(/\.00$/, '')}`;
             }
 
             // Available supply based on allowance
             const availableFormatted = parseFloat(ethers.formatEther(sale.available));
-            const capText = availableFormatted > 0 ? `${availableFormatted.toFixed(2)} available` : 'Check allowance';
+            const capText = availableFormatted > 0 ? `${availableFormatted.toFixed(2).replace(/\.00$/, '')} available` : 'Check allowance';
 
             // LP config display
             let lpConfigHTML = '';
             if (sale.lpConfig && sale.lpConfig.lpBps > 0) {
-              const lpPct = (sale.lpConfig.lpBps / 100).toFixed(1);
-              const buyerPct = (100 - sale.lpConfig.lpBps / 100).toFixed(1);
+              const lpPct = (sale.lpConfig.lpBps / 100).toFixed(2).replace(/\.00$/, '');
+              const buyerPct = (100 - sale.lpConfig.lpBps / 100).toFixed(2).replace(/\.00$/, '');
               lpConfigHTML = `
                 <div style="margin-bottom: 0.5rem; padding: 0.4rem; background: rgba(100, 150, 255, 0.1); border-radius: 3px; font-size: 0.7rem; color: rgba(100, 150, 255, 0.9);">
                   <span style="font-weight: 600;">LP Enabled:</span> ${lpPct}% to ZAMM liquidity • Buyers receive ${buyerPct}% of quoted rate
@@ -15491,11 +15491,11 @@
                         </svg>
                       </a>
                     </div>
-                    <div style="font-size: 0.9rem; color: #e6d9ff;">${ratePerMonth.toLocaleString()} ${tapToken.symbol}/mo</div>
+                    <div style="font-size: 0.9rem; color: #e6d9ff;">${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tapToken.symbol}/mo</div>
                   </div>
                   <div>
                     <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">Claimable</div>
-                    <div style="font-size: 0.9rem; color: ${claimableFormatted > 0 ? '#64c896' : '#e6d9ff'};">${claimableFormatted.toLocaleString()} ${tapToken.symbol}</div>
+                    <div style="font-size: 0.9rem; color: ${claimableFormatted > 0 ? '#64c896' : '#e6d9ff'};">${claimableFormatted.toFixed(2).replace(/\.00$/, '')} ${tapToken.symbol}</div>
                   </div>
                 </div>
                 ${claimableFormatted > 0 ? `
@@ -15553,7 +15553,7 @@
           assetDiv.style.cursor = 'pointer';
           assetDiv.title = `Click to create ${asset.symbol} transfer proposal`;
 
-          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(4);
+          const formattedBalance = parseFloat(ethers.formatUnits(asset.balance, asset.decimals)).toFixed(2).replace(/\.00$/, '');
 
           // Add sale badge for custom sale tokens
           const saleBadge = asset.isCustomSale
@@ -15644,8 +15644,8 @@
               forDecimals = await getTokenDecimals(tribute.forTkn);
             }
 
-            const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(4);
-            const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(4);
+            const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(2).replace(/\.00$/, '');
+            const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(2).replace(/\.00$/, '');
 
             const card = document.createElement('div');
             card.className = 'tribute-card';
@@ -15964,7 +15964,7 @@
         let text = `<strong>${price} ${tokenSymbol}</strong> for <strong>1 ${tokenTypeText}</strong>`;
 
         if (cap && !isNaN(cap) && cap > 0) {
-          text += ` up to <strong>${cap.toLocaleString()} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
+          text += ` up to <strong>${cap.toFixed(2).replace(/\.00$/, '')} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
         } else {
           text += ` <span style="opacity: 0.7;">(unlimited)</span>`;
         }
@@ -15976,7 +15976,7 @@
           // Add cost example
           const exampleAmount = 100;
           const exampleCost = exampleAmount * price;
-          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toLocaleString()} ${tokenSymbol} buys ${exampleAmount} ${tokenTypeText}s</span>`;
+          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toFixed(2).replace(/\.00$/, '')} ${tokenSymbol} buys ${exampleAmount} ${tokenTypeText}s</span>`;
         }
 
         hintText.innerHTML = text;
@@ -16141,7 +16141,7 @@
           // Cache the result
           customTokenCache[checksummedAddress.toLowerCase()] = { name, symbol, decimals: Number(decimals) };
 
-          const balanceFormatted = parseFloat(ethers.formatUnits(daoBalance, decimals)).toFixed(2);
+          const balanceFormatted = parseFloat(ethers.formatUnits(daoBalance, decimals)).toFixed(2).replace(/\.00$/, '');
 
           infoDiv.innerHTML = `
             <div style="padding: 0.5rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff; border-radius: 2px;">
@@ -16740,7 +16740,7 @@
 
         const dao = currentDAO.dao;
         const daoAddress = dao.dao;
-        const currentQuorum = (Number(dao.gov.quorumBps) / 100).toFixed(2);
+        const currentQuorum = (Number(dao.gov.quorumBps) / 100).toFixed(2).replace(/\.00$/, '');
 
         // Scroll to proposal form
         const proposalForm = document.querySelector('.proposal-form');
@@ -16761,8 +16761,8 @@
         const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
         const currentQuorumBps = Number(currentDAO.dao.gov.quorumBps);
         const currentRequiredVotes = (BigInt(currentQuorumBps) * currentTotalSupply) / 10000n;
-        const currentRequiredVotesFormatted = parseFloat(ethers.formatEther(currentRequiredVotes)).toFixed(2);
-        const totalSupplyFormatted = parseFloat(ethers.formatEther(currentTotalSupply)).toFixed(2);
+        const currentRequiredVotesFormatted = parseFloat(ethers.formatEther(currentRequiredVotes)).toFixed(2).replace(/\.00$/, '');
+        const totalSupplyFormatted = parseFloat(ethers.formatEther(currentTotalSupply)).toFixed(2).replace(/\.00$/, '');
 
         // Check if current quorum rounds to 0
         const hasZeroQuorum = currentQuorumBps > 0 && currentTotalSupply > 0n && currentRequiredVotes === 0n;
@@ -16832,7 +16832,7 @@
         const newQuorumBps = Math.floor(newPercent * 100);
         const currentTotalSupply = BigInt(currentDAO.dao.supplies.sharesTotalSupply || 0);
         const newRequiredVotes = (BigInt(newQuorumBps) * currentTotalSupply) / 10000n;
-        const newRequiredVotesFormatted = parseFloat(ethers.formatEther(newRequiredVotes)).toFixed(2);
+        const newRequiredVotesFormatted = parseFloat(ethers.formatEther(newRequiredVotes)).toFixed(2).replace(/\.00$/, '');
 
         const hasZeroQuorum = newQuorumBps > 0 && currentTotalSupply > 0n && newRequiredVotes === 0n;
 
@@ -17185,7 +17185,7 @@
         const dao = currentDAO.dao;
         const daoAddress = dao.dao;
         const currentThreshold = BigInt(dao.gov.proposalThreshold || 0);
-        const currentThresholdFormatted = parseFloat(ethers.formatUnits(currentThreshold, 18)).toFixed(2);
+        const currentThresholdFormatted = parseFloat(ethers.formatUnits(currentThreshold, 18)).toFixed(2).replace(/\.00$/, '');
 
         // Get current total share supply (not including shares held by DAO)
         const totalShares = BigInt(dao.supplies.sharesTotalSupply || 0);
@@ -17229,10 +17229,10 @@
         }
 
         const maxPotentialShares = circulatingShares + daicoSharesAvailable;
-        const maxThreshold = parseFloat(ethers.formatUnits(maxPotentialShares, 18)).toFixed(2);
+        const maxThreshold = parseFloat(ethers.formatUnits(maxPotentialShares, 18)).toFixed(2).replace(/\.00$/, '');
         const hasDaicoShares = daicoSharesAvailable > 0n;
-        const daicoSharesFormatted = parseFloat(ethers.formatUnits(daicoSharesAvailable, 18)).toFixed(2);
-        const circulatingFormatted = parseFloat(ethers.formatUnits(circulatingShares, 18)).toFixed(2);
+        const daicoSharesFormatted = parseFloat(ethers.formatUnits(daicoSharesAvailable, 18)).toFixed(2).replace(/\.00$/, '');
+        const circulatingFormatted = parseFloat(ethers.formatUnits(circulatingShares, 18)).toFixed(2).replace(/\.00$/, '');
 
         // Scroll to proposal form
         const proposalForm = document.querySelector('.proposal-form');
@@ -17803,7 +17803,7 @@
             userBalance = await tokenContract.balanceOf(connectedAddress);
           }
 
-          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(6);
+          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
 
           // Calculate max affordable shares based on user balance
           // pricePerShare is payToken wei per share wei
@@ -17899,11 +17899,11 @@
             // Check user balance
             const userBalance = await tokenContract.balanceOf(connectedAddress);
             if (userBalance < cost) {
-              showStatus(`Insufficient balance. Need ${ethers.formatUnits(cost, tokenDecimals)} tokens`, true);
+              showStatus(`Insufficient balance. Need ${parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(2).replace(/\.00$/, '')} tokens`, true);
               return;
             }
 
-            // Check allowance
+        // Check allowance
             const currentAllowance = await tokenContract.allowance(connectedAddress, currentDAO.dao.dao);
 
             if (currentAllowance < cost) {
@@ -17996,7 +17996,7 @@
             userBalance = await tokenContract.balanceOf(connectedAddress);
           }
 
-          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(6);
+          const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
 
           // Calculate the ratio and max affordable
           const tribAmtBn = BigInt(tribAmt);
@@ -18010,8 +18010,8 @@
           }
 
           // Format ratio for display
-          const tribAmtFormatted = parseFloat(ethers.formatUnits(tribAmtBn, tokenDecimals)).toFixed(6);
-          const forAmtFormatted = parseFloat(ethers.formatEther(forAmtBn)).toFixed(4);
+          const tribAmtFormatted = parseFloat(ethers.formatUnits(tribAmtBn, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
+          const forAmtFormatted = parseFloat(ethers.formatEther(forAmtBn)).toFixed(2).replace(/\.00$/, '');
 
           // Build DAICO sale page link
           const chainId = getNetwork().chainId;
@@ -18099,7 +18099,7 @@
           const num = buyAmount * tribAmtBn;
           const cost = (num + forAmtBn - 1n) / forAmtBn;
 
-          const costFormatted = parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(6);
+          const costFormatted = parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
           costEl.textContent = `${costFormatted} ${tokenSymbol}`;
         } catch (e) {
           costEl.textContent = `-- ${tokenSymbol}`;
@@ -18139,7 +18139,7 @@
             // Check user balance
             const userBalance = await tokenContract.balanceOf(connectedAddress);
             if (userBalance < cost) {
-              showStatus(`Insufficient balance. Need ${ethers.formatUnits(cost, tokenDecimals)} tokens`, true);
+              showStatus(`Insufficient balance. Need ${parseFloat(ethers.formatUnits(cost, tokenDecimals)).toFixed(2).replace(/\.00$/, '')} tokens`, true);
               return;
             }
 
@@ -18292,7 +18292,7 @@
           </div>
           <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px;">
             <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.35rem;">
-              Current Rate: <strong>${currentRatePerMonth.toLocaleString()} ${tribTknSymbol}/month</strong>
+              Current Rate: <strong>${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribTknSymbol}/month</strong>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
               Token: ${tribTknSymbol} (${tribTknDecimals} decimals)
@@ -18303,7 +18303,7 @@
           </div>
           <div style="margin-bottom: 0.75rem;">
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Rate (${tribTknSymbol} per month)</label>
-            <input type="text" id="tapRateInput" placeholder="${currentRatePerMonth.toLocaleString()}" value="${currentRatePerMonth.toFixed(2)}"
+            <input type="text" id="tapRateInput" placeholder="${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')}" value="${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')}"
                    oninput="updateTapRatePreview(${tribTknDecimals}, '${tribTknSymbol}')"
                    style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 180, 100, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
             <div style="margin-top: 0.35rem; font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">
@@ -18351,8 +18351,8 @@
         previewDiv.style.display = 'block';
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
-            <div>≈ ${ratePerDay.toFixed(4)} ${symbol}/day</div>
-            <div>≈ ${ratePerYear.toLocaleString()} ${symbol}/year</div>
+            <div>≈ ${ratePerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}/day</div>
+            <div>≈ ${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${symbol}/year</div>
             ${newRatePerMonth === 0 ? '<div style="color: #ffb464; margin-top: 0.35rem;">⚠️ Setting rate to 0 will freeze the tap</div>' : ''}
           </div>
         `;
@@ -18411,7 +18411,7 @@
               Current: <strong>${tribAmtFormatted} ${tribTknSymbol} → ${forAmtFormatted} ${tokenSymbol}</strong>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
-              Price: ${currentPricePerToken.toFixed(6)} ${tribTknSymbol} per ${tokenSymbol} • Deadline: ${deadlineDate}
+              Price: ${currentPricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribTknSymbol} per ${tokenSymbol} • Deadline: ${deadlineDate}
             </div>
           </div>
 
@@ -18504,7 +18504,7 @@
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(100, 200, 150, 0.1); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
             <div>New ratio: ${newTribAmt} ${tribSymbol} = ${newForAmt} ${forSymbol}</div>
-            <div>Price per token: ${newPricePerToken.toFixed(6)} ${tribSymbol}</div>
+            <div>Price per token: ${newPricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}</div>
           </div>
         `;
       }
@@ -18759,7 +18759,7 @@
           const tokenType = document.getElementById('newSaleTokenType')?.value === 'loot' ? 'LOOT' : 'SHARES';
           previewDiv.innerHTML = `
             <div>Ratio: ${tribAmt} ${paymentSymbol} = ${forAmt} ${tokenType}</div>
-            <div>Price per token: ${pricePerToken.toFixed(6)} ${paymentSymbol}</div>
+            <div>Price per token: ${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${paymentSymbol}</div>
           `;
         }
       }
@@ -19384,7 +19384,7 @@
 
           const description = newRatePerMonth === 0
             ? `Freeze tap (set rate to 0)`
-            : `Change tap rate to ${newRatePerMonth.toLocaleString()} ${symbol}/month`;
+            : `Change tap rate to ${newRatePerMonth.toFixed(2).replace(/\.00$/, '')} ${symbol}/month`;
 
           // Machine-readable metadata for tap rate change
           const metadata = `<<<DAICO_TAP action="setRate" ratePerSec="${ratePerSec.toString()}" ratePerMonth="${newRatePerMonth}" symbol="${symbol}" decimals="${decimals}" DAICO_TAP>>>`;
@@ -19483,7 +19483,7 @@
 
           const tokenTypeText = isLoot ? 'LOOT' : 'SHARES';
           const sourceText = minting ? 'minting new tokens' : 'selling from treasury';
-          const capText = cap > 0n ? `${ethers.formatEther(cap)} tokens` : 'unlimited';
+          const capText = cap > 0n ? `${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} tokens` : 'unlimited';
           const statusText = active ? 'ACTIVE' : 'INACTIVE';
 
           let description = `Configure ${symbol} sale: ${priceInput} ${symbol} per ${tokenTypeText} token, ${capText} cap, ${sourceText}, status: ${statusText}`;
@@ -19696,7 +19696,7 @@
         let text = `<strong>${price} ${payToken}</strong> for <strong>1 ${tokenTypeText}</strong>`;
 
         if (cap && !isNaN(cap) && cap > 0) {
-          text += ` up to <strong>${cap.toLocaleString()} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
+          text += ` up to <strong>${cap.toFixed(2).replace(/\.00$/, '')} ${tokenTypeText}${cap !== 1 ? 's' : ''}</strong>`;
         } else {
           text += ` <span style="opacity: 0.7;">(unlimited)</span>`;
         }
@@ -19708,7 +19708,7 @@
           // Add cost example
           const exampleAmount = 100;
           const exampleCost = exampleAmount * price;
-          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toLocaleString()} ${payToken} buys ${exampleAmount} ${tokenTypeText}s</span>`;
+          text += `<br><span style="opacity: 0.6; font-size: 0.85em;">Example: ${exampleCost.toFixed(2).replace(/\.00$/, '')} ${payToken} buys ${exampleAmount} ${tokenTypeText}s</span>`;
         }
 
         hintText.innerHTML = text;
@@ -19973,17 +19973,17 @@
 
         if (tribAmt > 0 && forAmt > 0) {
           const pricePerToken = tribAmt / forAmt;
-          let text = `${tribAmt} ${tribSymbol} → ${forAmt.toLocaleString()} tokens`;
+          let text = `${tribAmt} ${tribSymbol} → ${forAmt.toFixed(2).replace(/\.00$/, '')} tokens`;
 
           // Show effective rate if LP is enabled
           if (lpBps > 0 && lpBps < 100) {
             const effectiveTokens = forAmt * (100 - lpBps) / 100;
-            text += ` <span style="color: #64b5ff;">(buyer gets ${effectiveTokens.toLocaleString()} after ${lpBps}% LP)</span>`;
+            text += ` <span style="color: #64b5ff;">(buyer gets ${effectiveTokens.toFixed(2).replace(/\.00$/, '')} after ${lpBps}% LP)</span>`;
           }
 
           if (supply > 0) {
             const maxRaise = supply * pricePerToken;
-            text += `<br>Max raise: ~${maxRaise.toLocaleString()} ${tribSymbol}`;
+            text += `<br>Max raise: ~${maxRaise.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}`;
           }
           hintText.innerHTML = text;
           hint.style.display = 'block';
@@ -20026,10 +20026,10 @@
 
         if (ratePerMonth > 0) {
           const ratePerYear = ratePerMonth * 12;
-          let text = `<strong>Tap:</strong> ${ratePerMonth.toLocaleString()} ${tribSymbol}/month (~${ratePerYear.toLocaleString()} ${tribSymbol}/year)`;
+          let text = `<strong>Tap:</strong> ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month (~${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/year)`;
           if (budget > 0) {
             const months = budget / ratePerMonth;
-            text += ` • Budget lasts ~${months.toFixed(1)} months`;
+            text += ` • Budget lasts ~${months.toFixed(2).replace(/\.00$/, '')} months`;
           }
           preview.innerHTML = text;
           preview.style.display = 'block';
@@ -20150,11 +20150,11 @@
             const proposalThreshold = BigInt(currentDAO.dao.gov.proposalThreshold || 0);
             if (proposalThreshold > 0n && saleSupply > proposalThreshold) {
               const continueAnyway = confirm(
-                `⚠️ GOVERNANCE RISK: DAICO sale supply (${ethers.formatEther(saleSupply)} shares) exceeds proposal threshold (${ethers.formatEther(proposalThreshold)} shares).\n\n` +
+                `⚠️ GOVERNANCE RISK: DAICO sale supply (${parseFloat(ethers.formatEther(saleSupply)).toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')} shares).\n\n` +
                 `A single buyer could accumulate enough voting shares to pass proposals unilaterally.\n\n` +
                 `Consider:\n` +
                 `• Selling LOOT (non-voting) instead\n` +
-                `• Reducing supply to ≤ ${ethers.formatEther(proposalThreshold)}\n\n` +
+                `• Reducing supply to ≤ ${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')}\n\n` +
                 `Continue anyway?`
               );
               if (!continueAnyway) return;
@@ -20222,7 +20222,7 @@
           // Build description
           const pricePerToken = parseFloat(tribAmtInput) / parseFloat(forAmtInput);
           let description = `Setup DAICO Sale: ${supplyInput} ${forTokenName} available for purchase`;
-          description += `\n\nSale Terms: ${tribAmtInput} ${tribSymbol} = ${forAmtInput} ${forTokenName} (${pricePerToken.toFixed(6)} ${tribSymbol}/token)`;
+          description += `\n\nSale Terms: ${tribAmtInput} ${tribSymbol} = ${forAmtInput} ${forTokenName} (${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/token)`;
 
           if (enableLP) {
             const lpPct = parseInt(lpBpsInput);
@@ -20231,7 +20231,7 @@
 
           if (enableTap) {
             const ratePerMonth = parseFloat(tapRateInput);
-            description += `\n\nTap: ${ratePerMonth.toLocaleString()} ${tribSymbol}/month to ${tapOpsInput.slice(0, 10)}... (budget: ${parseFloat(tapBudgetInput).toLocaleString()} ${tribSymbol})`;
+            description += `\n\nTap: ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month to ${tapOpsInput.slice(0, 10)}... (budget: ${parseFloat(tapBudgetInput).toFixed(2).replace(/\.00$/, '')} ${tribSymbol})`;
           }
 
           description += `\n\nThis proposal executes ${numActions} actions in a single batch:`;
@@ -20239,7 +20239,7 @@
           description += `\n${actionNum++}. Mint ${supplyInput} ${forTokenName} to DAO`;
           description += `\n${actionNum++}. Approve DAICO contract to transfer tokens`;
           if (enableTap && tapBudget > 0n) {
-            description += `\n${actionNum++}. Grant DAICO tap allowance (${ethers.formatUnits(tapBudget, tribDecimals)} ${tribSymbol})`;
+            description += `\n${actionNum++}. Grant DAICO tap allowance (${parseFloat(ethers.formatUnits(tapBudget, tribDecimals)).toFixed(2).replace(/\.00$/, '')} ${tribSymbol})`;
           }
           description += `\n${actionNum++}. Configure sale via ${saleMethod} on DAICO (${DAICO_ADDRESS.slice(0, 10)}...)`;
 
@@ -20469,7 +20469,7 @@
           allowancesSection.style.display = 'block';
 
           allowancesInfo.innerHTML = allowances.map(a => {
-            const formattedAmount = parseFloat(ethers.formatUnits(a.allowance, a.decimals)).toFixed(4);
+            const formattedAmount = parseFloat(ethers.formatUnits(a.allowance, a.decimals)).toFixed(2).replace(/\.00$/, '');
             return `
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px; margin-bottom: 0.5rem;">
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -20506,7 +20506,7 @@
           document.body.appendChild(modal);
         }
 
-        const maxFormatted = parseFloat(ethers.formatUnits(BigInt(maxAllowance), decimals)).toFixed(6);
+        const maxFormatted = parseFloat(ethers.formatUnits(BigInt(maxAllowance), decimals)).toFixed(2).replace(/\.00$/, '');
 
         modal.innerHTML = `
           <div class="wallet-modal" style="max-width: 400px;">
@@ -20707,15 +20707,15 @@
             if (proposalThreshold > 0n) {
               if (cap === 0n) {
                 // Unlimited minting of voting shares with threshold - dangerous
-                showStatus('⚠️ Cannot set unlimited shares sale with a proposal threshold. Set a cap ≤ ' + ethers.formatEther(proposalThreshold) + ' or sell LOOT instead.', true);
+                showStatus('⚠️ Cannot set unlimited shares sale with a proposal threshold. Set a cap ≤ ' + parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '') + ' or sell LOOT instead.', true);
                 return;
               } else if (cap > proposalThreshold) {
                 const continueAnyway = confirm(
-                  `⚠️ GOVERNANCE RISK: Sale cap (${ethers.formatEther(cap)} shares) exceeds proposal threshold (${ethers.formatEther(proposalThreshold)} shares).\n\n` +
+                  `⚠️ GOVERNANCE RISK: Sale cap (${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')} shares).\n\n` +
                   `A single buyer could accumulate enough voting shares to pass proposals unilaterally.\n\n` +
                   `Consider:\n` +
                   `• Selling LOOT (non-voting) instead\n` +
-                  `• Reducing the cap to ≤ ${ethers.formatEther(proposalThreshold)}\n\n` +
+                  `• Reducing the cap to ≤ ${parseFloat(ethers.formatEther(proposalThreshold)).toFixed(2).replace(/\.00$/, '')}\n\n` +
                   `Continue anyway?`
                 );
                 if (!continueAnyway) return;
@@ -20777,7 +20777,7 @@
           const tokenType = isLoot ? 'LOOT' : 'SHARES';
           const statusText = active ? 'Enable' : 'Disable';
           const sourceText = minting ? 'mint new' : 'sell from treasury';
-          const capText = cap > 0n ? `, cap ${ethers.formatEther(cap)}` : ', unlimited';
+          const capText = cap > 0n ? `, cap ${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')}` : ', unlimited';
           let description = `${statusText} ${tokenType} sale: ${priceInput} ${tokenName} per token (${sourceText}${capText})`;
 
           // Always add SALE tag for tracking in UI (treasury, sales section, etc.)
@@ -21131,8 +21131,8 @@
         // Update balances
         const shares = ethers.formatUnits(member.shares, 18);
         const loot = ethers.formatUnits(member.loot, 18);
-        document.getElementById('membershipShares').textContent = parseFloat(shares).toFixed(4);
-        document.getElementById('membershipLoot').textContent = parseFloat(loot).toFixed(4);
+        document.getElementById('membershipShares').textContent = parseFloat(shares).toFixed(2).replace(/\.00$/, '');
+        document.getElementById('membershipLoot').textContent = parseFloat(loot).toFixed(2).replace(/\.00$/, '');
 
         // Update Etherscan links for tokens
         if (dao.meta && dao.meta.sharesToken) {
@@ -21422,7 +21422,7 @@
             // Handle display for claimed vs unclaimed receipts
             const amountDisplay = receipt.claimed || receipt.balance === 0n
               ? '<div class="receipt-amount" style="opacity: 0.6;">Receipt Claimed</div>'
-              : `<div class="receipt-amount">${parseFloat(balanceFormatted).toFixed(4)} receipts</div>`;
+              : `<div class="receipt-amount">${parseFloat(balanceFormatted).toFixed(2).replace(/\.00$/, '')} receipts</div>`;
 
             // Convert receipt ID from hex to decimal for display
             const receiptIdDecimal = BigInt(receipt.receiptId).toString();
@@ -21760,8 +21760,8 @@
           ]);
 
           // Display voting power
-          const ownedFormatted = parseFloat(ethers.formatUnits(ownedShares, 18)).toFixed(2);
-          const votesFormatted = parseFloat(ethers.formatUnits(totalVotes, 18)).toFixed(2);
+          const ownedFormatted = parseFloat(ethers.formatUnits(ownedShares, 18)).toFixed(2).replace(/\.00$/, '');
+          const votesFormatted = parseFloat(ethers.formatUnits(totalVotes, 18)).toFixed(2).replace(/\.00$/, '');
 
           ownedSharesDisplay.textContent = ownedFormatted;
           totalVotesDisplay.textContent = votesFormatted;
@@ -21770,7 +21770,7 @@
           const receivedVotes = totalVotes - ownedShares;
           if (receivedVotes > 0n) {
             totalVotesDisplay.classList.add('has-delegation');
-            const receivedFormatted = parseFloat(ethers.formatUnits(receivedVotes, 18)).toFixed(2);
+            const receivedFormatted = parseFloat(ethers.formatUnits(receivedVotes, 18)).toFixed(2).replace(/\.00$/, '');
             votingPowerBreakdown.innerHTML = `${ownedFormatted} owned + <strong style="color: #66ff66;">${receivedFormatted} delegated</strong>`;
           } else {
             totalVotesDisplay.classList.remove('has-delegation');
@@ -21811,7 +21811,7 @@
             let html = '<div style="margin-top: 0.5rem;">';
             for (let i = 0; i < delegates.length; i++) {
               const info = delegateInfos[i];
-              const percentage = (Number(bps[i]) / 100).toFixed(2);
+              const percentage = (Number(bps[i]) / 100).toFixed(2).replace(/\.00$/, '');
 
               let displayText, displayClass;
               if (info.isSelf) {
@@ -21923,7 +21923,7 @@
 
             delegatorsWithENS.forEach(delegator => {
               const displayName = delegator.ensName || formatAddress(delegator.address);
-              const amountFormatted = parseFloat(ethers.formatUnits(delegator.amount, 18)).toFixed(2);
+              const amountFormatted = parseFloat(ethers.formatUnits(delegator.amount, 18)).toFixed(2).replace(/\.00$/, '');
 
               const item = document.createElement('div');
               item.className = 'received-delegation-item';
@@ -21936,7 +21936,7 @@
                     ${displayName}
                   </span>
                 </div>
-                <span class="delegated-amount" title="${delegator.percentage.toFixed(2)}% of their voting power">
+                <span class="delegated-amount" title="${delegator.percentage.toFixed(2).replace(/\.00$/, '')}% of their voting power">
                   ${amountFormatted} votes
                 </span>
               `;
@@ -22134,7 +22134,7 @@
         const warningDisplay = document.getElementById('delegationWarning');
 
         if (totalDisplay) {
-          totalDisplay.textContent = total.toFixed(2) + '%';
+          totalDisplay.textContent = total.toFixed(2).replace(/\.00$/, '') + '%';
 
           // Color code based on validity
           if (total > 100) {
@@ -22153,7 +22153,7 @@
 
         if (selfDisplay) {
           const remaining = Math.max(0, 100 - total);
-          selfDisplay.textContent = remaining.toFixed(2) + '%';
+          selfDisplay.textContent = remaining.toFixed(2).replace(/\.00$/, '') + '%';
 
           // Show/hide self delegation info based on whether there's a remainder
           const selfInfo = document.getElementById('selfDelegationInfo');
@@ -22294,7 +22294,7 @@
             const totalWeight = weightInputs.reduce((sum, w) => sum + w, 0);
 
             if (totalWeight > 100) {
-              showStatus(`Total weight cannot exceed 100% (currently ${totalWeight.toFixed(2)}%)`, true);
+              showStatus(`Total weight cannot exceed 100% (currently ${totalWeight.toFixed(2).replace(/\.00$/, '')}%)`, true);
               return;
             }
 
@@ -22307,8 +22307,8 @@
 
               // Confirm with user about auto-adding self delegation
               const confirmSelf = confirm(
-                `Your delegation totals ${totalWeight.toFixed(2)}%.\n\n` +
-                `The remaining ${remaining.toFixed(2)}% will be automatically delegated to yourself.\n\n` +
+                `Your delegation totals ${totalWeight.toFixed(2).replace(/\.00$/, '')}%.\n\n` +
+                `The remaining ${remaining.toFixed(2).replace(/\.00$/, '')}% will be automatically delegated to yourself.\n\n` +
                 `Continue?`
               );
 
@@ -22320,7 +22320,7 @@
               finalAddresses.push(connectedAddress);
               finalWeights.push(remaining);
 
-              showStatus(`Auto-adding ${remaining.toFixed(2)}% self-delegation...`, false);
+              showStatus(`Auto-adding ${remaining.toFixed(2).replace(/\.00$/, '')}% self-delegation...`, false);
             }
 
             // Convert percentages to basis points (10000 = 100%)
@@ -22557,10 +22557,10 @@
                     🎉 FUTARCHY REWARDS AVAILABLE
                   </div>
                   <div style="font-family: 'EB Garamond', serif; font-size: 0.9rem; color: rgba(230, 217, 255, 0.9); text-align: center; margin-bottom: 0.75rem;">
-                    You voted on the winning side! You have <strong>${parseFloat(balanceFormatted).toFixed(4)}</strong> winning receipts.
+                    You voted on the winning side! You have <strong>${parseFloat(balanceFormatted).toFixed(2).replace(/\.00$/, '')}</strong> winning receipts.
                   </div>
                   <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); text-align: center; margin-bottom: 1rem;">
-                    Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(4)} LOOT</strong>
+                    Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(2).replace(/\.00$/, '')} LOOT</strong>
                   </div>
                   <button onclick="claimFutarchyFromReceipt('${receiptData.proposalId.toString()}', '${receiptData.balance.toString()}')"
                           style="width: 100%; padding: 0.875rem; background: linear-gradient(135deg, #66ff66 0%, #44cc44 100%); border: none; color: #000; font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; font-weight: 600; border-radius: 4px; transition: all 0.2s ease; min-height: 44px;">
@@ -22766,14 +22766,14 @@
             const memberDiv = document.createElement('div');
             memberDiv.className = 'member-item';
 
-            const shares = parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(4);
-            const loot = parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(4);
+            const shares = parseFloat(ethers.formatUnits(sharesBN, 18)).toFixed(2).replace(/\.00$/, '');
+            const loot = parseFloat(ethers.formatUnits(lootBN, 18)).toFixed(2).replace(/\.00$/, '');
             const badgeText = (seatId && seatId > 0) ? `Seat #${seatId}` : 'None';
 
             // Calculate ownership %
             const memberTotal = sharesBN + lootBN;
             const ownershipPercent = totalSupply > 0n
-              ? ((Number(memberTotal) / Number(totalSupply)) * 100).toFixed(2)
+              ? ((Number(memberTotal) / Number(totalSupply)) * 100).toFixed(2).replace(/\.00$/, '')
               : '0.00';
 
             memberDiv.innerHTML = `
@@ -22946,7 +22946,7 @@
                       Voted ${supportLabel}
                     </div>
                     <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.7);">
-                      Balance: ${parseFloat(balanceFormatted).toFixed(4)} receipts
+                      Balance: ${parseFloat(balanceFormatted).toFixed(2).replace(/\.00$/, '')} receipts
                     </div>
                   </div>
                 `;
@@ -23393,9 +23393,9 @@
           const stateText = PROPOSAL_STATES[state] || `State ${state}`;
           const stateClass = stateText.toLowerCase();
 
-          const forVotes = ethers.formatUnits(proposal.forVotes, 18);
-          const againstVotes = ethers.formatUnits(proposal.againstVotes, 18);
-          const abstainVotes = ethers.formatUnits(proposal.abstainVotes, 18);
+          const forVotes = parseFloat(ethers.formatUnits(proposal.forVotes, 18)).toFixed(2).replace(/\.00$/, '');
+          const againstVotes = parseFloat(ethers.formatUnits(proposal.againstVotes, 18)).toFixed(2).replace(/\.00$/, '');
+          const abstainVotes = parseFloat(ethers.formatUnits(proposal.abstainVotes, 18)).toFixed(2).replace(/\.00$/, '');
 
           // Determine button state based on proposal state and timelock settings
           // State 2 = Queued (timelock running), State 3 = Succeeded (passed, ready to execute)
@@ -23556,7 +23556,7 @@
                     const estimatedReward = (userReceiptBalance * payoutPerUnit) / (10n ** 18n);
                     const estimatedRewardFormatted = ethers.formatUnits(estimatedReward, 18);
 
-                    infoDiv.innerHTML = `You have <strong>${parseFloat(receiptAmount).toFixed(4)} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(4)} LOOT</strong>`;
+                    infoDiv.innerHTML = `You have <strong>${parseFloat(receiptAmount).toFixed(2).replace(/\.00$/, '')} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(2).replace(/\.00$/, '')} LOOT</strong>`;
 
                     const claimBtn = document.createElement('button');
                     claimBtn.className = 'proposal-button claim';
@@ -23990,8 +23990,8 @@
             let futarchyDesc = 'Disabled';
             if (param > 0n && cap > 0n) {
               const paramBps = Number(param);
-              const paramPercent = (paramBps / 100).toFixed(2);
-              const capFormatted = parseFloat(ethers.formatEther(cap)).toFixed(1);
+              const paramPercent = (paramBps / 100).toFixed(2).replace(/\.00$/, '');
+              const capFormatted = parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '');
               futarchyDesc = `${paramPercent}% of supply, ${capFormatted} LOOT cap`;
             }
 
@@ -24005,7 +24005,7 @@
           else if (isDaoSelfCall && functionSelector === '0x0527aab6' && calldata.length >= 74) {
             const decoded = abiCoder.decode(['uint16'], '0x' + calldata.slice(10));
             const bps = Number(decoded[0]);
-            const percent = (bps / 100).toFixed(2);
+            const percent = (bps / 100).toFixed(2).replace(/\.00$/, '');
 
             translation = `
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Change Quorum</div>
@@ -24069,7 +24069,7 @@
           else if (isDaoSelfCall && functionSelector === '0x80ca42a1' && calldata.length >= 74) {
             const decoded = abiCoder.decode(['uint96'], '0x' + calldata.slice(10));
             const thresholdWei = decoded[0];
-            const thresholdFormatted = parseFloat(ethers.formatUnits(thresholdWei, 18)).toFixed(2);
+            const thresholdFormatted = parseFloat(ethers.formatUnits(thresholdWei, 18)).toFixed(2).replace(/\.00$/, '');
 
             translation = `
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Change Proposal Threshold</div>
@@ -24122,7 +24122,7 @@
             const price = pricePerShare.toString();
             const tokenType = isLoot ? 'LOOT' : 'SHARES';
             const statusText = active ? 'Enable' : 'Disable';
-            const capText = cap > 0n ? `${ethers.formatEther(cap)} cap` : 'unlimited';
+            const capText = cap > 0n ? `${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} cap` : 'unlimited';
             const sourceText = minting ? 'mint new' : 'from treasury';
 
             translation = `
@@ -24597,7 +24597,7 @@
           // Convert stored string value back to BigInt for proper encoding
           const valueBigInt = BigInt(proposalData.value);
 
-          if (!confirm(`Execute proposal:\n\n${proposalData.description}\n\nOp: ${proposalData.op}\nTo: ${proposalData.to}\nValue: ${ethers.formatEther(valueBigInt)} ETH\nData: ${proposalData.data.slice(0, 66)}${proposalData.data.length > 66 ? '...' : ''}`)) {
+          if (!confirm(`Execute proposal:\n\n${proposalData.description}\n\nOp: ${proposalData.op}\nTo: ${proposalData.to}\nValue: ${parseFloat(ethers.formatEther(valueBigInt)).toFixed(2).replace(/\.00$/, '')} ETH\nData: ${proposalData.data.slice(0, 66)}${proposalData.data.length > 66 ? '...' : ''}`)) {
             return;
           }
 
@@ -25358,7 +25358,7 @@
         summaryBox.style.display = 'block';
 
         // Format numbers nicely
-        const formatNum = (n) => n >= 1000 ? n.toLocaleString() : n.toString();
+        const formatNum = (n) => n.toFixed(2).replace(/\.00$/, '');
 
         // Main summary: "1 ETH → 1,000,000 Shares"
         let mainSummary = `<span style="color: #9d7bff;">${formatNum(tribAmt)} ${payName}</span> → <span style="color: #9d7bff;">${formatNum(forAmt)} ${tokenTypeName}</span>`;
@@ -25379,7 +25379,7 @@
         if (pricePerToken < 0.0001) {
           priceStr = `${formatNum(tokensPerUnit)} ${tokenTypeName} per ${payName}`;
         } else {
-          priceStr = `${pricePerToken.toFixed(6)} ${payName} per ${tokenTypeName.slice(0, -1)}`;
+          priceStr = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${payName} per ${tokenTypeName.slice(0, -1)}`;
         }
 
         // Add max raise if supply is set
@@ -25638,10 +25638,10 @@
 
         if (ratePerMonth > 0) {
           const ratePerYear = ratePerMonth * 12;
-          let text = `<strong>Tap:</strong> ${ratePerMonth.toLocaleString()} ${tribSymbol}/month (~${ratePerYear.toLocaleString()} ${tribSymbol}/year)`;
+          let text = `<strong>Tap:</strong> ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month (~${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/year)`;
           if (budget > 0) {
             const months = budget / ratePerMonth;
-            text += ` • Budget lasts ~${months.toFixed(1)} months`;
+            text += ` • Budget lasts ~${months.toFixed(2).replace(/\.00$/, '')} months`;
           }
           preview.innerHTML = text;
           preview.style.display = 'block';
@@ -25780,9 +25780,9 @@
           warning.style.borderLeftColor = '#ffcc66';
 
           if (saleAmount > 0 && saleAmount > thresholdVal) {
-            warningText.innerHTML = `Sale supply (${saleAmount.toLocaleString()} shares) exceeds proposal threshold (${thresholdVal.toLocaleString()} shares). A single buyer could gain enough voting power to pass proposals. Consider selling LOOT instead or reducing the supply.`;
+            warningText.innerHTML = `Sale supply (${saleAmount.toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${thresholdVal.toFixed(2).replace(/\.00$/, '')} shares). A single buyer could gain enough voting power to pass proposals. Consider selling LOOT instead or reducing the supply.`;
           } else if (saleAmount > 0 && saleAmount <= thresholdVal) {
-            warningText.innerHTML = `Sale supply (${saleAmount.toLocaleString()}) is within threshold (${thresholdVal.toLocaleString()}). This is safer, but buyers could still accumulate shares if the sale is renewed.`;
+            warningText.innerHTML = `Sale supply (${saleAmount.toFixed(2).replace(/\.00$/, '')}) is within threshold (${thresholdVal.toFixed(2).replace(/\.00$/, '')}). This is safer, but buyers could still accumulate shares if the sale is renewed.`;
           } else {
             warningText.innerHTML = `Selling voting shares with a proposal threshold may allow buyers to accumulate enough shares to pass proposals. Consider selling LOOT (non-voting) for public sales.`;
           }
@@ -25906,7 +25906,7 @@
         if (totalShares > 0n) {
           // Calculate required votes: floor(quorumBps * totalShares / 10_000)
           const requiredVotes = (BigInt(quorumBps) * totalShares) / 10000n;
-          const totalSharesFormatted = parseFloat(ethers.formatEther(totalShares)).toFixed(2);
+          const totalSharesFormatted = parseFloat(ethers.formatEther(totalShares)).toFixed(2).replace(/\.00$/, '');
 
           votesValue.textContent = ethers.formatEther(requiredVotes);
           totalSupplySpan.textContent = totalSharesFormatted;
@@ -26069,8 +26069,8 @@
 
             if (proposalThresholdWei > maxPotentialShares) {
               const supplyDesc = salePreset === 'daico' && saleTokenType === 'shares'
-                ? `total potential shares (${ethers.formatEther(totalShares)} initial + ${getEl('daicoSaleSupply').value || '0'} DAICO = ${ethers.formatEther(maxPotentialShares)})`
-                : `total initial shares (${ethers.formatEther(totalShares)})`;
+                ? `total potential shares (${parseFloat(ethers.formatEther(totalShares)).toFixed(2).replace(/\.00$/, '')} initial + ${getEl('daicoSaleSupply').value || '0'} DAICO = ${parseFloat(ethers.formatEther(maxPotentialShares)).toFixed(2).replace(/\.00$/, '')})`
+                : `total initial shares (${parseFloat(ethers.formatEther(totalShares)).toFixed(2).replace(/\.00$/, '')})`;
               throw new Error(`Proposal threshold (${proposalThresholdInput}) cannot exceed ${supplyDesc}`);
             }
           }
@@ -26347,11 +26347,11 @@
             if (!isLoot && proposalThresholdWei > 0n && saleSupply > proposalThresholdWei) {
               // DAICO mints new voting shares - supply exceeds threshold
               const continueAnyway = confirm(
-                `⚠️ GOVERNANCE RISK: DAICO sale supply (${ethers.formatEther(saleSupply)} shares) exceeds proposal threshold (${ethers.formatEther(proposalThresholdWei)} shares).\n\n` +
+                `⚠️ GOVERNANCE RISK: DAICO sale supply (${parseFloat(ethers.formatEther(saleSupply)).toFixed(2).replace(/\.00$/, '')} shares) exceeds proposal threshold (${parseFloat(ethers.formatEther(proposalThresholdWei)).toFixed(2).replace(/\.00$/, '')} shares).\n\n` +
                 `A single buyer could accumulate enough voting shares to pass proposals unilaterally.\n\n` +
                 `Consider:\n` +
                 `• Selling LOOT (non-voting) instead\n` +
-                `• Reducing supply to ≤ ${ethers.formatEther(proposalThresholdWei)}\n\n` +
+                `• Reducing supply to ≤ ${parseFloat(ethers.formatEther(proposalThresholdWei)).toFixed(2).replace(/\.00$/, '')}\n\n` +
                 `Continue anyway?`
               );
               if (!continueAnyway) {
