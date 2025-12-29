@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src *;">
     <title>DAICO.wtf</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='%23000' d='M50,2 L58,18 L78,8 L72,28 L95,30 L80,45 L98,58 L75,62 L82,85 L60,75 L50,98 L40,75 L18,85 L25,62 L2,58 L20,45 L5,30 L28,28 L22,8 L42,18 Z'/><text x='50' y='44' font-family='sans-serif' font-size='18' font-weight='bold' font-style='italic' fill='%23FF8C42' text-anchor='middle'>DAICO</text><text x='50' y='64' font-family='sans-serif' font-size='16' font-weight='bold' font-style='italic' fill='%23FF8C42' text-anchor='middle'>.WTF</text></svg>" type="image/svg+xml">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='%23000' d='M50,2 L58,18 L78,8 L72,28 L95,30 L80,45 L98,58 L75,62 L82,85 L60,75 L50,98 L40,75 L18,85 L25,62 L2,58 L20,45 L5,30 L28,28 L22,8 L42,18 Z'/><text x='50' y='44' font-family='sans-serif' font-size='18' font-weight='bold' font-style='italic' fill='%23FF8C42' text-anchor='middle'>DAICO</text><text x='50' y='64' font-family='sans-serif' font-size='16' font-weight='bold' font-style='italic' fill='%23FF8C42' text-anchor='middle'>.WTF</text></svg>">
@@ -6087,8 +6088,18 @@
 
         // Parse contractURI to extract metadata (handles both JSON and SVG formats)
         // Returns: { type: 'json'|'svg', image?: string, description?: string, name?: string, symbol?: string }
+        // Security: Includes size limits and validation to prevent DoS and injection attacks
+        const MAX_URI_SIZE = 1024 * 1024; // 1MB limit for data URIs
+        const MAX_STRING_LENGTH = 10000;  // 10KB limit for individual string fields
+
         function parseContractURI(uri) {
             if (!uri) return null;
+
+            // Size check to prevent DoS from huge payloads
+            if (typeof uri !== 'string' || uri.length > MAX_URI_SIZE) {
+                console.warn('contractURI too large or invalid');
+                return null;
+            }
 
             try {
                 // Handle data URI formats
@@ -6098,6 +6109,11 @@
                         let jsonStr;
                         if (uri.includes(';base64,')) {
                             const base64 = uri.split(';base64,')[1];
+                            // Size check before base64 decode (decoded is ~75% of encoded)
+                            if (base64.length > MAX_URI_SIZE) {
+                                console.warn('Base64 data too large');
+                                return null;
+                            }
                             jsonStr = atob(base64);
                         } else if (uri.includes(';utf8,')) {
                             jsonStr = uri.split(';utf8,')[1];
@@ -6105,15 +6121,35 @@
                             // Assume raw JSON after comma
                             jsonStr = uri.split(',')[1];
                         }
+
+                        // Additional size check after extraction
+                        if (jsonStr && jsonStr.length > MAX_URI_SIZE) {
+                            console.warn('JSON data too large');
+                            return null;
+                        }
+
                         const metadata = JSON.parse(jsonStr);
+
+                        // Validate metadata is a plain object (not array, null, etc.)
+                        if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+                            console.warn('Invalid metadata structure');
+                            return null;
+                        }
+
+                        // Sanitize and limit string field lengths
+                        const safeString = (val) => {
+                            if (typeof val !== 'string') return undefined;
+                            return val.length > MAX_STRING_LENGTH ? val.slice(0, MAX_STRING_LENGTH) : val;
+                        };
+
                         return {
                             type: 'json',
-                            name: metadata.name,
-                            symbol: metadata.symbol,
-                            description: metadata.description,
-                            image: metadata.image,
-                            external_link: metadata.external_link,
-                            banner_image: metadata.banner_image
+                            name: safeString(metadata.name),
+                            symbol: safeString(metadata.symbol),
+                            description: safeString(metadata.description),
+                            image: safeString(metadata.image),
+                            external_link: safeString(metadata.external_link),
+                            banner_image: safeString(metadata.banner_image)
                         };
                     }
 
@@ -6183,8 +6219,8 @@
 
             // If we have a safe image URL (from JSON, SVG data URI, or direct image)
             if (metadata.image && isSafeImageUrl(metadata.image)) {
-                return `<div class="daico-image">
-                    <img src="${metadata.image}" alt="${safeName}" onerror="this.parentElement.innerHTML='<span class=\\'daico-image-initial\\'>${initial}</span>'" />
+                return `<div class="daico-image" data-fallback-initial="${initial}">
+                    <img src="${metadata.image}" alt="${safeName}" onerror="handleImageError(this)" />
                 </div>`;
             }
 
@@ -6209,6 +6245,17 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Safe image error handler - uses textContent instead of innerHTML
+        function handleImageError(img) {
+            const parent = img.parentElement;
+            const initial = parent.dataset.fallbackInitial || '?';
+            const span = document.createElement('span');
+            span.className = 'daico-image-initial';
+            span.textContent = initial;
+            parent.innerHTML = '';
+            parent.appendChild(span);
         }
 
         // CREATE2 address prediction (must match Summoner's proxy bytecode)

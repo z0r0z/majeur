@@ -8,6 +8,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src *;">
     <meta name="theme-color" content="#0a0015" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js" integrity="sha512-UXYETj+vXKSURF1UlgVRLzWRS9ZiQTv3lcL4rbeLyqTXCPNZC6PTLF/Ik3uxm2Zo+E109cUpJPZfLxJsCgKSng==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.10.0/dist/index.umd.js" integrity="sha384-ACTo60vL1/AfeYkCCXRvB1G0ugjHF0/SHU9YN7e4/KH/mitAIYpLcw5PKXW/+ekM" crossorigin="anonymous"></script>
@@ -9704,8 +9705,16 @@
       };
 
       // Convert IPFS URLs to gateway URLs (browsers don't support ipfs:// natively)
+      // Also validates against dangerous protocols for security
       function toGatewayUrl(url) {
-        if (!url || typeof url !== 'string') return url;
+        if (!url || typeof url !== 'string') return '';
+
+        // Block dangerous protocols (defense-in-depth)
+        const lower = url.toLowerCase().trim();
+        if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') ||
+            lower.startsWith('file:') || lower.startsWith('about:')) {
+          return '';
+        }
 
         // Check if URL contains any IPFS reference
         if (!url.includes('ipfs://') && !url.includes('ipfs/') && !url.includes('ipns/')) {
@@ -22573,9 +22582,9 @@
             </div>
             <div style="margin-top: 1rem;">
               <div style="font-family: 'Cinzel', serif; font-size: 0.9rem; color: #9d7bff; margin-bottom: 0.5rem;">
-                ${metadata.name || `Badge #${seatId}`}
+                ${escapeHtml(metadata.name) || `Badge #${seatId}`}
               </div>
-              ${metadata.description ? `<div style="font-family: 'EB Garamond', serif; font-size: 0.9rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.75rem;">${metadata.description}</div>` : ''}
+              ${metadata.description ? `<div style="font-family: 'EB Garamond', serif; font-size: 0.9rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.75rem;">${escapeHtml(metadata.description)}</div>` : ''}
               <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
                 <button onclick="openNFTModal(${JSON.stringify(metadata).replace(/"/g, '&quot;')}, 'Member Badge')" style="padding: 0.5rem 1rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); color: #9d7bff; font-family: 'EB Garamond', serif; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; border-radius: 4px;">
                   View Details
@@ -24078,8 +24087,8 @@
             <div class="nft-modal-attributes">
               ${metadata.attributes.map(attr => `
                 <div class="nft-modal-attribute">
-                  <div class="nft-modal-attribute-label">${attr.trait_type || attr.type || 'Attribute'}</div>
-                  <div class="nft-modal-attribute-value">${attr.value}</div>
+                  <div class="nft-modal-attribute-label">${escapeHtml(attr.trait_type || attr.type || 'Attribute')}</div>
+                  <div class="nft-modal-attribute-value">${escapeHtml(String(attr.value))}</div>
                 </div>
               `).join('')}
             </div>
@@ -24125,8 +24134,8 @@
 
         modalBody.innerHTML = `
           ${imageHTML}
-          <div class="nft-modal-title">${metadata.name || title}</div>
-          ${metadata.description ? `<div class="nft-modal-description">${metadata.description}</div>` : ''}
+          <div class="nft-modal-title">${escapeHtml(metadata.name) || escapeHtml(title)}</div>
+          ${metadata.description ? `<div class="nft-modal-description">${escapeHtml(metadata.description)}</div>` : ''}
           ${attributesHTML}
           ${futarchyClaimHTML}
         `;
@@ -24488,7 +24497,7 @@
                       VOTE RECEIPT
                     </div>
                     <div style="font-size: 0.95rem; color: #e6d9ff; margin-bottom: 0.5rem;">
-                      ${metadata.name || 'Vote Receipt'}
+                      ${escapeHtml(metadata.name) || 'Vote Receipt'}
                     </div>
                     <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.7); margin-bottom: 0.5rem;">
                       Proposal #${item.proposalId.toString().slice(0, 8)}...
