@@ -13151,6 +13151,22 @@
           // Ignore spurious events during or right after connection
           if (isConnecting || connectionJustCompleted) return;
 
+          // IMMEDIATELY clear the URL hash when network changes to prevent deep link prompts
+          // Do this FIRST, unconditionally, before anything else can read the hash
+          if (window.location.hash) {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+
+          // Navigate to gallery if viewing a DAO
+          if (currentDAO) {
+            try {
+              backToGallery();
+            } catch (e) {
+              // If backToGallery fails, at least clear currentDAO
+              currentDAO = null;
+            }
+          }
+
           try {
             const network = await provider?.getNetwork();
             if (!network) return;
@@ -22132,6 +22148,11 @@
           currentDAO = userDAOs[daoIndex];
         }
 
+        // Clear state from previous DAO to prevent data leakage
+        customSaleTokens = [];
+        currentDAOMetadata = null;
+        currentDAICO = null;
+
         // Guard against null/undefined DAO data
         if (!currentDAO?.dao?.meta) {
           logger.error('Invalid DAO data at index:', daoIndex);
@@ -22183,9 +22204,19 @@
           switchDaoView('dao');
         }
 
-        // Fetch and store metadata, then show/hide metadata tab
-        await fetchAndStoreDAOMetadata(daoAddress);
-        updateMetadataTabVisibility();
+        // Fetch and store metadata in background (don't block DAO opening)
+        // When done, update metadata tab visibility and re-render treasury if custom tokens
+        const capturedDaoAddress = daoAddress;
+        fetchAndStoreDAOMetadata(daoAddress).then(() => {
+          // Only update UI if we're still viewing the same DAO
+          if (currentDAO?.dao?.dao === capturedDaoAddress) {
+            updateMetadataTabVisibility();
+            // Re-render treasury with custom tokens if metadata has them
+            if (currentDAOMetadata?.treasury_tokens?.length > 0) {
+              renderTreasury();
+            }
+          }
+        });
 
         // Hide All DAOs gallery (Your DAOs stays visible)
         DOMCache.allDaosGallery.classList.remove('show');
@@ -23748,15 +23779,27 @@
           } else if (contractURI.startsWith('data:image/')) {
             metadata = { image: contractURI };
           } else {
-            // Try to fetch as JSON
+            // Try to fetch as JSON (with 10 second timeout to prevent hanging)
             const fetchUrl = toGatewayUrl(contractURI);
-            const response = await fetch(fetchUrl);
-            if (response.ok) {
-              const contentType = response.headers.get('content-type');
-              if (contentType && contentType.startsWith('image/')) {
-                metadata = { image: fetchUrl };
-              } else if (contentType && contentType.includes('application/json')) {
-                metadata = await response.json();
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            try {
+              const response = await fetch(fetchUrl, { signal: controller.signal });
+              clearTimeout(timeoutId);
+              if (response.ok) {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.startsWith('image/')) {
+                  metadata = { image: fetchUrl };
+                } else if (contentType && contentType.includes('application/json')) {
+                  metadata = await response.json();
+                }
+              }
+            } catch (err) {
+              clearTimeout(timeoutId);
+              if (err.name === 'AbortError') {
+                logger.warn('Metadata fetch timed out for:', contractURI);
+              } else {
+                throw err; // Re-throw non-timeout errors to be caught by outer try-catch
               }
             }
           }
@@ -28263,14 +28306,13 @@
 
                 const currentChainId = actualWalletChainId || getNetwork().chainId;
                 if (linkNetwork.network.chainId !== currentChainId) {
-                  // Prompt user to switch networks
-                  const switched = await promptNetworkSwitch(linkNetwork.key, linkNetwork.network);
-                  if (!switched) {
-                    // User declined, just show default view
-                    return;
+                  // Network mismatch on page load - user likely switched networks intentionally
+                  // Don't prompt, just clear the stale deep link and show default view
+                  if (window.location.hash) {
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
                   }
-                  // Update read-only provider for new network
-                  readOnlyProvider = new ethers.JsonRpcProvider(getNetwork().rpcs[0]);
+                  // Continue to auto-reconnect logic below, skip deep link handling
+                  throw new Error('NETWORK_MISMATCH_SKIP_DEEP_LINK');
                 }
               }
             }
@@ -28295,8 +28337,11 @@
             }
             // Note: Scroll is handled after auto-reconnect check below
           } catch (error) {
-            logger.error('Failed to load deep-linked DAO:', error);
-            showStatus('Failed to load DAO. Please try connecting your wallet.', true);
+            // Network mismatch is handled gracefully - not an error
+            if (error.message !== 'NETWORK_MISMATCH_SKIP_DEEP_LINK') {
+              logger.error('Failed to load deep-linked DAO:', error);
+              showStatus('Failed to load DAO. Please try connecting your wallet.', true);
+            }
           }
         }
 
