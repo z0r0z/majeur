@@ -3,7 +3,7 @@
 In this tutorial, you'll write a script that:
 1. Connects to the Sepolia network
 2. Fetches all proposals from a DAO
-3. Filters to show only proposals you haven't voted on
+3. Filters to show only ACTIVE proposals that you haven't voted on
 4. Checks if you have any claimable futarchy rewards
 5. Claims those rewards if available
 
@@ -12,7 +12,7 @@ In this tutorial, you'll write a script that:
 - How ethers.js connects to Ethereum
 - The difference between Providers, Signers, and Wallets
 - How to read contract state using ABIs
-- How the futarchy reward system works
+- How the simplified futarchy system that's currently implemented in Majeur works
 
 ---
 
@@ -22,24 +22,89 @@ Create a new file `check-proposals.js`:
 
 ```javascript
 // check-proposals.js
-require('dotenv').config();
-const { ethers } = require('ethers');
+import 'dotenv/config';
+import { ethers } from 'ethers';
 ```
 
-The `dotenv` package loads your private key from the `.env` file we created earlier.
+To run this script, use:
+
+```bash
+node check-proposals.js
+```
+
+Make sure you have Node.js installed and that you've created a `.env` file in the same directory with your `PRIVATE_KEY` and `RPC_URL` (as described in the previous tutorial).
+
+> **Note**: We're using ES modules (import syntax). Add `"type": "module"` to your `package.json` to enable this:
+> ```json
+> {
+>   "type": "module",
+>   "dependencies": { ... }
+> }
+> ```
+
+### ES Modules vs CommonJS
+
+There are two ways to import modules in Node.js:
+
+**ES Modules (what we use):**
+```javascript
+import 'dotenv/config';
+import { ethers } from 'ethers';
+import Moloch from './Moloch.json' with { type: 'json' };
+```
+
+**CommonJS (the older way):**
+```javascript
+require('dotenv/config');
+const { ethers } = require('ethers');
+const Moloch = require('./Moloch.json');
+```
+
+Key differences:
+
+| Feature | ES Modules (`import`) | CommonJS (`require`) |
+|---------|----------------------|---------------------|
+| Loading | Static, at parse time | Dynamic, at runtime |
+| Top-level await | ✅ Supported | ❌ Not supported |
+| Tree shaking | ✅ Yes | ❌ No |
+| JSON imports | Needs `with { type: 'json' }` | Works directly |
+| File extension | Often `.mjs` or `"type": "module"` | `.js` or `.cjs` |
+
+We use ES modules because:
+- **Top-level await**: We can use `await` outside of functions, which makes scripts cleaner
+- **Modern standard**: ES modules are the JavaScript standard, CommonJS is Node-specific
+- **Better tooling**: Bundlers and IDEs work better with static imports
+
+If you see older tutorials using `require()`, the concepts are the same—just the syntax differs.
 
 ---
 
-## Step 2: Define Constants
+## Step 2: Environment Variables & Constants
+
+First, let's add a helper function to validate that required environment variables are set:
 
 ```javascript
-// Network and contract addresses
-const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+// Helper function to validate required environment variables
+const requireEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    console.error(`${key} not found in .env`);
+    process.exit(1);
+  }
+  return value;
+};
+
+const RPC_URL = requireEnv('RPC_URL');
+const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
 const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 ```
 
-**RPC_URL**: A public endpoint to communicate with Sepolia. In production, use a dedicated provider like Alchemy or Infura.
+This helper stops the script immediately with a clear error message if any required variable is missing—much better than cryptic errors later.
+
+**RPC_URL**: Your Sepolia RPC endpoint from the `.env` file.
+
+**PRIVATE_KEY**: Your wallet's private key from the `.env` file.
 
 **VIEW_HELPER_ADDRESS**: The MolochViewHelper contract. Same address on all networks.
 
@@ -49,195 +114,35 @@ const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 
 ---
 
-## Step 3: Define ABIs
+## Step 3: Import ABIs
 
-ABIs (Application Binary Interfaces) tell ethers.js how to encode/decode function calls. We only need the functions we'll actually use:
+ABIs (Application Binary Interfaces) tell ethers.js how to encode/decode function calls. When you compile contracts with Foundry (`forge build`), ABIs are generated in the `out/` directory:
+
+- `out/Moloch.sol/Moloch.json` — The DAO contract ABI
+- `out/MolochViewHelper.sol/MolochViewHelper.json` — The view helper ABI
+
+Copy these JSON files to your script directory, then import them:
 
 ```javascript
-// Minimal ABI for MolochViewHelper
-const VIEW_HELPER_ABI = [
-  {
-    "inputs": [
-      { "name": "dao", "type": "address" },
-      { "name": "proposalStart", "type": "uint256" },
-      { "name": "proposalCount", "type": "uint256" },
-      { "name": "messageStart", "type": "uint256" },
-      { "name": "messageCount", "type": "uint256" },
-      { "name": "treasuryTokens", "type": "address[]" }
-    ],
-    "name": "getDAOFullState",
-    "outputs": [
-      {
-        "components": [
-          { "name": "dao", "type": "address" },
-          {
-            "components": [
-              { "name": "name", "type": "string" },
-              { "name": "symbol", "type": "string" },
-              { "name": "contractURI", "type": "string" },
-              { "name": "sharesToken", "type": "address" },
-              { "name": "lootToken", "type": "address" },
-              { "name": "badgesToken", "type": "address" },
-              { "name": "renderer", "type": "address" }
-            ],
-            "name": "meta",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              { "name": "proposalThreshold", "type": "uint96" },
-              { "name": "minYesVotesAbsolute", "type": "uint96" },
-              { "name": "quorumAbsolute", "type": "uint96" },
-              { "name": "proposalTTL", "type": "uint64" },
-              { "name": "timelockDelay", "type": "uint64" },
-              { "name": "quorumBps", "type": "uint16" },
-              { "name": "ragequittable", "type": "bool" },
-              { "name": "autoFutarchyParam", "type": "uint256" },
-              { "name": "autoFutarchyCap", "type": "uint256" },
-              { "name": "rewardToken", "type": "address" }
-            ],
-            "name": "gov",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              { "name": "sharesTotalSupply", "type": "uint256" },
-              { "name": "lootTotalSupply", "type": "uint256" },
-              { "name": "sharesHeldByDAO", "type": "uint256" },
-              { "name": "lootHeldByDAO", "type": "uint256" }
-            ],
-            "name": "supplies",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              {
-                "components": [
-                  { "name": "token", "type": "address" },
-                  { "name": "balance", "type": "uint256" }
-                ],
-                "name": "balances",
-                "type": "tuple[]"
-              }
-            ],
-            "name": "treasury",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              { "name": "account", "type": "address" },
-              { "name": "shares", "type": "uint256" },
-              { "name": "loot", "type": "uint256" },
-              { "name": "seatId", "type": "uint16" },
-              { "name": "votingPower", "type": "uint256" },
-              { "name": "delegates", "type": "address[]" },
-              { "name": "delegatesBps", "type": "uint32[]" }
-            ],
-            "name": "members",
-            "type": "tuple[]"
-          },
-          {
-            "components": [
-              { "name": "id", "type": "uint256" },
-              { "name": "proposer", "type": "address" },
-              { "name": "state", "type": "uint8" },
-              { "name": "snapshotBlock", "type": "uint48" },
-              { "name": "createdAt", "type": "uint64" },
-              { "name": "queuedAt", "type": "uint64" },
-              { "name": "supplySnapshot", "type": "uint256" },
-              { "name": "forVotes", "type": "uint96" },
-              { "name": "againstVotes", "type": "uint96" },
-              { "name": "abstainVotes", "type": "uint96" },
-              {
-                "components": [
-                  { "name": "enabled", "type": "bool" },
-                  { "name": "rewardToken", "type": "address" },
-                  { "name": "pool", "type": "uint256" },
-                  { "name": "resolved", "type": "bool" },
-                  { "name": "winner", "type": "uint8" },
-                  { "name": "finalWinningSupply", "type": "uint256" },
-                  { "name": "payoutPerUnit", "type": "uint256" }
-                ],
-                "name": "futarchy",
-                "type": "tuple"
-              },
-              {
-                "components": [
-                  { "name": "voter", "type": "address" },
-                  { "name": "support", "type": "uint8" },
-                  { "name": "weight", "type": "uint256" }
-                ],
-                "name": "voters",
-                "type": "tuple[]"
-              }
-            ],
-            "name": "proposals",
-            "type": "tuple[]"
-          },
-          {
-            "components": [
-              { "name": "index", "type": "uint256" },
-              { "name": "text", "type": "string" }
-            ],
-            "name": "messages",
-            "type": "tuple[]"
-          }
-        ],
-        "name": "out",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  }
-];
-
-// Minimal ABI for Moloch DAO contract
-const MOLOCH_ABI = [
-  {
-    "inputs": [{ "name": "id", "type": "uint256" }, { "name": "voter", "type": "address" }],
-    "name": "hasVoted",
-    "outputs": [{ "type": "uint8" }],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{ "name": "owner", "type": "address" }, { "name": "id", "type": "uint256" }],
-    "name": "balanceOf",
-    "outputs": [{ "type": "uint256" }],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{ "name": "id", "type": "uint256" }, { "name": "amount", "type": "uint256" }],
-    "name": "cashOutFutarchy",
-    "outputs": [{ "name": "payout", "type": "uint256" }],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  }
-];
+import Moloch from './Moloch.json' with { type: 'json' };
+import MolochViewHelper from './MolochViewHelper.json' with { type: 'json' };
 ```
 
-This looks like a lot, but you're just describing the shape of the data. In production, you'd typically import ABIs from a JSON file.
+> **Note**: The `with { type: 'json' }` syntax is how ES modules import JSON files. Each JSON file has an `abi` field containing the complete ABI array. We'll access it as `Moloch.abi` when creating contracts.
 
 ---
 
 ## Step 4: Connect to the Network
 
 ```javascript
-async function main() {
-  // Create a Provider - this is a read-only connection to the network
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  console.log("Connected to Sepolia\n");
+// Setup provider and wallet
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+console.log('Connected to Sepolia');
+console.log(`Wallet: ${wallet.address}\n`);
 ```
 
 **Provider**: A connection to the Ethereum network. It can only *read* data, not send transactions.
-
-```javascript
-  // Create a Wallet - this is a Signer that can send transactions
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-  console.log("Your address:", wallet.address);
-```
 
 **Wallet**: A Signer backed by a private key. It can sign and send transactions.
 
@@ -251,12 +156,9 @@ The key difference:
 ## Step 5: Create Contract Instances
 
 ```javascript
-  // Create contract instances
-  // For read-only, we use the provider
-  const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-
-  // For transactions, we use the wallet (signer)
-  const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
+// Create contracts (using ABIs directly)
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, MolochViewHelper.abi, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, Moloch.abi, wallet);
 ```
 
 When you create a `Contract` with a provider, you can only call `view` functions. When you create it with a signer, you can also call state-changing functions.
@@ -266,68 +168,139 @@ When you create a `Contract` with a provider, you can only call `view` functions
 ## Step 6: Fetch DAO State
 
 ```javascript
-  // Fetch DAO state
-  // Parameters: (dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens)
-  // Use 0,0 for start/count to get ALL proposals and messages
-  console.log("Fetching DAO state...\n");
+// Fetch and display DAO state
+const state = await viewHelper.getDAOFullState(
+  DAO_ADDRESS,
+  0,      // proposalStart - start from first proposal
+  1000,   // proposalCount - contract caps at actual total
+  0,      // messageStart
+  1000,   // messageCount - contract caps at actual total
+  []      // treasuryTokens - empty array, we don't need treasury info
+);
 
-  const state = await viewHelper.getDAOFullState(
-    DAO_ADDRESS,
-    0,    // proposalStart - start from first proposal
-    0,    // proposalCount - 0 means fetch ALL proposals
-    0,    // messageStart
-    0,    // messageCount - 0 means fetch ALL messages
-    []    // treasuryTokens - empty array, we don't need treasury info
-  );
-
-  console.log("DAO:", state.meta.name, `(${state.meta.symbol})`);
-  console.log("Ragequit enabled:", state.gov.ragequittable);
-  console.log("Total proposals:", state.proposals.length);
-  console.log("");
+console.log(`DAO: ${state.meta.name} (${state.meta.symbol})`);
+console.log(`Ragequit enabled: ${state.gov.ragequittable}`);
+console.log(`Total proposals: ${state.proposals.length}\n`);
 ```
 
 The `getDAOFullState` function returns everything about the DAO in one call. This is more efficient than making many separate calls.
 
----
+> **Note**: If you need the exact proposal count first, you can call `dao.getProposalCount()` before fetching state. The view helper will automatically cap the count at the actual total.
 
-## Step 7: Find Unvoted Proposals
+### Your Code So Far
+
+At this point, your complete `check-proposals.js` should look like this:
 
 ```javascript
-  // Proposal states
-  const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
+import 'dotenv/config';
+import { ethers } from 'ethers';
+import Moloch from './Moloch.json' with { type: 'json' };
+import MolochViewHelper from './MolochViewHelper.json' with { type: 'json' };
 
-  // Find proposals you haven't voted on
-  console.log("=== Proposals You Haven't Voted On ===\n");
-
-  const unvotedProposals = [];
-
-  for (const proposal of state.proposals) {
-    // Check if user has voted on this proposal
-    // The voters array contains all voters for this proposal
-    const userVote = proposal.voters.find(
-      v => v.voter.toLowerCase() === wallet.address.toLowerCase()
-    );
-
-    if (!userVote) {
-      unvotedProposals.push(proposal);
-
-      // Only show Active proposals (state 1) as voteable
-      const isVoteable = proposal.state === 1n;
-
-      console.log(`Proposal ID: ${proposal.id}`);
-      console.log(`  State: ${STATE_NAMES[Number(proposal.state)]}${isVoteable ? ' (can vote!)' : ''}`);
-      console.log(`  Votes - For: ${ethers.formatUnits(proposal.forVotes, 18)}, Against: ${ethers.formatUnits(proposal.againstVotes, 18)}`);
-      console.log(`  Created: ${new Date(Number(proposal.createdAt) * 1000).toISOString()}`);
-      console.log("");
-    }
+// Helper function to validate required environment variables
+const requireEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    console.error(`${key} not found in .env`);
+    process.exit(1);
   }
+  return value;
+};
 
-  if (unvotedProposals.length === 0) {
-    console.log("You've voted on all proposals!\n");
-  }
+const RPC_URL = requireEnv('RPC_URL');
+const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
+const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
+const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
+
+// Setup provider and wallet
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+console.log('Connected to Sepolia');
+console.log(`Wallet: ${wallet.address}\n`);
+
+// Create contracts (using ABIs directly)
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, MolochViewHelper.abi, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, Moloch.abi, wallet);
+
+// Fetch and display DAO state
+const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 1000, 0, 1000, []);
+
+console.log(`DAO: ${state.meta.name} (${state.meta.symbol})`);
+console.log(`Ragequit enabled: ${state.gov.ragequittable}`);
+console.log(`Total proposals: ${state.proposals.length}\n`);
 ```
 
-Notice we compare `proposal.state === 1n`. The `n` suffix indicates a BigInt, which ethers.js uses for large numbers. Proposal state 1 is "Active" — the only state where voting is allowed.
+Try running it:
+
+```bash
+node check-proposals.js
+```
+
+Expected output:
+```
+Connected to Sepolia
+Wallet: 0x...
+
+DAO: Elite Coders Union (1337)
+Ragequit enabled: true
+Total proposals: 3
+```
+
+---
+
+## Step 7: Find Active Unvoted Proposals
+
+```javascript
+// Proposal states
+const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
+
+// Understanding proposal states:
+// - Unopened (0): A proposal ID that can be computed deterministically from parameters
+//   (op, to, value, data, nonce, config) but hasn't been opened yet. Proposal IDs are
+//   hashes, so you can know the ID before creating the proposal. This enables off-chain
+//   coordination, UI building, and verification. A proposal becomes "opened" when:
+//   - openProposal(id) is called explicitly, OR
+//   - The first vote is cast (which auto-opens it)
+//   Once opened, the proposal gets a snapshot block (block.number - 1) for voting power,
+//   is added to the proposalIds registry, and transitions to Active state. Unopened
+//   proposals cannot be voted on until opened.
+// - Active (1): The proposal is open for voting. This is the only state where voting is allowed.
+// - Queued (2): The proposal has passed and is waiting for the timelock delay to expire.
+// - Succeeded (3): The proposal has passed all checks (quorum, FOR > AGAINST) but hasn't been executed yet.
+// - Defeated (4): The proposal failed (FOR <= AGAINST or didn't meet minimum YES votes).
+// - Expired (5): The proposal exceeded its TTL (time-to-live) without passing.
+// - Executed (6): The proposal has been executed and can no longer be modified.
+
+// Find active proposals you haven't voted on
+console.log("=== Active Proposals You Haven't Voted On ===\n");
+
+const unvotedProposals = [];
+
+for (const proposal of state.proposals) {
+  // Check if user has voted on this proposal
+  // The voters array contains all voters for this proposal
+  const userVote = proposal.voters.find(
+    v => v.voter.toLowerCase() === wallet.address.toLowerCase()
+  );
+
+  // We only need to know about Active proposals (state 1) that are voteable
+  const isVoteable = proposal.state === 1n;
+
+  if (!userVote && isVoteable) {
+    unvotedProposals.push(proposal);
+
+    console.log(`Proposal ID: ${proposal.id}`);
+    console.log(`  Votes - For: ${ethers.formatUnits(proposal.forVotes, 18)}, Against: ${ethers.formatUnits(proposal.againstVotes, 18)}`);
+    console.log(`  Created: ${new Date(Number(proposal.createdAt) * 1000).toISOString()}\n`);
+  }
+}
+
+if (unvotedProposals.length === 0) {
+  console.log("No active proposals need your vote!\n");
+}
+```
+
+Notice we compare `proposal.state === 1n`. The `n` suffix indicates a BigInt, which ethers.js uses for large numbers. Proposal state 1 is "Active" — the only state where voting is allowed. By filtering on both conditions, we only see proposals we can actually act on.
 
 ---
 
@@ -336,48 +309,47 @@ Notice we compare `proposal.state === 1n`. The `n` suffix indicates a BigInt, wh
 Futarchy is a prediction market on proposals. When you vote, you receive "receipt" tokens. If your side wins, you can burn those receipts to claim a share of the reward pool.
 
 ```javascript
-  // Check for claimable futarchy rewards
-  console.log("=== Checking Futarchy Rewards ===\n");
+// Check for claimable futarchy rewards
+console.log('=== Checking Futarchy Rewards ===\n');
 
-  let hasClaimableRewards = false;
+let hasClaimableRewards = false;
 
-  for (const proposal of state.proposals) {
-    const futarchy = proposal.futarchy;
+for (const proposal of state.proposals) {
+  const futarchy = proposal.futarchy;
 
-    // Only check proposals with resolved futarchy
-    if (!futarchy.enabled || !futarchy.resolved) {
-      continue;
-    }
+  // Only check proposals with resolved futarchy
+  if (!futarchy.enabled || !futarchy.resolved) {
+    continue;
+  }
 
-    // The winner is 0 (Against won) or 1 (For won)
-    const winner = futarchy.winner;
-    const winnerSide = winner === 1 ? "FOR" : "AGAINST";
+  // The winner is 0 (Against won) or 1 (For won)
+  const winner = futarchy.winner;
+  const winnerSide = winner === 1 ? 'FOR' : 'AGAINST';
 
-    // Compute the receipt ID for the winning side
-    // Formula: keccak256(abi.encodePacked("Moloch:receipt", proposalId, winner))
-    const receiptId = ethers.keccak256(
-      ethers.solidityPacked(
-        ["string", "uint256", "uint8"],
-        ["Moloch:receipt", proposal.id, winner]
-      )
-    );
+  // Compute the receipt ID for the winning side
+  // Formula: keccak256(abi.encodePacked("Moloch:receipt", proposalId, winner))
+  const receiptId = ethers.keccak256(
+    ethers.solidityPacked(
+      ['string', 'uint256', 'uint8'],
+      ['Moloch:receipt', proposal.id, winner]
+    )
+  );
 
-    // Check if user has any winning receipts
-    const receiptBalance = await dao.balanceOf(wallet.address, receiptId);
+  // Check if user has any winning receipts
+  const receiptBalance = await dao.balanceOf(wallet.address, receiptId);
 
-    if (receiptBalance > 0n) {
-      hasClaimableRewards = true;
+  if (receiptBalance > 0n) {
+    hasClaimableRewards = true;
 
-      // Calculate expected payout
-      // payoutPerUnit is scaled by 1e18
-      const expectedPayout = (receiptBalance * futarchy.payoutPerUnit) / BigInt(1e18);
+    // Calculate expected payout
+    // payoutPerUnit is scaled by 1e18
+    const expectedPayout = (receiptBalance * futarchy.payoutPerUnit) / BigInt(1e18);
 
-      console.log(`Proposal ${proposal.id}:`);
-      console.log(`  Winner: ${winnerSide}`);
-      console.log(`  Your receipts: ${ethers.formatUnits(receiptBalance, 18)}`);
-      console.log(`  Expected payout: ${ethers.formatUnits(expectedPayout, 18)} tokens`);
-      console.log(`  Reward token: ${futarchy.rewardToken}`);
-      console.log("");
+    console.log(`Proposal ${proposal.id}:`);
+    console.log(`  Winner: ${winnerSide}`);
+    console.log(`  Your receipts: ${ethers.formatUnits(receiptBalance, 18)}`);
+    console.log(`  Expected payout: ${ethers.formatUnits(expectedPayout, 18)} tokens`);
+    console.log(`  Reward token: ${futarchy.rewardToken}\n`);
 ```
 
 **Receipt tokens** are ERC-6909 multi-tokens. Each proposal+vote combination has a unique token ID. When futarchy resolves, only the winning side's receipts are redeemable.
@@ -387,31 +359,25 @@ Futarchy is a prediction market on proposals. When you vote, you receive "receip
 ## Step 9: Claim the Rewards
 
 ```javascript
-      // Ask user if they want to claim
-      console.log("  Claiming rewards...");
+    // Claim the rewards
+    console.log('  Claiming rewards...');
 
-      try {
-        const tx = await dao.cashOutFutarchy(proposal.id, receiptBalance);
-        console.log(`  Transaction sent: ${tx.hash}`);
+    try {
+      const tx = await dao.cashOutFutarchy(proposal.id, receiptBalance);
+      console.log(`  Transaction sent: ${tx.hash}`);
 
-        // Wait for confirmation
-        const receipt = await tx.wait();
-        console.log(`  Confirmed in block ${receipt.blockNumber}`);
-        console.log("");
-      } catch (error) {
-        console.log(`  Error claiming: ${error.message}`);
-        console.log("");
-      }
+      // Wait for confirmation
+      const receipt = await tx.wait();
+      console.log(`  Confirmed in block ${receipt.blockNumber}\n`);
+    } catch (error) {
+      console.log(`  Error claiming: ${error.message}\n`);
     }
-  }
-
-  if (!hasClaimableRewards) {
-    console.log("No claimable futarchy rewards found.\n");
   }
 }
 
-// Run the script
-main().catch(console.error);
+if (!hasClaimableRewards) {
+  console.log('No claimable futarchy rewards found.\n');
+}
 ```
 
 The `tx.wait()` call blocks until the transaction is mined. The returned receipt contains the block number and other transaction details.
@@ -424,84 +390,90 @@ Here's the full script in one piece:
 
 ```javascript
 // check-proposals.js
-require('dotenv').config();
-const { ethers } = require('ethers');
+import 'dotenv/config';
+import { ethers } from 'ethers';
+import Moloch from './Moloch.json' with { type: 'json' };
+import MolochViewHelper from './MolochViewHelper.json' with { type: 'json' };
 
-// Constants
-const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+// Helper function to validate required environment variables
+const requireEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    console.error(`${key} not found in .env`);
+    process.exit(1);
+  }
+  return value;
+};
+
+const RPC_URL = requireEnv('RPC_URL');
+const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
 const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 
-// ABIs (shortened for display - use the full versions from above)
-const VIEW_HELPER_ABI = [/* ... full ABI from Step 3 ... */];
-const MOLOCH_ABI = [/* ... full ABI from Step 3 ... */];
-
 const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
 
-async function main() {
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+// Setup provider and wallet
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+console.log('Connected to Sepolia');
+console.log(`Wallet: ${wallet.address}\n`);
 
-  console.log("Connected to Sepolia");
-  console.log("Your address:", wallet.address, "\n");
+// Create contracts
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, MolochViewHelper.abi, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, Moloch.abi, wallet);
 
-  const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-  const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
+// Fetch DAO state
+const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 1000, 0, 1000, []);
 
-  console.log("Fetching DAO state...\n");
-  const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
+console.log(`DAO: ${state.meta.name} (${state.meta.symbol})`);
+console.log(`Ragequit enabled: ${state.gov.ragequittable}`);
+console.log(`Total proposals: ${state.proposals.length}\n`);
 
-  console.log("DAO:", state.meta.name, `(${state.meta.symbol})`);
-  console.log("Total proposals:", state.proposals.length, "\n");
+// Find active proposals you haven't voted on
+console.log("=== Active Proposals You Haven't Voted On ===\n");
+let unvotedCount = 0;
 
-  // Find unvoted proposals
-  console.log("=== Proposals You Haven't Voted On ===\n");
-  let unvotedCount = 0;
+for (const proposal of state.proposals) {
+  const userVote = proposal.voters.find(
+    v => v.voter.toLowerCase() === wallet.address.toLowerCase()
+  );
 
-  for (const proposal of state.proposals) {
-    const userVote = proposal.voters.find(
-      v => v.voter.toLowerCase() === wallet.address.toLowerCase()
-    );
+  const isVoteable = proposal.state === 1n;
 
-    if (!userVote) {
-      unvotedCount++;
-      const isVoteable = proposal.state === 1n;
-      console.log(`Proposal ${proposal.id}`);
-      console.log(`  State: ${STATE_NAMES[Number(proposal.state)]}${isVoteable ? ' (voteable)' : ''}`);
-      console.log(`  For: ${ethers.formatUnits(proposal.forVotes, 18)}, Against: ${ethers.formatUnits(proposal.againstVotes, 18)}\n`);
-    }
+  if (!userVote && isVoteable) {
+    unvotedCount++;
+    console.log(`Proposal ${proposal.id}`);
+    console.log(`  For: ${ethers.formatUnits(proposal.forVotes, 18)}, Against: ${ethers.formatUnits(proposal.againstVotes, 18)}\n`);
   }
-
-  if (unvotedCount === 0) console.log("You've voted on all proposals!\n");
-
-  // Check futarchy rewards
-  console.log("=== Checking Futarchy Rewards ===\n");
-  let claimed = false;
-
-  for (const proposal of state.proposals) {
-    if (!proposal.futarchy.enabled || !proposal.futarchy.resolved) continue;
-
-    const winner = proposal.futarchy.winner;
-    const receiptId = ethers.keccak256(
-      ethers.solidityPacked(["string", "uint256", "uint8"], ["Moloch:receipt", proposal.id, winner])
-    );
-
-    const balance = await dao.balanceOf(wallet.address, receiptId);
-    if (balance > 0n) {
-      claimed = true;
-      const payout = (balance * proposal.futarchy.payoutPerUnit) / BigInt(1e18);
-      console.log(`Claiming from proposal ${proposal.id}: ${ethers.formatUnits(payout, 18)} tokens`);
-
-      const tx = await dao.cashOutFutarchy(proposal.id, balance);
-      await tx.wait();
-      console.log(`Claimed! Tx: ${tx.hash}\n`);
-    }
-  }
-
-  if (!claimed) console.log("No claimable rewards.\n");
 }
 
-main().catch(console.error);
+if (unvotedCount === 0) console.log("No active proposals need your vote!\n");
+
+// Check futarchy rewards
+console.log('=== Checking Futarchy Rewards ===\n');
+let claimed = false;
+
+for (const proposal of state.proposals) {
+  if (!proposal.futarchy.enabled || !proposal.futarchy.resolved) continue;
+
+  const winner = proposal.futarchy.winner;
+  const receiptId = ethers.keccak256(
+    ethers.solidityPacked(['string', 'uint256', 'uint8'], ['Moloch:receipt', proposal.id, winner])
+  );
+
+  const balance = await dao.balanceOf(wallet.address, receiptId);
+  if (balance > 0n) {
+    claimed = true;
+    const payout = (balance * proposal.futarchy.payoutPerUnit) / BigInt(1e18);
+    console.log(`Claiming from proposal ${proposal.id}: ${ethers.formatUnits(payout, 18)} tokens`);
+
+    const tx = await dao.cashOutFutarchy(proposal.id, balance);
+    await tx.wait();
+    console.log(`Claimed! Tx: ${tx.hash}\n`);
+  }
+}
+
+if (!claimed) console.log('No claimable rewards.\n');
 ```
 
 ---
@@ -515,17 +487,15 @@ node check-proposals.js
 Expected output:
 ```
 Connected to Sepolia
-Your address: 0x...
+Wallet: 0x...
 
-Fetching DAO state...
-
-DAO: Elite Coders Union (ECU)
+DAO: Elite Coders Union (1337)
+Ragequit enabled: true
 Total proposals: 3
 
-=== Proposals You Haven't Voted On ===
+=== Active Proposals You Haven't Voted On ===
 
 Proposal 1234...
-  State: Active (voteable)
   For: 100.0, Against: 50.0
 
 === Checking Futarchy Rewards ===

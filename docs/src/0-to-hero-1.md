@@ -29,17 +29,8 @@ Foundry project configuration. Contains:
 - Remappings for dependencies
 - RPC endpoints for different networks
 
-**When to modify**: Add new network RPC URLs, change compiler settings, or add new remappings.
-
 ### `README.md`
-Comprehensive documentation covering:
-- Feature comparison with other DAO frameworks
-- Contract addresses (all networks)
-- Core concepts (ragequit, futarchy, split delegation)
-- Quick start code examples
-- Complete API reference
-
-**When to modify**: Update after adding new features or changing APIs.
+- Obvious. You should read this.
 
 ### `LICENSE`
 MIT license. Copyright z0r0z.
@@ -48,9 +39,7 @@ MIT license. Copyright z0r0z.
 Defines git submodule dependencies:
 - `solady` — Optimized Solidity utilities
 - `forge-std` — Foundry testing framework
-- `ZAMM` — AMM/liquidity protocol for DAICO LP features
-
-**When to modify**: Add new dependencies or update versions.
+- `ZAMM` — AMM/liquidity protocol, also created by z0r0z: <https://github.com/z0r0z/ZAMM>
 
 ---
 
@@ -64,10 +53,12 @@ This is the core of the project. All Solidity contracts live here.
 | Contract | Purpose |
 |----------|---------|
 | `Moloch` | Governance logic, voting, execution, ragequit, futarchy, token sales, badges, chat |
-| `Shares` | ERC-20 voting token with split delegation (deployed as separate clone) |
-| `Loot` | ERC-20 non-voting economic token (deployed as separate clone) |
-| `Badges` | ERC-721 soulbound NFTs for top 256 shareholders (deployed as separate clone) |
-| `Summoner` | Factory that deploys new DAOs via CREATE2 |
+| `Shares` | ERC-20 voting token with split delegation |
+| `Loot` | ERC-20 non-voting economic token |
+| `Badges` | ERC-721 soulbound NFTs for top 256 shareholders |
+| `Summoner` | Factory that deploys new DAOs via CREATE2
+
+When the Moloch implementation is created, it deploys full implementation contracts for Shares, Badges, and Loot. When a new DAO is created, it creates minimal proxy clones for Shares, Badges, and Loot. Each clone is ~54 bytes and delegates all calls to the shared implementation. Each clone maintains its own balances, supply, etc. Cloning is cheaper than deploying full contracts. Using CREATE2, the clone addresses are predictable based on the DAO's address (used as the salt).
 
 **Key functions you'll interact with**:
 - `castVote(id, support)` — Vote on a proposal
@@ -76,8 +67,6 @@ This is the core of the project. All Solidity contracts live here.
 - `proposalId(op, to, value, data, nonce)` — Compute proposal ID
 - `state(id)` — Get proposal state
 - `hasVoted(id, voter)` — Check if address has voted
-
-**When to modify**: Rarely. This is audited core logic. Fork if you need different governance mechanics.
 
 ### `src/Renderer.sol`
 On-chain SVG metadata generator. Creates visual cards for:
@@ -88,6 +77,8 @@ On-chain SVG metadata generator. Creates visual cards for:
 - Badges
 
 Includes the Wyoming DUNA legal covenant text.
+
+SVG (Scalable Vector Graphics) is a web-friendly, XML-based file format for creating two-dimensional vector images that can be infinitely scaled without losing quality.
 
 **When to modify**: Customize the visual appearance of NFT metadata.
 
@@ -150,17 +141,11 @@ Example script that reads DAO state using `MolochViewHelper`. Shows:
 - How to use the view helper ABI
 - How to parse returned data
 
-**When to use**: Reference implementation for reading DAO state.
-
 ### `scripts/scripts-for-beginners/set-dao-metadata.js`
-Interactive script that generates proposal data for setting DAO metadata.
-
-**When to use**: Template for building proposal generation tools.
+Interactive script that generates proposal data for setting DAO metadata. It helps you understand the different ways in which metadata could be provided.
 
 ### `scripts/create2-predictor.ts`
 TypeScript implementation for predicting DAO addresses before deployment. Uses minimal proxy bytecode calculation.
-
-**When to use**: Build UIs that show users their DAO address before they deploy.
 
 ### `scripts/simple-create2-predictor.js`
 Minimal JavaScript version of the CREATE2 predictor. Browser-compatible.
@@ -168,11 +153,25 @@ Minimal JavaScript version of the CREATE2 predictor. Browser-compatible.
 ### `scripts/get-implementations.js`
 Fetches implementation addresses from the deployed Summoner contract.
 
+### `scripts/DeploymentPredictor.sol`
+Helper contract to predict Moloch DAO and token clone deployment addresses. Can be used on-chain or off-chain via eth_call.
+
+### etc. (some help files)
+
 ---
 
 ## `test/` — Test Suite
 
-Foundry test files. Run with `forge test`.
+Foundry test files. To run all tests, use `forge test`.
+
+> **Tip:** If you don't have `forge` installed globally, you can install it via Foundryup:
+>
+> ```bash
+> curl -L https://foundry.paradigm.xyz | bash
+> foundryup
+> ```
+>
+> This makes the `forge`, `cast`, and `anvil` commands available system-wide.
 
 | File | Coverage |
 |------|----------|
@@ -183,8 +182,6 @@ Foundry test files. Run with `forge test`.
 | `ContractURI.t.sol` | On-chain metadata, DUNA covenant |
 | `URIVisualization.t.sol` | SVG rendering |
 | `Bytecodesize.t.sol` | Contract size limits |
-
-**When to modify**: Add tests for new features or edge cases.
 
 ---
 
@@ -198,15 +195,15 @@ Foundry test files. Run with `forge test`.
 - Treasury tracking
 - Delegation management
 
-Uses ethers.js from CDN. Connects via WalletConnect or injected provider (MetaMask).
+Uses ethers.js from CDN. Connects via WalletConnect or injected provider (MetaMask, OKX, etc.).
 
-**When to modify**: Customize the UI, add new features, change styling.
+**When to modify**: Customize the UI, add new features, change styling, maybe even make your own for your particular DAO starting from this one.
 
 ### `dapp/DAICO.html`
 Token sale interface. Browse sales, buy tokens, track tap claims.
 
 ### `dapp/README.md`
-Documentation for the dApp. Development setup, architecture, deployment.
+Documentation for the dApps. Development setup, architecture, deployment.
 
 ---
 
@@ -221,7 +218,37 @@ Auto-generated contract documentation using mdBook.
 | `solidity.min.js` | Syntax highlighting for Solidity |
 | `src/` | Markdown files (auto-generated from contracts) |
 
-**When to modify**: Usually auto-generated. Manual edits to `book.toml` for config changes.
+**Generating the documentation**:
+
+0. **Install Rust and mdBook**:
+    ```bash
+    # Install Rust (if not already installed)
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    source $HOME/.cargo/env
+
+    # Then install mdbook
+    cargo install mdbook
+    ```
+
+1. **Generate contract documentation** (from Solidity source):
+   ```bash
+   forge doc
+   ```
+   This generates markdown files in `docs/src/src/` from the contract source code.
+
+2. **Build the mdBook**:
+   ```bash
+   cd docs
+   mdbook build
+   ```
+   This creates the HTML output in `docs/book/`.
+
+3. **Preview locally** (optional):
+   ```bash
+   cd docs
+   mdbook serve
+   ```
+   Serves the documentation at `http://localhost:3000` with live reload.
 
 ---
 
@@ -237,8 +264,6 @@ SVG diagrams and examples:
 - `permit-card.svg` — Permit card
 - `dao-metadata-example.json` — Template for DAO metadata
 
-**When to modify**: Update diagrams when architecture changes, add new examples.
-
 ---
 
 ## `lib/` — Dependencies
@@ -251,7 +276,13 @@ Git submodules. Don't modify directly.
 | `forge-std` | Foundry testing framework |
 | `ZAMM` | AMM/liquidity protocol |
 
-**To update**: `git submodule update --remote lib/solady`
+// ... existing code ...
+
+| `ZAMM` | AMM/liquidity protocol |
+
+**To update all submodules**: `git submodule update --remote`
+
+**To update a specific submodule**: `git submodule update --remote lib/solady`
 
 ---
 

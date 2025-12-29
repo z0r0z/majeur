@@ -42,10 +42,21 @@ Create `toggle-ragequit.js`:
 
 ```javascript
 // toggle-ragequit.js
-require('dotenv').config();
-const { ethers } = require('ethers');
+import 'dotenv/config';
+import { ethers } from 'ethers';
 
-const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+// Helper function to validate required environment variables
+const requireEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    console.error(`${key} not found in .env`);
+    process.exit(1);
+  }
+  return value;
+};
+
+const RPC_URL = requireEnv('RPC_URL');
+const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
 const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 ```
@@ -180,22 +191,21 @@ const MOLOCH_ABI = [
 ```javascript
 const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
 
-async function main() {
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+// Setup provider and wallet
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+console.log('Connected to Sepolia');
+console.log(`Wallet: ${wallet.address}\n`);
 
-  console.log("Connected to Sepolia");
-  console.log("Your address:", wallet.address, "\n");
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
 
-  const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-  const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
+// Fetch current state
+const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
 
-  // Fetch current state
-  const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
-
-  const currentRagequit = state.gov.ragequittable;
-  console.log("Current ragequit status:", currentRagequit);
-  console.log("We will toggle it to:", !currentRagequit, "\n");
+const currentRagequit = state.gov.ragequittable;
+console.log(`Current ragequit status: ${currentRagequit}`);
+console.log(`We will toggle it to: ${!currentRagequit}\n`);
 ```
 
 ---
@@ -205,14 +215,14 @@ async function main() {
 To call `setRagequittable(bool)` via governance, we need to encode it as calldata:
 
 ```javascript
-  // Create an Interface to encode function calls
-  const iface = new ethers.Interface(MOLOCH_ABI);
+// Create an Interface to encode function calls
+const iface = new ethers.Interface(MOLOCH_ABI);
 
-  // Encode the function call: setRagequittable(!currentRagequit)
-  const data = iface.encodeFunctionData("setRagequittable", [!currentRagequit]);
+// Encode the function call: setRagequittable(!currentRagequit)
+const data = iface.encodeFunctionData('setRagequittable', [!currentRagequit]);
 
-  console.log("Encoded calldata:", data);
-  // This will be something like: 0x12345678...
+console.log(`Encoded calldata: ${data}`);
+// This will be something like: 0x12345678...
 ```
 
 **Interface** is ethers.js's way to work with ABIs. `encodeFunctionData` converts a function name and arguments into the bytes that the EVM expects.
@@ -224,42 +234,41 @@ To call `setRagequittable(bool)` via governance, we need to encode it as calldat
 This is the key insight: **proposal IDs are deterministic**. You can compute them before any transaction:
 
 ```javascript
-  // Proposal parameters
-  const op = 0;           // 0 = CALL (normal execution)
-  const to = DAO_ADDRESS; // Target is the DAO itself (calling its own function)
-  const value = 0n;       // No ETH being sent
+// Proposal parameters
+const op = 0;           // 0 = CALL (normal execution)
+const to = DAO_ADDRESS; // Target is the DAO itself (calling its own function)
+const value = 0n;       // No ETH being sent
 
-  // Nonce makes each proposal unique
-  // Using timestamp ensures we don't collide with existing proposals
-  const nonce = ethers.id("toggle-ragequit-" + Date.now());
+// Nonce makes each proposal unique
+// Using timestamp ensures we don't collide with existing proposals
+const nonce = ethers.id('toggle-ragequit-' + Date.now());
 
-  // Get current config version (proposals include this to prevent replay)
-  const config = await dao.config();
+// Get current config version (proposals include this to prevent replay)
+const config = await dao.config();
 
-  console.log("Proposal parameters:");
-  console.log("  op:", op);
-  console.log("  to:", to);
-  console.log("  value:", value.toString());
-  console.log("  data:", data);
-  console.log("  nonce:", nonce);
-  console.log("  config:", config.toString());
-  console.log("");
+console.log('Proposal parameters:');
+console.log(`  op: ${op}`);
+console.log(`  to: ${to}`);
+console.log(`  value: ${value}`);
+console.log(`  data: ${data}`);
+console.log(`  nonce: ${nonce}`);
+console.log(`  config: ${config}\n`);
 ```
 
 Now compute the ID:
 
 ```javascript
-  // Compute proposal ID
-  // Formula: keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))
-  const proposalId = ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(
-      ["address", "uint8", "address", "uint256", "bytes32", "bytes32", "uint256"],
-      [DAO_ADDRESS, op, to, value, ethers.keccak256(data), nonce, config]
-    )
-  );
+// Compute proposal ID
+// Formula: keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))
+const proposalId = ethers.keccak256(
+  ethers.AbiCoder.defaultAbiCoder().encode(
+    ['address', 'uint8', 'address', 'uint256', 'bytes32', 'bytes32', 'uint256'],
+    [DAO_ADDRESS, op, to, value, ethers.keccak256(data), nonce, config]
+  )
+);
 
-  console.log("Computed proposal ID:", proposalId);
-  console.log("(This ID exists before we submit any transaction!)\n");
+console.log(`Computed proposal ID: ${proposalId}`);
+console.log('(This ID exists before we submit any transaction!)\n');
 ```
 
 The formula in Solidity is:
@@ -276,27 +285,27 @@ We replicate it exactly in JavaScript.
 In Majeur, the first vote automatically "opens" the proposal:
 
 ```javascript
-  // Check current proposal state
-  let proposalState = await dao.state(proposalId);
-  console.log("Current proposal state:", STATE_NAMES[Number(proposalState)]);
+// Check current proposal state
+let proposalState = await dao.state(proposalId);
+console.log(`Current proposal state: ${STATE_NAMES[Number(proposalState)]}`);
 
-  // Cast vote FOR (support = 1)
-  // Support values: 0 = AGAINST, 1 = FOR, 2 = ABSTAIN
-  console.log("\nCasting vote FOR the proposal...");
+// Cast vote FOR (support = 1)
+// Support values: 0 = AGAINST, 1 = FOR, 2 = ABSTAIN
+console.log('\nCasting vote FOR the proposal...');
 
-  try {
-    const voteTx = await dao.castVote(proposalId, 1);
-    console.log("Transaction sent:", voteTx.hash);
+try {
+  const voteTx = await dao.castVote(proposalId, 1);
+  console.log(`Transaction sent: ${voteTx.hash}`);
 
-    const receipt = await voteTx.wait();
-    console.log("Confirmed in block", receipt.blockNumber);
-  } catch (error) {
-    if (error.message.includes("AlreadyVoted")) {
-      console.log("You've already voted on this proposal!");
-    } else {
-      throw error;
-    }
+  const receipt = await voteTx.wait();
+  console.log(`Confirmed in block ${receipt.blockNumber}`);
+} catch (error) {
+  if (error.message.includes('AlreadyVoted')) {
+    console.log("You've already voted on this proposal!");
+  } else {
+    throw error;
   }
+}
 ```
 
 If you're the first voter, the proposal is now "Active". If you don't have enough voting power to meet the threshold, you'll get an error.
@@ -308,9 +317,9 @@ If you're the first voter, the proposal is now "Active". If you don't have enoug
 After voting, check if the proposal has passed:
 
 ```javascript
-  // Re-check proposal state
-  proposalState = await dao.state(proposalId);
-  console.log("\nProposal state after voting:", STATE_NAMES[Number(proposalState)]);
+// Re-check proposal state
+proposalState = await dao.state(proposalId);
+console.log(`\nProposal state after voting: ${STATE_NAMES[Number(proposalState)]}`);
 ```
 
 The proposal state machine:
@@ -330,36 +339,33 @@ The proposal state machine:
 ## Step 8: Execute If Ready
 
 ```javascript
-  // If succeeded, try to execute
-  if (proposalState === 3n) {  // Succeeded
-    console.log("\nProposal passed! Executing...");
+// If succeeded, try to execute
+if (proposalState === 3n) {  // Succeeded
+  console.log('\nProposal passed! Executing...');
 
-    try {
-      const executeTx = await dao.executeByVotes(op, to, value, data, nonce);
-      console.log("Transaction sent:", executeTx.hash);
+  try {
+    const executeTx = await dao.executeByVotes(op, to, value, data, nonce);
+    console.log(`Transaction sent: ${executeTx.hash}`);
 
-      const receipt = await executeTx.wait();
-      console.log("Executed in block", receipt.blockNumber);
+    const receipt = await executeTx.wait();
+    console.log(`Executed in block ${receipt.blockNumber}`);
 
-      // Verify the change
-      const newState = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
-      console.log("\nRagequit is now:", newState.gov.ragequittable);
+    // Verify the change
+    const newState = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
+    console.log(`\nRagequit is now: ${newState.gov.ragequittable}`);
 
-    } catch (error) {
-      console.log("Execution failed:", error.message);
-    }
-  } else if (proposalState === 1n) {  // Still Active
-    console.log("\nProposal is still active. Needs more votes or time to pass.");
-    console.log("Try running this script again later, or have other members vote.");
-  } else if (proposalState === 2n) {  // Queued
-    console.log("\nProposal is queued. Waiting for timelock to expire.");
-    console.log("Timelock delay:", state.gov.timelockDelay.toString(), "seconds");
-  } else {
-    console.log("\nProposal cannot be executed in current state.");
+  } catch (error) {
+    console.log(`Execution failed: ${error.message}`);
   }
+} else if (proposalState === 1n) {  // Still Active
+  console.log('\nProposal is still active. Needs more votes or time to pass.');
+  console.log('Try running this script again later, or have other members vote.');
+} else if (proposalState === 2n) {  // Queued
+  console.log('\nProposal is queued. Waiting for timelock to expire.');
+  console.log(`Timelock delay: ${state.gov.timelockDelay} seconds`);
+} else {
+  console.log('\nProposal cannot be executed in current state.');
 }
-
-main().catch(console.error);
 ```
 
 **executeByVotes** takes the same parameters used to compute the proposal ID. The contract verifies that:
@@ -373,10 +379,21 @@ main().catch(console.error);
 
 ```javascript
 // toggle-ragequit.js
-require('dotenv').config();
-const { ethers } = require('ethers');
+import 'dotenv/config';
+import { ethers } from 'ethers';
 
-const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+// Helper function to validate required environment variables
+const requireEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    console.error(`${key} not found in .env`);
+    process.exit(1);
+  }
+  return value;
+};
+
+const RPC_URL = requireEnv('RPC_URL');
+const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
 const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 
@@ -385,66 +402,63 @@ const MOLOCH_ABI = [/* ... from above ... */];
 
 const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
 
-async function main() {
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+// Setup provider and wallet
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+console.log('Connected to Sepolia');
+console.log(`Wallet: ${wallet.address}\n`);
 
-  console.log("Your address:", wallet.address, "\n");
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
 
-  const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-  const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
+// Get current state
+const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
+const currentRagequit = state.gov.ragequittable;
+console.log(`Current ragequit: ${currentRagequit} -> toggling to: ${!currentRagequit}\n`);
 
-  // Get current state
-  const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
-  const currentRagequit = state.gov.ragequittable;
-  console.log("Current ragequit:", currentRagequit, "-> toggling to:", !currentRagequit, "\n");
+// Encode the governance call
+const iface = new ethers.Interface(MOLOCH_ABI);
+const data = iface.encodeFunctionData('setRagequittable', [!currentRagequit]);
 
-  // Encode the governance call
-  const iface = new ethers.Interface(MOLOCH_ABI);
-  const data = iface.encodeFunctionData("setRagequittable", [!currentRagequit]);
+// Proposal parameters
+const op = 0;
+const to = DAO_ADDRESS;
+const value = 0n;
+const nonce = ethers.id('toggle-ragequit-' + Date.now());
+const config = await dao.config();
 
-  // Proposal parameters
-  const op = 0;
-  const to = DAO_ADDRESS;
-  const value = 0n;
-  const nonce = ethers.id("toggle-ragequit-" + Date.now());
-  const config = await dao.config();
+// Compute proposal ID
+const proposalId = ethers.keccak256(
+  ethers.AbiCoder.defaultAbiCoder().encode(
+    ['address', 'uint8', 'address', 'uint256', 'bytes32', 'bytes32', 'uint256'],
+    [DAO_ADDRESS, op, to, value, ethers.keccak256(data), nonce, config]
+  )
+);
+console.log(`Proposal ID: ${proposalId}`);
 
-  // Compute proposal ID
-  const proposalId = ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(
-      ["address", "uint8", "address", "uint256", "bytes32", "bytes32", "uint256"],
-      [DAO_ADDRESS, op, to, value, ethers.keccak256(data), nonce, config]
-    )
-  );
-  console.log("Proposal ID:", proposalId);
-
-  // Cast vote
-  console.log("Casting vote FOR...");
-  try {
-    const voteTx = await dao.castVote(proposalId, 1);
-    await voteTx.wait();
-    console.log("Vote cast! Tx:", voteTx.hash);
-  } catch (e) {
-    console.log("Vote error:", e.reason || e.message);
-  }
-
-  // Check state and maybe execute
-  const proposalState = await dao.state(proposalId);
-  console.log("State:", STATE_NAMES[Number(proposalState)]);
-
-  if (proposalState === 3n) {
-    console.log("Executing...");
-    const execTx = await dao.executeByVotes(op, to, value, data, nonce);
-    await execTx.wait();
-    console.log("Executed! Tx:", execTx.hash);
-
-    const newState = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
-    console.log("Ragequit is now:", newState.gov.ragequittable);
-  }
+// Cast vote
+console.log('Casting vote FOR...');
+try {
+  const voteTx = await dao.castVote(proposalId, 1);
+  await voteTx.wait();
+  console.log(`Vote cast! Tx: ${voteTx.hash}`);
+} catch (e) {
+  console.log(`Vote error: ${e.reason || e.message}`);
 }
 
-main().catch(console.error);
+// Check state and maybe execute
+const proposalState = await dao.state(proposalId);
+console.log(`State: ${STATE_NAMES[Number(proposalState)]}`);
+
+if (proposalState === 3n) {
+  console.log('Executing...');
+  const execTx = await dao.executeByVotes(op, to, value, data, nonce);
+  await execTx.wait();
+  console.log(`Executed! Tx: ${execTx.hash}`);
+
+  const newState = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
+  console.log(`Ragequit is now: ${newState.gov.ragequittable}`);
+}
 ```
 
 ---
@@ -457,7 +471,8 @@ node toggle-ragequit.js
 
 Expected output:
 ```
-Your address: 0x...
+Connected to Sepolia
+Wallet: 0x...
 
 Current ragequit: true -> toggling to: false
 

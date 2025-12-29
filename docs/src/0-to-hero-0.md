@@ -1,6 +1,6 @@
 # Zero to Hero: Majeur DAO Framework
 
-Welcome to the Majeur DAO tutorial series. By the end of this course, you'll understand how this repository works and be able to write scripts that interact with the smart contracts.
+Welcome to the Majeur DAO tutorial series. By the end of this course, you'll understand how this repository works, be able to write scripts that interact with the smart contracts, and maybe even update the smart contracts for your specific needs. *You will be a hero instead of the majeour newb that you are now.*
 
 ## Who This Is For
 
@@ -16,17 +16,9 @@ You don't need:
 
 ## What You'll Learn
 
-1. **Repository Structure** — What each folder and file does, and when you might want to modify them
-2. **Reading DAO State** — How to fetch proposals, members, treasury balances, and governance config
-3. **Submitting Governance Proposals** — How to encode function calls, compute proposal IDs, and vote
-4. **Claiming Rewards** — How the futarchy prediction market works and how to claim winnings
-
-## Prerequisites
-
-- **Node.js 18+** (for built-in `fetch` support)
-- **npm** (comes with Node.js)
-- A text editor
-- A terminal
+— What each folder and file does, and when you might want to modify them
+- Interacting with the DAOs programatically
+— How the smart contracts work
 
 ## Setup
 
@@ -39,14 +31,15 @@ npm init -y
 npm install ethers dotenv
 ```
 
-Create a `.env` file for your private key:
+Create a `.env` file for your private key and RPC endpoint:
 
 ```bash
 # .env
 PRIVATE_KEY=your_private_key_here
+RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 ```
 
-> **Security Note**: Never commit `.env` to version control. Add it to `.gitignore`. For these tutorials, use a dedicated test wallet with only Sepolia testnet ETH.
+> **Security Note**: Never commit `.env` to version control. If you `git init`, then also add it to `.gitignore`. For these tutorials, use a dedicated test wallet with only Sepolia testnet ETH.
 
 ## The DAO We'll Work With
 
@@ -71,7 +64,7 @@ You can view this DAO at [majeurdao.eth.limo](https://majeurdao.eth.limo/).
 ## Key Concepts Preview
 
 ### The Moloch Pattern
-Majeur is a "Moloch-style" DAO, meaning members can always **ragequit** — burn their shares and leave with their proportional share of the treasury. This protects minorities from majority tyranny.
+Majeur DAOs can be configured to be "Moloch-style", which is a type of DAO where members can **ragequit** — burn their shares + loot and leave with their proportional percentage of the treasury. This protects minorities from majority tyranny.
 
 ### Deterministic Addresses
 All contracts use CREATE2, so they have the **same address on every network** (Ethereum, Sepolia, Base, Arbitrum, etc.). This makes scripts portable.
