@@ -437,17 +437,19 @@ contract Moloch {
         if (t0 == 0) return ProposalState.Unopened;
         uint64 queued = queuedAt[id];
 
-        // if already queued, TTL no longer applies
+        // if already queued, voting period is implicitly over
         if (queued != 0) {
             uint64 delay = timelockDelay;
             // if delay is zero, this condition is always false once block.timestamp >= queued
             if (delay != 0 && block.timestamp < queued + delay) return ProposalState.Queued;
         } else {
             uint64 ttl = proposalTTL;
-            if (ttl != 0 && block.timestamp >= t0 + ttl) return ProposalState.Expired;
+            // While the voting window is open, the proposal is ALWAYS Active.
+            // This prevents both "No-vote" pot snipes and "Yes-vote" treasury snipes.
+            if (ttl != 0 && block.timestamp < t0 + ttl) return ProposalState.Active;
         }
 
-        // evaluate gates
+        // evaluate gates (only reached when TTL is 0 or TTL has elapsed)
         uint256 ts = supplySnapshot[id];
         if (ts == 0) return ProposalState.Active;
 
@@ -459,14 +461,14 @@ contract Moloch {
         unchecked {
             uint256 totalCast = forVotes + againstVotes + abstainVotes;
 
-            // absolute quorum
+            // absolute quorum - if time is up and quorum missed, proposal is dead
             uint96 absQuorum = quorumAbsolute;
-            if (absQuorum != 0 && totalCast < absQuorum) return ProposalState.Active;
+            if (absQuorum != 0 && totalCast < absQuorum) return ProposalState.Expired;
 
             // dynamic quorum (BPS)
             uint16 bps = quorumBps;
             if (bps != 0 && totalCast < mulDiv(uint256(bps), ts, 10000)) {
-                return ProposalState.Active;
+                return ProposalState.Expired;
             }
         }
 
