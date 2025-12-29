@@ -24,6 +24,26 @@ Each dApp is a self-contained HTML file that:
 - Reads state from `MolochViewHelper` (batch reads, no indexer needed)
 - Writes directly to DAO contracts
 - Works on any chain where contracts are deployed
+- "Hide Intro" toggle in navbar persists via localStorage for returning users
+
+## Keyboard Hotkeys
+
+Press `0` to show the hotkeys modal. Available shortcuts:
+
+| Key | Action |
+|-----|--------|
+| 0 | Show hotkeys modal |
+| 1 | Focus Summon section |
+| 2 | Focus "Your DAOs" |
+| 3 | Focus "All DAOs" |
+| 4 | Open GitHub / Focus DAO info |
+| 5 | Focus Chatroom |
+| 6 | Focus Treasury |
+| 7 | Focus Active Sales |
+| 8 | Focus Proposals |
+| Backspace | Go back (Ctrl/Cmd+B) |
+
+*Hotkeys are disabled when typing in input fields.*
 
 ## Contracts
 

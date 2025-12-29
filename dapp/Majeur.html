@@ -9662,6 +9662,11 @@
           .replace(/'/g, '&#039;');
       }
 
+      // Format number with 2 decimal places, removing trailing zeros
+      function formatNum(n, decimals = 2) {
+        return n.toFixed(decimals).replace(/\.?0+$/, '');
+      }
+
       // Sanitize URLs to prevent XSS via data: URIs and javascript: protocols
       function sanitizeUrl(url) {
         if (!url || typeof url !== 'string') return '';
@@ -10378,8 +10383,13 @@
         }
 
         function init() {
-          if (document.body.classList.contains('hide-intro')) return;
           const radialSvg = document.getElementById('radial-convergence');
+          // Check localStorage directly (class might not be applied yet due to DOMContentLoaded race)
+          const hideIntroSaved = localStorage.getItem('hideIntro') === 'true';
+          if (hideIntroSaved || document.body.classList.contains('hide-intro')) {
+            if (radialSvg) radialSvg.style.display = 'none';
+            return;
+          }
 
           // If deep-linked to a DAO page, hide lines immediately - don't show the effect
           if (window.location.hash && window.location.hash.includes('/dao/')) {
@@ -10832,6 +10842,9 @@
         const mobileToggle = document.getElementById('hideIntroToggleMobile');
         if (desktopToggle) desktopToggle.checked = isChecked;
         if (mobileToggle) mobileToggle.checked = isChecked;
+        // Hide radial convergence lines when hiding intro (don't show them when enabling - animation handles that)
+        const radialSvg = document.getElementById('radial-convergence');
+        if (radialSvg && isChecked) radialSvg.style.display = 'none';
       }
 
       function initHideIntroSetting() {
@@ -10842,6 +10855,11 @@
         const mobileToggle = document.getElementById('hideIntroToggleMobile');
         if (desktopToggle) desktopToggle.checked = hideIntro;
         if (mobileToggle) mobileToggle.checked = hideIntro;
+        // Hide radial convergence lines if hide-intro is active
+        if (hideIntro) {
+          const radialSvg = document.getElementById('radial-convergence');
+          if (radialSvg) radialSvg.style.display = 'none';
+        }
       }
 
       function scrollToYourDAOs() {
@@ -18832,7 +18850,10 @@
         getEl('purchaseModal').classList.remove('show');
       }
 
+      let isPurchaseInProgress = false;
       async function executePurchase(payToken, tokenDecimals, isLoot) {
+        if (isPurchaseInProgress) return;
+        isPurchaseInProgress = true;
         try {
           const amountInput = getEl('purchaseAmount').value.trim();
           if (!amountInput || isNaN(parseFloat(amountInput)) || parseFloat(amountInput) <= 0) {
@@ -18909,6 +18930,7 @@
 
           if (isUserRejection(error)) {
             showStatus('Transaction cancelled by user', false);
+            isPurchaseInProgress = false;
             return;
           }
 
@@ -18926,6 +18948,8 @@
           }
 
           showStatus(errorMessage, true);
+        } finally {
+          isPurchaseInProgress = false;
         }
       }
 
@@ -19319,9 +19343,12 @@
 
       // Execute DAICO purchase
       async function executeDaicoPurchase() {
+        if (isPurchaseInProgress) return;
+        isPurchaseInProgress = true;
         try {
           if (!connectedAddress) {
             await connectWallet();
+            isPurchaseInProgress = false;
             return;
           }
 
@@ -19386,6 +19413,7 @@
 
           if (isUserRejection(error)) {
             showStatus('Transaction cancelled by user', false);
+            isPurchaseInProgress = false;
             return;
           }
 
@@ -19405,6 +19433,8 @@
           }
 
           showStatus(errorMessage, true);
+        } finally {
+          isPurchaseInProgress = false;
         }
       }
 

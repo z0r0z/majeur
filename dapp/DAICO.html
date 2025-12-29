@@ -6730,6 +6730,11 @@
             return raiseEth / WIZARD_DEFAULTS.saleSupply;
         }
 
+        // Format number with 2 decimal places, removing trailing zeros
+        function formatNum(n, decimals = 2) {
+            return n.toFixed(decimals).replace(/\.?0+$/, '');
+        }
+
         // Format price display with per-token and per-million
         function formatPriceDisplay(pricePerToken) {
             if (pricePerToken === 0) return { perToken: '0 ETH', perMillion: '0 ETH' };
@@ -6966,7 +6971,7 @@
             if (ethPerDay >= 1) {
                 return ethPerDay.toFixed(2).replace(/\.00$/, '') + ' ETH';
             } else if (ethPerDay >= 0.001) {
-                return ethPerDay.toFixed(2).replace(/\.00$/, '') + ' ETH';
+                return ethPerDay.toFixed(4).replace(/\.?0+$/, '') + ' ETH';
             } else {
                 // Convert to wei for very small amounts
                 const weiPerDay = ethPerDay * 1e18;
@@ -9242,13 +9247,16 @@
             }
         }
 
+        let isPurchaseInProgress = false;
         async function executePurchase() {
+            if (isPurchaseInProgress) return;
             if (!signer || !currentPurchase.dao) return;
+            isPurchaseInProgress = true;
 
             const payStr = document.getElementById('payAmountInput').value.trim();
             const receiveStr = document.getElementById('receiveAmountInput').value.trim();
 
-            if (!payStr || !receiveStr) return;
+            if (!payStr || !receiveStr) { isPurchaseInProgress = false; return; }
 
             const tribInfo = COMMON_TRIB_TOKENS[currentPurchase.tribTkn] || { decimals: 18 };
             const buyBtn = document.getElementById('buyBtn');
@@ -9317,6 +9325,7 @@
                     showPurchaseStatus(getErrorMessage(e), 'error');
                 }
             } finally {
+                isPurchaseInProgress = false;
                 buyBtn.disabled = false;
                 updatePurchaseButton();
             }
