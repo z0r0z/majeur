@@ -1651,6 +1651,15 @@
         100% { background-position: -200% 0; }
       }
 
+      /* Section-specific skeletons for progressive DAO loading */
+      .skeleton-proposal { height: 120px; width: 100%; margin-bottom: 0.75rem; border-radius: 8px; }
+      .skeleton-treasury-asset { height: 100px; width: calc(25% - 0.75rem); min-width: 100px; border-radius: 8px; display: inline-block; margin: 0.375rem; }
+      .skeleton-tribute { height: 140px; width: calc(33.33% - 1rem); min-width: 200px; border-radius: 8px; display: inline-block; margin: 0.5rem; }
+      .skeleton-message { height: 60px; width: 100%; margin-bottom: 0.5rem; border-radius: 4px; }
+      .skeleton-emblem { width: 64px; height: 64px; border-radius: 50%; }
+      .skeleton-governance-line { height: 1rem; width: 100%; margin-bottom: 0.5rem; border-radius: 2px; }
+      .skeleton-governance-line:nth-child(odd) { width: 80%; }
+
       /* HERO / LANDER */
 
       .hero {
@@ -15477,6 +15486,10 @@
         const salesSection = document.getElementById('salesSection');
         if (!salesInfo || !salesSection || !currentDAO) return;
 
+        // Capture render context for stale checks
+        const thisRenderId = daoRenderId;
+        const capturedDaoAddress = currentDAO.dao.dao;
+
         try {
           // Check sales for all supported tokens (network-specific)
           const tokens = getNetworkTokens();
@@ -15547,6 +15560,9 @@
             return await Promise.all(salePromises);
           });
 
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
+
           const activeSales = [];
           for (const result of salesResults) {
             const { token, sale } = result;
@@ -15571,8 +15587,10 @@
             }));
 
           // Fetch DAICO data using batched view helper (single RPC call for all sales + tap)
-          const daoAddress = currentDAO.dao.dao;
-          currentDAICO = await fetchDAICOData(daoAddress);
+          currentDAICO = await fetchDAICOData(capturedDaoAddress);
+
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
           // Process DAICO sales from batched response
           currentActiveDaicoSales = []; // Reset global array
@@ -15972,6 +15990,10 @@
         const treasuryAssets = document.getElementById('treasuryAssets');
         if (!treasuryAssets || !currentDAO) return;
 
+        // Capture render context for stale checks
+        const thisRenderId = daoRenderId;
+        const capturedDaoAddress = currentDAO.dao.dao;
+
         treasuryAssets.innerHTML = '';
 
         let assets = [];
@@ -15979,7 +16001,10 @@
         // Check if DAO has custom treasury_tokens in metadata
         if (currentDAOMetadata?.treasury_tokens && Array.isArray(currentDAOMetadata.treasury_tokens) && currentDAOMetadata.treasury_tokens.length > 0) {
           // Fetch balances for custom treasury tokens
-          assets = await fetchCustomTreasuryBalances(currentDAO.dao.dao, currentDAOMetadata.treasury_tokens);
+          assets = await fetchCustomTreasuryBalances(capturedDaoAddress, currentDAOMetadata.treasury_tokens);
+
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
         } else {
           // Use default treasury balances from view helper
           const treasury = currentDAO.dao.treasury;
@@ -15991,7 +16016,11 @@
           for (const customToken of customSaleTokens) {
             try {
               const tokenContract = new ethers.Contract(customToken.address, ERC20_ABI, provider);
-              const balance = await tokenContract.balanceOf(currentDAO.dao.dao);
+              const balance = await tokenContract.balanceOf(capturedDaoAddress);
+
+              // Check if stale after each async call
+              if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
+
               assets.push({
                 symbol: customToken.symbol,
                 balance: balance,
@@ -16065,9 +16094,16 @@
         const tributeOffers = document.getElementById('tributeOffers');
         if (!tributeOffers || !currentDAO || !provider) return;
 
+        // Capture render context for stale checks
+        const thisRenderId = daoRenderId;
+        const capturedDaoAddress = currentDAO.dao.dao;
+
         try {
           const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, provider);
-          currentDaoTributes = await tributeContract.getActiveDaoTributes(currentDAO.dao.dao);
+          currentDaoTributes = await tributeContract.getActiveDaoTributes(capturedDaoAddress);
+
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
           tributeOffers.innerHTML = '';
 
@@ -21658,9 +21694,13 @@
           return;
         }
 
+        // Capture render context for stale checks
+        const thisRenderId = daoRenderId;
+        const capturedDaoAddress = currentDAO.dao.dao;
+
         try {
           const userAddress = await signer.getAddress();
-          const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+          const molochContract = new ethers.Contract(capturedDaoAddress, MOLOCH_ABI, provider);
 
           // Check allowances for all supported tokens (parallel queries)
           const tokens = [
@@ -21685,6 +21725,9 @@
                 })
             )
           );
+
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
           const allowances = results
             .filter(r => r !== null && r.allowance > 0n)
@@ -22163,6 +22206,11 @@
 
       // Open DAO dashboard
       async function openDAO(daoIndex, source = 'user') {
+        console.time('openDAO:total');
+
+        // Increment global render ID to invalidate any pending renders from previous DAO
+        const thisRenderId = ++daoRenderId;
+
         // Get the DAO from the appropriate source
         if (source === 'all') {
           const dao = allDAOs[daoIndex];
@@ -22187,8 +22235,12 @@
         if (!currentDAO?.dao?.meta) {
           logger.error('Invalid DAO data at index:', daoIndex);
           showStatus('Failed to load DAO', true);
+          console.timeEnd('openDAO:total');
           return;
         }
+
+        // Capture DAO address for stale-render checks
+        const daoAddress = currentDAO.dao.dao;
 
         // Hide navigation buttons early (before rendering which might fail)
         document.body.classList.add('hide-nav-buttons');
@@ -22205,7 +22257,6 @@
         }
 
         // Update Etherscan link
-        const daoAddress = currentDAO.dao.dao;
         const etherscanLink = DOMCache.daoEtherscanLink;
         const addressText = DOMCache.daoAddressText;
         etherscanLink.href = `${getNetwork().explorer}/address/${daoAddress}`;
@@ -22214,15 +22265,54 @@
         // Update URL hash for deep linking (allows sharing direct links to this DAO)
         history.replaceState(null, '', `#/dao/${getNetwork().chainId}/${daoAddress}`);
 
-        renderChatroom();
-        await renderProposals();
-        renderGovernanceInfo();
-        await renderSalesInfo();
-        await renderTreasury(); // Must be after renderSalesInfo to get customSaleTokens
-        await renderTributes();
-        await renderAllowances(); // Show user's spending allowances
+        // === SHOW DASHBOARD IMMEDIATELY WITH SKELETON LOADING STATES ===
+        DOMCache.allDaosGallery.classList.remove('show');
+        DOMCache.daoDashboard.classList.add('show');
+
+        // Show skeleton loaders for each section
+        showSectionLoadingState('chatroomMessages', 'messages');
+        showSectionLoadingState('proposalsList', 'proposals');
+        showSectionLoadingState('governanceInfo', 'governance');
+        showSectionLoadingState('treasuryAssets', 'treasury');
+        showSectionLoadingState('tributeOffers', 'tributes');
+
+        // Hide summoner section when entering DAO view
+        const summonerSection = document.getElementById('summoner');
+        if (summonerSection) summonerSection.style.display = 'none';
+
+        // Scroll to dashboard immediately so user sees the loading states
+        DOMCache.daoDashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // === RENDER SYNC FUNCTIONS IMMEDIATELY (use cached DAO data) ===
         renderDaoStats();
-        await renderDAOEmblem(daoAddress);
+        renderGovernanceInfo();
+
+        // === FIRE ASYNC RENDERS IN PARALLEL WITH TIMING ===
+        const independentRenders = [
+          timedRender('renderChatroom', () => renderChatroom()),
+          timedRender('renderProposals', () => renderProposals()),
+          timedRender('renderTributes', () => renderTributes()),
+          timedRender('renderAllowances', () => renderAllowances()),
+          timedRender('renderDAOEmblem', () => renderDAOEmblem(daoAddress))
+        ];
+
+        // Sales must complete before treasury (treasury needs customSaleTokens)
+        const salesThenTreasury = timedRender('renderSalesInfo', () => renderSalesInfo())
+          .then(() => {
+            if (!isStaleRender(thisRenderId, daoAddress)) {
+              return timedRender('renderTreasury', () => renderTreasury());
+            }
+          });
+
+        // Wait for all renders to complete (errors are caught per-function)
+        await Promise.allSettled([...independentRenders, salesThenTreasury]);
+
+        // Check if we're still the active DAO before post-render tasks
+        if (isStaleRender(thisRenderId, daoAddress)) {
+          console.log('openDAO: Render became stale, skipping post-render tasks');
+          console.timeEnd('openDAO:total');
+          return;
+        }
 
         // Show/hide membership tab based on membership status
         const membershipBtn = document.getElementById('viewToggleMembership');
@@ -22247,14 +22337,6 @@
             }
           }
         });
-
-        // Hide All DAOs gallery (Your DAOs stays visible)
-        DOMCache.allDaosGallery.classList.remove('show');
-        DOMCache.daoDashboard.classList.add('show');
-
-        // Hide summoner section when entering DAO view
-        const summonerSection = document.getElementById('summoner');
-        if (summonerSection) summonerSection.style.display = 'none';
 
         // Add special gif for index 0, 1, 2, 3, and 4 DAOs
         // Find global index by matching DAO address to ensure correct GIF assignment
@@ -22287,8 +22369,7 @@
           }
         }
 
-        // Scroll to the dashboard
-        DOMCache.daoDashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        console.timeEnd('openDAO:total');
       }
 
       // Back to gallery
@@ -23671,14 +23752,21 @@
         const emblem = document.getElementById('daoEmblem');
         if (!emblem) return;
 
+        // Capture render context for stale checks
+        const thisRenderId = daoRenderId;
+        const capturedDaoAddress = daoAddress;
+
         try {
           // Clear any previous styling classes
           emblem.classList.remove('url-image', 'description-only');
 
           const contractURI = await withRpcFallback(async (activeProvider) => {
-            const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
+            const molochContract = new ethers.Contract(capturedDaoAddress, MOLOCH_ABI, activeProvider);
             return await molochContract.contractURI();
           });
+
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
           if (!contractURI) {
             emblem.style.display = 'none';
@@ -23718,6 +23806,9 @@
             // Try to fetch as JSON (convert IPFS URLs to gateway URLs)
             const fetchUrl = toGatewayUrl(contractURI);
             const response = await fetch(fetchUrl);
+
+            // Check if stale after fetch
+            if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
             // Check if fetch was successful
             if (!response.ok) {
@@ -24530,6 +24621,25 @@
         }
       }
 
+      // Global render ID for race condition protection across all DAO render functions
+      let daoRenderId = 0;
+
+      function isStaleRender(capturedRenderId, capturedDaoAddress) {
+        return capturedRenderId !== daoRenderId ||
+               currentDAO?.dao?.dao !== capturedDaoAddress;
+      }
+
+      async function timedRender(name, renderFn) {
+        console.time(`render:${name}`);
+        try {
+          await renderFn();
+        } catch (error) {
+          logger.error(`${name} failed:`, error);
+        } finally {
+          console.timeEnd(`render:${name}`);
+        }
+      }
+
       // Render chatroom messages
       let chatroomRenderId = 0; // Counter to track the most recent render
       async function renderChatroom() {
@@ -24538,6 +24648,9 @@
 
         // Increment render ID and capture it - only the most recent render should update DOM
         const thisRenderId = ++chatroomRenderId;
+
+        // Also capture global render ID for cross-function stale checks
+        const globalRenderId = daoRenderId;
 
         // Capture DAO state at start to avoid race conditions with async operations
         const daoAddress = currentDAO.dao.dao;
@@ -24570,8 +24683,8 @@
           logger.warn('Could not fetch message senders:', e.message);
         }
 
-        // Check if this render is stale (newer render started, or DAO changed)
-        if (thisRenderId !== chatroomRenderId || currentDAO?.dao?.dao !== daoAddress) {
+        // Check if this render is stale (newer render started, DAO changed, or global DAO switch)
+        if (thisRenderId !== chatroomRenderId || globalRenderId !== daoRenderId || currentDAO?.dao?.dao !== daoAddress) {
           return; // A newer render is in progress, skip this stale one
         }
 
@@ -24787,6 +24900,10 @@
         const proposalsList = document.getElementById('proposalsList');
         if (!proposalsList || !currentDAO?.dao) return;
 
+        // Capture render context for stale checks
+        const thisRenderId = daoRenderId;
+        const capturedDaoAddress = currentDAO.dao.dao;
+
         try {
           proposalsList.innerHTML = '';
 
@@ -24805,6 +24922,9 @@
             return await molochContract.config();
           });
           configFetched = true;
+
+          // Check if stale after async work
+          if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
         } catch (e) {
           logger.warn('Error getting DAO config:', e.message);
           daoConfig = 0n; // fallback (but we know it failed)
@@ -26562,6 +26682,29 @@
         container.innerHTML = '';
         for (let i = 0; i < count; i++) {
           container.appendChild(createSkeleton(type));
+        }
+      }
+
+      // Show section-specific loading state for progressive DAO loading
+      function showSectionLoadingState(containerId, sectionType) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        container.innerHTML = '';
+        const configs = {
+          proposals: { count: 3, className: 'skeleton skeleton-proposal' },
+          treasury: { count: 4, className: 'skeleton skeleton-treasury-asset' },
+          tributes: { count: 2, className: 'skeleton skeleton-tribute' },
+          messages: { count: 4, className: 'skeleton skeleton-message' },
+          governance: { count: 6, className: 'skeleton skeleton-governance-line' },
+          emblem: { count: 1, className: 'skeleton skeleton-emblem' }
+        };
+
+        const config = configs[sectionType] || { count: 3, className: 'skeleton' };
+        for (let i = 0; i < config.count; i++) {
+          const skeleton = document.createElement('div');
+          skeleton.className = config.className;
+          container.appendChild(skeleton);
         }
       }
 
