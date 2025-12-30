@@ -19,6 +19,7 @@ You don't need:
 — What each folder and file does, and when you might want to modify them
 - Interacting with the DAOs programatically
 — How the smart contracts work
+- ... and more!
 
 ## Setup
 

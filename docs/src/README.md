@@ -47,6 +47,7 @@ Start this tutorial as a Majeur newb, end up an expert that could even contribut
 2. [Repository Structure](./0-to-hero-1.md) — Understanding every folder and file
 3. [Unvoted Proposals & Rewards](./0-to-hero-2.md) — Reading DAO state and claiming futarchy rewards
 4. [Submit & Execute Proposals](./0-to-hero-3.md) — Creating governance proposals and voting
+5. Check back because more parts will be added soon!
 
 ## At a Glance
 
@@ -648,7 +649,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 ```solidity
 // 1. Deploy DAO
 Summoner summoner = new Summoner();
-Moloch dao = summoner.summon("MyDAO", "DAO", "", 5000, true, address(0), 
+Moloch dao = summoner.summon("MyDAO", "DAO", "", 5000, true, address(0),
     bytes32(0), [alice, bob], [100e18, 100e18], new Call[](0));
 
 // 2. Alice delegates 70% to expert1, 30% to expert2
@@ -695,7 +696,7 @@ dao.ragequit(tokens, myShares, 0);
 **A:** Yes, and it's the default. Your votes stay with you unless you explicitly delegate.
 
 ### Q: What's the difference between `call` and `delegatecall` in proposals?
-**A:** 
+**A:**
 - `call` (op=0): Execute from DAO's context (normal)
 - `delegatecall` (op=1): Execute in DAO's storage (upgrades/modules)
 
