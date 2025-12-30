@@ -1851,7 +1851,7 @@
         max-width: 1200px;
         width: 100%;
         display: grid;
-        grid-template-columns: 1fr 1.5fr;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
         gap: 4rem;
         align-items: center;
       }
@@ -1961,7 +1961,6 @@
 
       @media (max-width: 768px) {
         .intro-content {
-          grid-template-columns: 1fr;
           gap: 2rem;
           text-align: center;
         }
@@ -2038,6 +2037,7 @@
         align-items: center;
         padding: 4rem 8vw;
         border-top: 1px solid rgba(157, 123, 255, 0.18);
+        overflow-x: clip;
       }
 
       .feature-inner {
@@ -2694,7 +2694,7 @@
 
       .dao-tile-stats {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
         gap: 1rem;
         margin-top: 1.5rem;
         padding-top: 1.5rem;
@@ -2809,6 +2809,7 @@
         z-index: 1;
         background: transparent;
         display: none;
+        overflow-x: clip;
       }
 
       .dao-dashboard.show {
@@ -3002,8 +3003,7 @@
 
       .dao-dashboard-content {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: auto auto;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 450px), 1fr));
         gap: 2rem;
         max-width: 1600px;
         margin: 0 auto;
@@ -3021,6 +3021,7 @@
         display: none;
         max-width: 1200px;
         margin: 0 auto;
+        overflow-x: clip;
       }
 
       .dao-membership-content.show {
@@ -3031,29 +3032,30 @@
         display: none;
         max-width: 1200px;
         margin: 0 auto;
+        overflow-x: clip;
       }
 
       .dao-metadata-content.show {
         display: block;
       }
 
-      @media (max-width: 1024px) {
-        .dao-dashboard-content {
-          grid-template-columns: 1fr;
-        }
+      /* Responsive 2-column grid utility */
+      .responsive-2col {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+        gap: 0.75rem;
       }
 
       /* MEMBERSHIP DASHBOARD */
       .membership-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
         gap: 2rem;
         margin-bottom: 2rem;
       }
 
       @media (max-width: 768px) {
         .membership-grid {
-          grid-template-columns: 1fr;
           gap: 1.5rem;
         }
 
@@ -3285,7 +3287,7 @@
 
       .voting-power-summary {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
         gap: 1rem;
         margin-bottom: 1.5rem;
       }
@@ -3391,7 +3393,6 @@
 
       @media (max-width: 768px) {
         .voting-power-summary {
-          grid-template-columns: 1fr;
           gap: 0.75rem;
         }
       }
@@ -3552,7 +3553,7 @@
       /* Delegation type selector */
       .delegation-type-selector {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
         gap: 1rem;
         margin-bottom: 1.5rem;
       }
@@ -3637,7 +3638,6 @@
         }
 
         .delegation-type-selector {
-          grid-template-columns: 1fr;
           gap: 0.75rem;
         }
       }
@@ -4212,7 +4212,7 @@
 
       .proposal-votes {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
         gap: 1rem;
         margin-bottom: 1rem;
       }
@@ -4578,7 +4578,6 @@
         }
 
         .proposal-votes {
-          grid-template-columns: 1fr;
           gap: 0.5rem;
         }
 
@@ -6328,7 +6327,7 @@
             </div>
 
             <div style="margin-bottom: 1.5rem;">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="responsive-2col">
                 <div style="padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;">
                   <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">PROPOSAL</div>
                   <div id="transferProposalId" data-full-id="" style="font-size: 0.9rem; color: #e6d9ff; font-weight: 600; font-family: monospace; cursor: pointer; user-select: all;" title="Click to toggle full ID"></div>
@@ -6548,7 +6547,7 @@
             <!-- Member Balances -->
             <div style="margin-bottom: 1.5rem;">
               <h4 style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; margin-bottom: 0.75rem; letter-spacing: 0.1em;">YOUR BALANCES</h4>
-              <div class="grid-template-columns-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="responsive-2col">
                 <div style="padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border: 1px solid rgba(157, 123, 255, 0.3); border-radius: 4px;">
                   <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">SHARES</div>
                   <div id="ragequitUserShares" style="font-size: 1.1rem; color: #e6d9ff; font-weight: 600;">0</div>
@@ -6563,7 +6562,7 @@
             <!-- Burn Amounts -->
             <div style="margin-bottom: 1.5rem;">
               <h4 style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #9d7bff; margin-bottom: 0.75rem; letter-spacing: 0.1em;">BURN AMOUNTS</h4>
-              <div class="grid-template-columns-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="responsive-2col">
                 <div>
                   <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.4rem;">Shares to Burn</label>
                   <input type="text" id="ragequitSharesInput" placeholder="0.0" inputmode="decimal" style="width: 100%; padding: 0.7rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(157, 123, 255, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem; border-radius: 4px;">
