@@ -18901,6 +18901,15 @@
             <span style="color: #7bff9d;">Loot: ${parseFloat(lootFormatted).toLocaleString()}</span>
           `;
           balancesDiv.style.display = 'block';
+
+          // Auto-fill input fields with max values
+          const sharesToBurnInput = document.getElementById('slashSharesToBurn');
+          const sharesToConvertInput = document.getElementById('slashSharesToConvert');
+          const lootToBurnInput = document.getElementById('slashLootToBurn');
+
+          if (sharesToBurnInput) sharesToBurnInput.value = sharesFormatted;
+          if (sharesToConvertInput) sharesToConvertInput.value = '0';
+          if (lootToBurnInput) lootToBurnInput.value = lootFormatted;
         } catch (error) {
           balancesDiv.innerHTML = '<span style="color: #ff6b6b;">Error fetching balances</span>';
           balancesDiv.style.display = 'block';
