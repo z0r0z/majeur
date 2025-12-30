@@ -3755,7 +3755,9 @@
 
       /* CHATROOM */
       .chatroom-messages {
-        max-height: 400px;
+        --chatroom-base-height: 400px;
+        --chatroom-max-height: 1200px;
+        max-height: var(--chatroom-dynamic-height, var(--chatroom-base-height));
         overflow-y: auto;
         overscroll-behavior: contain;
         margin-bottom: 1.5rem;
@@ -4460,7 +4462,8 @@
 
         /* Chatroom mobile */
         .chatroom-messages {
-          max-height: 300px;
+          --chatroom-base-height: 300px;
+          --chatroom-max-height: 900px;
         }
 
         .chatroom-message {
@@ -4653,7 +4656,8 @@
 
         /* Chatroom improvements */
         .chatroom-messages {
-          max-height: 300px;
+          --chatroom-base-height: 300px;
+          --chatroom-max-height: 900px;
         }
 
         .chatroom-message {
@@ -4988,7 +4992,8 @@
 
         /* Chatroom mobile */
         .chatroom-messages {
-          max-height: 250px;
+          --chatroom-base-height: 250px;
+          --chatroom-max-height: 750px;
           padding-right: 0.25rem;
         }
 
@@ -5489,7 +5494,8 @@
 
         /* Shorter chat area in landscape */
         .chatroom-messages {
-          max-height: 200px;
+          --chatroom-base-height: 200px;
+          --chatroom-max-height: 600px;
         }
 
         /* Shorter proposals list in landscape */
@@ -25069,6 +25075,17 @@
 
           chatroomMessages.appendChild(msgDiv);
         });
+
+        // Set dynamic height based on message count
+        // Scale from base height (1 message) to max height (many messages)
+        const messageCount = messages.length;
+        const style = getComputedStyle(chatroomMessages);
+        const baseHeight = parseInt(style.getPropertyValue('--chatroom-base-height')) || 400;
+        const maxHeight = parseInt(style.getPropertyValue('--chatroom-max-height')) || 1200;
+        // Linear scale: 1 message = base, 10+ messages = max
+        const scaleFactor = Math.min(1, (messageCount - 1) / 9);
+        const dynamicHeight = Math.round(baseHeight + scaleFactor * (maxHeight - baseHeight));
+        chatroomMessages.style.setProperty('--chatroom-dynamic-height', `${dynamicHeight}px`);
 
         // Batch ENS lookups to improve performance - limit concurrency to avoid overwhelming RPC
         const BATCH_SIZE = 10;
