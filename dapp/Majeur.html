@@ -14993,6 +14993,38 @@
         return null;
       }
 
+      // Parse TRANSFER tag from proposal description to extract symbol, amount, etc.
+      function parseTransferTag(description) {
+        const match = description.match(/<<<TRANSFER\s+(.*?)\s*TRANSFER>>>/);
+        if (!match) return null;
+        const params = {};
+        match[1].split(/\s+/).forEach(pair => {
+          const [key, value] = pair.split('=');
+          if (key && value) params[key] = value;
+        });
+        return params;
+      }
+
+      // Format proposal description for display (strip tags, format Additional Notes)
+      function formatProposalDescription(description) {
+        // First, strip out any machine-readable tags (<<<...>>>)
+        let cleaned = description.replace(/<<<[\s\S]*?>>>/g, '').trim();
+
+        // Handle "--- Additional Notes ---" pattern
+        const notesMatch = cleaned.match(/\s*---\s*Additional Notes\s*---\s*/i);
+        if (!notesMatch) return escapeHtml(cleaned);
+
+        const parts = cleaned.split(notesMatch[0]);
+        const mainDesc = parts[0].trim();
+        const notes = (parts[1] || '').trim();
+
+        let result = escapeHtml(mainDesc);
+        if (notes) {
+          result += '<br><strong style="opacity: 0.8;">Additional Notes:</strong> ' + escapeHtml(notes);
+        }
+        return result;
+      }
+
       // Render DAO gallery
       function renderDAOGallery() {
         const daoTiles = DOMCache.daoTiles;
@@ -24952,7 +24984,7 @@
 
             let formattedDetails = '';
             if (isETHTransfer) {
-              const ethAmount = ethers.formatEther(proposalData.value);
+              const ethAmount = ethers.formatEther(proposalData.value).replace(/\.?0+$/, '');
               formattedDetails = `
                 <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff;">
                   <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.35rem;">ETH Transfer</div>
@@ -24966,22 +24998,30 @@
                 const decoded = abiCoder.decode(['address', 'uint256'], '0x' + proposalData.data.slice(10));
                 const recipient = decoded[0];
                 const amount = decoded[1];
-                // Try to identify token
-                let tokenSymbol = 'TOKEN';
-                if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.usdc.toLowerCase()) tokenSymbol = 'USDC';
-                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.usdt.toLowerCase()) tokenSymbol = 'USDT';
-                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.dai.toLowerCase()) tokenSymbol = 'DAI';
-                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.wsteth.toLowerCase()) tokenSymbol = 'wstETH';
-                else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.reth.toLowerCase()) tokenSymbol = 'rETH';
+
+                // Try to get symbol from TRANSFER tag first
+                const transferTag = parseTransferTag(proposalData.description);
+                let tokenSymbol = transferTag?.symbol || null;
+
+                // Fall back to known token addresses if no tag
+                if (!tokenSymbol) {
+                  tokenSymbol = 'TOKEN';
+                  if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.usdc.toLowerCase()) tokenSymbol = 'USDC';
+                  else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.usdt.toLowerCase()) tokenSymbol = 'USDT';
+                  else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.dai.toLowerCase()) tokenSymbol = 'DAI';
+                  else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.wsteth.toLowerCase()) tokenSymbol = 'wstETH';
+                  else if (proposalData.to.toLowerCase() === TOKEN_ADDRESSES.reth.toLowerCase()) tokenSymbol = 'rETH';
+                }
 
                 const decimals = (tokenSymbol === 'USDC' || tokenSymbol === 'USDT') ? 6 : 18;
-                const formattedAmount = ethers.formatUnits(amount, decimals);
+                const formattedAmount = ethers.formatUnits(amount, decimals).replace(/\.?0+$/, '');
 
                 formattedDetails = `
                   <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff;">
                     <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.35rem;">${escapeHtml(tokenSymbol)} Transfer</div>
                     <div style="font-size: 0.9rem;">Amount: <strong>${escapeHtml(formattedAmount)} ${escapeHtml(tokenSymbol)}</strong></div>
                     <div style="font-size: 0.85rem; margin-top: 0.25rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem;">${escapeHtml(recipient)}</code></div>
+                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">Token: <code style="background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem;">${escapeHtml(proposalData.to)}</code></div>
                   </div>
                 `;
               } catch (e) {
@@ -25008,7 +25048,7 @@
 
             messageContent = `
               <strong style="color: #9d7bff; font-size: 0.85rem; letter-spacing: 0.1em;">PROPOSAL</strong>
-              <div style="margin-top: 0.5rem; font-size: 1rem;">${escapeHtml(proposalData.description)}</div>
+              <div style="margin-top: 0.5rem; font-size: 1rem;">${formatProposalDescription(proposalData.description)}</div>
               ${formattedDetails}
               ${calldataLinkForMessage}
               <details style="margin-top: 0.75rem; opacity: 0.6;">
