@@ -43,10 +43,11 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 
 Start this tutorial as a Majeur newb, end up an expert that could even contribute code!
 
-1. [Introduction](./docs/src/0-to-hero-0.md) — Course overview and setup
-2. [Repository Structure](./docs/src/0-to-hero-1.md) — Understanding every folder and file
-3. [Unvoted Proposals & Rewards](./docs/src/0-to-hero-2.md) — Reading DAO state and claiming futarchy rewards
-4. [Submit & Execute Proposals](./docs/src/0-to-hero-3.md) — Creating governance proposals and voting
+1. [Introduction](./tutorials/0-to-hero-0.md) — Course overview and setup
+2. [Repository Structure](./tutorials/0-to-hero-1.md) — Understanding every folder and file
+3. [Unvoted Proposals & Rewards](./tutorials/0-to-hero-2.md) — Reading DAO state and claiming futarchy rewards
+4. [Submit & Execute Proposals](./tutorials/0-to-hero-3.md) — Creating governance proposals and voting
+5. Check back because more parts will be added soon!
 
 ## At a Glance
 
