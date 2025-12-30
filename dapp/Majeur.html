@@ -9259,6 +9259,8 @@
                     <div class="self-proposal-menu-divider"></div>
                     <div class="self-proposal-menu-item" onclick="selectSelfProposalType('futarchy')">Configure Auto-Futarchy</div>
                     <div class="self-proposal-menu-item" onclick="selectSelfProposalType('futarchytoken')">Set Futarchy Reward Token</div>
+                    <div class="self-proposal-menu-divider"></div>
+                    <div class="self-proposal-menu-item" onclick="selectSelfProposalType('slash')">Slash Member</div>
                   </div>
                 </div>
               </div>
@@ -12318,6 +12320,8 @@
         setProposalTTL: new ethers.Interface(['function setProposalTTL(uint64)']),
         setTimelockDelay: new ethers.Interface(['function setTimelockDelay(uint64)']),
         mintFromMoloch: new ethers.Interface(['function mintFromMoloch(address,uint256)']),
+        burnFromMoloch: new ethers.Interface(['function burnFromMoloch(address,uint256)']),
+        batchCalls: new ethers.Interface(['function batchCalls((address,uint256,bytes)[])']),
         setProposalThreshold: new ethers.Interface(['function setProposalThreshold(uint96)']),
         setTransfersLocked: new ethers.Interface(['function setTransfersLocked(bool,bool)']),
         setAutoFutarchy: new ethers.Interface(['function setAutoFutarchy(uint256,uint256)']),
@@ -18788,6 +18792,203 @@
 
         } catch (error) {
           logger.error('Error populating futarchy reward token proposal:', error);
+          showStatus('Failed to populate form: ' + error.message, true);
+        }
+      }
+
+      // Slash member proposal helper
+      async function prepareSlashProposal() {
+        if (!currentDAO || !currentDAO.dao) {
+          showStatus('Please select a DAO first', true);
+          return;
+        }
+
+        const dao = currentDAO.dao;
+        const daoAddress = dao.dao;
+        const sharesToken = dao.meta.sharesToken;
+        const lootToken = dao.meta.lootToken;
+
+        // Scroll to proposal form
+        const proposalForm = document.querySelector('.proposal-form');
+        if (proposalForm) {
+          proposalForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add helper UI
+        let helperDiv = document.getElementById('slashHelper');
+        if (!helperDiv) {
+          helperDiv = document.createElement('div');
+          helperDiv.id = 'slashHelper';
+          helperDiv.style.cssText = 'margin-bottom: 1rem; padding: 1rem; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); border-radius: 4px;';
+          proposalForm.insertBefore(helperDiv, proposalForm.querySelector('.proposal-form-group'));
+        }
+
+        helperDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-family: 'Cinzel', serif; font-size: 0.85rem; color: #ff6b6b; letter-spacing: 0.1em;">
+              SLASH MEMBER
+            </div>
+            <button onclick="clearSlashHelper()" style="background: none; border: none; color: rgba(230, 217, 255, 0.6); cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;">&times;</button>
+          </div>
+          <div style="margin-bottom: 0.75rem;">
+            <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">Target Address</label>
+            <input type="text" id="slashTargetAddress" placeholder="0x..." style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 100, 100, 0.3); color: #e6d9ff; font-family: monospace; font-size: 0.85rem;" onchange="updateSlashTargetBalances('${sharesToken}', '${lootToken}')" oninput="updateSlashTargetBalances('${sharesToken}', '${lootToken}')" />
+            <div id="slashTargetBalances" style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(230, 217, 255, 0.5); display: none;">
+              <!-- Will be populated with current balances -->
+            </div>
+          </div>
+          <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: 4px;">
+            <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.5rem; font-family: 'Cinzel', serif; letter-spacing: 0.05em;">
+              SLASH OPERATIONS (enter amounts, leave 0 or empty to skip)
+            </div>
+            <div style="display: grid; gap: 0.75rem;">
+              <div>
+                <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); margin-bottom: 0.25rem;">Shares to Burn (destroys voting power)</label>
+                <input type="text" id="slashSharesToBurn" placeholder="0" style="width: 100%; padding: 0.5rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 100, 100, 0.2); color: #e6d9ff; font-family: monospace; font-size: 0.85rem;" />
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); margin-bottom: 0.25rem;">Shares to Convert to Loot (1:1 ratio, demotes to non-voter)</label>
+                <input type="text" id="slashSharesToConvert" placeholder="0" style="width: 100%; padding: 0.5rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 150, 100, 0.2); color: #e6d9ff; font-family: monospace; font-size: 0.85rem;" />
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.7rem; color: rgba(230, 217, 255, 0.5); margin-bottom: 0.25rem;">Loot to Burn (destroys economic stake)</label>
+                <input type="text" id="slashLootToBurn" placeholder="0" style="width: 100%; padding: 0.5rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 100, 100, 0.2); color: #e6d9ff; font-family: monospace; font-size: 0.85rem;" />
+              </div>
+            </div>
+          </div>
+          <div style="margin-bottom: 0.75rem; font-size: 0.7rem; color: rgba(255, 150, 100, 0.8); padding: 0.5rem; background: rgba(255, 100, 100, 0.1); border-radius: 4px;">
+            ⚠️ Slashing is punitive and removes tokens without compensation. The target keeps any converted loot.
+          </div>
+          <button onclick="populateSlashProposal('${daoAddress}', '${sharesToken}', '${lootToken}')"
+                  onmouseover="this.style.background='rgba(255, 100, 100, 0.35)'; this.style.borderColor='#ff6b6b'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(255, 100, 100, 0.3)';"
+                  onmouseout="this.style.background='rgba(255, 100, 100, 0.2)'; this.style.borderColor='rgba(255, 100, 100, 0.4)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                  style="width: 100%; padding: 0.75rem; background: rgba(255, 100, 100, 0.2); border: 1px solid rgba(255, 100, 100, 0.4); color: #ffcccc; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.15em; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease; font-weight: 600;">
+            Populate Proposal Form
+          </button>
+        `;
+      }
+
+      function clearSlashHelper() {
+        const helperDiv = document.getElementById('slashHelper');
+        if (helperDiv) helperDiv.remove();
+      }
+
+      async function updateSlashTargetBalances(sharesToken, lootToken) {
+        const targetInput = document.getElementById('slashTargetAddress');
+        const balancesDiv = document.getElementById('slashTargetBalances');
+        if (!targetInput || !balancesDiv) return;
+
+        const target = targetInput.value.trim();
+        if (!target || !ethers.isAddress(target)) {
+          balancesDiv.style.display = 'none';
+          return;
+        }
+
+        try {
+          const sharesContract = new ethers.Contract(sharesToken, ERC20_ABI, provider);
+          const lootContract = new ethers.Contract(lootToken, ERC20_ABI, provider);
+
+          const [sharesBalance, lootBalance] = await Promise.all([
+            sharesContract.balanceOf(target),
+            lootContract.balanceOf(target)
+          ]);
+
+          const sharesFormatted = ethers.formatUnits(sharesBalance, 18);
+          const lootFormatted = ethers.formatUnits(lootBalance, 18);
+
+          balancesDiv.innerHTML = `
+            <span style="color: #9d7bff;">Shares: ${parseFloat(sharesFormatted).toLocaleString()}</span> |
+            <span style="color: #7bff9d;">Loot: ${parseFloat(lootFormatted).toLocaleString()}</span>
+          `;
+          balancesDiv.style.display = 'block';
+        } catch (error) {
+          balancesDiv.innerHTML = '<span style="color: #ff6b6b;">Error fetching balances</span>';
+          balancesDiv.style.display = 'block';
+        }
+      }
+
+      async function populateSlashProposal(daoAddress, sharesToken, lootToken) {
+        try {
+          const target = document.getElementById('slashTargetAddress').value.trim();
+          if (!target || !ethers.isAddress(target)) {
+            showStatus('Please enter a valid target address', true);
+            return;
+          }
+
+          const sharesToBurnInput = document.getElementById('slashSharesToBurn').value.trim() || '0';
+          const sharesToConvertInput = document.getElementById('slashSharesToConvert').value.trim() || '0';
+          const lootToBurnInput = document.getElementById('slashLootToBurn').value.trim() || '0';
+
+          const sharesToBurn = ethers.parseUnits(sharesToBurnInput, 18);
+          const sharesToConvert = ethers.parseUnits(sharesToConvertInput, 18);
+          const lootToBurn = ethers.parseUnits(lootToBurnInput, 18);
+
+          if (sharesToBurn === 0n && sharesToConvert === 0n && lootToBurn === 0n) {
+            showStatus('Please specify at least one slash amount', true);
+            return;
+          }
+
+          // Build the calls array
+          const calls = [];
+          const descriptionParts = [];
+
+          // 1. Burn shares
+          if (sharesToBurn > 0n) {
+            const burnSharesData = INTERFACES.burnFromMoloch.encodeFunctionData('burnFromMoloch', [target, sharesToBurn]);
+            calls.push([sharesToken, 0n, burnSharesData]);
+            descriptionParts.push(`burn ${sharesToBurnInput} shares`);
+          }
+
+          // 2. Convert shares to loot (burn shares + mint loot)
+          if (sharesToConvert > 0n) {
+            const burnForConvertData = INTERFACES.burnFromMoloch.encodeFunctionData('burnFromMoloch', [target, sharesToConvert]);
+            const mintLootData = INTERFACES.mintFromMoloch.encodeFunctionData('mintFromMoloch', [target, sharesToConvert]);
+            calls.push([sharesToken, 0n, burnForConvertData]);
+            calls.push([lootToken, 0n, mintLootData]);
+            descriptionParts.push(`convert ${sharesToConvertInput} shares to loot`);
+          }
+
+          // 3. Burn loot
+          if (lootToBurn > 0n) {
+            const burnLootData = INTERFACES.burnFromMoloch.encodeFunctionData('burnFromMoloch', [target, lootToBurn]);
+            calls.push([lootToken, 0n, burnLootData]);
+            descriptionParts.push(`burn ${lootToBurnInput} loot`);
+          }
+
+          // Determine target and calldata based on number of calls
+          let proposalTarget, proposalData;
+
+          if (calls.length === 1) {
+            // Single call - target the contract directly
+            proposalTarget = calls[0][0];
+            proposalData = calls[0][2];
+          } else {
+            // Multiple calls - use batchCalls
+            proposalTarget = daoAddress;
+            proposalData = INTERFACES.batchCalls.encodeFunctionData('batchCalls', [calls]);
+          }
+
+          getEl('proposalTo').value = proposalTarget;
+          getEl('proposalValue').value = '0';
+          getEl('proposalData').value = proposalData;
+
+          const shortTarget = `${target.slice(0, 6)}...${target.slice(-4)}`;
+          const description = `Slash member ${shortTarget}: ${descriptionParts.join(', ')}`;
+          setLockedProposalDescription(description);
+
+          updateTargetAddressHint();
+          updateCalldataTranslation();
+          updateCalldataPreview();
+
+          showStatus('Proposal form populated!', false);
+          clearSlashHelper();
+
+          setTimeout(() => {
+            getEl('proposalDescriptionLocked').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+
+        } catch (error) {
+          logger.error('Error populating slash proposal:', error);
           showStatus('Failed to populate form: ' + error.message, true);
         }
       }
@@ -25530,6 +25731,9 @@
             break;
           case 'futarchytoken':
             prepareFutarchyRewardTokenProposal();
+            break;
+          case 'slash':
+            prepareSlashProposal();
             break;
         }
       }
