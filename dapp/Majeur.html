@@ -2889,6 +2889,40 @@
         color: rgba(100, 200, 100, 0.9);
       }
 
+      .dao-days-filter {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-family: 'EB Garamond', serif;
+        font-size: 0.8rem;
+        color: rgba(230, 217, 255, 0.6);
+        margin-left: 1rem;
+      }
+
+      .dao-days-filter input {
+        width: 50px;
+        padding: 0.2rem 0.4rem;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        color: #e6d9ff;
+        font-family: 'EB Garamond', serif;
+        font-size: 0.8rem;
+        text-align: center;
+        border-radius: 3px;
+        transition: all 0.3s ease;
+      }
+
+      .dao-days-filter input:focus {
+        outline: none;
+        border-color: #9d7bff;
+        box-shadow: 0 0 8px rgba(157, 123, 255, 0.2);
+      }
+
+      .dao-days-filter input::-webkit-inner-spin-button,
+      .dao-days-filter input::-webkit-outer-spin-button {
+        opacity: 0.5;
+      }
+
       .dao-stats-bar {
         display: flex;
         gap: 1.5rem;
@@ -2969,6 +3003,7 @@
       .dao-dashboard-content {
         display: grid;
         grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
         gap: 2rem;
         max-width: 1600px;
         margin: 0 auto;
@@ -3721,8 +3756,6 @@
         color: #e6d9ff;
         margin-bottom: 1.5rem;
         text-transform: uppercase;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid rgba(157, 123, 255, 0.2);
       }
 
       /* METADATA VIEW */
@@ -3830,6 +3863,36 @@
       .chatroom-message-more:hover {
         background: rgba(157, 123, 255, 0.2);
         border-color: rgba(157, 123, 255, 0.5);
+      }
+
+      .show-more-container {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        padding: 0.75rem 0;
+      }
+
+      .show-more-btn {
+        padding: 0.4rem 0.8rem;
+        font-family: 'EB Garamond', serif;
+        font-size: 0.85rem;
+        color: rgba(157, 123, 255, 0.8);
+        background: rgba(157, 123, 255, 0.1);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-radius: 3px;
+      }
+
+      .show-more-btn:hover {
+        background: rgba(157, 123, 255, 0.2);
+        border-color: rgba(157, 123, 255, 0.5);
+        color: #9d7bff;
+      }
+
+      .proposal-hidden,
+      .message-hidden {
+        display: none !important;
       }
 
       .chatroom-send {
@@ -9116,6 +9179,11 @@
               </svg>
               <span>Copy Link</span>
             </button>
+            <span class="dao-days-filter" id="daoDaysFilter">
+              Showing content from last
+              <input type="number" id="daoFilterDays" min="1" value="7" onchange="updateDaysFilter()" onclick="event.stopPropagation()">
+              days
+            </span>
             <div class="dao-stats-bar" id="daoStatsBar">
               <!-- Stats will be dynamically rendered here -->
             </div>
@@ -9232,13 +9300,10 @@
           </div>
         </div>
 
-        <!-- Proposals Panel -->
+        <!-- Create Proposal Panel -->
         <div class="dao-panel">
-          <h3 class="dao-panel-title">Proposals</h3>
-
-          <!-- New Proposal Form -->
+          <h3 class="dao-panel-title">Create Proposal</h3>
           <div class="proposal-form">
-            <h4 class="proposal-form-title">Create Proposal</h4>
             <input type="hidden" id="proposalOp" value="0" />
             <div class="proposal-form-group">
               <label class="proposal-form-label">Target Address</label>
@@ -9329,9 +9394,12 @@
             <button class="chatroom-button" onclick="createProposal()">Create & Publish</button>
           </div>
 
-          <!-- Proposals List -->
-          <div id="proposalsList">
-            <!-- Proposals will be dynamically rendered here -->
+          <!-- Proposals Section -->
+          <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(157, 123, 255, 0.2);">
+            <h3 class="dao-panel-title">Proposals</h3>
+            <div id="proposalsList">
+              <!-- Proposals will be dynamically rendered here -->
+            </div>
           </div>
         </div>
       </div>
@@ -12449,6 +12517,150 @@
         PROPOSAL_FETCH_LIMIT: 10,
         MESSAGE_FETCH_LIMIT: 10
       };
+
+      // State for content filtering
+      let messagesDisplayLimit = null;  // null = default, number = current limit
+      let proposalsDisplayLimit = null; // null = default, number = current limit
+      let currentFilterDays = 7;        // Current days filter value
+
+      // Get default filter days based on DAO governance params
+      function getDefaultFilterDays() {
+        if (!currentDAO || !currentDAO.dao || !currentDAO.dao.gov) return 7;
+        const ttl = Number(currentDAO.dao.gov.proposalTTL || 0);
+        const timelock = Number(currentDAO.dao.gov.timelockDelay || 0);
+        const days = Math.ceil((ttl + timelock) / 86400);
+        return Math.max(days, 1); // Minimum 1 day
+      }
+
+      // Update days filter and re-render content
+      function updateDaysFilter() {
+        const input = document.getElementById('daoFilterDays');
+        if (!input) return;
+        const value = parseInt(input.value, 10);
+        if (isNaN(value) || value < 1) {
+          input.value = currentFilterDays;
+          return;
+        }
+        currentFilterDays = value;
+        // Reset limits when filter changes
+        messagesDisplayLimit = null;
+        proposalsDisplayLimit = null;
+        renderChatroom();
+        renderProposals();
+      }
+
+      // Initialize days filter when DAO loads
+      function initializeDaysFilter() {
+        const defaultDays = getDefaultFilterDays();
+        currentFilterDays = defaultDays;
+        const input = document.getElementById('daoFilterDays');
+        if (input) {
+          input.value = defaultDays;
+        }
+        // Reset limits
+        messagesDisplayLimit = null;
+        proposalsDisplayLimit = null;
+      }
+
+      // Show more messages (+10) - reveals hidden messages without re-rendering
+      function showMoreMessages() {
+        const container = document.getElementById('chatroomMessages');
+        if (!container) return;
+
+        const hiddenMessages = container.querySelectorAll('.chatroom-message.message-hidden');
+        const total = container.querySelectorAll('.chatroom-message').length;
+        let revealed = 0;
+
+        hiddenMessages.forEach(m => {
+          if (revealed < 10) {
+            m.classList.remove('message-hidden');
+            revealed++;
+          }
+        });
+
+        const stillHidden = container.querySelectorAll('.chatroom-message.message-hidden').length;
+
+        // Update or remove buttons
+        const existingButtons = container.querySelector('.show-more-container');
+        if (stillHidden === 0) {
+          if (existingButtons) existingButtons.remove();
+        } else if (existingButtons) {
+          existingButtons.innerHTML = `
+            <button class="show-more-btn" onclick="showMoreMessages()">Show more (${stillHidden} hidden)</button>
+            <button class="show-more-btn" onclick="showAllMessages()">Show all</button>
+          `;
+        }
+
+        // Update the limit tracker
+        messagesDisplayLimit = total - stillHidden;
+      }
+
+      // Show all messages - reveals all hidden messages without re-rendering
+      function showAllMessages() {
+        const container = document.getElementById('chatroomMessages');
+        if (!container) return;
+
+        const hiddenMessages = container.querySelectorAll('.chatroom-message.message-hidden');
+        hiddenMessages.forEach(m => m.classList.remove('message-hidden'));
+
+        // Remove buttons
+        const existingButtons = container.querySelector('.show-more-container');
+        if (existingButtons) existingButtons.remove();
+
+        // Update the limit tracker
+        const total = container.querySelectorAll('.chatroom-message').length;
+        messagesDisplayLimit = total;
+      }
+
+      // Show more proposals (+10) - reveals hidden proposals without re-rendering
+      function showMoreProposals() {
+        const container = document.getElementById('proposalsList');
+        if (!container) return;
+
+        const hiddenProposals = container.querySelectorAll('.proposal-item.proposal-hidden');
+        const total = container.querySelectorAll('.proposal-item').length;
+        let revealed = 0;
+
+        hiddenProposals.forEach(p => {
+          if (revealed < 10) {
+            p.classList.remove('proposal-hidden');
+            revealed++;
+          }
+        });
+
+        const stillHidden = container.querySelectorAll('.proposal-item.proposal-hidden').length;
+
+        // Update or remove buttons
+        const existingButtons = container.querySelector('.show-more-container');
+        if (stillHidden === 0) {
+          if (existingButtons) existingButtons.remove();
+        } else if (existingButtons) {
+          existingButtons.innerHTML = `
+            <button class="show-more-btn" onclick="showMoreProposals()">Show more (${stillHidden} hidden)</button>
+            <button class="show-more-btn" onclick="showAllProposals()">Show all</button>
+          `;
+        }
+
+        // Update the limit tracker
+        proposalsDisplayLimit = total - stillHidden;
+      }
+
+      // Show all proposals - reveals all hidden proposals without re-rendering
+      function showAllProposals() {
+        const container = document.getElementById('proposalsList');
+        if (!container) return;
+
+        const hiddenProposals = container.querySelectorAll('.proposal-item.proposal-hidden');
+        hiddenProposals.forEach(p => p.classList.remove('proposal-hidden'));
+
+        // Remove buttons
+        const existingButtons = container.querySelector('.show-more-container');
+        if (existingButtons) existingButtons.remove();
+
+        // Update the limit tracker
+        const total = container.querySelectorAll('.proposal-item').length;
+        proposalsDisplayLimit = total;
+      }
 
       // Read-only provider for access without wallet
       // Execute a function with RPC fallback
@@ -22366,6 +22578,49 @@
         }
       }
 
+      // Copy full contract URI with visual feedback
+      async function copyFullURI() {
+        if (!currentDAOContractURI) return;
+
+        try {
+          await navigator.clipboard.writeText(currentDAOContractURI);
+          const btn = document.getElementById('copyFullUriBtn');
+          if (!btn) return;
+          const originalText = btn.querySelector('span').textContent;
+          btn.classList.add('copied');
+          btn.querySelector('span').textContent = 'Copied!';
+
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.querySelector('span').textContent = originalText;
+          }, 2000);
+        } catch (err) {
+          // Fallback for non-secure contexts
+          const textArea = document.createElement('textarea');
+          textArea.value = currentDAOContractURI;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            const btn = document.getElementById('copyFullUriBtn');
+            if (btn) {
+              const originalText = btn.querySelector('span').textContent;
+              btn.classList.add('copied');
+              btn.querySelector('span').textContent = 'Copied!';
+              setTimeout(() => {
+                btn.classList.remove('copied');
+                btn.querySelector('span').textContent = originalText;
+              }, 2000);
+            }
+          } catch (e) {
+            showStatus('Failed to copy: ' + e.message, true);
+          }
+          document.body.removeChild(textArea);
+        }
+      }
+
       // Parse URL hash for deep linking - returns { chainId, address } or null
       // Supports: #/dao/{chainId}/{address} and legacy #/dao/{address}
       function parseDAODeepLink() {
@@ -22543,6 +22798,7 @@
         // === RENDER SYNC FUNCTIONS IMMEDIATELY (use cached DAO data) ===
         renderDaoStats();
         renderGovernanceInfo();
+        initializeDaysFilter();
 
         // === FIRE ASYNC RENDERS IN PARALLEL WITH TIMING ===
         const independentRenders = [
@@ -24291,7 +24547,7 @@
               <div class="metadata-label">Raw Contract URI</div>
               <div class="metadata-value" style="font-family: monospace; font-size: 0.8rem; word-break: break-all; color: rgba(230, 217, 255, 0.6);">
                 ${escapeHtml(truncatedURI)}
-                ${currentDAOContractURI.length > 80 ? `<button onclick="copyToClipboard('${escapeHtml(currentDAOContractURI.replace(/'/g, "\\'"))}')" style="margin-left: 0.5rem; padding: 0.2rem 0.5rem; font-size: 0.7rem; background: rgba(157, 123, 255, 0.15); border: 1px solid rgba(157, 123, 255, 0.3); color: #9d7bff; cursor: pointer; border-radius: 3px;">Copy Full URI</button>` : ''}
+                ${currentDAOContractURI.length > 80 ? `<button id="copyFullUriBtn" class="dao-copy-link-btn" onclick="copyFullURI()" style="margin-left: 0.5rem; font-size: 0.7rem;"><span>Copy Full URI</span></button>` : ''}
               </div>
             </div>
           `;
@@ -24951,18 +25207,33 @@
         // Reverse to show most recent first
         const messagesReversed = [...messages].reverse();
 
-        // Collect unique sender addresses for batched ENS lookup
+        // Apply display limit: if <= 3 total, show all; otherwise apply limit
+        const totalMessages = messagesReversed.length;
+        let effectiveLimit;
+        if (totalMessages <= 3) {
+          effectiveLimit = totalMessages; // Show all if 3 or fewer
+        } else if (messagesDisplayLimit === null) {
+          effectiveLimit = Math.min(10, totalMessages); // Default: show 10
+        } else {
+          effectiveLimit = Math.min(messagesDisplayLimit, totalMessages);
+        }
+        const messagesToShow = messagesReversed.slice(0, effectiveLimit);
+        const hasMoreMessages = effectiveLimit < totalMessages;
+
+        // Collect unique sender addresses for batched ENS lookup (from all messages)
         const uniqueSenders = [...new Set(
           messagesReversed
             .map(msg => messageSenders[String(msg.index)])
             .filter(addr => addr)
         )];
 
-        messagesReversed.forEach(message => {
+        // Render ALL messages but hide those beyond the limit
+        messagesReversed.forEach((message, index) => {
           const msgDiv = document.createElement('div');
           const proposalData = decodeProposalMessage(message.text);
+          const isHidden = index >= effectiveLimit;
 
-          msgDiv.className = 'chatroom-message' + (proposalData ? ' proposal' : '');
+          msgDiv.className = 'chatroom-message' + (proposalData ? ' proposal' : '') + (isHidden ? ' message-hidden' : '');
 
           // Get sender address for this message
           const senderAddress = messageSenders[String(message.index)];
@@ -25075,6 +25346,17 @@
 
           chatroomMessages.appendChild(msgDiv);
         });
+
+        // Add "Show more" / "Show all" buttons if there are hidden messages
+        if (hasMoreMessages) {
+          const showMoreContainer = document.createElement('div');
+          showMoreContainer.className = 'show-more-container';
+          showMoreContainer.innerHTML = `
+            <button class="show-more-btn" onclick="showMoreMessages()">Show more (${totalMessages - effectiveLimit} hidden)</button>
+            <button class="show-more-btn" onclick="showAllMessages()">Show all</button>
+          `;
+          chatroomMessages.appendChild(showMoreContainer);
+        }
 
         // Set dynamic height based on message count
         // Scale from base height (1 message) to max height (many messages)
@@ -25223,6 +25505,38 @@
         // Reverse to show most recent first
         const proposalsReversed = [...uniqueProposals].reverse();
 
+        // Apply display limit: if <= 3 total, show all; otherwise filter by days/limit
+        const totalProposals = proposalsReversed.length;
+        let proposalsToShow;
+        let effectiveLimit;
+
+        if (totalProposals <= 3) {
+          // Show all if 3 or fewer
+          proposalsToShow = proposalsReversed;
+          effectiveLimit = totalProposals;
+        } else if (proposalsDisplayLimit !== null) {
+          // User clicked "Show more" - use explicit limit
+          effectiveLimit = Math.min(proposalsDisplayLimit, totalProposals);
+          proposalsToShow = proposalsReversed.slice(0, effectiveLimit);
+        } else {
+          // Default: filter by days
+          const cutoffTimestamp = Math.floor(Date.now() / 1000) - (currentFilterDays * 86400);
+          proposalsToShow = proposalsReversed.filter(p => {
+            const createdAt = Number(p.createdAt || 0);
+            return createdAt >= cutoffTimestamp;
+          });
+          // Ensure at least 3 proposals if available
+          if (proposalsToShow.length < 3 && totalProposals >= 3) {
+            proposalsToShow = proposalsReversed.slice(0, 3);
+          }
+          // Ensure at least 1 proposal if available
+          if (proposalsToShow.length === 0 && totalProposals > 0) {
+            proposalsToShow = proposalsReversed.slice(0, 1);
+          }
+          effectiveLimit = proposalsToShow.length;
+        }
+        const hasMoreProposals = effectiveLimit < totalProposals;
+
         // Check if user has voted on any proposals (use voters data from view helper - no RPC calls!)
         const userVoteStatus = {};
 
@@ -25239,9 +25553,10 @@
 
         const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
 
-        proposalsReversed.forEach(proposal => {
+        // Render ALL proposals but hide those beyond the limit
+        proposalsReversed.forEach((proposal, index) => {
           const proposalDiv = document.createElement('div');
-          proposalDiv.className = 'proposal-item';
+          proposalDiv.className = 'proposal-item' + (index >= effectiveLimit ? ' proposal-hidden' : '');
 
           // Convert state to number for comparison (might be BigInt)
           // Default to 0 if invalid to prevent NaN
@@ -25490,6 +25805,17 @@
 
           proposalsList.appendChild(proposalDiv);
         });
+
+        // Add "Show more" / "Show all" buttons if there are hidden proposals
+        if (hasMoreProposals) {
+          const showMoreContainer = document.createElement('div');
+          showMoreContainer.className = 'show-more-container';
+          showMoreContainer.innerHTML = `
+            <button class="show-more-btn" onclick="showMoreProposals()">Show more (${totalProposals - effectiveLimit} hidden)</button>
+            <button class="show-more-btn" onclick="showAllProposals()">Show all</button>
+          `;
+          proposalsList.appendChild(showMoreContainer);
+        }
         } catch (error) {
           logger.error('Error rendering proposals:', error);
           proposalsList.innerHTML = '<p style="text-align: center; color: rgba(255, 100, 100, 0.8); font-style: italic; margin-top: 1rem;">Failed to load proposals. Please try refreshing.</p>';
