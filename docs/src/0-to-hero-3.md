@@ -36,9 +36,28 @@ The proposal ID is a hash of:
 
 ---
 
+## CALL vs DELEGATECALL
+
+Proposals specify an **operation type** (`op`):
+
+| Op | Name | What it does |
+|----|------|--------------|
+| 0 | CALL | Ask the target contract to do something |
+| 1 | DELEGATECALL | Borrow the target's code and run it as if it were the DAO's own |
+
+> **Analogy**: CALL is like mailing a letter asking someone to do a task for you. DELEGATECALL is like borrowing their recipe book and cooking in your own kitchen—the recipe runs, but your ingredients get used.
+
+**When to use which:**
+- **CALL (op=0)**: Most governance actions—calling the DAO's own functions, sending ETH, interacting with external contracts
+- **DELEGATECALL (op=1)**: Advanced use cases like upgrades or plugins where external code needs to modify the DAO's storage directly
+
+In this tutorial, we use CALL because the DAO is simply calling its own `setRagequittable` function.
+
+---
+
 ## Step 1: Setup
 
-Create `toggle-ragequit.js`:
+Create `toggle-ragequit.js`. The setup code is identical to the previous tutorial through Step 3:
 
 ```javascript
 // toggle-ragequit.js
@@ -65,124 +84,26 @@ const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 
 ---
 
-## Step 2: Define ABIs
+## Step 2: Import ABIs
 
-We need more functions this time:
+Like in the previous tutorial, import the ABI JSON files:
 
 ```javascript
-// View helper ABI (same as tutorial 2, but we only need gov config)
-const VIEW_HELPER_ABI = [
-  {
-    "inputs": [
-      { "name": "dao", "type": "address" },
-      { "name": "proposalStart", "type": "uint256" },
-      { "name": "proposalCount", "type": "uint256" },
-      { "name": "messageStart", "type": "uint256" },
-      { "name": "messageCount", "type": "uint256" },
-      { "name": "treasuryTokens", "type": "address[]" }
-    ],
-    "name": "getDAOFullState",
-    "outputs": [
-      {
-        "components": [
-          { "name": "dao", "type": "address" },
-          {
-            "components": [
-              { "name": "name", "type": "string" },
-              { "name": "symbol", "type": "string" },
-              { "name": "contractURI", "type": "string" },
-              { "name": "sharesToken", "type": "address" },
-              { "name": "lootToken", "type": "address" },
-              { "name": "badgesToken", "type": "address" },
-              { "name": "renderer", "type": "address" }
-            ],
-            "name": "meta",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              { "name": "proposalThreshold", "type": "uint96" },
-              { "name": "minYesVotesAbsolute", "type": "uint96" },
-              { "name": "quorumAbsolute", "type": "uint96" },
-              { "name": "proposalTTL", "type": "uint64" },
-              { "name": "timelockDelay", "type": "uint64" },
-              { "name": "quorumBps", "type": "uint16" },
-              { "name": "ragequittable", "type": "bool" },
-              { "name": "autoFutarchyParam", "type": "uint256" },
-              { "name": "autoFutarchyCap", "type": "uint256" },
-              { "name": "rewardToken", "type": "address" }
-            ],
-            "name": "gov",
-            "type": "tuple"
-          },
-          { "name": "supplies", "type": "tuple" },
-          { "name": "treasury", "type": "tuple" },
-          { "name": "members", "type": "tuple[]" },
-          { "name": "proposals", "type": "tuple[]" },
-          { "name": "messages", "type": "tuple[]" }
-        ],
-        "name": "out",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  }
-];
-
-// Moloch ABI - functions we need
-const MOLOCH_ABI = [
-  // Read current config version
-  {
-    "inputs": [],
-    "name": "config",
-    "outputs": [{ "type": "uint256" }],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  // Get proposal state
-  {
-    "inputs": [{ "name": "id", "type": "uint256" }],
-    "name": "state",
-    "outputs": [{ "type": "uint8" }],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  // Cast vote
-  {
-    "inputs": [
-      { "name": "id", "type": "uint256" },
-      { "name": "support", "type": "uint8" }
-    ],
-    "name": "castVote",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  // Execute proposal
-  {
-    "inputs": [
-      { "name": "op", "type": "uint8" },
-      { "name": "to", "type": "address" },
-      { "name": "value", "type": "uint256" },
-      { "name": "data", "type": "bytes" },
-      { "name": "nonce", "type": "bytes32" }
-    ],
-    "name": "executeByVotes",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  // The function we're calling via governance
-  {
-    "inputs": [{ "name": "on", "type": "bool" }],
-    "name": "setRagequittable",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  }
-];
+import Moloch from './Moloch.json' with { type: 'json' };
+import MolochViewHelper from './MolochViewHelper.json' with { type: 'json' };
 ```
+
+### New Functions We'll Use
+
+We'll use `getDAOFullState` again (same as tutorial 2). Here are the **new** Moloch functions:
+
+| Function | Inputs | Output | Purpose |
+|----------|--------|--------|---------|
+| `config()` | none | `uint256` | Current config version (for proposal ID computation) |
+| `state(id)` | `uint256` | `uint8` | Proposal state (0-6) |
+| `castVote(id, support)` | `uint256`, `uint8` | none | Vote on a proposal |
+| `executeByVotes(op, to, value, data, nonce)` | `uint8`, `address`, `uint256`, `bytes`, `bytes32` | none | Execute a passed proposal |
+| `setRagequittable(on)` | `bool` | none | Toggle ragequit (the function we're calling via governance) |
 
 ---
 
@@ -197,8 +118,8 @@ const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 console.log('Connected to Sepolia');
 console.log(`Wallet: ${wallet.address}\n`);
 
-const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, MolochViewHelper.abi, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, Moloch.abi, wallet);
 
 // Fetch current state
 const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
@@ -216,7 +137,7 @@ To call `setRagequittable(bool)` via governance, we need to encode it as calldat
 
 ```javascript
 // Create an Interface to encode function calls
-const iface = new ethers.Interface(MOLOCH_ABI);
+const iface = new ethers.Interface(Moloch.abi);
 
 // Encode the function call: setRagequittable(!currentRagequit)
 const data = iface.encodeFunctionData('setRagequittable', [!currentRagequit]);
@@ -226,6 +147,8 @@ console.log(`Encoded calldata: ${data}`);
 ```
 
 **Interface** is ethers.js's way to work with ABIs. `encodeFunctionData` converts a function name and arguments into the bytes that the EVM expects.
+
+> **Analogy**: Think of encoding as writing a machine-readable instruction. The first 4 bytes are the "subject line" (which function to call), and the rest is the "body" (the arguments). Contracts only understand this packed byte format.
 
 ---
 
@@ -242,10 +165,18 @@ const value = 0n;       // No ETH being sent
 // Nonce makes each proposal unique
 // Using timestamp ensures we don't collide with existing proposals
 const nonce = ethers.id('toggle-ragequit-' + Date.now());
+```
 
-// Get current config version (proposals include this to prevent replay)
+**What is `ethers.id()`?** It's shorthand for `keccak256(toUtf8Bytes(text))`. It takes a string, converts it to bytes, and hashes it. We use it here to generate a unique 32-byte nonce from a human-readable string.
+
+```javascript
+// Get current config version
 const config = await dao.config();
+```
 
+**What does "config version" do?** The `config` is a counter the DAO can increment via `bumpConfig()`. Since `config` is part of the proposal ID hash, bumping it invalidates all previously computed (but not yet submitted) proposal IDs. This is useful when the DAO wants to "reset"—for example, after changing governance rules—so old pending proposals can't be submitted under the new regime.
+
+```javascript
 console.log('Proposal parameters:');
 console.log(`  op: ${op}`);
 console.log(`  to: ${to}`);
@@ -277,6 +208,61 @@ keccak256(abi.encode(address(this), op, to, value, keccak256(data), nonce, confi
 ```
 
 We replicate it exactly in JavaScript.
+
+**What is `keccak256`?** It's the cryptographic hash function used throughout Ethereum (sometimes called SHA-3, though technically different). Given any input, it produces a fixed 32-byte output. Key properties:
+- **Deterministic**: Same input always produces the same output
+- **One-way**: You can't reverse-engineer the input from the output
+- **Collision-resistant**: It's practically impossible to find two different inputs with the same output
+
+`ethers.keccak256()` takes bytes (like encoded data) and returns the hash. Combined with `AbiCoder.encode()`, it produces the same result as Solidity's `keccak256(abi.encode(...))`.
+
+> **Analogy**: The proposal ID is like a fingerprint—computable before the proposal "exists" on-chain. This fingerprint combines: the DAO address, operation type (CALL), target, value, calldata hash, nonce, and config version. Anyone with the same inputs gets the same ID.
+
+---
+
+## Step 5.5: Post Proposal Description (Optional)
+
+When you create a proposal through the Majeur dapp, it automatically posts a message to the DAO's on-chain chatroom with the proposal details. This allows the dapp to show a human-readable description and mark the proposal as "verified."
+
+If you submit a proposal via script without posting this message, the dapp will show it as **"⚠ Unverified"**—the proposal works fine, but the dapp can't display what it does.
+
+**The chat message format:**
+```
+<<<PROPOSAL_DATA
+{"type":"PROPOSAL","description":"...","op":0,"to":"...","value":"...","data":"...","nonce":"..."}
+PROPOSAL_DATA>>>
+```
+
+The dapp parses this, recomputes the proposal ID, and matches it to verify the proposal's integrity.
+
+**Badge requirement:** Posting to the DAO chat requires a **badge**—an SBT (Soul-Bound Token) automatically minted to the top 256 shareholders. If you're not in the top 256, this step will fail (which is fine—your proposal still works).
+
+```javascript
+// Optional: Post proposal description to DAO chat
+const description = `Toggle ragequit from ${currentRagequit} to ${!currentRagequit}`;
+const proposalMessage = `<<<PROPOSAL_DATA
+${JSON.stringify({
+  type: 'PROPOSAL',
+  description,
+  op,
+  to,
+  value: value.toString(),
+  data,
+  nonce
+})}
+PROPOSAL_DATA>>>`;
+
+try {
+  const chatTx = await dao.chat(proposalMessage);
+  await chatTx.wait();
+  console.log('Proposal description posted to chat');
+} catch (e) {
+  // This fails if you don't have a badge (not in top 256 shareholders)
+  console.log('Could not post to chat (badge required):', e.reason || e.message);
+}
+```
+
+> **Note**: This step is optional. Your proposal will execute successfully either way—the chat message just helps the dapp display a nice description instead of "Unverified."
 
 ---
 
@@ -310,6 +296,8 @@ try {
 
 If you're the first voter, the proposal is now "Active". If you don't have enough voting power to meet the threshold, you'll get an error.
 
+> **Analogy**: Voting is like signing a petition. The first signature "opens" the petition (creates on-chain state). Your voting power equals your share balance at the snapshot block—a frozen moment in time that prevents manipulation.
+
 ---
 
 ## Step 7: Check If Executable
@@ -322,17 +310,9 @@ proposalState = await dao.state(proposalId);
 console.log(`\nProposal state after voting: ${STATE_NAMES[Number(proposalState)]}`);
 ```
 
-The proposal state machine:
+For a refresher on proposal states, see [Tutorial 2](0-to-hero-2.md#step-7-find-active-unvoted-proposals).
 
-| State | Value | Meaning |
-|-------|-------|---------|
-| Unopened | 0 | Not yet voted on |
-| Active | 1 | Voting in progress |
-| Queued | 2 | Passed, waiting for timelock |
-| Succeeded | 3 | Ready to execute |
-| Defeated | 4 | Failed (more AGAINST than FOR, or quorum not met) |
-| Expired | 5 | TTL passed without enough votes |
-| Executed | 6 | Already executed |
+> **Analogy**: Think of proposals like bills in a legislature: Unopened (not yet introduced), Active (floor debate), Queued (waiting period), Succeeded (approved), Defeated (rejected), Expired (ran out of time), Executed (now law).
 
 ---
 
@@ -373,6 +353,8 @@ if (proposalState === 3n) {  // Succeeded
 2. The proposal state is Succeeded
 3. Any timelock has passed
 
+> **Analogy**: Execution is the DAO "doing" what it voted on. Since we used CALL, the DAO calls `setRagequittable` on itself—like sending yourself a formal letter that you then act on. The contract's `onlyDAO` check passes because the DAO is the one making the call.
+
 ---
 
 ## Complete Script
@@ -381,6 +363,8 @@ if (proposalState === 3n) {  // Succeeded
 // toggle-ragequit.js
 import 'dotenv/config';
 import { ethers } from 'ethers';
+import Moloch from './Moloch.json' with { type: 'json' };
+import MolochViewHelper from './MolochViewHelper.json' with { type: 'json' };
 
 // Helper function to validate required environment variables
 const requireEnv = (key) => {
@@ -397,9 +381,6 @@ const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
 const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 
-const VIEW_HELPER_ABI = [/* ... from above ... */];
-const MOLOCH_ABI = [/* ... from above ... */];
-
 const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
 
 // Setup provider and wallet
@@ -408,8 +389,8 @@ const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 console.log('Connected to Sepolia');
 console.log(`Wallet: ${wallet.address}\n`);
 
-const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-const dao = new ethers.Contract(DAO_ADDRESS, MOLOCH_ABI, wallet);
+const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, MolochViewHelper.abi, provider);
+const dao = new ethers.Contract(DAO_ADDRESS, Moloch.abi, wallet);
 
 // Get current state
 const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 0, 0, 0, []);
@@ -417,7 +398,7 @@ const currentRagequit = state.gov.ragequittable;
 console.log(`Current ragequit: ${currentRagequit} -> toggling to: ${!currentRagequit}\n`);
 
 // Encode the governance call
-const iface = new ethers.Interface(MOLOCH_ABI);
+const iface = new ethers.Interface(Moloch.abi);
 const data = iface.encodeFunctionData('setRagequittable', [!currentRagequit]);
 
 // Proposal parameters
@@ -435,6 +416,20 @@ const proposalId = ethers.keccak256(
   )
 );
 console.log(`Proposal ID: ${proposalId}`);
+
+// Optional: Post proposal description to chat (requires badge)
+const description = `Toggle ragequit from ${currentRagequit} to ${!currentRagequit}`;
+const proposalMessage = `<<<PROPOSAL_DATA
+${JSON.stringify({ type: 'PROPOSAL', description, op, to, value: value.toString(), data, nonce })}
+PROPOSAL_DATA>>>`;
+
+try {
+  const chatTx = await dao.chat(proposalMessage);
+  await chatTx.wait();
+  console.log('Proposal posted to chat');
+} catch (e) {
+  console.log('Chat post skipped (badge required)');
+}
 
 // Cast vote
 console.log('Casting vote FOR...');
@@ -477,11 +472,9 @@ Wallet: 0x...
 Current ragequit: true -> toggling to: false
 
 Proposal ID: 0x1234...
+Proposal posted to chat       (or "Chat post skipped" if no badge)
 Casting vote FOR...
 Vote cast! Tx: 0xabcd...
-State: Active
-
-(If you have enough votes to pass immediately)
 State: Succeeded
 Executing...
 Executed! Tx: 0xefgh...

@@ -251,9 +251,6 @@ Total proposals: 3
 ## Step 7: Find Active Unvoted Proposals
 
 ```javascript
-// Proposal states
-const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
-
 // Understanding proposal states:
 // - Unopened (0): A proposal ID that can be computed deterministically from parameters
 //   (op, to, value, data, nonce, config) but hasn't been opened yet. Proposal IDs are
@@ -306,7 +303,15 @@ Notice we compare `proposal.state === 1n`. The `n` suffix indicates a BigInt, wh
 
 ## Step 8: Check for Claimable Futarchy Rewards
 
-Futarchy is a prediction market on proposals. When you vote, you receive "receipt" tokens. If your side wins, you can burn those receipts to claim a share of the reward pool.
+**What is Futarchy?** Futarchy (as implemented in Majeur) is a prediction market mechanism where voters receive "receipt" tokens when they vote on a proposal. When the proposal resolves (either by passing or being defeated), the winning side's receipt holders can burn their receipts to claim a proportional share of the reward pool.
+
+Here's how it works:
+1. **When you vote**: You automatically receive receipt tokens equal to your voting weight (your share balance at the proposal's snapshot block). If you vote FOR, you get FOR receipts. If you vote AGAINST, you get AGAINST receipts.
+2. **Reward pool**: A pool of tokens is set aside for futarchy rewards (this can be ETH, DAO shares, loot, or another ERC20 token).
+3. **Resolution**: When the proposal passes (executes) or is defeated/expires, the futarchy resolves. If FOR wins (proposal passes), only FOR receipts can be redeemed. If AGAINST wins (proposal is defeated), only AGAINST receipts can be redeemed.
+4. **Claiming**: Winners can burn their receipts to claim a proportional share: `payout = (yourReceipts / totalWinningReceipts) × rewardPool`
+
+**Receipt tokens** are ERC-6909 multi-tokens. Each unique receipt token ID is computed deterministically from the proposal ID and vote side using: `keccak256("Moloch:receipt" + proposalId + support)`, where `support` is 0 (Against), 1 (For), or 2 (Abstain).
 
 ```javascript
 // Check for claimable futarchy rewards
@@ -317,32 +322,56 @@ let hasClaimableRewards = false;
 for (const proposal of state.proposals) {
   const futarchy = proposal.futarchy;
 
-  // Only check proposals with resolved futarchy
+  // Skip proposals that don't have futarchy enabled or haven't resolved yet
+  // - futarchy.enabled: true if this proposal has a reward pool
+  // - futarchy.resolved: true if the proposal outcome has been determined
+  //   (either passed and executed, or defeated/expired)
   if (!futarchy.enabled || !futarchy.resolved) {
     continue;
   }
 
-  // The winner is 0 (Against won) or 1 (For won)
+  // The winner field is set when futarchy resolves:
+  // - winner === 1 means FOR side won (proposal passed/executed)
+  // - winner === 0 means AGAINST side won (proposal was defeated or expired)
   const winner = futarchy.winner;
   const winnerSide = winner === 1 ? 'FOR' : 'AGAINST';
 
-  // Compute the receipt ID for the winning side
-  // Formula: keccak256(abi.encodePacked("Moloch:receipt", proposalId, winner))
+  // Compute the receipt token ID for the winning side
+  // The contract uses this exact formula to generate receipt IDs when you vote:
+  // keccak256(abi.encodePacked("Moloch:receipt", proposalId, support))
+  //
+  // Since we only care about the winning side, we use the winner value (0 or 1)
+  // as the support parameter. This gives us the token ID for the winning receipts.
+  //
+  // ethers.solidityPacked mimics Solidity's abi.encodePacked - it concatenates
+  // the values tightly without padding, exactly as Solidity does for keccak256.
   const receiptId = ethers.keccak256(
     ethers.solidityPacked(
-      ['string', 'uint256', 'uint8'],
+      ['string', 'uint256', 'uint8'],  // Types: string, uint256 (proposal id), uint8 (winner: 0 or 1)
       ['Moloch:receipt', proposal.id, winner]
     )
   );
 
-  // Check if user has any winning receipts
+  // Check if your wallet holds any receipts for the winning side
+  // balanceOf(address, tokenId) is the ERC-6909 function to check token balance
+  // If you voted on the winning side, you'll have a balance > 0
   const receiptBalance = await dao.balanceOf(wallet.address, receiptId);
 
   if (receiptBalance > 0n) {
     hasClaimableRewards = true;
 
-    // Calculate expected payout
-    // payoutPerUnit is scaled by 1e18
+    // Calculate your expected payout from the reward pool
+    //
+    // payoutPerUnit is pre-calculated when futarchy resolves as:
+    //   payoutPerUnit = (rewardPool × 1e18) / totalWinningReceiptSupply
+    //
+    // It's stored scaled by 1e18 to maintain precision. So to get your payout:
+    //   yourPayout = (yourReceiptBalance × payoutPerUnit) / 1e18
+    //
+    // Example: If the pool has 1000 tokens, total winning receipts are 5000,
+    //          and you have 100 receipts:
+    //          payoutPerUnit = (1000 × 1e18) / 5000 = 200000000000000000 (0.2 × 1e18)
+    //          yourPayout = (100 × 200000000000000000) / 1e18 = 20 tokens
     const expectedPayout = (receiptBalance * futarchy.payoutPerUnit) / BigInt(1e18);
 
     console.log(`Proposal ${proposal.id}:`);
@@ -352,7 +381,14 @@ for (const proposal of state.proposals) {
     console.log(`  Reward token: ${futarchy.rewardToken}\n`);
 ```
 
-**Receipt tokens** are ERC-6909 multi-tokens. Each proposal+vote combination has a unique token ID. When futarchy resolves, only the winning side's receipts are redeemable.
+To test the functionality until now, add two curly brackets at the end `} }`, otherwise continue to the next step.
+
+**Key points about receipt tokens:**
+- Receipts are minted automatically when you vote (you don't need to do anything special)
+- The receipt amount equals your voting weight (your share balance at the proposal's snapshot block)
+- Receipts are non-transferable (SBTs - Soul Bound Tokens) to prevent gaming
+- Only the winning side's receipts can be redeemed after resolution
+- If you voted on the losing side, your receipts become worthless (but don't need to be burned)
 
 ---
 
@@ -395,7 +431,6 @@ import { ethers } from 'ethers';
 import Moloch from './Moloch.json' with { type: 'json' };
 import MolochViewHelper from './MolochViewHelper.json' with { type: 'json' };
 
-// Helper function to validate required environment variables
 const requireEnv = (key) => {
   const value = process.env[key];
   if (!value) {
@@ -410,8 +445,6 @@ const PRIVATE_KEY = requireEnv('PRIVATE_KEY');
 const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 
-const STATE_NAMES = ['Unopened', 'Active', 'Queued', 'Succeeded', 'Defeated', 'Expired', 'Executed'];
-
 // Setup provider and wallet
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
@@ -423,7 +456,14 @@ const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, MolochViewHelper.abi
 const dao = new ethers.Contract(DAO_ADDRESS, Moloch.abi, wallet);
 
 // Fetch DAO state
-const state = await viewHelper.getDAOFullState(DAO_ADDRESS, 0, 1000, 0, 1000, []);
+const state = await viewHelper.getDAOFullState(
+  DAO_ADDRESS,
+  0,      // proposalStart
+  1000,   // proposalCount
+  0,      // messageStart
+  1000,   // messageCount
+  []      // treasuryTokens
+);
 
 console.log(`DAO: ${state.meta.name} (${state.meta.symbol})`);
 console.log(`Ragequit enabled: ${state.gov.ragequittable}`);
@@ -431,7 +471,8 @@ console.log(`Total proposals: ${state.proposals.length}\n`);
 
 // Find active proposals you haven't voted on
 console.log("=== Active Proposals You Haven't Voted On ===\n");
-let unvotedCount = 0;
+
+const unvotedProposals = [];
 
 for (const proposal of state.proposals) {
   const userVote = proposal.voters.find(
@@ -441,66 +482,70 @@ for (const proposal of state.proposals) {
   const isVoteable = proposal.state === 1n;
 
   if (!userVote && isVoteable) {
-    unvotedCount++;
-    console.log(`Proposal ${proposal.id}`);
-    console.log(`  For: ${ethers.formatUnits(proposal.forVotes, 18)}, Against: ${ethers.formatUnits(proposal.againstVotes, 18)}\n`);
+    unvotedProposals.push(proposal);
+
+    console.log(`Proposal ID: ${proposal.id}`);
+    console.log(`  Votes - For: ${ethers.formatUnits(proposal.forVotes, 18)}, Against: ${ethers.formatUnits(proposal.againstVotes, 18)}`);
+    console.log(`  Created: ${new Date(Number(proposal.createdAt) * 1000).toISOString()}\n`);
   }
 }
 
-if (unvotedCount === 0) console.log("No active proposals need your vote!\n");
+if (unvotedProposals.length === 0) {
+  console.log("No active proposals need your vote!\n");
+}
 
 // Check futarchy rewards
 console.log('=== Checking Futarchy Rewards ===\n');
-let claimed = false;
+
+let hasClaimableRewards = false;
 
 for (const proposal of state.proposals) {
-  if (!proposal.futarchy.enabled || !proposal.futarchy.resolved) continue;
+  const futarchy = proposal.futarchy;
 
-  const winner = proposal.futarchy.winner;
+  if (!futarchy.enabled || !futarchy.resolved) {
+    continue;
+  }
+
+  const winner = futarchy.winner;
+  const winnerSide = winner === 1 ? 'FOR' : 'AGAINST';
+
   const receiptId = ethers.keccak256(
-    ethers.solidityPacked(['string', 'uint256', 'uint8'], ['Moloch:receipt', proposal.id, winner])
+    ethers.solidityPacked(
+      ['string', 'uint256', 'uint8'],
+      ['Moloch:receipt', proposal.id, winner]
+    )
   );
 
-  const balance = await dao.balanceOf(wallet.address, receiptId);
-  if (balance > 0n) {
-    claimed = true;
-    const payout = (balance * proposal.futarchy.payoutPerUnit) / BigInt(1e18);
-    console.log(`Claiming from proposal ${proposal.id}: ${ethers.formatUnits(payout, 18)} tokens`);
+  const receiptBalance = await dao.balanceOf(wallet.address, receiptId);
 
-    const tx = await dao.cashOutFutarchy(proposal.id, balance);
-    await tx.wait();
-    console.log(`Claimed! Tx: ${tx.hash}\n`);
+  if (receiptBalance > 0n) {
+    hasClaimableRewards = true;
+
+    const expectedPayout = (receiptBalance * futarchy.payoutPerUnit) / BigInt(1e18);
+
+    console.log(`Proposal ${proposal.id}:`);
+    console.log(`  Winner: ${winnerSide}`);
+    console.log(`  Your receipts: ${ethers.formatUnits(receiptBalance, 18)}`);
+    console.log(`  Expected payout: ${ethers.formatUnits(expectedPayout, 18)} tokens`);
+    console.log(`  Reward token: ${futarchy.rewardToken}\n`);
+
+    console.log('  Claiming rewards...');
+
+    try {
+      const tx = await dao.cashOutFutarchy(proposal.id, receiptBalance);
+      console.log(`  Transaction sent: ${tx.hash}`);
+
+      const receipt = await tx.wait();
+      console.log(`  Confirmed in block ${receipt.blockNumber}\n`);
+    } catch (error) {
+      console.log(`  Error claiming: ${error.message}\n`);
+    }
   }
 }
 
-if (!claimed) console.log('No claimable rewards.\n');
-```
-
----
-
-## Run It
-
-```bash
-node check-proposals.js
-```
-
-Expected output:
-```
-Connected to Sepolia
-Wallet: 0x...
-
-DAO: Elite Coders Union (1337)
-Ragequit enabled: true
-Total proposals: 3
-
-=== Active Proposals You Haven't Voted On ===
-
-Proposal 1234...
-  For: 100.0, Against: 50.0
-
-=== Checking Futarchy Rewards ===
-
-No claimable rewards.
+if (!hasClaimableRewards) {
+  console.log('No claimable futarchy rewards found.\n');
+}
 ```
 
 ---
