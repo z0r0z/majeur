@@ -8,7 +8,16 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src *;">
+    <!-- CSP applied via JavaScript to avoid browser preload scanner issue with template literals -->
+    <script>
+      // Apply CSP after parsing to avoid preload scanner treating template literals as URLs
+      document.addEventListener('DOMContentLoaded', function() {
+        const csp = document.createElement('meta');
+        csp.httpEquiv = 'Content-Security-Policy';
+        csp.content = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data: blob:; connect-src *;";
+        document.head.appendChild(csp);
+      });
+    </script>
     <meta name="theme-color" content="#0a0015" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js" integrity="sha512-UXYETj+vXKSURF1UlgVRLzWRS9ZiQTv3lcL4rbeLyqTXCPNZC6PTLF/Ik3uxm2Zo+E109cUpJPZfLxJsCgKSng==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.10.0/dist/index.umd.js" integrity="sha384-ACTo60vL1/AfeYkCCXRvB1G0ugjHF0/SHU9YN7e4/KH/mitAIYpLcw5PKXW/+ekM" crossorigin="anonymous"></script>
@@ -9650,7 +9659,7 @@
 
     <!-- Emblem Hover Popup -->
     <div id="emblemHoverPopup" class="emblem-hover-popup">
-      <img id="emblemHoverImage" src="" alt="DAO Emblem" style="display: none;" />
+      <img id="emblemHoverImage" alt="DAO Emblem" style="display: none;" />
       <div id="emblemHoverName" class="emblem-hover-name"></div>
       <div id="emblemHoverDescription" class="emblem-hover-description"></div>
       <div id="emblemHoverAttributes" class="emblem-hover-attributes"></div>
@@ -23480,6 +23489,11 @@
           // Render badge (convert IPFS URLs to gateway URLs)
           let imageHTML = '';
           if (metadata.image) {
+            // DEBUG: Log metadata.image to trace malformed URLs
+            console.log('[renderBadge] metadata.image:', metadata.image?.substring(0, 100));
+            if (metadata.image && metadata.image.includes('${')) {
+              console.error('[renderBadge] WARNING: metadata.image contains uninterpolated template:', metadata.image);
+            }
             const imageUrl = toGatewayUrl(metadata.image);
             imageHTML = `<img src="${imageUrl}" class="badge-image" alt="Badge #${seatId}" />`;
           }
