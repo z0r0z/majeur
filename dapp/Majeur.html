@@ -10883,6 +10883,99 @@
       // Current network (auto-detected from wallet, or defaults to ethereum)
       let currentNetwork = 'ethereum';
 
+      // ==================== TOKEN LIST ====================
+      const TOKEN_LIST_URLS = [
+        'https://tokens.1inch.eth.limo/',
+        'https://ipfs.io/ipns/tokens.uniswap.org',
+        'https://tokenlist.aave.eth.limo/',
+        'https://tokenlist.zerion.eth.limo/'
+      ];
+
+      // Default treasury token symbols per chain (looked up from token list)
+      const DEFAULT_TREASURY_SYMBOLS = {
+        1: ['ETH', 'WETH', 'USDC', 'USDT', 'USDS', 'USDe', 'DAI', 'rETH', 'wstETH'],           // Ethereum
+        8453: ['ETH', 'WETH', 'USDC', 'USDz', 'USDS', 'USDe', 'EURC', 'cbBTC'],                // Base
+        42161: ['ETH', 'WETH', 'USDC', 'USDT', 'USDS', 'sUSDS', 'USDe', 'WBTC', 'ARB'],        // Arbitrum
+        11155111: ['ETH', 'WETH', 'USDC', 'USDT', 'LINK']                                       // Sepolia (testnet)
+      };
+
+      // Map testnet token addresses to mainnet equivalents for icon lookup
+      const TESTNET_ICON_MAP = {
+        // Sepolia (chainId 11155111) -> Mainnet (chainId 1)
+        11155111: {
+          '0x779877a7b0d9e8603169ddbd7836e478b4624789': { mainnet: '0x514910771af9ca656af840dff83e8264ecf986ca', chainId: 1 }, // LINK
+          '0x7b79995e5f793a07bc00c21412e50ecae098e7f9': { mainnet: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', chainId: 1 }, // WETH
+          '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9': { mainnet: '0x6c3ea9036406852006290770bedfcaba0e23a0e8', chainId: 1 }, // PYUSD
+          '0xaa8e23fb1079ea71e0a56f48a2aa51851d8433d0': { mainnet: '0xdac17f958d2ee523a2206206994597c13d831ec7', chainId: 1 }, // USDT
+          '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238': { mainnet: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', chainId: 1 }, // USDC
+          '0x08210f9170f89ab7658f0b5e3ff39b0e03c594d4': { mainnet: '0x1abaea1f7c830bd89acc67ec4af516284b1bc33c', chainId: 1 }, // EURC
+        }
+      };
+
+      let tokenListCache = {
+        loaded: false,
+        loading: false,
+        byChain: {},      // chainId -> { addressLower -> logoURI }
+        bySymbol: {}      // chainId -> { symbolLower -> { address, decimals, logoURI } }
+      };
+
+      async function fetchTokenList() {
+        if (tokenListCache.loaded || tokenListCache.loading) return;
+        tokenListCache.loading = true;
+
+        for (const url of TOKEN_LIST_URLS) {
+          try {
+            const response = await fetch(url);
+            if (!response.ok) continue;
+            const data = await response.json();
+
+            for (const token of data.tokens) {
+              const chainId = token.chainId;
+              const addrLower = token.address.toLowerCase();
+              const symbolLower = token.symbol.toLowerCase();
+
+              // Index by address
+              if (!tokenListCache.byChain[chainId]) {
+                tokenListCache.byChain[chainId] = {};
+              }
+              tokenListCache.byChain[chainId][addrLower] = token.logoURI;
+
+              // Index by symbol (first occurrence wins - most common tokens listed first)
+              if (!tokenListCache.bySymbol[chainId]) {
+                tokenListCache.bySymbol[chainId] = {};
+              }
+              if (!tokenListCache.bySymbol[chainId][symbolLower]) {
+                tokenListCache.bySymbol[chainId][symbolLower] = {
+                  address: addrLower,
+                  decimals: token.decimals,
+                  logoURI: token.logoURI
+                };
+              }
+            }
+
+            tokenListCache.loaded = true;
+            break;
+          } catch (error) {
+            console.warn(`Failed to fetch token list from ${url}:`, error.message);
+          }
+        }
+
+        tokenListCache.loading = false;
+      }
+
+      // Get token info by symbol from token list cache
+      function getTokenBySymbol(symbol, chainId) {
+        const symbolLower = symbol.toLowerCase();
+        const chainCache = tokenListCache.bySymbol[chainId];
+        if (chainCache && chainCache[symbolLower]) {
+          return chainCache[symbolLower];
+        }
+        return null;
+      }
+
+      // Pre-fetch token list in background on page load
+      document.addEventListener('DOMContentLoaded', fetchTokenList);
+
       function getNetwork() {
         return NETWORKS[currentNetwork];
       }
@@ -11199,39 +11292,30 @@
         return result;
       }
 
-      // Get icon for a token address
-      // Get icon for token by symbol - maps known symbols to their icons
-      function getTokenIconBySymbol(symbol) {
-        if (!symbol) return TOKEN_ICONS.defaultCoin;
-        const sym = symbol.toLowerCase();
-
-        // Map symbols to icons (includes aliases)
-        if (sym === 'eth' || sym === 'weth') return TOKEN_ICONS.eth;
-        if (sym === 'usdc') return TOKEN_ICONS.usdc;
-        if (sym === 'usdt') return TOKEN_ICONS.usdt;
-        if (sym === 'dai') return TOKEN_ICONS.dai;
-        if (sym === 'wsteth' || sym === 'steth') return TOKEN_ICONS.wsteth;
-        if (sym === 'reth') return TOKEN_ICONS.reth;
-
-        return TOKEN_ICONS.defaultCoin;
-      }
-
-      // Get icon for token by address and/or symbol
-      function getTokenIcon(address, symbol = null) {
-        // If symbol provided, try that first
-        if (symbol) {
-          const iconBySymbol = getTokenIconBySymbol(symbol);
-          if (iconBySymbol !== TOKEN_ICONS.defaultCoin) return iconBySymbol;
-        }
-
+      // Get icon for token - returns HTML string (SVG or img tag)
+      function getTokenIcon(address) {
         const addr = address?.toLowerCase();
+
+        // ETH (zero address) always uses inline SVG
         if (!addr || addr === ethers.ZeroAddress.toLowerCase()) return TOKEN_ICONS.eth;
 
-        // Try to get symbol from network token metadata
         const network = getNetwork();
-        const meta = network.tokenMeta[address] || network.tokenMeta[addr];
-        if (meta) {
-          return getTokenIconBySymbol(meta.symbol);
+        const chainId = Number(network.chainId);
+
+        // For testnet tokens, try to find mainnet equivalent for icon
+        let lookupAddr = addr;
+        let lookupChainId = chainId;
+        const testnetMap = TESTNET_ICON_MAP[chainId];
+        if (testnetMap && testnetMap[addr]) {
+          lookupAddr = testnetMap[addr].mainnet;
+          lookupChainId = testnetMap[addr].chainId;
+        }
+
+        // Try token list cache
+        const chainCache = tokenListCache.byChain[lookupChainId];
+        if (chainCache && chainCache[lookupAddr]) {
+          const logoURI = chainCache[lookupAddr];
+          return `<img src="${logoURI}" style="width:100%;height:100%;border-radius:50%;" onerror="this.outerHTML='${escapeHtml(TOKEN_ICONS.defaultCoin)}'">`;
         }
 
         return TOKEN_ICONS.defaultCoin;
@@ -11261,17 +11345,29 @@
       // Get all supported tokens including ETH for current network
       function getNetworkTokens() {
         const network = getNetwork();
+        const chainId = Number(network.chainId);
+        const symbols = DEFAULT_TREASURY_SYMBOLS[chainId] || ['ETH'];
         const result = [];
 
-        for (const tokenAddr of network.treasuryTokens) {
-          const meta = network.tokenMeta[tokenAddr];
-          if (meta) {
+        for (const symbol of symbols) {
+          if (symbol.toUpperCase() === 'ETH') {
             result.push({
-              address: tokenAddr,
-              symbol: meta.symbol,
-              decimals: meta.decimals,
-              icon: getTokenIconBySymbol(meta.symbol)
+              address: ethers.ZeroAddress,
+              symbol: 'ETH',
+              decimals: 18,
+              icon: getTokenIcon(ethers.ZeroAddress)
             });
+          } else {
+            // Look up from token list cache
+            const tokenInfo = getTokenBySymbol(symbol, chainId);
+            if (tokenInfo) {
+              result.push({
+                address: tokenInfo.address,
+                symbol: symbol,
+                decimals: tokenInfo.decimals,
+                icon: getTokenIcon(tokenInfo.address)
+              });
+            }
           }
         }
 
@@ -11283,14 +11379,14 @@
         // Priority: DAO metadata treasury_tokens, else network hardcoded
         if (currentDAOMetadata?.treasury_tokens?.length > 0) {
           const tokens = [
-            { address: ethers.ZeroAddress, symbol: 'ETH', decimals: 18, icon: getTokenIconBySymbol('ETH') }
+            { address: ethers.ZeroAddress, symbol: 'ETH', decimals: 18, icon: getTokenIcon(ethers.ZeroAddress) }
           ];
           for (const t of currentDAOMetadata.treasury_tokens) {
             tokens.push({
               address: t.address,
               symbol: t.symbol,
               decimals: t.decimals || 18,
-              icon: getTokenIconBySymbol(t.symbol),
+              icon: getTokenIcon(t.address),
               fromMetadata: true
             });
           }
@@ -13681,7 +13777,7 @@
                 address: customToken.address,
                 balance: balance,
                 decimals: customToken.decimals,
-                icon: getTokenIconBySymbol(customToken.symbol),
+                icon: getTokenIcon(customToken.address),
                 isCustomSale: true
               });
             } catch (error) {
@@ -14245,7 +14341,7 @@
         // Add custom sale tokens
         if (customSaleTokens.length > 0) {
           for (const customToken of customSaleTokens) {
-            const tokenIcon = getTokenIconBySymbol(customToken.symbol);
+            const tokenIcon = getTokenIcon(customToken.address);
             depositAssets.push({
               symbol: customToken.symbol,
               address: customToken.address,
@@ -14590,8 +14686,8 @@
         // Prioritize Shares and Loot at the top
         const daoMeta = currentDAO.dao.meta;
         const priorityAssets = [
-          { symbol: 'Shares', address: daoMeta.sharesToken, decimals: 18, icon: getTokenIconBySymbol('Shares'), isGovernanceToken: true },
-          { symbol: 'Loot', address: daoMeta.lootToken, decimals: 18, icon: getTokenIconBySymbol('Loot'), isGovernanceToken: true }
+          { symbol: 'Shares', address: daoMeta.sharesToken, decimals: 18, icon: getTokenIcon(daoMeta.sharesToken), isGovernanceToken: true },
+          { symbol: 'Loot', address: daoMeta.lootToken, decimals: 18, icon: getTokenIcon(daoMeta.lootToken), isGovernanceToken: true }
         ];
 
         for (const asset of priorityAssets) {
@@ -15578,7 +15674,7 @@
         daoGallery.classList.add('show');
       }
 
-      // Token SVG icons
+      // Token SVG icons - only ETH and default, others fetched from Uniswap token list
       const TOKEN_ICONS = {
         eth: `<svg viewBox="0 0 32 32" version="1.1" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
           <style type="text/css">
@@ -15605,57 +15701,6 @@
             <path class="st17" d="M16.01,22c-0.09,0-0.18-0.03-0.27-0.08l-8.39-5.27c-0.23-0.14-0.3-0.44-0.17-0.67l8.39-14.73c0.18-0.31,0.69-0.31,0.87,0l8.36,14.68c0.13,0.23,0.06,0.53-0.17,0.67l-8.36,5.32C16.2,21.97,16.11,22,16.01,22z M8.3,16.06l7.71,4.85l7.69-4.89L16.01,2.51L8.3,16.06z"/>
           </g>
         </svg>`,
-        usdc: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <g fill="none">
-            <circle fill="#3E73C4" cx="16" cy="16" r="16"/>
-            <g fill="#FFF">
-              <path d="M20.022 18.124c0-2.124-1.28-2.852-3.84-3.156-1.828-.243-2.193-.728-2.193-1.578 0-.85.61-1.396 1.828-1.396 1.097 0 1.707.364 2.011 1.275a.458.458 0 00.427.303h.975a.416.416 0 00.427-.425v-.06a3.04 3.04 0 00-2.743-2.489V9.142c0-.243-.183-.425-.487-.486h-.915c-.243 0-.426.182-.487.486v1.396c-1.829.242-2.986 1.456-2.986 2.974 0 2.002 1.218 2.791 3.778 3.095 1.707.303 2.255.668 2.255 1.639 0 .97-.853 1.638-2.011 1.638-1.585 0-2.133-.667-2.316-1.578-.06-.242-.244-.364-.427-.364h-1.036a.416.416 0 00-.426.425v.06c.243 1.518 1.219 2.61 3.23 2.914v1.457c0 .242.183.425.487.485h.915c.243 0 .426-.182.487-.485V21.34c1.829-.303 3.047-1.578 3.047-3.217z"/>
-              <path d="M12.892 24.497c-4.754-1.7-7.192-6.98-5.424-11.653.914-2.55 2.925-4.491 5.424-5.402.244-.121.365-.303.365-.607v-.85c0-.242-.121-.424-.365-.485-.061 0-.183 0-.244.06a10.895 10.895 0 00-7.13 13.717c1.096 3.4 3.717 6.01 7.13 7.102.244.121.488 0 .548-.243.061-.06.061-.122.061-.243v-.85c0-.182-.182-.424-.365-.546zm6.46-18.936c-.244-.122-.488 0-.548.242-.061.061-.061.122-.061.243v.85c0 .243.182.485.365.607 4.754 1.7 7.192 6.98 5.424 11.653-.914 2.55-2.925 4.491-5.424 5.402-.244.121-.365.303-.365.607v.85c0 .242.121.424.365.485.061 0 .183 0 .244-.06a10.895 10.895 0 007.13-13.717c-1.096-3.46-3.778-6.07-7.13-7.162z"/>
-            </g>
-          </g>
-        </svg>`,
-        usdt: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <g fill="none" fill-rule="evenodd">
-            <circle cx="16" cy="16" r="16" fill="#26A17B"/>
-            <path fill="#FFF" d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118 0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116 0-1.043-3.301-1.914-7.694-2.117"/>
-          </g>
-        </svg>`,
-        dai: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <g fill="none" fill-rule="evenodd">
-            <circle fill="#F4B731" fill-rule="nonzero" cx="16" cy="16" r="16"/>
-            <path d="M9.277 8h6.552c3.985 0 7.006 2.116 8.13 5.194H26v1.861h-1.611c.031.294.047.594.047.898v.046c0 .342-.02.68-.06 1.01H26v1.86h-2.08C22.767 21.905 19.77 24 15.83 24H9.277v-5.131H7v-1.86h2.277v-1.954H7v-1.86h2.277V8zm1.831 10.869v3.462h4.72c2.914 0 5.078-1.387 6.085-3.462H11.108zm11.366-1.86H11.108v-1.954h11.37c.041.307.063.622.063.944v.045c0 .329-.023.65-.067.964zM15.83 9.665c2.926 0 5.097 1.424 6.098 3.528h-10.82V9.666h4.72z" fill="#FFF"/>
-          </g>
-        </svg>`,
-        wsteth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <g fill="none">
-            <circle fill="#00A3FF" cx="16" cy="16" r="16"/>
-            <path d="M9.437 14.864l-.181.275c-2.048 3.097-1.603 7.253 1.034 9.824 1.561 1.521 3.622 2.353 5.683 2.353 0 0 0 0-6.536-12.452z" fill="#FFF"/>
-            <path opacity=".6" d="M15.997 18.611l-6.56-3.747c6.56 12.452 6.56 12.452 6.56 12.452 0-2.683 0-5.623 0-8.705z" fill="#FFF"/>
-            <path opacity=".6" d="M22.563 14.864l.181.275c2.048 3.097 1.603 7.253-1.034 9.824-1.561 1.521-3.622 2.353-5.683 2.353 0 0 0 0 6.536-12.452z" fill="#FFF"/>
-            <path opacity=".2" d="M16.003 18.611l6.56-3.747c-6.56 12.452-6.56 12.452-6.56 12.452 0-2.683 0-5.623 0-8.705z" fill="#FFF"/>
-            <path opacity=".2" d="M16.004 10.239v6.459l5.654-3.23-5.654-3.229z" fill="#FFF"/>
-            <path opacity=".6" d="M16.005 10.239l-5.655 3.229 5.655 3.23v-6.46z" fill="#FFF"/>
-            <path d="M16.005 4.805l-5.655 8.668 5.655-3.233V4.805z" fill="#FFF"/>
-            <path opacity=".6" d="M16.004 10.238l5.658 3.23-5.658-8.674v5.444z" fill="#FFF"/>
-          </g>
-        </svg>`,
-        reth: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:#FFAA6B;stop-opacity:1"/>
-              <stop offset="100%" style="stop-color:#FF8A5B;stop-opacity:1"/>
-            </linearGradient>
-          </defs>
-          <circle cx="100" cy="100" r="95" fill="#FFC93D"/>
-          <circle cx="100" cy="100" r="88" fill="#FF6B6B"/>
-          <circle cx="100" cy="100" r="82" fill="url(#bgGradient)"/>
-          <g transform="translate(100, 100) rotate(45)">
-            <path d="M -8 -25 C -8 -30, -5 -35, 0 -35 C 5 -35, 8 -30, 8 -25 L 8 -5 L 18 5 L 18 15 L 8 10 L 8 20 L 0 25 L -8 20 L -8 10 L -18 15 L -18 5 L -8 -5 Z" fill="white"/>
-            <circle cx="0" cy="-20" r="4" fill="#FF8A5B"/>
-            <path d="M -6 20 L -9 35 L -3 30 L 0 38 L 3 30 L 9 35 L 6 20 Z" fill="white"/>
-          </g>
-        </svg>`,
-        // Default coin icon for custom tokens
         defaultCoin: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
           <circle cx="16" cy="16" r="15" fill="none" stroke="#9d7bff" stroke-width="2"/>
           <circle cx="16" cy="16" r="10" fill="none" stroke="#9d7bff" stroke-width="1.5" opacity="0.4"/>
@@ -16435,7 +16480,7 @@
             balance: ethBalance,
             symbol: 'ETH',
             decimals: 18,
-            icon: getTokenIconBySymbol('ETH')
+            icon: getTokenIcon(ethers.ZeroAddress)
           });
         } catch (error) {
           logger.error('Error fetching ETH balance:', error);
@@ -16444,7 +16489,7 @@
             balance: 0n,
             symbol: 'ETH',
             decimals: 18,
-            icon: getTokenIconBySymbol('ETH')
+            icon: getTokenIcon(ethers.ZeroAddress)
           });
         }
 
@@ -16474,7 +16519,7 @@
               balance: balance,
               symbol: symbol,
               decimals: Number(decimals),
-              icon: getTokenIconBySymbol(symbol)
+              icon: getTokenIcon(tokenAddress)
             });
           } catch (error) {
             logger.error(`Error fetching balance for ${tokenInfo.symbol || tokenInfo.address}:`, error);
@@ -16484,7 +16529,7 @@
               balance: 0n,
               symbol: tokenInfo.symbol || '???',
               decimals: 18,
-              icon: getTokenIconBySymbol(tokenInfo.symbol)
+              icon: getTokenIcon(tokenInfo.address)
             });
           }
         }
@@ -16532,7 +16577,7 @@
                 symbol: customToken.symbol,
                 balance: balance,
                 decimals: customToken.decimals,
-                icon: getTokenIconBySymbol(customToken.symbol),
+                icon: getTokenIcon(customToken.address),
                 address: customToken.address,
                 isCustomSale: true
               });
@@ -16634,7 +16679,7 @@
               tribSymbol = await getTokenSymbol(tribute.tribTkn);
               tribDecimals = await getTokenDecimals(tribute.tribTkn);
             }
-            const tribIcon = getTokenIconBySymbol(tribSymbol);
+            const tribIcon = getTokenIcon(tribute.tribTkn);
 
             // Get token info for request
             let forSymbol = 'ETH';
@@ -16735,33 +16780,42 @@
       async function fetchTokenIcon(address, chainId) {
         const checksumAddr = ethers.getAddress(address);
         const cacheKey = `${chainId}-${checksumAddr}`;
+        const addr = address.toLowerCase();
 
         if (tokenIconCache.has(cacheKey)) {
           return tokenIconCache.get(cacheKey);
         }
 
-        // Map chainId to Trust Wallet chain name
-        const chainNames = {
-          1: 'ethereum',
-          8453: 'base',
-          42161: 'arbitrum',
-          11155111: 'ethereum' // Sepolia uses Ethereum icons
-        };
-        const chainName = chainNames[chainId] || 'ethereum';
+        // For testnet tokens, try to find mainnet equivalent for icon
+        let lookupAddr = addr;
+        let lookupChainId = chainId;
+        const testnetMap = TESTNET_ICON_MAP[chainId];
+        if (testnetMap && testnetMap[addr]) {
+          lookupAddr = testnetMap[addr].mainnet;
+          lookupChainId = testnetMap[addr].chainId;
+        }
 
-        // Try Trust Wallet assets
+        // Try token list cache first (already loaded, instant)
+        const chainCache = tokenListCache.byChain[lookupChainId];
+        if (chainCache?.[lookupAddr]) {
+          const iconHtml = `<img src="${chainCache[lookupAddr]}" style="width:100%;height:100%;border-radius:50%;" onerror="this.outerHTML='${escapeHtml(TOKEN_ICONS.defaultCoin)}'">`;
+          tokenIconCache.set(cacheKey, iconHtml);
+          return iconHtml;
+        }
+
+        // Fallback: try Trust Wallet assets (requires network request)
+        const chainNames = { 1: 'ethereum', 8453: 'base', 42161: 'arbitrum', 11155111: 'ethereum' };
+        const chainName = chainNames[chainId] || 'ethereum';
         const trustWalletUrl = `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${chainName}/assets/${checksumAddr}/logo.png`;
 
         try {
           const response = await fetch(trustWalletUrl, { method: 'HEAD' });
           if (response.ok) {
-            const iconHtml = `<img src="${trustWalletUrl}" style="width: 100%; height: 100%; border-radius: 50%;" onerror="this.outerHTML='${escapeHtml(getTokenIcon(address))}'">`;
+            const iconHtml = `<img src="${trustWalletUrl}" style="width:100%;height:100%;border-radius:50%;" onerror="this.outerHTML='${escapeHtml(TOKEN_ICONS.defaultCoin)}'">`;
             tokenIconCache.set(cacheKey, iconHtml);
             return iconHtml;
           }
-        } catch (e) {
-          // Silently fail, use fallback
-        }
+        } catch (e) { /* Silently fail */ }
 
         // Fallback to default icon
         const fallbackIcon = getTokenIcon(address);
@@ -22589,14 +22643,14 @@
 
           // Check allowances for all supported tokens (parallel queries)
           const tokens = [
-            { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18, icon: getTokenIconBySymbol('ETH') },
-            { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6, icon: getTokenIconBySymbol('USDC') },
-            { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6, icon: getTokenIconBySymbol('USDT') },
-            { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18, icon: getTokenIconBySymbol('DAI') },
-            { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18, icon: getTokenIconBySymbol('wstETH') },
-            { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18, icon: getTokenIconBySymbol('rETH') },
-            { symbol: 'Shares', address: currentDAO.dao.meta.sharesToken, decimals: 18, icon: getTokenIconBySymbol('Shares') },
-            { symbol: 'Loot', address: currentDAO.dao.meta.lootToken, decimals: 18, icon: getTokenIconBySymbol('Loot') }
+            { symbol: 'ETH', address: ethers.ZeroAddress, decimals: 18, icon: getTokenIcon(ethers.ZeroAddress) },
+            { symbol: 'USDC', address: TOKEN_ADDRESSES.usdc, decimals: 6, icon: getTokenIcon(TOKEN_ADDRESSES.usdc) },
+            { symbol: 'USDT', address: TOKEN_ADDRESSES.usdt, decimals: 6, icon: getTokenIcon(TOKEN_ADDRESSES.usdt) },
+            { symbol: 'DAI', address: TOKEN_ADDRESSES.dai, decimals: 18, icon: getTokenIcon(TOKEN_ADDRESSES.dai) },
+            { symbol: 'wstETH', address: TOKEN_ADDRESSES.wsteth, decimals: 18, icon: getTokenIcon(TOKEN_ADDRESSES.wsteth) },
+            { symbol: 'rETH', address: TOKEN_ADDRESSES.reth, decimals: 18, icon: getTokenIcon(TOKEN_ADDRESSES.reth) },
+            { symbol: 'Shares', address: currentDAO.dao.meta.sharesToken, decimals: 18, icon: getTokenIcon(currentDAO.dao.meta.sharesToken) },
+            { symbol: 'Loot', address: currentDAO.dao.meta.lootToken, decimals: 18, icon: getTokenIcon(currentDAO.dao.meta.lootToken) }
           ];
 
           // Fetch all allowances in parallel

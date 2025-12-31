@@ -6109,6 +6109,96 @@
             localStorage.setItem('daico_network', 'ethereum');
         }
 
+        // ==================== TOKEN LIST ====================
+        const TOKEN_LIST_URLS = [
+            'https://tokens.1inch.eth.limo/',
+            'https://ipfs.io/ipns/tokens.uniswap.org',
+            'https://tokenlist.aave.eth.limo/',
+            'https://tokenlist.zerion.eth.limo/'
+        ];
+
+        // Default treasury token symbols per chain (looked up from token list)
+        const DEFAULT_TREASURY_SYMBOLS = {
+            1: ['ETH', 'WETH', 'USDC', 'USDT', 'USDS', 'USDe', 'DAI', 'rETH', 'wstETH'],           // Ethereum
+            8453: ['ETH', 'WETH', 'USDC', 'USDz', 'USDS', 'USDe', 'EURC', 'cbBTC'],                // Base
+            42161: ['ETH', 'WETH', 'USDC', 'USDT', 'USDS', 'sUSDS', 'USDe', 'WBTC', 'ARB'],        // Arbitrum
+            11155111: ['ETH', 'WETH', 'USDC', 'USDT', 'LINK']                                       // Sepolia (testnet)
+        };
+
+        // Map testnet token addresses to mainnet equivalents for icon lookup
+        const TESTNET_ICON_MAP = {
+            // Sepolia (chainId 11155111) -> Mainnet (chainId 1)
+            11155111: {
+                '0x779877a7b0d9e8603169ddbd7836e478b4624789': { mainnet: '0x514910771af9ca656af840dff83e8264ecf986ca', chainId: 1 }, // LINK
+                '0x7b79995e5f793a07bc00c21412e50ecae098e7f9': { mainnet: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', chainId: 1 }, // WETH
+                '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9': { mainnet: '0x6c3ea9036406852006290770bedfcaba0e23a0e8', chainId: 1 }, // PYUSD
+                '0xaa8e23fb1079ea71e0a56f48a2aa51851d8433d0': { mainnet: '0xdac17f958d2ee523a2206206994597c13d831ec7', chainId: 1 }, // USDT
+                '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238': { mainnet: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', chainId: 1 }, // USDC
+                '0x08210f9170f89ab7658f0b5e3ff39b0e03c594d4': { mainnet: '0x1abaea1f7c830bd89acc67ec4af516284b1bc33c', chainId: 1 }, // EURC
+            }
+        };
+
+        let tokenListCache = {
+            loaded: false,
+            loading: false,
+            byChain: {},      // chainId -> { addressLower -> logoURI }
+            bySymbol: {}      // chainId -> { symbolLower -> { address, decimals, logoURI } }
+        };
+
+        async function fetchTokenList() {
+            if (tokenListCache.loaded || tokenListCache.loading) return;
+            tokenListCache.loading = true;
+
+            for (const url of TOKEN_LIST_URLS) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) continue;
+                    const data = await response.json();
+
+                    for (const token of data.tokens) {
+                        const chainId = token.chainId;
+                        const addrLower = token.address.toLowerCase();
+                        const symbolLower = token.symbol.toLowerCase();
+
+                        // Index by address
+                        if (!tokenListCache.byChain[chainId]) {
+                            tokenListCache.byChain[chainId] = {};
+                        }
+                        tokenListCache.byChain[chainId][addrLower] = token.logoURI;
+
+                        // Index by symbol (first occurrence wins - most common tokens listed first)
+                        if (!tokenListCache.bySymbol[chainId]) {
+                            tokenListCache.bySymbol[chainId] = {};
+                        }
+                        if (!tokenListCache.bySymbol[chainId][symbolLower]) {
+                            tokenListCache.bySymbol[chainId][symbolLower] = {
+                                address: addrLower,
+                                decimals: token.decimals,
+                                logoURI: token.logoURI
+                            };
+                        }
+                    }
+
+                    tokenListCache.loaded = true;
+                    break;
+                } catch (error) {
+                    console.warn(`Failed to fetch token list from ${url}:`, error.message);
+                }
+            }
+
+            tokenListCache.loading = false;
+        }
+
+        // Get token info by symbol from token list cache
+        function getTokenBySymbol(symbol, chainId) {
+            const symbolLower = symbol.toLowerCase();
+            const chainCache = tokenListCache.bySymbol[chainId];
+            return chainCache?.[symbolLower] || null;
+        }
+
+        // Pre-fetch token list in background on page load
+        document.addEventListener('DOMContentLoaded', fetchTokenList);
+
         function getNetwork() {
             return NETWORKS[currentNetwork];
         }
@@ -6257,14 +6347,9 @@
             }
         });
 
-        // Token icons (SVG)
+        // Token icons (SVG) - only ETH and DAICO-specific, others fetched from Uniswap token list
         const TOKEN_ICONS = {
             eth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><g><polygon fill="#80D8FF" points="7.62,18.83 16.01,30.5 16.01,24.1"/><polygon fill="#42A5F5" points="16.01,30.5 24.38,18.78 16.01,24.1"/><polygon fill="#FFF176" points="16.01,1.5 7.62,16.23 16.01,12.3"/><polygon fill="#FF8A80" points="24.38,16.18 16.01,1.5 16.01,12.3"/><polygon fill="#C1AEE1" points="16.01,21.5 24.38,16.18 16.01,12.3"/><polygon fill="#55FB9B" points="16.01,12.3 7.62,16.23 16.01,21.5"/></g></svg>`,
-            usdc: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle fill="#3E73C4" cx="16" cy="16" r="16"/><path fill="#FFF" d="M20.022 18.124c0-2.124-1.28-2.852-3.84-3.156-1.828-.243-2.193-.728-2.193-1.578 0-.85.61-1.396 1.828-1.396 1.097 0 1.707.364 2.011 1.275a.458.458 0 0 0 .427.303h.975a.416.416 0 0 0 .427-.425v-.06a3.04 3.04 0 0 0-2.743-2.489V9.142c0-.243-.183-.425-.487-.486h-.915c-.243 0-.426.182-.487.486v1.396c-1.829.242-2.986 1.456-2.986 2.974 0 2.002 1.218 2.791 3.778 3.095 1.707.303 2.255.668 2.255 1.639 0 .97-.853 1.638-2.011 1.638-1.585 0-2.133-.668-2.316-1.578-.06-.303-.243-.364-.486-.364h-1.036a.416.416 0 0 0-.426.425v.06c.243 1.518 1.219 2.61 3.23 2.914v1.457c0 .242.183.425.487.485h.915c.243 0 .426-.182.487-.485V21.16c1.828-.303 3.107-1.578 3.107-3.035z"/></svg>`,
-            usdt: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="16" fill="#26A17B"/><path fill="#FFF" d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118 0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116 0-1.043-3.301-1.914-7.694-2.117"/></svg>`,
-            dai: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle fill="#F4B731" cx="16" cy="16" r="16"/><path fill="#FFF" d="M9.277 8h6.552c3.985 0 7.006 2.116 8.13 5.194H26v1.861h-1.611c.031.294.047.594.047.898v.046c0 .342-.02.68-.06 1.01H26v1.86h-2.08C22.767 21.905 19.77 24 15.83 24H9.277v-5.131H7v-1.86h2.277v-1.954H7v-1.86h2.277V8z"/></svg>`,
-            wsteth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle fill="#00A3FF" cx="16" cy="16" r="16"/><path fill="#FFF" d="M9.437 14.864l-.181.275c-2.048 3.097-1.603 7.253 1.034 9.824 1.561 1.521 3.622 2.353 5.683 2.353 0 0 0 0-6.536-12.452z"/><path fill="#FFF" opacity=".6" d="M15.997 18.611l-6.56-3.747c6.56 12.452 6.56 12.452 6.56 12.452 0-2.683 0-5.623 0-8.705z"/><path fill="#FFF" opacity=".6" d="M22.563 14.864l.181.275c2.048 3.097 1.603 7.253-1.034 9.824-1.561 1.521-3.622 2.353-5.683 2.353 0 0 0 0 6.536-12.452z"/><path fill="#FFF" opacity=".2" d="M16.003 18.611l6.56-3.747c-6.56 12.452-6.56 12.452-6.56 12.452 0-2.683 0-5.623 0-8.705z"/></svg>`,
-            reth: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle fill="#FF6B35" cx="16" cy="16" r="16"/><path fill="#FFF" d="M16 6l-6.5 10.5L16 20l6.5-3.5L16 6z"/><path fill="#FFF" opacity=".6" d="M16 20l-6.5-3.5L16 26l6.5-9.5L16 20z"/></svg>`,
             shares: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle fill="#55FB9B" cx="16" cy="16" r="14" stroke="#000" stroke-width="1"/><text x="16" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#000" text-anchor="middle">S</text></svg>`,
             loot: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle fill="#FF69B4" cx="16" cy="16" r="14" stroke="#000" stroke-width="1"/><text x="16" y="20" font-family="sans-serif" font-size="12" font-weight="bold" fill="#000" text-anchor="middle">L</text></svg>`,
             default: `<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="14" fill="none" stroke="#00ffff" stroke-width="2"/><circle cx="16" cy="16" r="8" fill="none" stroke="#00ffff" stroke-width="1.5" opacity="0.5"/></svg>`
@@ -6274,11 +6359,23 @@
             const addr = address?.toLowerCase();
             if (!addr || addr === ethers.ZeroAddress.toLowerCase()) return TOKEN_ICONS.eth;
 
-            // Look up symbol from current network's token metadata
-            const tokenMeta = COMMON_TRIB_TOKENS[address];
-            if (tokenMeta?.symbol) {
-                const iconKey = tokenMeta.symbol.toLowerCase();
-                if (TOKEN_ICONS[iconKey]) return TOKEN_ICONS[iconKey];
+            const network = getNetwork();
+            const chainId = Number(network.chainId);
+
+            // For testnet tokens, try to find mainnet equivalent for icon
+            let lookupAddr = addr;
+            let lookupChainId = chainId;
+            const testnetMap = TESTNET_ICON_MAP[chainId];
+            if (testnetMap && testnetMap[addr]) {
+                lookupAddr = testnetMap[addr].mainnet;
+                lookupChainId = testnetMap[addr].chainId;
+            }
+
+            // Try token list cache
+            const chainCache = tokenListCache.byChain[lookupChainId];
+            if (chainCache?.[lookupAddr]) {
+                const logoURI = chainCache[lookupAddr];
+                return `<img src="${logoURI}" style="width:100%;height:100%;border-radius:50%;" onerror="this.outerHTML='${escapeHtml(TOKEN_ICONS.default)}'">`;
             }
 
             return TOKEN_ICONS.default;
@@ -7898,13 +7995,29 @@
 
         // ==================== INTERACTIVE SUMMARY ====================
         // Ordered array for tribute token cycling
-        // Get tribute tokens for current network from NETWORKS config
+        // Get tribute tokens for current network from token list
         function getSummaryTributeTokens() {
             const network = getNetwork();
-            return network.treasuryTokens.map(address => {
-                const meta = network.tokenMeta[address] || { symbol: '???', decimals: 18 };
-                return { address, symbol: meta.symbol, decimals: meta.decimals };
-            });
+            const chainId = Number(network.chainId);
+            const symbols = DEFAULT_TREASURY_SYMBOLS[chainId] || ['ETH'];
+            const result = [];
+
+            for (const symbol of symbols) {
+                if (symbol.toUpperCase() === 'ETH') {
+                    result.push({ address: ethers.ZeroAddress, symbol: 'ETH', decimals: 18 });
+                } else {
+                    const tokenInfo = getTokenBySymbol(symbol, chainId);
+                    if (tokenInfo) {
+                        result.push({
+                            address: tokenInfo.address,
+                            symbol: symbol,
+                            decimals: tokenInfo.decimals
+                        });
+                    }
+                }
+            }
+
+            return result;
         }
 
         const summaryState = {
@@ -8808,8 +8921,22 @@
         // Scan for active DAICOs using the view helper's efficient batched scanDAICOs function
         // This replaces 3 RPC calls with a single call that batches all queries on-chain
         async function scanActiveDAICOs() {
-            // Get tribute tokens for current network
-            const tribTokens = getNetwork().treasuryTokens;
+            // Get tribute token addresses for current network from token list
+            const network = getNetwork();
+            const chainId = Number(network.chainId);
+            const symbols = DEFAULT_TREASURY_SYMBOLS[chainId] || ['ETH'];
+            const tribTokens = [];
+
+            for (const symbol of symbols) {
+                if (symbol.toUpperCase() === 'ETH') {
+                    tribTokens.push(ethers.ZeroAddress);
+                } else {
+                    const tokenInfo = getTokenBySymbol(symbol, chainId);
+                    if (tokenInfo) {
+                        tribTokens.push(tokenInfo.address);
+                    }
+                }
+            }
 
             // Use RPC fallback to ensure reliability
             const daicoResults = await withRpcFallback(async (scanProvider) => {
