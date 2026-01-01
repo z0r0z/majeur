@@ -2584,6 +2584,117 @@
         transform: translateY(-5px);
       }
 
+      /* Animated tile backgrounds - deterministic colors from DAO address */
+      .dao-tile,
+      .all-dao-tile {
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Background wrapper clips the oversized animated element */
+      .tile-bg-wrap {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+        border-radius: inherit;
+      }
+
+      /* Animated background element - oversized to prevent edge visibility */
+      .tile-bg {
+        position: absolute;
+        top: -25%;
+        left: -25%;
+        width: 150%;
+        height: 150%;
+        opacity: 0.7;
+        background:
+          radial-gradient(
+            ellipse 45% 45% at var(--bg-pos-x, 50%) var(--bg-pos-y, 50%),
+            var(--bg-color1, transparent) 0%,
+            transparent 65%
+          ),
+          radial-gradient(
+            ellipse 38% 38% at calc(100% - var(--bg-pos-x, 50%)) calc(100% - var(--bg-pos-y, 50%)),
+            var(--bg-color2, transparent) 0%,
+            transparent 55%
+          ),
+          linear-gradient(
+            var(--bg-angle, 135deg),
+            var(--bg-accent, transparent) 0%,
+            transparent 45%,
+            var(--bg-accent, transparent) 100%
+          );
+        animation: tileBackgroundShift var(--bg-duration, 20s) ease-in-out infinite;
+        animation-delay: var(--bg-delay, 0s);
+        transition: opacity 0.3s ease;
+      }
+
+      .dao-tile:hover .tile-bg,
+      .all-dao-tile:hover .tile-bg {
+        opacity: 0.95;
+      }
+
+      @keyframes tileBackgroundShift {
+        0%, 100% {
+          transform: translate(0, 0);
+        }
+        33% {
+          transform: translate(6%, -4%);
+        }
+        66% {
+          transform: translate(-5%, 5%);
+        }
+      }
+
+      /* Ensure tile content stays above background */
+      .dao-tile > *:not(.tile-bg-wrap),
+      .all-dao-tile > *:not(.tile-bg-wrap) {
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Full spectrum mode - shows raw address colors without theme tint */
+      .dao-tile.show-full-spectrum .tile-bg,
+      .all-dao-tile.show-full-spectrum .tile-bg {
+        background:
+          radial-gradient(
+            ellipse 50% 50% at var(--bg-pos-x, 50%) var(--bg-pos-y, 50%),
+            var(--bg-color1-raw, var(--bg-color1, transparent)) 0%,
+            transparent 70%
+          ),
+          radial-gradient(
+            ellipse 40% 40% at calc(100% - var(--bg-pos-x, 50%)) calc(100% - var(--bg-pos-y, 50%)),
+            var(--bg-color2-raw, var(--bg-color2, transparent)) 0%,
+            transparent 60%
+          ),
+          linear-gradient(
+            var(--bg-angle, 135deg),
+            var(--bg-accent, transparent) 0%,
+            transparent 50%,
+            var(--bg-accent, transparent) 100%
+          );
+        opacity: 0.95;
+      }
+
+      /* Respect reduced motion preference */
+      @media (prefers-reduced-motion: reduce) {
+        .tile-bg {
+          animation: none;
+          opacity: 0.4;
+        }
+      }
+
+      /* User-member tiles get enhanced background visibility */
+      .all-dao-tile.user-member .tile-bg {
+        opacity: 0.8;
+      }
+
+      .all-dao-tile.user-member:hover .tile-bg {
+        opacity: 1;
+      }
+
       .dao-tile-header {
         display: flex;
         align-items: stretch;
@@ -2776,23 +2887,7 @@
       }
 
       .all-dao-tile.user-member {
-        background: rgba(157, 123, 255, 0.1);
-        border: 1px solid rgba(157, 123, 255, 0.4);
         opacity: 1;
-      }
-
-      .all-dao-tile.user-member::before {
-        content: "★ MEMBER";
-        position: absolute;
-        top: 1rem;
-        right: 1rem;
-        font-family: "Cinzel", serif;
-        font-size: 0.65rem;
-        letter-spacing: 0.1em;
-        color: #9d7bff;
-        padding: 0.25rem 0.5rem;
-        border: 1px solid rgba(157, 123, 255, 0.4);
-        background: rgba(157, 123, 255, 0.1);
       }
 
       .dao-tile-name,
@@ -9691,10 +9786,21 @@
       // Cache for tile emblem metadata (for hover popups)
       const tileEmblemMetadata = new Map();
 
+      // Track which tile is showing full spectrum colors
+      let fullSpectrumTile = null;
+
       // Show emblem hover popup
       function showEmblemPopup(emblemId, event) {
         const metadata = tileEmblemMetadata.get(emblemId);
         if (!metadata) return;
+
+        // Show full spectrum colors (remove theme tint) on parent tile
+        const emblemEl = event.currentTarget;
+        const parentTile = emblemEl.closest('.dao-tile, .all-dao-tile');
+        if (parentTile) {
+          parentTile.classList.add('show-full-spectrum');
+          fullSpectrumTile = parentTile;
+        }
 
         const popup = document.getElementById('emblemHoverPopup');
         const imageEl = document.getElementById('emblemHoverImage');
@@ -9743,6 +9849,11 @@
       // Hide emblem hover popup
       function hideEmblemPopup() {
         document.getElementById('emblemHoverPopup').classList.remove('show');
+        // Restore theme-tinted colors on the tile
+        if (fullSpectrumTile) {
+          fullSpectrumTile.classList.remove('show-full-spectrum');
+          fullSpectrumTile = null;
+        }
       }
 
       // HTML escape function to prevent XSS attacks
@@ -9899,11 +10010,31 @@
       let resizeTimeout;
       window.addEventListener('resize', () => {
         clearTimeout(resizeTimeout);
+        // Pause tile background animations during resize to prevent compositing issues
+        document.querySelectorAll('.tile-bg').forEach(bg => {
+          bg.style.animationPlayState = 'paused';
+        });
         resizeTimeout = setTimeout(() => {
           setVhProperty();
           // Dispatch resize event for other components that need it
           window.dispatchEvent(new Event('optimizedResize'));
-        }, 150);
+          // Force repaint on tile content elements
+          requestAnimationFrame(() => {
+            // Target the actual content, not just the tile
+            document.querySelectorAll('.dao-tile-header, .dao-tile-stats').forEach(el => {
+              el.style.transform = 'translateZ(0)';
+            });
+            requestAnimationFrame(() => {
+              document.querySelectorAll('.dao-tile-header, .dao-tile-stats').forEach(el => {
+                el.style.transform = '';
+              });
+              // Resume animations
+              document.querySelectorAll('.tile-bg').forEach(bg => {
+                bg.style.animationPlayState = '';
+              });
+            });
+          });
+        }, 100);
       }, { passive: true });
 
       // Check for reduced motion preference
@@ -15410,25 +15541,112 @@
         }
       }
 
+      // Theme configuration for tile backgrounds (adjust for light mode in future)
+      const TILE_BG_THEME = {
+        hue: 270,        // Purple theme hue
+        blendAmount: 0.4 // How much to blend toward theme (0 = pure address colors, 1 = full theme)
+      };
+
+      /**
+       * Generate deterministic tile background CSS custom properties from DAO address
+       * Colors are derived from the address but tinted toward the current theme
+       * @param {string} address - DAO Ethereum address
+       * @returns {string} CSS custom properties string for inline style
+       */
+      function getTileBackgroundStyles(address) {
+        const hex = address.toLowerCase().replace('0x', '');
+        const themeHue = TILE_BG_THEME.hue;
+        const blend = TILE_BG_THEME.blendAmount;
+
+        // Helper to blend a hue toward theme hue
+        const blendHue = (hue) => {
+          // Find shortest path around color wheel
+          let diff = themeHue - hue;
+          if (diff > 180) diff -= 360;
+          if (diff < -180) diff += 360;
+          return (hue + diff * blend + 360) % 360;
+        };
+
+        // Extract deterministic values from address bytes
+        const rawHue1 = parseInt(hex.substring(0, 3), 16) % 360;
+        const rawHue2 = parseInt(hex.substring(20, 23), 16) % 360;
+        const hue1 = blendHue(rawHue1);
+        const hue2 = blendHue(rawHue2);
+
+        // Saturation (40-80%) - vivid enough to be visible
+        const sat1 = 40 + (parseInt(hex.substring(3, 5), 16) % 40);
+        const sat2 = 40 + (parseInt(hex.substring(23, 25), 16) % 40);
+
+        // Lightness (25-50%) - bright enough to see against dark background
+        const light1 = 25 + (parseInt(hex.substring(5, 7), 16) % 25);
+        const light2 = 25 + (parseInt(hex.substring(25, 27), 16) % 25);
+
+        // Animation duration (8-15s) - noticeable but not distracting
+        const duration = 8 + (parseInt(hex.substring(7, 9), 16) % 7);
+
+        // Gradient angle (0-360)
+        const angle = parseInt(hex.substring(9, 12), 16) % 360;
+
+        // Animation delay (0-10s) - stagger animations
+        const delay = (parseInt(hex.substring(12, 14), 16) % 100) / 10;
+
+        // Gradient position offsets (for variety)
+        const posX = 20 + (parseInt(hex.substring(14, 16), 16) % 60);
+        const posY = 20 + (parseInt(hex.substring(16, 18), 16) % 60);
+
+        // Accent opacity variation
+        const accentOpacity = 0.1 + (parseInt(hex.substring(18, 20), 16) % 15) / 100;
+
+        return `--bg-color1: hsla(${Math.round(hue1)}, ${sat1}%, ${light1}%, 0.6); ` +
+               `--bg-color2: hsla(${Math.round(hue2)}, ${sat2}%, ${light2}%, 0.5); ` +
+               `--bg-color1-raw: hsla(${rawHue1}, ${sat1}%, ${light1}%, 0.6); ` +
+               `--bg-color2-raw: hsla(${rawHue2}, ${sat2}%, ${light2}%, 0.5); ` +
+               `--bg-accent: rgba(157, 123, 255, ${accentOpacity.toFixed(2)}); ` +
+               `--bg-duration: ${duration}s; ` +
+               `--bg-delay: -${delay.toFixed(1)}s; ` +
+               `--bg-angle: ${angle}deg; ` +
+               `--bg-pos-x: ${posX}%; ` +
+               `--bg-pos-y: ${posY}%;`;
+      }
+
       // Generate status badges HTML for DAO tiles
-      function getStatusBadgesHTML(dao) {
+      function getStatusBadgesHTML(dao, isMember = false) {
         const daoAddr = dao.dao.toLowerCase();
         const hasActiveProposals = dao.proposals?.some(p => Number(p.state) === 1);
         const hasDAICO = daicoStatusMap.get(daoAddr);
         const hasTribute = tributeStatusMap.get(daoAddr);
 
-        if (!hasActiveProposals && !hasDAICO && !hasTribute) return '';
+        let html = '';
 
-        return `
-          <div class="dao-stat">
-            <div class="dao-stat-label">Status</div>
-            <div class="dao-stat-badges">
-              ${hasActiveProposals ? '<span class="dao-status-badge vote">VOTE</span>' : ''}
-              ${hasTribute ? '<span class="dao-status-badge tribute">TRIBUTE</span>' : ''}
-              ${hasDAICO ? '<span class="dao-status-badge sale">SALE</span>' : ''}
+        const hasStatus = hasActiveProposals || hasDAICO || hasTribute;
+
+        // Status badges row (column 1)
+        if (hasStatus) {
+          html += `
+            <div class="dao-stat">
+              <div class="dao-stat-label">Status</div>
+              <div class="dao-stat-badges">
+                ${hasActiveProposals ? '<span class="dao-status-badge vote">VOTE</span>' : ''}
+                ${hasTribute ? '<span class="dao-status-badge tribute">TRIBUTE</span>' : ''}
+                ${hasDAICO ? '<span class="dao-status-badge sale">SALE</span>' : ''}
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        } else if (isMember) {
+          // Empty placeholder to keep Member in column 2
+          html += `<div class="dao-stat"></div>`;
+        }
+
+        // Member indicator (column 2)
+        if (isMember) {
+          html += `
+            <div class="dao-stat">
+              <div class="dao-stat-label">★ MEMBER</div>
+            </div>
+          `;
+        }
+
+        return html;
       }
 
       // Render all DAOs gallery
@@ -15453,10 +15671,11 @@
           if (isUserMember) {
             tile.classList.add('user-member');
           }
-          tile.style.position = 'relative';
+          tile.style.cssText = getTileBackgroundStyles(dao.dao);
           tile.onclick = () => openDAO(index, 'all');
 
           tile.innerHTML = `
+            <div class="tile-bg-wrap"><div class="tile-bg"></div></div>
             <div class="dao-tile-header">
               <div class="dao-tile-info">
                 <div class="dao-tile-name">${escapeHtml(dao.meta.name)}</div>
@@ -15481,7 +15700,7 @@
                 <div class="dao-stat-label">Members</div>
                 <div class="dao-stat-value">${dao.members.length}</div>
               </div>
-              ${getStatusBadgesHTML(dao)}
+              ${getStatusBadgesHTML(dao, isUserMember)}
             </div>
           `;
 
@@ -15722,12 +15941,14 @@
 
           const tile = document.createElement('div');
           tile.className = 'dao-tile';
+          tile.style.cssText = getTileBackgroundStyles(dao.dao);
           tile.onclick = () => openDAO(index);
 
           const sharesBN = member.shares;
           const lootBN = member.loot;
 
           tile.innerHTML = `
+            <div class="tile-bg-wrap"><div class="tile-bg"></div></div>
             <div class="dao-tile-header">
               <div class="dao-tile-info">
                 <div class="dao-tile-name">${escapeHtml(dao.meta.name)}</div>
