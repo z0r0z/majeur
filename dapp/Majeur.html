@@ -9830,6 +9830,19 @@
         return n.toFixed(decimals).replace(/\.?0+$/, '');
       }
 
+      // Format financial amounts with appropriate precision for small values
+      function formatFinancial(n) {
+        if (n === 0) return '0';
+        if (n >= 1) {
+          return n.toFixed(2).replace(/\.00$/, '');
+        } else if (n >= 0.0001) {
+          return n.toFixed(4).replace(/\.?0+$/, '');
+        } else if (n > 0) {
+          return n.toExponential(2);
+        }
+        return '0';
+      }
+
       // Sanitize URLs to prevent XSS via data: URIs and javascript: protocols
       function sanitizeUrl(url) {
         if (!url || typeof url !== 'string') return '';
@@ -15130,8 +15143,8 @@
             forDecimals = await getTokenDecimals(tribute.forTkn);
           }
 
-          const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(2).replace(/\.00$/, '');
-          const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(2).replace(/\.00$/, '');
+          const tribBalance = formatFinancial(parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)));
+          const forBalance = formatFinancial(parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)));
 
           const daoAddress = currentDAO.dao.dao;
 
@@ -16507,7 +16520,7 @@
             const pricePerMillion = pricePerToken * 1_000_000;
 
             // Format price as "X ETH / 1M Shares" like DAICO.html
-            const priceFormatted = `${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol} / 1M ${tokenType}`;
+            const priceFormatted = `${formatFinancial(pricePerMillion)} ${sale.token.symbol} / 1M ${tokenType}`;
 
             // Remaining supply
             const remainingNum = sale.remainingSupply ? parseFloat(ethers.formatEther(sale.remainingSupply)) : 0;
@@ -16629,11 +16642,11 @@
                         </svg>
                       </a>
                     </div>
-                    <div style="font-size: 0.9rem; color: #e6d9ff;">${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tapToken.symbol}/mo</div>
+                    <div style="font-size: 0.9rem; color: #e6d9ff;">${formatFinancial(ratePerMonth)} ${tapToken.symbol}/mo</div>
                   </div>
                   <div>
                     <div style="font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">Claimable</div>
-                    <div style="font-size: 0.9rem; color: ${claimableFormatted > 0 ? '#64c896' : '#e6d9ff'};">${claimableFormatted.toFixed(2).replace(/\.00$/, '')} ${tapToken.symbol}</div>
+                    <div style="font-size: 0.9rem; color: ${claimableFormatted > 0 ? '#64c896' : '#e6d9ff'};">${formatFinancial(claimableFormatted)} ${tapToken.symbol}</div>
                   </div>
                 </div>
                 ${claimableFormatted > 0 ? `
@@ -16663,7 +16676,7 @@
               const forAmtFormatted = parseFloat(ethers.formatEther(sale.forAmt));
               const pricePerToken = tribAmtFormatted / forAmtFormatted;
               const pricePerMillion = pricePerToken * 1_000_000;
-              const priceFormatted = `${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol} / 1M ${tokenType}`;
+              const priceFormatted = `${formatFinancial(pricePerMillion)} ${sale.token.symbol} / 1M ${tokenType}`;
 
               // Total sold = totalSupply - remainingSupply (or totalSupply if sold out)
               const totalSoldNum = sale.totalSupply
@@ -16937,8 +16950,8 @@
               forDecimals = await getTokenDecimals(tribute.forTkn);
             }
 
-            const tribBalance = parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)).toFixed(2).replace(/\.00$/, '');
-            const forBalance = parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)).toFixed(2).replace(/\.00$/, '');
+            const tribBalance = formatFinancial(parseFloat(ethers.formatUnits(tribute.tribAmt, tribDecimals)));
+            const forBalance = formatFinancial(parseFloat(ethers.formatUnits(tribute.forAmt, forDecimals)));
 
             const card = document.createElement('div');
             card.className = 'tribute-card';
@@ -20283,7 +20296,7 @@
 
         // Update Price
         document.getElementById('purchasePrice').textContent =
-          `${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${sale.token.symbol} / 1M ${tokenType}`;
+          `${formatFinancial(pricePerMillion)} ${sale.token.symbol} / 1M ${tokenType}`;
 
         // Update Progress Bar
         document.getElementById('purchaseProgressBar').style.width = `${progressPct}%`;
@@ -20743,7 +20756,7 @@
           </div>
           <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px;">
             <div style="font-size: 0.85rem; color: rgba(230, 217, 255, 0.8); margin-bottom: 0.35rem;">
-              Current Rate: <strong>${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribTknSymbol}/month</strong>
+              Current Rate: <strong>${formatFinancial(currentRatePerMonth)} ${tribTknSymbol}/month</strong>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
               Token: ${tribTknSymbol} (${tribTknDecimals} decimals)
@@ -20754,7 +20767,7 @@
           </div>
           <div style="margin-bottom: 0.75rem;">
             <label style="display: block; font-size: 0.75rem; color: rgba(230, 217, 255, 0.6); margin-bottom: 0.35rem;">New Rate (${tribTknSymbol} per month)</label>
-            <input type="text" id="tapRateInput" placeholder="${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')}" value="${currentRatePerMonth.toFixed(2).replace(/\.00$/, '')}"
+            <input type="text" id="tapRateInput" placeholder="${formatFinancial(currentRatePerMonth)}" value="${formatFinancial(currentRatePerMonth)}"
                    oninput="updateTapRatePreview(${tribTknDecimals}, '${tribTknSymbol}')"
                    style="width: 100%; padding: 0.6rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 180, 100, 0.3); color: #e6d9ff; font-family: 'EB Garamond', serif; font-size: 0.95rem;" />
             <div style="margin-top: 0.35rem; font-size: 0.7rem; color: rgba(230, 217, 255, 0.5);">
@@ -20802,8 +20815,8 @@
         previewDiv.style.display = 'block';
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(255, 180, 100, 0.1); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
-            <div>≈ ${ratePerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}/day</div>
-            <div>≈ ${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${symbol}/year</div>
+            <div>≈ ${formatFinancial(ratePerDay)} ${symbol}/day</div>
+            <div>≈ ${formatFinancial(ratePerYear)} ${symbol}/year</div>
             ${newRatePerMonth === 0 ? '<div style="color: #ffb464; margin-top: 0.35rem;">⚠️ Setting rate to 0 will freeze the tap</div>' : ''}
           </div>
         `;
@@ -20862,7 +20875,7 @@
               Current: <strong>${tribAmtFormatted} ${tribTknSymbol} → ${forAmtFormatted} ${tokenSymbol}</strong>
             </div>
             <div style="font-size: 0.75rem; color: rgba(230, 217, 255, 0.6);">
-              Price: ${currentPricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribTknSymbol} per ${tokenSymbol} • Deadline: ${deadlineDate}
+              Price: ${formatFinancial(currentPricePerToken)} ${tribTknSymbol} per ${tokenSymbol} • Deadline: ${deadlineDate}
             </div>
           </div>
 
@@ -20955,7 +20968,7 @@
         previewDiv.innerHTML = `
           <div style="padding: 0.5rem; background: rgba(100, 200, 150, 0.1); border-radius: 4px; font-size: 0.75rem; color: rgba(230, 217, 255, 0.8);">
             <div>New ratio: ${newTribAmt} ${tribSymbol} = ${newForAmt} ${forSymbol}</div>
-            <div>Price per token: ${newPricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}</div>
+            <div>Price per token: ${formatFinancial(newPricePerToken)} ${tribSymbol}</div>
           </div>
         `;
       }
@@ -21210,7 +21223,7 @@
           const tokenType = document.getElementById('newSaleTokenType')?.value === 'loot' ? 'LOOT' : 'SHARES';
           previewDiv.innerHTML = `
             <div>Ratio: ${tribAmt} ${paymentSymbol} = ${forAmt} ${tokenType}</div>
-            <div>Price per token: ${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${paymentSymbol}</div>
+            <div>Price per token: ${formatFinancial(pricePerToken)} ${paymentSymbol}</div>
           `;
         }
       }
@@ -21835,7 +21848,7 @@
 
           const description = newRatePerMonth === 0
             ? `Freeze tap (set rate to 0)`
-            : `Change tap rate to ${newRatePerMonth.toFixed(2).replace(/\.00$/, '')} ${symbol}/month`;
+            : `Change tap rate to ${formatFinancial(newRatePerMonth)} ${symbol}/month`;
 
           // Machine-readable metadata for tap rate change
           const metadata = `<<<DAICO_TAP action="setRate" ratePerSec="${ratePerSec.toString()}" ratePerMonth="${newRatePerMonth}" symbol="${symbol}" decimals="${decimals}" DAICO_TAP>>>`;
@@ -22477,10 +22490,10 @@
 
         if (ratePerMonth > 0) {
           const ratePerYear = ratePerMonth * 12;
-          let text = `<strong>Tap:</strong> ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month (~${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/year)`;
+          let text = `<strong>Tap:</strong> ${formatFinancial(ratePerMonth)} ${tribSymbol}/month (~${formatFinancial(ratePerYear)} ${tribSymbol}/year)`;
           if (budget > 0) {
             const months = budget / ratePerMonth;
-            text += ` • Budget lasts ~${months.toFixed(2).replace(/\.00$/, '')} months`;
+            text += ` • Budget lasts ~${formatFinancial(months)} months`;
           }
           preview.innerHTML = text;
           preview.style.display = 'block';
@@ -22673,7 +22686,7 @@
           // Build description
           const pricePerToken = parseFloat(tribAmtInput) / parseFloat(forAmtInput);
           let description = `Setup DAICO Sale: ${supplyInput} ${forTokenName} available for purchase`;
-          description += `\n\nSale Terms: ${tribAmtInput} ${tribSymbol} = ${forAmtInput} ${forTokenName} (${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/token)`;
+          description += `\n\nSale Terms: ${tribAmtInput} ${tribSymbol} = ${forAmtInput} ${forTokenName} (${formatFinancial(pricePerToken)} ${tribSymbol}/token)`;
 
           if (enableLP) {
             const lpPct = parseInt(lpBpsInput);
@@ -22682,7 +22695,7 @@
 
           if (enableTap) {
             const ratePerMonth = parseFloat(tapRateInput);
-            description += `\n\nTap: ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month to ${tapOpsInput.slice(0, 10)}... (budget: ${parseFloat(tapBudgetInput).toFixed(2).replace(/\.00$/, '')} ${tribSymbol})`;
+            description += `\n\nTap: ${formatFinancial(ratePerMonth)} ${tribSymbol}/month to ${tapOpsInput.slice(0, 10)}... (budget: ${formatFinancial(parseFloat(tapBudgetInput))} ${tribSymbol})`;
           }
 
           description += `\n\nThis proposal executes ${numActions} actions in a single batch:`;
@@ -28512,16 +28525,13 @@
 
         summaryBox.style.display = 'block';
 
-        // Format numbers nicely
-        const formatNum = (n) => n.toFixed(2).replace(/\.00$/, '');
-
         // Main summary: "1 ETH → 1,000,000 Shares"
-        let mainSummary = `<span style="color: #9d7bff;">${formatNum(tribAmt)} ${payName}</span> → <span style="color: #9d7bff;">${formatNum(forAmt)} ${tokenTypeName}</span>`;
+        let mainSummary = `<span style="color: #9d7bff;">${formatFinancial(tribAmt)} ${payName}</span> → <span style="color: #9d7bff;">${formatFinancial(forAmt)} ${tokenTypeName}</span>`;
 
         // Show effective rate if LP is enabled
         if (enableLP && lpBps > 0 && lpBps < 100) {
           const effectiveTokens = forAmt * (100 - lpBps) / 100;
-          mainSummary += `<br><span style="color: #64b5ff; font-size: 0.85rem;">With ${lpBps}% LP: buyer receives ${formatNum(Math.round(effectiveTokens))} ${tokenTypeName}</span>`;
+          mainSummary += `<br><span style="color: #64b5ff; font-size: 0.85rem;">With ${lpBps}% LP: buyer receives ${formatFinancial(Math.round(effectiveTokens))} ${tokenTypeName}</span>`;
         }
 
         summaryText.innerHTML = mainSummary;
@@ -28532,9 +28542,9 @@
 
         let priceStr = '';
         if (pricePerToken < 0.0001) {
-          priceStr = `${formatNum(tokensPerUnit)} ${tokenTypeName} per ${payName}`;
+          priceStr = `${formatFinancial(tokensPerUnit)} ${tokenTypeName} per ${payName}`;
         } else {
-          priceStr = `${pricePerToken.toFixed(2).replace(/\.00$/, '')} ${payName} per ${tokenTypeName.slice(0, -1)}`;
+          priceStr = `${formatFinancial(pricePerToken)} ${payName} per ${tokenTypeName.slice(0, -1)}`;
         }
 
         // Add max raise if supply is set
@@ -28793,10 +28803,10 @@
 
         if (ratePerMonth > 0) {
           const ratePerYear = ratePerMonth * 12;
-          let text = `<strong>Tap:</strong> ${ratePerMonth.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/month (~${ratePerYear.toFixed(2).replace(/\.00$/, '')} ${tribSymbol}/year)`;
+          let text = `<strong>Tap:</strong> ${formatFinancial(ratePerMonth)} ${tribSymbol}/month (~${formatFinancial(ratePerYear)} ${tribSymbol}/year)`;
           if (budget > 0) {
             const months = budget / ratePerMonth;
-            text += ` • Budget lasts ~${months.toFixed(2).replace(/\.00$/, '')} months`;
+            text += ` • Budget lasts ~${formatFinancial(months)} months`;
           }
           preview.innerHTML = text;
           preview.style.display = 'block';

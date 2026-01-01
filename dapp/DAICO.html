@@ -7162,29 +7162,30 @@
             return n.toFixed(decimals).replace(/\.?0+$/, '');
         }
 
+        // Format financial amounts with appropriate precision for small values
+        function formatFinancial(n) {
+            if (n === 0) return '0';
+            if (n >= 1) {
+                return n.toFixed(2).replace(/\.00$/, '');
+            } else if (n >= 0.0001) {
+                return n.toFixed(4).replace(/\.?0+$/, '');
+            } else if (n > 0) {
+                return n.toExponential(2);
+            }
+            return '0';
+        }
+
         // Format price display with per-token and per-million
         function formatPriceDisplay(pricePerToken) {
             if (pricePerToken === 0) return { perToken: '0 ETH', perMillion: '0 ETH' };
 
             const perMillion = pricePerToken * 1_000_000;
 
-            // Format per-token (scientific for tiny numbers)
-            let perTokenStr;
-            if (pricePerToken >= 0.000001) {
-                perTokenStr = pricePerToken.toFixed(2).replace(/\.00$/, '') + ' ETH';
-            } else {
-                perTokenStr = pricePerToken.toExponential(2) + ' ETH';
-            }
-
-            // Format per-million (should be more readable)
-            let perMillionStr;
-            if (perMillion >= 1) {
-                perMillionStr = perMillion.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ETH';
-            } else if (perMillion >= 0.0001) {
-                perMillionStr = perMillion.toFixed(2).replace(/\.00$/, '') + ' ETH';
-            } else {
-                perMillionStr = perMillion.toExponential(2) + ' ETH';
-            }
+            // Format per-token and per-million with appropriate precision
+            const perTokenStr = `${formatFinancial(pricePerToken)} ETH`;
+            const perMillionStr = perMillion >= 1
+                ? `${perMillion.toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH`
+                : `${formatFinancial(perMillion)} ETH`;
 
             return { perToken: perTokenStr, perMillion: perMillionStr };
         }
@@ -7375,7 +7376,7 @@
             // Format the effect text
             let effectText = '';
             if (tapAmount > 0) {
-                const tapAmountStr = tapAmount.toFixed(2).replace(/\.00$/, '');
+                const tapAmountStr = formatFinancial(tapAmount);
                 const dailyStr = formatTapRate(ratePerDay);
                 effectText = `<span style="color: var(--green); font-weight: bold;">${tapAmountStr} ETH</span> over <span style="color: var(--cyan);">${duration} months</span>`;
                 effectText += `<br><span style="opacity: 0.6; font-size: 0.85em;">≈ ${dailyStr}/day to ops</span>`;
@@ -7679,7 +7680,7 @@
                 const duration = wizardState.tapDuration;
                 const opsAddr = wizardState.tapOps || connectedAddress;
                 const shortOps = opsAddr ? `${opsAddr.slice(0, 6)}...${opsAddr.slice(-4)}` : 'your wallet';
-                const tapAmountStr = tapAmount.toFixed(2).replace(/\.00$/, '');
+                const tapAmountStr = formatFinancial(tapAmount);
                 document.getElementById('wizardSummaryTap').innerHTML = `${tapAmountStr} ETH / ${duration} mo <span style="opacity: 0.5;">→ ${shortOps}</span>`;
             } else {
                 document.getElementById('wizardSummaryTap').textContent = 'Disabled';
@@ -8269,12 +8270,7 @@
             const tributeToken = getSummaryTributeTokens()[summaryState.tributeTokenIndex];
             const price = summaryState.raise / summaryState.supply;
             const pricePerMillion = price * 1_000_000;
-            let priceStr;
-            if (pricePerMillion >= 0.0001) {
-                priceStr = pricePerMillion.toFixed(2).replace(/\.00$/, '');
-            } else {
-                priceStr = pricePerMillion.toExponential(2);
-            }
+            const priceStr = formatFinancial(pricePerMillion);
             const icon = getTokenIcon(tributeToken.address);
             document.getElementById('summaryPricePreview').innerHTML = `${priceStr} ${tributeToken.symbol} <span class="summary-token-icon">${icon}</span> per 1M tokens`;
         }
@@ -9096,7 +9092,7 @@
                 let tapHtml = '';
                 if (daoData.tap && daoData.claimableTap > 0n) {
                     const tapTribInfo = COMMON_TRIB_TOKENS[daoData.tap.tribTkn] || { symbol: 'ETH', decimals: 18 };
-                    const claimableAmt = Number(ethers.formatUnits(daoData.claimableTap, tapTribInfo.decimals)).toFixed(2).replace(/\.00$/, '');
+                    const claimableAmt = formatFinancial(Number(ethers.formatUnits(daoData.claimableTap, tapTribInfo.decimals)));
                     tapHtml = `<div class="daico-tap">TAP: ${claimableAmt} ${tapTribInfo.symbol} claimable</div>`;
                 }
 
@@ -9179,7 +9175,7 @@
                                 </div>
                                 <div class="daico-price">
                                     <span class="daico-trib-icon">${tribIcon}</span>
-                                    ${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${tribInfo.symbol} / 1M ${tokenType}
+                                    ${formatFinancial(pricePerMillion)} ${tribInfo.symbol} / 1M ${tokenType}
                                 </div>
                                 ${progressHtml}
                                 <div class="daico-stats">
@@ -9343,7 +9339,7 @@
             const tribAmtNum = Number(ethers.formatUnits(sale.tribAmt, tribInfo.decimals));
             const forAmtNum = Number(ethers.formatEther(sale.forAmt));
             const pricePerMillion = (tribAmtNum / forAmtNum) * 1_000_000;
-            document.getElementById('purchasePrice').textContent = `${pricePerMillion.toFixed(2).replace(/\.00$/, '')} ${tribInfo.symbol} / 1M ${tokenType}`;
+            document.getElementById('purchasePrice').textContent = `${formatFinancial(pricePerMillion)} ${tribInfo.symbol} / 1M ${tokenType}`;
 
             // Progress bar - calculate sold vs total
             const totalSupplyNum = sale.totalSupply ? Number(ethers.formatEther(sale.totalSupply)) : 0;
