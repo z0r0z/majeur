@@ -1,0 +1,71 @@
+{
+    "name": "Elite Coders Union",
+    "symbol": "1337",
+    "description": "We don't use Cursor.",
+    "image": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDUwMCA1MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwZDExMTciLz4KICA8dGV4dCB4PSIxMCIgeT0iMjAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiMxZjI5MzciIG9wYWNpdHk9IjAuNSI+CiAgICAwMTEwMDEwMSAwMTEwMTEwMCAwMTEwMTAwMSAwMTExMDEwMCAwMTEwMDEwMQogIDwvdGV4dD4KICA8cGF0aCBkPSJNMjUwIDgwIEwxOTAgMTgwIEwyNTAgMjIwIEwzMTAgMTgwIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzYyN0VFQSIgc3Ryb2tlLXdpZHRoPSIyIiBvcGFjaXR5PSIwLjgiLz4KICA8cGF0aCBkPSJNMjUwIDM4MCBMMTkwIDI0MCBMMjUwIDIxMCBMMzEwIDI0MCBaIiBmaWxsPSJub25lIiBzdHJva2U9IiM2MjdFRUEiIHN0cm9rZS13aWR0aD0iMiIgb3BhY2l0eT0iMC41Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI0NSUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZvbnQtc2l6ZT0iNDIiIGZpbGw9IiM1OGE2ZmYiPgogICAgRUxJVEUKICA8L3RleHQ+CiAgPHRleHQgeD0iNTAlIiB5PSI1NSUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZvbnQtc2l6ZT0iNDIiIGZpbGw9IiNmZmZmZmYiPgogICAgQ09ERVJTCiAgPC90ZXh0PgogIDx0ZXh0IHg9IjUwJSIgeT0iNjUlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmb250LXNpemU9IjQyIiBmaWxsPSIjNThhNmZmIj4KICAgIFVOSU9OCiAgPC90ZXh0PgogIDx0ZXh0IHg9IjUwJSIgeT0iODUlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjI0IiBmaWxsPSIjM2ZiOTUwIj4KICAgICZsdDsgMTMzNyAvJmd0OwogIDwvdGV4dD4KICA8cmVjdCB4PSIyMCIgeT0iMjAiIHdpZHRoPSI0NjAiIGhlaWdodD0iNDYwIiBmaWxsPSJub25lIiBzdHJva2U9IiMzMDM2M2QiIHN0cm9rZS13aWR0aD0iMSIvPgo8L3N2Zz4K",
+    "treasury_tokens": [
+        {
+            "symbol": "LINK",
+            "address": "0x779877A7B0D9E8603169DdbD7836e478b4624789"
+        },
+        {
+            "symbol": "WETH",
+            "address": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+        },
+        {
+            "symbol": "PYUSD",
+            "address": "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9"
+        },
+        {
+            "symbol": "USDT",
+            "address": "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
+        },
+        {
+            "symbol": "USDC",
+            "address": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+        },
+        {
+            "symbol": "EURC",
+            "address": "0x08210f9170f89ab7658f0b5e3ff39b0e03c594d4"
+        },
+        {
+            "symbol": "USDF",
+            "address": "0x612f6e224F892Cc9a7f3395D4633a79D8f9c40c9"
+        }
+    ],
+    "external_link": "https://elitecoders.union",
+    "properties": {
+        "socials": {
+            "discord": "https://discord.gg/elitecodersunion",
+            "twitter": "https://x.com/elitecodersunion",
+            "bluesky": "https://bsky.app/profile/elitecoders.union"
+        }
+    },
+    "attributes": [
+        {
+            "trait_type": "Legal Structure",
+            "value": "Wyoming DUNA"
+        },
+        {
+            "trait_type": "Jurisdiction",
+            "value": "Wyoming, USA"
+        },
+        {
+            "trait_type": "Entity Filing ID",
+            "value": "2026-001234567"
+        },
+        {
+            "trait_type": "Registered Agent",
+            "value": "Wyoming Agents Inc."
+        },
+        {
+            "trait_type": "Governing Docs",
+            "value": "ipfs://QmcdZNeRZVCSPTsm2V9SKWka2byotSg86sGWFTEoqebCbr",
+            "display_type": "string"
+        },
+        {
+            "trait_type": "Liability",
+            "value": "Limited"
+        }
+    ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
+  "files": {
+    "maxSize": 2097152
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "noDescendingSpecificity": "off"
+      },
+      "suspicious": {
+        "useIterableCallbackReturn": "off"
+      },
+      "correctness": {
+        "noUnknownMediaFeatureName": "off",
+        "noUnusedVariables": "off"
+      }
+    }
+  }
+}

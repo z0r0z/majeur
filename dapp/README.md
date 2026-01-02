@@ -24,6 +24,26 @@ Each dApp is a self-contained HTML file that:
 - Reads state from `MolochViewHelper` (batch reads, no indexer needed)
 - Writes directly to DAO contracts
 - Works on any chain where contracts are deployed
+- "Hide Intro" toggle in navbar persists via localStorage for returning users
+
+## Keyboard Hotkeys
+
+Press `0` to show the hotkeys modal. Available shortcuts:
+
+| Key | Action |
+|-----|--------|
+| 0 | Show hotkeys modal |
+| 1 | Focus Summon section |
+| 2 | Focus "Your DAOs" |
+| 3 | Focus "All DAOs" |
+| 4 | Open GitHub / Focus DAO info |
+| 5 | Focus Chatroom |
+| 6 | Focus Treasury |
+| 7 | Focus Active Sales |
+| 8 | Focus Proposals |
+| Backspace | Go back (Ctrl/Cmd+B) |
+
+*Hotkeys are disabled when typing in input fields.*
 
 ## Contracts
 
@@ -78,6 +98,67 @@ PROPOSAL_DATA>>>
 - Self-contained — no external indexer needed
 - Verifiable — ✓ badge shows when ID matches
 
+### Proposal Types
+
+The "Self" button in CREATE PROPOSAL auto-fills the DAO address and offers these governance actions:
+
+| Category | Action | Description |
+|----------|--------|-------------|
+| **Metadata** | Set Metadata | Update DAO name, symbol, description, image |
+| | Change Renderer | Set custom NFT renderer contract |
+| **Voting** | Set Quorum (BPS) | Minimum turnout as basis points (e.g., 1000 = 10%) |
+| | Set Absolute Quorum | Minimum total votes required (works with BPS) |
+| | Set Min YES Votes | Absolute minimum FOR votes to pass |
+| | Set Vote Threshold | Shares required to create proposals |
+| **Timing** | Set Proposal TTL | How long proposals stay open |
+| | Set Timelock Delay | Delay before execution after passing |
+| **Tokens** | Toggle Ragequit | Enable/disable member exit with funds |
+| | Toggle Transferability | Lock/unlock shares and loot transfers |
+| **Futarchy** | Configure Auto-Futarchy | Set prediction market parameters |
+| | Set Futarchy Reward Token | Default token for pool rewards |
+
+For custom actions, use "Just fill address" and manually specify calldata.
+
+## DAO Metadata
+
+DAOs can store metadata as a JSON URI (IPFS, HTTPS, or data URI). The METADATA tab displays and allows updating this info.
+
+See [`assets/dao-metadata-example.json`](../assets/dao-metadata-example.json) for a complete example:
+
+```json
+{
+  "name": "My DAO",
+  "symbol": "MYDAO",
+  "description": "A description of the DAO",
+  "image": "ipfs://... or data:image/svg+xml;base64,...",
+  "treasury_tokens": [
+    { "symbol": "USDC", "address": "0x..." },
+    { "symbol": "WETH", "address": "0x..." }
+  ],
+  "external_link": "https://mydao.org",
+  "properties": {
+    "socials": {
+      "discord": "https://discord.gg/mydao",
+      "twitter": "https://x.com/mydao",
+      "bluesky": "https://bsky.app/profile/mydao"
+    }
+  },
+  "attributes": [
+    { "trait_type": "Legal Structure", "value": "Wyoming DUNA" },
+    { "trait_type": "Jurisdiction", "value": "Wyoming, USA" },
+    { "trait_type": "Governing Docs", "value": "ipfs://Qm..." }
+  ]
+}
+```
+
+**Fields:**
+- `name`, `symbol`, `description` — Basic info shown in gallery and dashboard
+- `image` — Avatar (IPFS, HTTPS, or base64 data URI)
+- `treasury_tokens` — Custom tokens to display in Treasury (ETH is always first automatically)
+- `external_link` — Website URL displayed in metadata view and NFT modal
+- `properties.socials` — Social links (discord, twitter, bluesky, etc.) displayed as clickable links
+- `attributes` — NFT-style trait array for legal/organizational info (DUNA compliance, jurisdiction, etc.)
+
 ## Key Functions
 
 ### Moloch DAO
@@ -107,3 +188,83 @@ ipfs-car pack Majeur.html > majeur.car
 # Upload car to web3.storage or similar
 # Set ENS contenthash to ipfs://Qm...
 ```
+
+## Building Documentation
+
+The project uses [mdbook](https://rust-lang.github.io/mdBook/) for documentation. The built docs live in `docs/book/` and can be viewed at the project's GitHub Pages.
+
+### Documentation Structure
+
+Documentation follows a **single-source-of-truth** pattern using symlinks:
+
+```
+/README.md              ← Main readme (source of truth)
+/tutorials/             ← Tutorial files (source of truth)
+  ├── 0-to-hero-0.md
+  ├── 0-to-hero-1.md
+  └── ...
+/assets/                ← Shared assets (source of truth)
+
+/docs/src/              ← mdbook source directory
+  ├── README.md         → symlink to ../../README.md
+  ├── tutorials/        → symlink to ../../tutorials/
+  ├── assets/           → symlink to ../../assets/
+  └── SUMMARY.md        ← mdbook table of contents
+```
+
+This ensures:
+- GitHub renders docs directly from root-level files
+- mdbook builds from the same files via symlinks
+- No duplication, no sync issues
+
+### Installing mdbook
+
+```bash
+# Using Cargo (Rust package manager)
+cargo install mdbook
+
+# macOS with Homebrew
+brew install mdbook
+
+# Or download prebuilt binaries from:
+# https://github.com/rust-lang/mdBook/releases
+```
+
+### Serving Documentation Locally
+
+```bash
+cd docs
+mdbook serve --open
+```
+
+This starts a local server at `http://localhost:3000` with hot reload.
+
+To just build without serving:
+
+```bash
+cd docs
+mdbook build
+# Output in docs/book/
+```
+
+### Windows Compatibility Note
+
+Symlinks require special handling on Windows:
+
+1. **Developer Mode** (Windows 10+): Enable in Settings → Update & Security → For developers. This allows creating symlinks without admin rights.
+
+2. **Git configuration**: Ensure symlinks are enabled:
+   ```bash
+   git config --global core.symlinks true
+   ```
+
+3. **Clone with symlinks**: When cloning on Windows, symlinks may be created as text files containing the target path. Re-clone after enabling the settings above, or manually recreate the symlinks:
+   ```bash
+   cd docs/src
+   rm README.md tutorials assets
+   mklink README.md ..\..\README.md
+   mklink /D tutorials ..\..\tutorials
+   mklink /D assets ..\..\assets
+   ```
+
+If symlinks aren't working, you can still build by copying files instead, but this creates duplication that must be kept in sync manually.

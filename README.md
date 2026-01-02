@@ -39,6 +39,16 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 
 > [daicowtf.eth](https://daicowtf.eth.limo/)
 
+## Zero to Hero
+
+Start this tutorial as a Majeur newb, end up an expert that could even contribute code!
+
+1. [Introduction](./tutorials/0-to-hero-0.md) — Course overview and setup
+2. [Repository Structure](./tutorials/0-to-hero-1.md) — Understanding every folder and file
+3. [Unvoted Proposals & Rewards](./tutorials/0-to-hero-2.md) — Reading DAO state and claiming futarchy rewards
+4. [Submit & Execute Proposals](./tutorials/0-to-hero-3.md) — Creating governance proposals and voting
+5. Check back because more parts will be added soon!
+
 ## At a Glance
 
 ```
@@ -68,7 +78,7 @@ All tokens are deployed as separate contracts via minimal proxy clones. The DAO 
 ### Ragequit
 The defining feature of Moloch-style DAOs: **members can always exit**.
 
-Burn your shares/loot → receive your proportional share of the treasury. Own 10% of shares? Claim 10% of every treasury token. This creates a floor price for membership and protects minorities from majority tyranny.
+Burn your shares/loot → receive your proportional share of the treasury. Own 10% of total (shares + loot)? Claim 10% of every treasury token. This creates a floor price for membership and protects minorities from majority tyranny.
 
 *Limitation: You can only claim external tokens (ETH, USDC, etc.) — not the DAO's own shares, loot, or badges.*
 
@@ -76,8 +86,8 @@ Burn your shares/loot → receive your proportional share of the treasury. Own 1
 Skin-in-the-game governance through prediction markets:
 
 1. Anyone funds a reward pool for a proposal
-2. Vote YES, NO, or ABSTAIN → receive receipt tokens
-3. Proposal passes → YES voters split the pool; fails → NO voters win
+2. Vote FOR, AGAINST, or ABSTAIN → receive receipt tokens
+3. Proposal passes → FOR voters split the pool; fails → AGAINST voters win
 4. Burn your receipts to claim winnings
 
 This shifts incentives from "vote with the crowd" to "vote for what you believe will actually succeed."
@@ -95,6 +105,15 @@ Useful when you trust different people for different expertise, or want to hedge
 ### Badges
 Soulbound NFTs automatically minted for the top 256 shareholders. They update in real-time as balances change and gate access to member-only features like on-chain chat.
 
+### DAO Metadata
+DAOs can store metadata as a JSON URI (IPFS, HTTPS, or data URI). The metadata supports:
+- Basic info: `name`, `symbol`, `description`, `image`
+- Treasury: `treasury_tokens` array for custom token display
+- Links: `external_link` website, `properties.socials` for social links
+- Legal: `attributes` array for DUNA compliance info (jurisdiction, governing docs, etc.)
+
+See [`assets/dao-metadata-example.json`](./assets/dao-metadata-example.json) for the complete format.
+
 ## Proposal Lifecycle
 
 ![Proposal Lifecycle](./assets/proposal-lifecycle.svg)
@@ -108,7 +127,7 @@ Unopened → Active → Succeeded → Queued (if timelock) → Executed
 **Pass conditions** (all must be true):
 - Quorum reached (absolute or percentage)
 - FOR > AGAINST (ties fail)
-- Minimum YES threshold met (if configured)
+- Minimum FOR votes threshold met (if configured)
 - Not expired
 
 ## Visual Card Examples
@@ -147,7 +166,7 @@ Moloch dao = summoner.summon(
     "",               // URI (metadata)
     5000,             // 50% quorum (basis points)
     true,             // ragequittable
-    address(0),       // renderer (0 = default on-chain SVG)
+    address(0),       // renderer (0 = default on-chain SVG renderer)
     bytes32(0),       // salt (for deterministic addresses)
     holders,          // initial holders
     shares,           // initial shares
@@ -189,16 +208,17 @@ dao.shares().clearSplitDelegation();
 ### Futarchy Markets
 
 ```solidity
-// Fund a prediction market for a proposal
-dao.fundFutarchy(
+// Fund a prediction market for a proposal (ETH)
+dao.fundFutarchy{value: 1 ether}(
     proposalId,
     address(0),  // 0 = ETH, or token address
-    1 ether      // amount
+    1 ether      // amount (must match msg.value for ETH)
 );
 
 // After resolution, claim winnings
-uint256 receiptId = dao._receiptId(proposalId, 1); // 1=YES
-dao.cashOutFutarchy(proposalId, myReceiptBalance);
+// Receipt ID = keccak256("Moloch:receipt", proposalId, support)
+uint256 receiptId = uint256(keccak256(abi.encodePacked("Moloch:receipt", proposalId, uint8(1))));
+dao.cashOutFutarchy(proposalId, dao.balanceOf(msg.sender, receiptId));
 ```
 
 ### Token Sales
@@ -416,9 +436,9 @@ Inspired by Vitalik's DAICO concept — controlled fundraising with investor pro
 // 1. DAO configures a sale
 dao.executeByVotes(...); // calls DAICO.setSaleWithTap(...)
 
-// 2. Users buy shares/loot
-daico.buy(dao, address(0), 1 ether, minShares);  // exact-in
-daico.buyExactOut(dao, address(0), 1000e18, maxPay);  // exact-out
+// 2. Users buy shares/loot (ETH example - must send value)
+daico.buy{value: 1 ether}(dao, address(0), 1 ether, minShares);  // exact-in
+daico.buyExactOut{value: maxPay}(dao, address(0), 1000e18, maxPay);  // exact-out
 
 // 3. Ops team claims vested funds via tap
 daico.claimTap(dao);  // anyone can trigger, funds go to ops
@@ -694,7 +714,7 @@ dao.ragequit(tokens, myShares, 0);
 **A:** Yes! Specify how many shares/loot to burn. You don't have to exit completely.
 
 ### Q: How are proposal IDs generated?
-**A:** Deterministically from: `keccak256(dao, op, to, value, data, nonce, config)`. Anyone can compute it.
+**A:** Deterministically from: `keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))`. Note that `data` is hashed. Anyone can compute it off-chain.
 
 ### Q: What prevents vote buying?
 **A:** Snapshots at block N-1. You can't buy tokens after seeing a proposal and vote.
