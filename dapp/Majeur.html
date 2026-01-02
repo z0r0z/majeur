@@ -27651,7 +27651,7 @@
               ` : ''}
               ${isExecutable ?
                 `<button class="proposal-button ${buttonText.toLowerCase().includes('queue') ? 'queue' : 'execute'}"
-                         onclick="${buttonAction}"
+                         onclick="event.preventDefault(); ${buttonAction}"
                          ${buttonDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>${buttonText}</button>` :
                 ''}
             </div>
@@ -27680,6 +27680,7 @@
 
       // Vote on proposal
       async function voteOnProposal(proposalId, support, event) {
+        if (event) event.preventDefault();
         if (!currentDAO || !signer) {
           showStatus('Please connect wallet and select a DAO', true);
           return;
@@ -27726,9 +27727,11 @@
 
           showStatus(`✨ Vote ${voteType} cast! Refreshing...`, false);
 
-          // Refresh DAO data with loading feedback
-          await refreshCurrentDAO(true);
-          await renderProposals();
+          // Refresh DAO data with loading feedback, preserving scroll position
+          await withScrollPreservation(async () => {
+            await refreshCurrentDAO(true);
+            await renderProposals();
+          });
         } catch (error) {
           logger.error('Error voting:', error);
 
@@ -27771,6 +27774,7 @@
 
       // Cancel vote on proposal
       async function cancelVoteOnProposal(proposalId, event) {
+        if (event) event.preventDefault();
         if (!currentDAO || !signer) {
           showStatus('Please connect wallet and select a DAO', true);
           return;
@@ -27819,9 +27823,11 @@
 
           showStatus(`✨ Vote cancelled! Refreshing...`, false);
 
-          // Refresh DAO data with loading feedback
-          await refreshCurrentDAO(true);
-          await renderProposals();
+          // Refresh DAO data with loading feedback, preserving scroll position
+          await withScrollPreservation(async () => {
+            await refreshCurrentDAO(true);
+            await renderProposals();
+          });
         } catch (error) {
           logger.error('Error cancelling vote:', error);
 
@@ -27912,8 +27918,10 @@
           showStatus(`✨ Rewards claimed! Refreshing...`, false);
 
           // Refresh DAO data with loading feedback
-          await refreshCurrentDAO(true);
-          await renderProposals();
+          await withScrollPreservation(async () => {
+            await refreshCurrentDAO(true);
+            await renderProposals();
+          });
         } catch (error) {
           logger.error('Error claiming futarchy rewards:', error);
 
@@ -28825,9 +28833,11 @@
           updateCalldataPreview();
 
           // Refresh with loading feedback
-          await refreshCurrentDAO(true);
-          renderChatroom();
-          await renderProposals();
+          await withScrollPreservation(async () => {
+            await refreshCurrentDAO(true);
+            renderChatroom();
+            await renderProposals();
+          });
         } catch (error) {
           logger.error('Error creating proposal:', error);
 
@@ -28890,8 +28900,10 @@
           showStatus('✨ Proposal queued! Timelock started.', false);
 
           // Refresh to show updated state
-          await refreshCurrentDAO(true);
-          await renderProposals();
+          await withScrollPreservation(async () => {
+            await refreshCurrentDAO(true);
+            await renderProposals();
+          });
         } catch (error) {
           logger.error('Error queueing proposal:', error);
 
@@ -29021,9 +29033,11 @@
           showStatus(`✨ Proposal executed! Refreshing...`, false);
 
           // Refresh with loading feedback
-          await refreshCurrentDAO(true);
-          await renderProposals();
-          await renderSalesInfo(); // Refresh sales in case it was a sale proposal
+          await withScrollPreservation(async () => {
+            await refreshCurrentDAO(true);
+            await renderProposals();
+            await renderSalesInfo(); // Refresh sales in case it was a sale proposal
+          });
         } catch (error) {
           logger.error('Error executing proposal:', error);
 
@@ -29501,6 +29515,13 @@
           btn.style.cursor = 'pointer';
           btn.textContent = originalText || btn.dataset.originalText || 'Submit';
         }
+      }
+
+      // Helper to preserve scroll position during DOM updates
+      async function withScrollPreservation(asyncFn) {
+        const scrollY = window.scrollY;
+        await asyncFn();
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
       }
 
       function showStatus(message, isError = false, type = 'info', autoDismiss = true) {
