@@ -6012,32 +6012,20 @@
         overflow: hidden;
       }
 
-      .emblem-hover-attributes {
+      .emblem-hover-link {
+        display: block;
         margin-top: 0.75rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-
-      .emblem-hover-attribute {
-        background: rgba(157, 123, 255, 0.15);
-        border: 1px solid rgba(157, 123, 255, 0.3);
-        padding: 0.25rem 0.5rem;
-        border-radius: 3px;
-        font-size: 0.7rem;
-      }
-
-      .emblem-hover-attribute-label {
-        color: rgba(157, 123, 255, 0.8);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        font-family: "Cinzel", serif;
-      }
-
-      .emblem-hover-attribute-value {
-        color: #e6d9ff;
-        margin-top: 0.15rem;
         font-family: 'EB Garamond', serif;
+        font-size: 0.8rem;
+        color: #9d7bff;
+        text-decoration: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .emblem-hover-link:hover {
+        text-decoration: underline;
       }
 
       /* NFT MODAL */
@@ -6144,6 +6132,22 @@
         margin-bottom: 1.5rem;
       }
 
+      .nft-modal-external-link {
+        display: block;
+        font-family: 'EB Garamond', serif;
+        font-size: 0.9rem;
+        color: #9d7bff;
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-decoration: none;
+      }
+
+      .nft-modal-external-link:hover {
+        text-decoration: underline;
+      }
+
       .nft-modal-attributes {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -6165,12 +6169,18 @@
         text-transform: uppercase;
         color: rgba(230, 217, 255, 0.6);
         margin-bottom: 0.25rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .nft-modal-attribute-value {
         font-family: 'EB Garamond', serif;
         font-size: 1rem;
         color: #e6d9ff;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       @media (max-width: 768px) {
@@ -9752,7 +9762,7 @@
       <img id="emblemHoverImage" alt="DAO Emblem" style="display: none;" />
       <div id="emblemHoverName" class="emblem-hover-name"></div>
       <div id="emblemHoverDescription" class="emblem-hover-description"></div>
-      <div id="emblemHoverAttributes" class="emblem-hover-attributes"></div>
+      <div id="emblemHoverLink"></div>
     </div>
 
     <!-- Web3 Integration Script -->
@@ -9826,7 +9836,7 @@
         const imageEl = document.getElementById('emblemHoverImage');
         const nameEl = document.getElementById('emblemHoverName');
         const descEl = document.getElementById('emblemHoverDescription');
-        const attrsEl = document.getElementById('emblemHoverAttributes');
+        const linkEl = document.getElementById('emblemHoverLink');
 
         // Populate popup
         if (metadata.image) {
@@ -9839,16 +9849,11 @@
         nameEl.textContent = metadata.name || '';
         descEl.textContent = metadata.description || '';
 
-        // Render attributes
-        if (metadata.attributes && Array.isArray(metadata.attributes)) {
-          attrsEl.innerHTML = metadata.attributes.map(attr => `
-            <div class="emblem-hover-attribute">
-              <div class="emblem-hover-attribute-label">${escapeHtml(attr.trait_type || attr.type || 'Attr')}</div>
-              <div class="emblem-hover-attribute-value">${escapeHtml(attr.value)}</div>
-            </div>
-          `).join('');
+        // Render external link
+        if (metadata.external_link) {
+          linkEl.innerHTML = `<a href="${escapeHtml(metadata.external_link)}" target="_blank" rel="noopener noreferrer" class="emblem-hover-link">${escapeHtml(metadata.external_link)}</a>`;
         } else {
-          attrsEl.innerHTML = '';
+          linkEl.innerHTML = '';
         }
 
         // Position popup near cursor
@@ -19843,7 +19848,7 @@
           if (lootAction !== 'none') {
             changes.push(`Loot → ${lootAction === 'unlock' ? 'Transferable' : 'Non-Transferable'}`);
           }
-          const description = 'Update transferability: ' + changes.join(', ');
+          const description = `Update transferability: ${changes.join(', ')}`;
 
           getEl('proposalTo').value = daoAddress;
           getEl('proposalValue').value = '0';
@@ -26133,6 +26138,25 @@
           `;
         }
 
+        // Attributes
+        if (currentDAOMetadata?.attributes && Array.isArray(currentDAOMetadata.attributes)) {
+          html += `
+            <div class="metadata-field">
+              <div class="metadata-label">Attributes</div>
+              <div class="metadata-value">
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                  ${currentDAOMetadata.attributes.map(attr => `
+                    <div style="display: flex; gap: 0.75rem; padding: 0.5rem; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(157, 123, 255, 0.2); border-radius: 4px;">
+                      <span style="color: rgba(157, 123, 255, 0.8); font-family: 'Cinzel', serif; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; min-width: 100px;">${escapeHtml(attr.trait_type || attr.type || 'Attribute')}</span>
+                      <span style="color: #e6d9ff; font-family: 'EB Garamond', serif; word-break: break-word;">${escapeHtml(String(attr.value))}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
         // Treasury Tokens
         if (currentDAOMetadata?.treasury_tokens && Array.isArray(currentDAOMetadata.treasury_tokens)) {
           html += `
@@ -26255,6 +26279,7 @@
           ${imageHTML}
           <div class="nft-modal-title">${escapeHtml(metadata.name) || escapeHtml(title)}</div>
           ${metadata.description ? `<div class="nft-modal-description">${escapeHtml(metadata.description)}</div>` : ''}
+          ${metadata.external_link ? `<a href="${escapeHtml(metadata.external_link)}" target="_blank" rel="noopener noreferrer" class="nft-modal-external-link">${escapeHtml(metadata.external_link)}</a>` : ''}
           ${attributesHTML}
           ${futarchyClaimHTML}
         `;
