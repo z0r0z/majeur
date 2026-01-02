@@ -134,6 +134,19 @@ See [`assets/dao-metadata-example.json`](../assets/dao-metadata-example.json) fo
   "treasury_tokens": [
     { "symbol": "USDC", "address": "0x..." },
     { "symbol": "WETH", "address": "0x..." }
+  ],
+  "external_link": "https://mydao.org",
+  "properties": {
+    "socials": {
+      "discord": "https://discord.gg/mydao",
+      "twitter": "https://x.com/mydao",
+      "bluesky": "https://bsky.app/profile/mydao"
+    }
+  },
+  "attributes": [
+    { "trait_type": "Legal Structure", "value": "Wyoming DUNA" },
+    { "trait_type": "Jurisdiction", "value": "Wyoming, USA" },
+    { "trait_type": "Governing Docs", "value": "ipfs://Qm..." }
   ]
 }
 ```
@@ -142,6 +155,9 @@ See [`assets/dao-metadata-example.json`](../assets/dao-metadata-example.json) fo
 - `name`, `symbol`, `description` — Basic info shown in gallery and dashboard
 - `image` — Avatar (IPFS, HTTPS, or base64 data URI)
 - `treasury_tokens` — Custom tokens to display in Treasury (ETH is always first automatically)
+- `external_link` — Website URL displayed in metadata view and NFT modal
+- `properties.socials` — Social links (discord, twitter, bluesky, etc.) displayed as clickable links
+- `attributes` — NFT-style trait array for legal/organizational info (DUNA compliance, jurisdiction, etc.)
 
 ## Key Functions
 

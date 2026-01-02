@@ -39,10 +39,6 @@
             "discord": "https://discord.gg/elitecodersunion",
             "twitter": "https://x.com/elitecodersunion",
             "bluesky": "https://bsky.app/profile/elitecoders.union"
-        },
-        "governance": {
-            "engine": "OpenZeppelin Governor Bravo",
-            "token_standard": "ERC-20Comp"
         }
     },
     "attributes": [

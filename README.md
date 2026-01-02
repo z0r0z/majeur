@@ -105,6 +105,15 @@ Useful when you trust different people for different expertise, or want to hedge
 ### Badges
 Soulbound NFTs automatically minted for the top 256 shareholders. They update in real-time as balances change and gate access to member-only features like on-chain chat.
 
+### DAO Metadata
+DAOs can store metadata as a JSON URI (IPFS, HTTPS, or data URI). The metadata supports:
+- Basic info: `name`, `symbol`, `description`, `image`
+- Treasury: `treasury_tokens` array for custom token display
+- Links: `external_link` website, `properties.socials` for social links
+- Legal: `attributes` array for DUNA compliance info (jurisdiction, governing docs, etc.)
+
+See [`assets/dao-metadata-example.json`](./assets/dao-metadata-example.json) for the complete format.
+
 ## Proposal Lifecycle
 
 ![Proposal Lifecycle](./assets/proposal-lifecycle.svg)
