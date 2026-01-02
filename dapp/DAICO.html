@@ -256,7 +256,6 @@
 
         /* HERO SECTION */
         .hero {
-            min-height: 100vh;
             min-height: 100dvh;
             background: var(--pink);
             position: relative;
@@ -421,7 +420,7 @@
         /* Hide old scattered buttons - replaced by nav menu */
         .launch-btn,
         .github-link {
-            display: none !important;
+            display: none;
         }
 
         /* DESKTOP NAVIGATION (visible on wide screens) - vertical menu */
@@ -614,14 +613,6 @@
         .nav-toggle-label:has(input:checked) .toggle-switch {
             background: rgba(0, 255, 255, 0.2);
             border-color: var(--cyan);
-        }
-
-        /* Hide intro content when toggle is enabled - hides everything before summary section */
-        body.hide-intro .hero,
-        body.hide-intro .section-fund,
-        body.hide-intro .section-ctrl,
-        body.hide-intro .section-grow {
-            display: none !important;
         }
 
         /* Mobile/zoom: hide desktop nav, show hamburger */
@@ -949,7 +940,6 @@
 
         /* CONTENT SECTIONS */
         .section {
-            min-height: 100vh;
             min-height: 100dvh;
             position: relative;
             display: flex;
@@ -960,6 +950,14 @@
         .section-fund { background: var(--yellow); }
         .section-ctrl { background: var(--black); }
         .section-grow { background: var(--white); }
+
+        /* Hide intro content when toggle is enabled - hides everything before summary section */
+        body.hide-intro .hero,
+        body.hide-intro .section-fund,
+        body.hide-intro .section-ctrl,
+        body.hide-intro .section-grow {
+            display: none;
+        }
 
         .section .theme {
             font-size: var(--font-section-title);
@@ -2664,7 +2662,6 @@
         /* INTERACTIVE SUMMARY SECTION */
         .section-summary {
             background: var(--black);
-            min-height: 100vh;
             min-height: 100dvh;
             display: flex;
             flex-direction: column;
@@ -4585,19 +4582,19 @@
             }
 
             .tap-preset-btns {
-                gap: 0.4rem !important;
+                gap: 0.4rem;
             }
 
             /* Wizard tap effect box */
             #wizardTapEffect {
-                font-size: 0.85rem !important;
-                padding: 0.75rem !important;
+                font-size: 0.85rem;
+                padding: 0.75rem;
             }
 
             /* Wizard tap ops display */
             .tap-ops-display {
-                font-size: 0.75rem !important;
-                padding: 0.6rem 0.8rem !important;
+                font-size: 0.75rem;
+                padding: 0.6rem 0.8rem;
             }
 
             /* Text summoning improvements */
@@ -4625,8 +4622,8 @@
 
             /* Advanced form grid fixes */
             .form-row {
-                grid-template-columns: 1fr !important;
-                gap: 1rem !important;
+                grid-template-columns: 1fr;
+                gap: 1rem;
             }
 
             .form-group-row {
@@ -4830,9 +4827,9 @@
         /* REDUCED MOTION */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms;
+                animation-iteration-count: 1;
+                transition-duration: 0.01ms;
             }
 
             html {
@@ -5970,7 +5967,7 @@
         document.addEventListener('click', (e) => {
             const mobileMenu = document.getElementById('mobileMenu');
             const hamburger = document.getElementById('hamburgerToggle');
-            if (mobileMenu && mobileMenu.classList.contains('open')) {
+            if (mobileMenu?.classList.contains('open')) {
                 if (!mobileMenu.contains(e.target) && !hamburger.contains(e.target)) {
                     mobileMenu.classList.remove('open');
                     hamburger.classList.remove('active');
@@ -6138,7 +6135,7 @@
             }
         };
 
-        let tokenListCache = {
+        const tokenListCache = {
             loaded: false,
             loading: false,
             byChain: {},      // chainId -> { addressLower -> logoURI }
@@ -6277,7 +6274,7 @@
         }
 
         // Prompt user to switch networks when following a deep link
-        async function promptNetworkSwitch(networkKey, targetNetwork, dao, tribTkn) {
+        async function promptNetworkSwitch(networkKey, targetNetwork, _dao, _tribTkn) {
             const currentNet = getNetwork();
             const msg = `This link is for ${targetNetwork.name}, but you're on ${currentNet.name}. Switch networks?`;
 
@@ -6331,14 +6328,14 @@
 
         // Dynamic proxy for network-aware token metadata lookup
         const COMMON_TRIB_TOKENS = new Proxy({}, {
-            get(target, prop) {
+            get(_target, prop) {
                 const network = getNetwork();
                 return network.tokenMeta[prop] || null;
             },
             ownKeys() {
                 return Object.keys(getNetwork().tokenMeta);
             },
-            getOwnPropertyDescriptor(target, prop) {
+            getOwnPropertyDescriptor(_target, prop) {
                 const meta = getNetwork().tokenMeta[prop];
                 if (meta) {
                     return { configurable: true, enumerable: true, value: meta };
@@ -6366,7 +6363,7 @@
             let lookupAddr = addr;
             let lookupChainId = chainId;
             const testnetMap = TESTNET_ICON_MAP[chainId];
-            if (testnetMap && testnetMap[addr]) {
+            if (testnetMap?.[addr]) {
                 lookupAddr = testnetMap[addr].mainnet;
                 lookupChainId = testnetMap[addr].chainId;
             }
@@ -6463,7 +6460,7 @@
                 // Future: image, external_link, banner_image, etc.
             };
             const json = JSON.stringify(metadata);
-            return 'data:application/json;utf8,' + json;
+            return `data:application/json;utf8,${json}`;
         }
 
         // Parse contractURI to extract metadata (handles both JSON and SVG formats)
@@ -6607,7 +6604,7 @@
             // JSON with description but no image - render description box
             if (metadata.type === 'json' && metadata.description) {
                 const truncatedDesc = metadata.description.length > 120
-                    ? metadata.description.slice(0, 117) + '...'
+                    ? `${metadata.description.slice(0, 117)}...`
                     : metadata.description;
                 return `<div class="daico-image daico-image-description">
                     <span class="daico-desc-text">${escapeHtml(truncatedDesc)}</span>
@@ -6645,7 +6642,7 @@
 
         function minimalProxyInitCode(implementation) {
             const impl = implementation.toLowerCase().replace(/^0x/, '');
-            return ethers.concat([CLONE_PREFIX, '0x' + impl, CLONE_SUFFIX]);
+            return ethers.concat([CLONE_PREFIX, `0x${impl}`, CLONE_SUFFIX]);
         }
 
         function computeCreate2Address(deployer, salt, implementation) {
@@ -6655,7 +6652,7 @@
                 ['bytes1', 'address', 'bytes32', 'bytes32'],
                 ['0xff', deployer, salt, initCodeHash]
             );
-            return ethers.getAddress('0x' + ethers.keccak256(encoded).slice(-40));
+            return ethers.getAddress(`0x${ethers.keccak256(encoded).slice(-40)}`);
         }
 
         function predictDaoAddress(initHolders, initShares, userSalt) {
@@ -6802,13 +6799,13 @@
 
         // LocalStorage helpers
         function saveWalletPreference(walletKey) {
-            try { localStorage.setItem('daico_wallet', walletKey); } catch (e) {}
+            try { localStorage.setItem('daico_wallet', walletKey); } catch (_e) {}
         }
         function getWalletPreference() {
-            try { return localStorage.getItem('daico_wallet'); } catch (e) { return null; }
+            try { return localStorage.getItem('daico_wallet'); } catch (_e) { return null; }
         }
         function clearWalletPreference() {
-            try { localStorage.removeItem('daico_wallet'); } catch (e) {}
+            try { localStorage.removeItem('daico_wallet'); } catch (_e) {}
         }
 
         function showWalletModal() {
@@ -6904,7 +6901,7 @@
                         try {
                             walletConnectProvider.removeAllListeners?.();
                             await walletConnectProvider.disconnect?.();
-                        } catch (e) {
+                        } catch (_e) {
                             // Ignore cleanup errors
                         }
                         walletConnectProvider = null;
@@ -6963,7 +6960,7 @@
                 // Save preference
                 saveWalletPreference(walletKey);
 
-                const shortAddress = connectedAddress.slice(0, 6) + '...' + connectedAddress.slice(-4);
+                const shortAddress = `${connectedAddress.slice(0, 6)}...${connectedAddress.slice(-4)}`;
                 document.getElementById('walletBtn').textContent = shortAddress;
                 document.getElementById('walletBtn').classList.add('connected');
 
@@ -7008,7 +7005,7 @@
             } catch (error) {
                 console.error('Connection failed:', error);
                 if (!isUserRejection(error)) {
-                    showStatus('Connection failed: ' + getErrorMessage(error), 'error');
+                    showStatus(`Connection failed: ${getErrorMessage(error)}`, 'error');
                 }
             } finally {
                 isConnecting = false;
@@ -7397,18 +7394,18 @@
         // Format tap rate with appropriate precision
         function formatTapRate(ethPerDay) {
             if (ethPerDay >= 1) {
-                return ethPerDay.toFixed(2).replace(/\.00$/, '') + ' ETH';
+                return `${ethPerDay.toFixed(2).replace(/\.00$/, '')} ETH`;
             } else if (ethPerDay >= 0.001) {
-                return ethPerDay.toFixed(4).replace(/\.?0+$/, '') + ' ETH';
+                return `${ethPerDay.toFixed(4).replace(/\.?0+$/, '')} ETH`;
             } else {
                 // Convert to wei for very small amounts
                 const weiPerDay = ethPerDay * 1e18;
                 if (weiPerDay >= 1e15) {
-                    return (weiPerDay / 1e15).toFixed(2).replace(/\.00$/, '') + ' finney';
+                    return `${(weiPerDay / 1e15).toFixed(2).replace(/\.00$/, '')} finney`;
                 } else if (weiPerDay >= 1e12) {
-                    return (weiPerDay / 1e12).toFixed(2).replace(/\.00$/, '') + ' gwei';
+                    return `${(weiPerDay / 1e12).toFixed(2).replace(/\.00$/, '')} gwei`;
                 } else {
-                    return ethPerDay.toExponential(2) + ' ETH';
+                    return `${ethPerDay.toExponential(2)} ETH`;
                 }
             }
         }
@@ -7441,7 +7438,7 @@
                         resolvedEl.textContent = 'ENS name not found';
                         resolvedEl.style.color = 'var(--orange)';
                     }
-                } catch (e) {
+                } catch (_e) {
                     resolvedEl.textContent = 'Failed to resolve ENS';
                     resolvedEl.style.color = 'var(--orange)';
                 }
@@ -7469,7 +7466,7 @@
                         showWizardStatus('ENS name not found', 'error');
                         return;
                     }
-                } catch (e) {
+                } catch (_e) {
                     showWizardStatus('Failed to resolve ENS', 'error');
                     return;
                 }
@@ -7529,8 +7526,8 @@
         }
 
         function updateLPPreview() {
-            const pct = parseInt(document.getElementById('wizardLPPct').value);
-            document.getElementById('wizardLPValue').textContent = pct + '%';
+            const pct = parseInt(document.getElementById('wizardLPPct').value, 10);
+            document.getElementById('wizardLPValue').textContent = `${pct}%`;
 
             if (wizardState.raiseAmount) {
                 const lpAmount = wizardState.raiseAmount * (pct / 100);
@@ -7553,7 +7550,7 @@
 
         function confirmLPConfig() {
             wizardState.enableLP = true;
-            wizardState.lpPct = parseInt(document.getElementById('wizardLPPct').value);
+            wizardState.lpPct = parseInt(document.getElementById('wizardLPPct').value, 10);
             // If loot, go to founders step, otherwise go to confirm
             if (wizardState.tokenType === 'loot') {
                 showWizardStep(6);
@@ -7626,7 +7623,7 @@
                                 showWizardStatus(`ENS name not found for founder ${i + 1}`, 'error');
                                 return;
                             }
-                        } catch (e) {
+                        } catch (_e) {
                             showWizardStatus(`Failed to resolve ENS for founder ${i + 1}`, 'error');
                             return;
                         }
@@ -7743,7 +7740,7 @@
 
         function showWizardStatus(message, type = 'info') {
             const el = document.getElementById('wizardStatus');
-            el.className = 'status-message show ' + type;
+            el.className = `status-message show ${type}`;
             el.innerHTML = message;
         }
 
@@ -8113,7 +8110,7 @@
             summaryState.template = templateId;
 
             // Update UI elements
-            document.getElementById('editQuorum').textContent = template.quorum + '%';
+            document.getElementById('editQuorum').textContent = `${template.quorum}%`;
             document.getElementById('editVoting').textContent = template.voting;
             document.getElementById('editTimelock').textContent = template.timelock;
 
@@ -8235,7 +8232,7 @@
 
         // Detect template from on-chain DAO config (for gallery display)
         // Uses efficient heuristics based on token type and tap presence
-        function detectDAICOTemplate(sale, dao) {
+        function detectDAICOTemplate(_sale, dao) {
             // sale: { tribAmt, forAmt, forTkn, deadline, remainingSupply, totalSupply }
             // dao: { isLoot, hasTap, tapRate }
 
@@ -8290,7 +8287,7 @@
             if (!el || el.classList.contains('editing')) return;
 
             const currentValue = el.textContent.replace(/[,%]/g, '');
-            const isPercent = field === 'quorum' || field === 'tapPct';
+            const _isPercent = field === 'quorum' || field === 'tapPct';
 
             el.classList.add('editing');
             el.innerHTML = `<input type="number" value="${currentValue}" min="1" step="any">`;
@@ -8318,7 +8315,7 @@
                 if (field === 'supply') {
                     displayValue = newValue.toFixed(2).replace(/\.00$/, '');
                 } else if (field === 'quorum' || field === 'tapPct') {
-                    displayValue = newValue + '%';
+                    displayValue = `${newValue}%`;
                 } else {
                     displayValue = newValue.toString();
                 }
@@ -8347,7 +8344,7 @@
                     if (field === 'supply') {
                         displayValue = summaryState[field].toFixed(2).replace(/\.00$/, '');
                     } else if (field === 'quorum' || field === 'tapPct') {
-                        displayValue = summaryState[field] + '%';
+                        displayValue = `${summaryState[field]}%`;
                     } else {
                         displayValue = summaryState[field].toString();
                     }
@@ -8424,7 +8421,7 @@
 
             if (summaryState.tapEnabled) {
                 // Show tap values
-                tapPctEl.textContent = summaryState.tapPct + '%';
+                tapPctEl.textContent = `${summaryState.tapPct}%`;
                 tapPctEl.style.opacity = '1';
                 tapMonthsEl.textContent = summaryState.tapMonths;
                 tapMonthsEl.style.display = 'inline';
@@ -8457,26 +8454,26 @@
             // For stablecoins, just show the amount
             if (symbol === 'USDC' || symbol === 'USDT' || symbol === 'DAI') {
                 if (amountPerDay >= 1) {
-                    return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
+                    return `${amountPerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}`;
                 } else if (amountPerDay >= 0.01) {
-                    return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
+                    return `${amountPerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}`;
                 } else {
-                    return amountPerDay.toExponential(2) + ' ' + symbol;
+                    return `${amountPerDay.toExponential(2)} ${symbol}`;
                 }
             }
             // For ETH and wstETH, use sub-units for small amounts
             if (amountPerDay >= 1) {
-                return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
+                return `${amountPerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}`;
             } else if (amountPerDay >= 0.001) {
-                return amountPerDay.toFixed(2).replace(/\.00$/, '') + ' ' + symbol;
+                return `${amountPerDay.toFixed(2).replace(/\.00$/, '')} ${symbol}`;
             } else {
                 const weiPerDay = amountPerDay * 1e18;
                 if (weiPerDay >= 1e15) {
-                    return (weiPerDay / 1e15).toFixed(2).replace(/\.00$/, '') + ' finney';
+                    return `${(weiPerDay / 1e15).toFixed(2).replace(/\.00$/, '')} finney`;
                 } else if (weiPerDay >= 1e12) {
-                    return (weiPerDay / 1e12).toFixed(2).replace(/\.00$/, '') + ' gwei';
+                    return `${(weiPerDay / 1e12).toFixed(2).replace(/\.00$/, '')} gwei`;
                 } else {
-                    return amountPerDay.toExponential(2) + ' ' + symbol;
+                    return `${amountPerDay.toExponential(2)} ${symbol}`;
                 }
             }
         }
@@ -8842,7 +8839,7 @@
         ];
 
         // Multicall3 getEthBalance interface (reused for performance)
-        const MULTICALL3_ETH_BALANCE_IFACE = new ethers.Interface(['function getEthBalance(address) view returns (uint256)']);
+        const _MULTICALL3_ETH_BALANCE_IFACE = new ethers.Interface(['function getEthBalance(address) view returns (uint256)']);
 
         // Scanner state
         let activeDAICOs = [];
@@ -9286,7 +9283,7 @@
 
             // Show description from contractURI metadata if present
             const descEl = document.getElementById('purchaseDescription');
-            if (daoData.metadata && daoData.metadata.description) {
+            if (daoData.metadata?.description) {
                 descEl.textContent = daoData.metadata.description;
                 descEl.style.display = 'block';
             } else {
@@ -9314,7 +9311,7 @@
             const tokenType = isLoot ? 'Loot' : 'Shares';
 
             const remainingNum = Number(ethers.formatEther(sale.remainingSupply || 0n));
-            document.getElementById('purchaseRemaining').textContent = remainingNum.toFixed(2).replace(/\.00$/, '') + ' ' + tokenType;
+            document.getElementById('purchaseRemaining').textContent = `${remainingNum.toFixed(2).replace(/\.00$/, '')} ${tokenType}`;
 
             // Deadline with readable date
             const now = Math.floor(Date.now() / 1000);
@@ -9411,7 +9408,7 @@
 
                 // Display ops address with ENS reverse lookup
                 const opsDisplay = document.getElementById('tapOpsDisplay');
-                const shortOps = daoData.tap.ops.slice(0, 6) + '...' + daoData.tap.ops.slice(-4);
+                const shortOps = `${daoData.tap.ops.slice(0, 6)}...${daoData.tap.ops.slice(-4)}`;
                 opsDisplay.textContent = shortOps;
                 // Try reverse ENS lookup (async, update when ready)
                 initScanner().then(scanner => scanner?.lookupAddress(daoData.tap.ops)).then(ensName => {
@@ -9465,7 +9462,7 @@
                     const balance = await provider.getBalance(connectedAddress);
                     currentPurchase.payBalance = balance;
                     currentPurchase.allowance = ethers.MaxUint256; // No approval needed for ETH
-                    document.getElementById('payBalance').textContent = Number(ethers.formatEther(balance)).toFixed(2).replace(/\.00$/, '') + ' ETH';
+                    document.getElementById('payBalance').textContent = `${Number(ethers.formatEther(balance)).toFixed(2).replace(/\.00$/, '')} ETH`;
                 } else {
                     // ERC20 balance and allowance
                     const token = new ethers.Contract(currentPurchase.tribTkn, ERC20_FULL_ABI, provider);
@@ -9475,7 +9472,7 @@
                     ]);
                     currentPurchase.payBalance = balance;
                     currentPurchase.allowance = allowance;
-                    document.getElementById('payBalance').textContent = Number(ethers.formatUnits(balance, tribInfo.decimals)).toFixed(2).replace(/\.00$/, '') + ' ' + tribInfo.symbol;
+                    document.getElementById('payBalance').textContent = `${Number(ethers.formatUnits(balance, tribInfo.decimals)).toFixed(2).replace(/\.00$/, '')} ${tribInfo.symbol}`;
                 }
 
                 updatePurchaseButton();
@@ -9506,7 +9503,7 @@
 
             // Clip to the cost of remaining supply if user balance would exceed it
             const sale = currentPurchase.sale;
-            if (sale && sale.remainingSupply && sale.remainingSupply > 0n && sale.tribAmt > 0n && sale.forAmt > 0n) {
+            if (sale?.remainingSupply && sale.remainingSupply > 0n && sale.tribAmt > 0n && sale.forAmt > 0n) {
                 // Cost to buy all remaining = (remainingSupply * tribAmt) / forAmt
                 const costForRemaining = (sale.remainingSupply * sale.tribAmt) / sale.forAmt;
                 if (costForRemaining < maxAmt) {
@@ -9523,7 +9520,7 @@
         async function handlePayInput() {
             currentPurchase.inputMode = 'pay';
             const payStr = document.getElementById('payAmountInput').value.trim();
-            if (!payStr || isNaN(parseFloat(payStr)) || parseFloat(payStr) <= 0) {
+            if (!payStr || Number.isNaN(parseFloat(payStr)) || parseFloat(payStr) <= 0) {
                 document.getElementById('receiveAmountInput').value = '';
                 updatePurchaseButton();
                 return;
@@ -9537,7 +9534,7 @@
         async function handleReceiveInput() {
             currentPurchase.inputMode = 'receive';
             const receiveStr = document.getElementById('receiveAmountInput').value.trim();
-            if (!receiveStr || isNaN(parseFloat(receiveStr)) || parseFloat(receiveStr) <= 0) {
+            if (!receiveStr || Number.isNaN(parseFloat(receiveStr)) || parseFloat(receiveStr) <= 0) {
                 document.getElementById('payAmountInput').value = '';
                 updatePurchaseButton();
                 return;
@@ -9639,7 +9636,7 @@
             const payStr = document.getElementById('payAmountInput').value.trim();
             const receiveStr = document.getElementById('receiveAmountInput').value.trim();
 
-            if (!payStr || isNaN(parseFloat(payStr)) || parseFloat(payStr) <= 0 || !receiveStr || isNaN(parseFloat(receiveStr)) || parseFloat(receiveStr) <= 0) {
+            if (!payStr || Number.isNaN(parseFloat(payStr)) || parseFloat(payStr) <= 0 || !receiveStr || Number.isNaN(parseFloat(receiveStr)) || parseFloat(receiveStr) <= 0) {
                 buyBtn.textContent = 'Enter Amount';
                 buyBtn.disabled = true;
                 approveBtn.style.display = 'none';
@@ -9676,24 +9673,33 @@
 
             const tribInfo = COMMON_TRIB_TOKENS[currentPurchase.tribTkn] || { symbol: 'TOKEN', decimals: 18 };
             const approveBtn = document.getElementById('approveBtn');
+            let txHash = null;
 
             try {
                 approveBtn.disabled = true;
                 approveBtn.textContent = 'Approving...';
+                showPurchaseStatus(`Approving ${tribInfo.symbol}... Please confirm in wallet`, 'info');
 
                 const token = new ethers.Contract(currentPurchase.tribTkn, ERC20_FULL_ABI, signer);
                 const tx = await token.approve(DAICO_ADDRESS, ethers.MaxUint256, getWalletConnectTxOverrides());
+                txHash = tx.hash;
 
                 approveBtn.textContent = 'Confirming...';
+                showPurchaseStatus(`Approval submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View on Explorer</a>`, 'info');
                 await tx.wait();
 
+                showPurchaseStatus(`${tribInfo.symbol} approved! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View transaction</a>`, 'success');
                 currentPurchase.allowance = ethers.MaxUint256;
                 updatePurchaseButton();
 
             } catch (e) {
                 console.error('Approval failed:', e);
                 if (!isUserRejection(e)) {
-                    showPurchaseStatus('Approval failed', 'error');
+                    let errorMsg = `Approval failed: ${getErrorMessage(e)}`;
+                    if (txHash) {
+                        errorMsg += ` <a href="${getNetwork().explorer}/tx/${txHash}" target="_blank" rel="noopener" style="color: #ff6b6b;">View failed tx</a>`;
+                    }
+                    showPurchaseStatus(errorMsg, 'error');
                 }
             } finally {
                 approveBtn.disabled = false;
@@ -9826,7 +9832,7 @@
                 displayStr = formatted.toFixed(2).replace(/\.00$/, '');
             }
 
-            document.getElementById('tapClaimable').textContent = displayStr + ' ' + tapInfo.symbol;
+            document.getElementById('tapClaimable').textContent = `${displayStr} ${tapInfo.symbol}`;
         }
 
         async function claimTap() {
@@ -10079,7 +10085,7 @@
 
         // Form helpers
         function formatNumberInput(input) {
-            let value = input.value.replace(/[^\d.]/g, '');
+            const value = input.value.replace(/[^\d.]/g, '');
             const parts = value.split('.');
             parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             input.value = parts.join('.');
@@ -10118,7 +10124,7 @@
             const price = parseFloat(document.getElementById('tokenPrice').value) || 0;
             const paymentToken = document.getElementById('paymentToken').value;
             const enableLP = document.getElementById('enableLP').checked;
-            const lpPct = parseInt(document.getElementById('lpPct').value) || 50;
+            const lpPct = parseInt(document.getElementById('lpPct').value, 10) || 50;
             const enableTap = document.getElementById('enableTap').checked;
             const tapRate = parseFloat(document.getElementById('tapRate').value) || 0;
 
@@ -10127,7 +10133,7 @@
 
             // Update viz panel
             document.getElementById('vizName').textContent = name !== '--' ? `${name} (${symbol || '?'})` : '--';
-            document.getElementById('vizSupply').textContent = supply > 0 ? supply.toFixed(2).replace(/\.00$/, '') + ' tokens' : '--';
+            document.getElementById('vizSupply').textContent = supply > 0 ? `${supply.toFixed(2).replace(/\.00$/, '')} tokens` : '--';
 
             const paySymbol = paymentToken === 'eth' ? 'ETH' : 'tokens';
             document.getElementById('vizPrice').textContent = price > 0 ? `${price} ${paySymbol}` : '--';
@@ -10138,10 +10144,10 @@
             // LP visualization
             if (enableLP && lpPct > 0 && lpPct < 100) {
                 const lpAmount = totalRaise * (lpPct / 100);
-                const treasuryAmount = totalRaise - lpAmount;
+                const _treasuryAmount = totalRaise - lpAmount;
                 document.getElementById('vizLP').textContent = `${lpPct}% (${lpAmount.toFixed(2).replace(/\.00$/, '')} ${paySymbol} → Liquidity)`;
-                document.getElementById('vizBarSale').style.width = (100 - lpPct) + '%';
-                document.getElementById('vizBarLP').style.width = lpPct + '%';
+                document.getElementById('vizBarSale').style.width = `${100 - lpPct}%`;
+                document.getElementById('vizBarLP').style.width = `${lpPct}%`;
             } else {
                 document.getElementById('vizLP').textContent = '--';
                 document.getElementById('vizBarSale').style.width = '100%';
@@ -10158,7 +10164,7 @@
 
         function showStatus(message, type = 'info') {
             const el = document.getElementById('statusMessage');
-            el.className = 'status-message show ' + type;
+            el.className = `status-message show ${type}`;
             el.innerHTML = message;
         }
 
@@ -10203,7 +10209,7 @@
             const symbol = document.getElementById('daoSymbol').value.trim().toUpperCase();
             const description = document.getElementById('daoDescription').value.trim();
             const contractURI = buildContractURI(name, symbol, description);
-            const quorumPct = parseInt(document.getElementById('quorumPct').value) || 20;
+            const quorumPct = parseInt(document.getElementById('quorumPct').value, 10) || 20;
             const supply = parseFormattedNumber(document.getElementById('saleSupply').value);
             const price = parseFloat(document.getElementById('tokenPrice').value) || 0;
             const paymentToken = document.getElementById('paymentToken').value;
@@ -10212,8 +10218,8 @@
             const founderShares = parseFormattedNumber(document.getElementById('founderShares').value);
 
             const enableLP = document.getElementById('enableLP').checked;
-            const lpPct = parseInt(document.getElementById('lpPct').value) || 50;
-            const poolFee = parseInt(document.getElementById('poolFee').value) || 30;
+            const lpPct = parseInt(document.getElementById('lpPct').value, 10) || 50;
+            const poolFee = parseInt(document.getElementById('poolFee').value, 10) || 30;
 
             const enableTap = document.getElementById('enableTap').checked;
             const tapOps = document.getElementById('tapOps').value.trim() || connectedAddress;
@@ -10412,7 +10418,7 @@
 
                 showStatus(`Transaction submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener">View on Explorer</a>`, 'info');
 
-                const receipt = await tx.wait();
+                const _receipt = await tx.wait();
 
                 // Use the predicted DAO address (CREATE2 is deterministic)
                 const daoAddress = predictedDao;
@@ -10647,7 +10653,7 @@
                         triggerDAICOScan();
                         return;
                     }
-                } catch (e) {
+                } catch (_e) {
                     // Continue with switch attempt
                 }
 

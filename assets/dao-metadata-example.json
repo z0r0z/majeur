@@ -32,5 +32,44 @@
             "symbol": "USDF",
             "address": "0x612f6e224F892Cc9a7f3395D4633a79D8f9c40c9"
         }
+    ],
+    "external_link": "https://elitecoders.union",
+    "properties": {
+        "socials": {
+            "discord": "https://discord.gg/elitecodersunion",
+            "twitter": "https://x.com/elitecodersunion",
+            "bluesky": "https://bsky.app/profile/elitecoders.union"
+        },
+        "governance": {
+            "engine": "OpenZeppelin Governor Bravo",
+            "token_standard": "ERC-20Comp"
+        }
+    },
+    "attributes": [
+        {
+            "trait_type": "Legal Structure",
+            "value": "Wyoming DUNA"
+        },
+        {
+            "trait_type": "Jurisdiction",
+            "value": "Wyoming, USA"
+        },
+        {
+            "trait_type": "Entity Filing ID",
+            "value": "2026-001234567"
+        },
+        {
+            "trait_type": "Registered Agent",
+            "value": "Wyoming Agents Inc."
+        },
+        {
+            "trait_type": "Governing Docs",
+            "value": "ipfs://QmcdZNeRZVCSPTsm2V9SKWka2byotSg86sGWFTEoqebCbr",
+            "display_type": "string"
+        },
+        {
+            "trait_type": "Liability",
+            "value": "Limited"
+        }
     ]
 }
