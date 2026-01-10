@@ -39,6 +39,7 @@ contract Moloch {
     /// @dev Time-based settings (seconds; 0 = off):
     uint64 public proposalTTL; // proposal expiry
     uint64 public timelockDelay; // delay between success and execution
+    uint64 public ragequitTimelock = 7 days; // minimum hold time before ragequit
 
     /// @dev Governance versioning / dynamic quorum / global flags:
     uint64 public config; // bump salt to invalidate old ids/permits
@@ -226,6 +227,7 @@ contract Moloch {
         if (_quorumBps != 0) quorumBps = _quorumBps;
         if (_ragequittable) ragequittable = _ragequittable;
         if (_renderer != address(0)) renderer = _renderer;
+        ragequitTimelock = 7 days; // default 7 days for new DAOs
 
         address _badges;
         address _shares;
@@ -769,6 +771,15 @@ contract Moloch {
             Shares _shares = shares;
             Loot _loot = loot;
 
+            // Timelock check: tokens must be held for ragequitTimelock before ragequit
+            uint64 _ragequitTimelock = ragequitTimelock;
+            if (sharesToBurn != 0 && block.timestamp < _shares.lastAcquisitionTimestamp(msg.sender) + _ragequitTimelock) {
+                revert TooEarly();
+            }
+            if (lootToBurn != 0 && block.timestamp < _loot.lastAcquisitionTimestamp(msg.sender) + _ragequitTimelock) {
+                revert TooEarly();
+            }
+
             uint256 total = _shares.totalSupply() + _loot.totalSupply();
             if (sharesToBurn != 0) _shares.burnFromMoloch(msg.sender, sharesToBurn);
             if (lootToBurn != 0) _loot.burnFromMoloch(msg.sender, lootToBurn);
@@ -833,6 +844,10 @@ contract Moloch {
 
     function setRagequittable(bool on) public payable onlyDAO {
         ragequittable = on;
+    }
+
+    function setRagequitTimelock(uint64 s) public payable onlyDAO {
+        ragequitTimelock = s;
     }
 
     function setTransfersLocked(bool sharesLocked, bool lootLocked) public payable onlyDAO {
@@ -1067,6 +1082,7 @@ contract Shares {
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public lastAcquisitionTimestamp;
 
     /* MAJEUR */
     address payable public DAO;
@@ -1179,6 +1195,7 @@ contract Shares {
         }
         emit Transfer(address(0), to, amount);
         _writeTotalSupplyCheckpoint();
+        lastAcquisitionTimestamp[to] = block.timestamp;
         // votes / delegation handled by caller via _applyVotingDelta(...)
     }
 
@@ -1188,6 +1205,7 @@ contract Shares {
             balanceOf[to] += amount;
         }
         emit Transfer(from, to, amount);
+        if (from != to) lastAcquisitionTimestamp[to] = block.timestamp;
 
         _autoSelfDelegate(from);
         _autoSelfDelegate(to);
@@ -1614,6 +1632,7 @@ contract Loot {
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public lastAcquisitionTimestamp;
 
     /* MAJEUR */
     address payable public DAO;
@@ -1682,6 +1701,7 @@ contract Loot {
             balanceOf[to] += amount;
         }
         emit Transfer(address(0), to, amount);
+        lastAcquisitionTimestamp[to] = block.timestamp;
     }
 
     function _moveTokens(address from, address to, uint256 amount) internal {
@@ -1690,6 +1710,7 @@ contract Loot {
             balanceOf[to] += amount;
         }
         emit Transfer(from, to, amount);
+        if (from != to) lastAcquisitionTimestamp[to] = block.timestamp;
     }
 
     function _checkUnlocked(address from, address to) internal view {
