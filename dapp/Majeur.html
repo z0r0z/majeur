@@ -15737,13 +15737,13 @@
           const result = await withRpcFallback(async (activeProvider) => {
             const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
 
-            // Default params: start at DAO 0, fetch up to 10 DAOs, recent 20 proposals, recent 20 messages
+            // Default params: start at DAO 0, fetch up to 10 DAOs, recent 50 proposals, recent 20 messages
             return await viewHelper.getUserDAOsFullState(
               userAddr,
               0,  // daoStart
               10, // daoCount
               0,  // proposalStart
-              20, // proposalCount (increased for better visibility)
+              50, // proposalCount (enough to catch active proposals)
               0,  // messageStart
               20, // messageCount (increased for better visibility)
               treasuryTokens
@@ -15972,12 +15972,12 @@
           const result = await withRpcFallback(async (activeProvider) => {
             const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
 
-            // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 5 proposals, recent 5 messages
+            // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 50 proposals, recent 5 messages
             return await viewHelper.getDAOsFullState(
               0, // daoStart
               50, // daoCount (get more DAOs than user filter)
               0, // proposalStart
-              5, // proposalCount (fewer details for browse view)
+              50, // proposalCount (enough to catch active proposals)
               0, // messageStart
               5, // messageCount (fewer details for browse view)
               treasuryTokens
@@ -29087,14 +29087,14 @@
           const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
           const treasuryTokens = getNetwork().treasuryTokens;
 
-          // Fetch more proposals and messages (20 each) to ensure we see new items
+          // Fetch more proposals and messages to ensure we see new items
           // Note: fetches from start (0), which gets oldest items (not newest)
           const updatedDAOs = await viewHelper.getUserDAOsFullState(
             connectedAddress,
             0,  // daoStart
             10, // daoCount
             0,  // proposalStart (0 = oldest)
-            20, // proposalCount (fetch more proposals)
+            50, // proposalCount (enough to catch active proposals)
             0,  // messageStart (0 = oldest)
             20, // messageCount (fetch more messages)
             treasuryTokens
@@ -31193,7 +31193,7 @@
             const treasuryTokens = getNetwork().treasuryTokens;
             const result = await withRpcFallback(async (rpcProvider) => {
               const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, rpcProvider);
-              return await viewHelper.getDAOsFullState(0, 50, 0, 5, 0, 5, treasuryTokens);
+              return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens);
             });
             allDAOs = result;
             allDAOsLoaded = true; // Mark as loaded for deep link scenario
