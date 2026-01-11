@@ -108,6 +108,11 @@ contract MolochTest is Test {
         vm.stopPrank();
 
         target = new Target();
+
+        // Set proposalTTL so proposals are Active during voting window
+        vm.prank(address(moloch));
+        moloch.setProposalTTL(7 days);
+
         vm.roll(block.number + 1);
     }
 
@@ -306,6 +311,12 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Still Active during voting window
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Warp past TTL
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Succeeded (FOR > AGAINST and quorum met)
         assertEq(uint256(moloch.state(id)), 3); // Succeeded
 
@@ -354,6 +365,9 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Execute the proposal
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
@@ -372,6 +386,9 @@ contract MolochTest is Test {
 
         vm.prank(alice);
         moloch.castVote(id, 1);
+
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
 
         uint256 targetBalanceBefore = address(target).balance;
 
@@ -392,6 +409,9 @@ contract MolochTest is Test {
 
         vm.prank(alice);
         moloch.castVote(id, 1);
+
+        // Warp past TTL so proposal can be queued
+        vm.warp(block.timestamp + 7 days + 1);
 
         // First call should queue
         vm.prank(alice);
@@ -752,6 +772,9 @@ contract MolochTest is Test {
         // EXECUTE (YES WINS)
         // -------------------------
 
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
+
         vm.prank(alice);
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
 
@@ -829,6 +852,9 @@ contract MolochTest is Test {
 
         vm.prank(alice);
         moloch.castVote(id, 0); // NO with 60 shares
+
+        // Warp past TTL so proposal can transition to terminal state
+        vm.warp(block.timestamp + 7 days + 1);
 
         // No one votes YES, so proposal should be defeated
         // Since everyone voted NO, FOR=0, AGAINST=100
@@ -1147,6 +1173,9 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Execute with delegatecall - this will execute but may not have expected effect
         // since Target contract doesn't match Moloch's storage layout
         vm.prank(alice);
@@ -1205,6 +1234,9 @@ contract MolochTest is Test {
 
         vm.prank(bob);
         moloch.castVote(id, 1); // FOR
+
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
 
         // 6. Queue (if timelock)
         moloch.queue(id);
@@ -1295,6 +1327,9 @@ contract MolochTest is Test {
         (uint256 forVotes, uint256 againstVotes,) = moloch.tallies(id);
         assertEq(forVotes, 60e18); // Alice's shares
         assertEq(againstVotes, 40e18); // Bob's shares
+
+        // Warp past TTL so proposal can transition to terminal state
+        vm.warp(block.timestamp + 7 days + 1);
 
         // Execute should succeed since FOR > AGAINST
         assertEq(uint256(moloch.state(id)), 3); // Succeeded
@@ -1415,6 +1450,9 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1); // 60e18 FOR
 
+        // Warp past TTL so proposal can transition to terminal state
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Should be Defeated (not enough YES votes)
         assertEq(uint256(moloch.state(id)), 4); // Defeated
     }
@@ -1430,11 +1468,17 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1); // 60e18 votes
 
-        // Should still be Active (not enough turnout)
+        // Should still be Active (during voting window)
         assertEq(uint256(moloch.state(id)), 1); // Active
 
         vm.prank(bob);
         moloch.castVote(id, 0); // 40e18 more votes
+
+        // Still Active during voting window (even with quorum met)
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Warp past TTL
+        vm.warp(block.timestamp + 7 days + 1);
 
         // Now should be Succeeded (100e18 > 80e18 quorum, FOR > AGAINST)
         assertEq(uint256(moloch.state(id)), 3); // Succeeded
@@ -1569,6 +1613,9 @@ contract MolochTest is Test {
 
         vm.prank(alice);
         moloch.castVote(id, 1);
+
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
 
         vm.prank(alice);
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
@@ -1916,6 +1963,9 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Execute once
         vm.prank(alice);
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
@@ -1963,6 +2013,9 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Warp past TTL so proposal can transition to terminal state
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Queue should be no-op when no timelock
         moloch.queue(id);
         assertEq(moloch.queuedAt(id), 0);
@@ -1974,6 +2027,9 @@ contract MolochTest is Test {
 
         vm.prank(alice);
         moloch.castVote(id, 1);
+
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
 
         // Execute to move past Active
         vm.prank(alice);
@@ -2048,6 +2104,9 @@ contract MolochTest is Test {
         // Vote and execute
         vm.prank(alice);
         moloch.castVote(id, 1);
+
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
 
         vm.prank(alice);
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
@@ -2949,6 +3008,11 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Alice can't vote again (already voted) - check this before warping
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("AlreadyVoted()"));
+        moloch.castVote(id, 1);
+
         // Wait for ragequit timelock
         vm.warp(block.timestamp + 7 days + 1);
 
@@ -2963,11 +3027,6 @@ contract MolochTest is Test {
         // Proposal still has alice's original vote weight
         (uint256 forVotes,,) = moloch.tallies(id);
         assertEq(forVotes, 60e18); // Still 60e18, snapshot was taken before ragequit
-
-        // Alice can't vote again (already voted)
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("AlreadyVoted()"));
-        moloch.castVote(id, 1);
     }
 
     /* GOVERNANCE STRESS TESTS */
@@ -3053,6 +3112,9 @@ contract MolochTest is Test {
         vm.prank(alice);
         moloch.castVote(id, 1);
 
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
+
         // Execute
         vm.prank(alice);
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
@@ -3083,6 +3145,9 @@ contract MolochTest is Test {
         // Vote and execute
         vm.prank(alice);
         moloch.castVote(id, 1);
+
+        // Warp past TTL so proposal can be executed
+        vm.warp(block.timestamp + 7 days + 1);
 
         vm.prank(alice);
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
