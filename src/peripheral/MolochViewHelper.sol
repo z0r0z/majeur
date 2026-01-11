@@ -286,6 +286,17 @@ struct DAICOLens {
     TapView tap;
 }
 
+/// @notice Parameters for paginated queries with optional reverse ordering.
+/// @dev Use this struct to avoid "stack too deep" errors in complex view functions.
+struct PaginationParams {
+    uint256 proposalStart;
+    uint256 proposalCount;
+    uint256 messageStart;
+    uint256 messageCount;
+    bool reverseProposals;
+    bool reverseMessages;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                              VIEW HELPER CONTRACT                          */
 /* -------------------------------------------------------------------------- */
@@ -330,21 +341,32 @@ contract MolochViewHelper {
     /// @notice Full state for a single DAO: meta, config, supplies, members,
     ///         proposals & votes, futarchy, treasury, messages.
     /// @param dao The DAO address
-    /// @param proposalStart Starting index for proposals
+    /// @param proposalStart Starting index for proposals (or offset from end if reverse)
     /// @param proposalCount Number of proposals to fetch
-    /// @param messageStart Starting index for messages
+    /// @param messageStart Starting index for messages (or offset from end if reverse)
     /// @param messageCount Number of messages to fetch
     /// @param treasuryTokens Array of token addresses to check balances for (address(0) = native ETH)
+    /// @param reverseProposals If true, fetch from newest proposals first
+    /// @param reverseMessages If true, fetch from newest messages first
     function getDAOFullState(
         address dao,
         uint256 proposalStart,
         uint256 proposalCount,
         uint256 messageStart,
         uint256 messageCount,
-        address[] calldata treasuryTokens
+        address[] calldata treasuryTokens,
+        bool reverseProposals,
+        bool reverseMessages
     ) public view returns (DAOLens memory out) {
         out = _buildDAOFullState(
-            dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+            dao,
+            proposalStart,
+            proposalCount,
+            messageStart,
+            messageCount,
+            treasuryTokens,
+            reverseProposals,
+            reverseMessages
         );
     }
 
@@ -365,6 +387,8 @@ contract MolochViewHelper {
     ///  - treasury balances for specified tokens
     ///  - messages [messageStart .. messageStart+messageCount)
     /// @param treasuryTokens Array of token addresses to check balances for (address(0) = native ETH)
+    /// @param reverseProposals If true, fetch from newest proposals first
+    /// @param reverseMessages If true, fetch from newest messages first
     function getDAOsFullState(
         uint256 daoStart,
         uint256 daoCount,
@@ -372,7 +396,9 @@ contract MolochViewHelper {
         uint256 proposalCount,
         uint256 messageStart,
         uint256 messageCount,
-        address[] calldata treasuryTokens
+        address[] calldata treasuryTokens,
+        bool reverseProposals,
+        bool reverseMessages
     ) public view returns (DAOLens[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (daoStart >= total) {
@@ -388,7 +414,14 @@ contract MolochViewHelper {
         for (uint256 i; i < len; ++i) {
             address dao = SUMMONER.daos(daoStart + i);
             out[i] = _buildDAOFullState(
-                dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+                dao,
+                proposalStart,
+                proposalCount,
+                messageStart,
+                messageCount,
+                treasuryTokens,
+                reverseProposals,
+                reverseMessages
             );
         }
     }
@@ -515,15 +548,13 @@ contract MolochViewHelper {
     /// @notice Full DAO state (like getDAOsFullState) but filtered to DAOs where `user` is a member.
     /// @dev This is the heavy "one-shot" user-dashboard view: use small daoCount / proposalCount / messageCount.
     /// @param treasuryTokens Array of token addresses to check balances for (address(0) = native ETH)
+    /// @param pagination Pagination parameters including reverse ordering flags
     function getUserDAOsFullState(
         address user,
         uint256 daoStart,
         uint256 daoCount,
-        uint256 proposalStart,
-        uint256 proposalCount,
-        uint256 messageStart,
-        uint256 messageCount,
-        address[] calldata treasuryTokens
+        address[] calldata treasuryTokens,
+        PaginationParams calldata pagination
     ) public view returns (UserDAOLens[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (daoStart >= total) {
@@ -572,7 +603,14 @@ contract MolochViewHelper {
             }
 
             DAOLens memory daoLens = _buildDAOFullState(
-                daoAddr, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+                daoAddr,
+                pagination.proposalStart,
+                pagination.proposalCount,
+                pagination.messageStart,
+                pagination.messageCount,
+                treasuryTokens,
+                pagination.reverseProposals,
+                pagination.reverseMessages
             );
 
             (address[] memory dels, uint32[] memory bps) =
@@ -600,12 +638,13 @@ contract MolochViewHelper {
 
     /// @notice Paginated fetch of DAO messages (chat).
     /// @dev Only message text + index is available on-chain with current Moloch storage.
-    function getDAOMessages(address dao, uint256 start, uint256 count)
+    /// @param reverseOrder If true, fetch from newest messages first
+    function getDAOMessages(address dao, uint256 start, uint256 count, bool reverseOrder)
         public
         view
         returns (MessageView[] memory out)
     {
-        out = _getMessagesInternal(dao, start, count);
+        out = _getMessagesInternal(dao, start, count, reverseOrder);
     }
 
     /* ---------------------------------------------------------------------- */
@@ -618,7 +657,9 @@ contract MolochViewHelper {
         uint256 proposalCount,
         uint256 messageStart,
         uint256 messageCount,
-        address[] calldata treasuryTokens
+        address[] calldata treasuryTokens,
+        bool reverseProposals,
+        bool reverseMessages
     ) internal view returns (DAOLens memory out) {
         IMoloch M = IMoloch(dao);
 
@@ -660,8 +701,10 @@ contract MolochViewHelper {
 
         MemberView[] memory members =
             _getMembers(meta.sharesToken, meta.lootToken, meta.badgesToken);
-        ProposalView[] memory proposals = _getProposals(M, members, proposalStart, proposalCount);
-        MessageView[] memory messages = _getMessagesInternal(dao, messageStart, messageCount);
+        ProposalView[] memory proposals =
+            _getProposals(M, members, proposalStart, proposalCount, reverseProposals);
+        MessageView[] memory messages =
+            _getMessagesInternal(dao, messageStart, messageCount, reverseMessages);
 
         DAOTreasury memory treasury = _getTreasury(dao, treasuryTokens);
 
@@ -714,25 +757,38 @@ contract MolochViewHelper {
     /*                              PROPOSAL VIEWS                            */
     /* ---------------------------------------------------------------------- */
 
-    function _getProposals(IMoloch M, MemberView[] memory members, uint256 start, uint256 count)
-        internal
-        view
-        returns (ProposalView[] memory pv)
-    {
+    function _getProposals(
+        IMoloch M,
+        MemberView[] memory members,
+        uint256 start,
+        uint256 count,
+        bool reverseOrder
+    ) internal view returns (ProposalView[] memory pv) {
         uint256 total = M.getProposalCount();
-        if (start >= total) {
-            return new ProposalView[](0);
+        if (total == 0) return new ProposalView[](0);
+
+        uint256 startIdx;
+        uint256 endIdx;
+
+        if (reverseOrder) {
+            // Fetch from end: start=0,count=5 with total=100 → indices [95, 99]
+            endIdx = total > start ? total - start : 0;
+            startIdx = endIdx > count ? endIdx - count : 0;
+        } else {
+            if (start >= total) return new ProposalView[](0);
+            startIdx = start;
+            endIdx = start + count;
+            if (endIdx > total) endIdx = total;
         }
 
-        uint256 end = start + count;
-        if (end > total) end = total;
-        uint256 len = end - start;
+        uint256 len = endIdx - startIdx;
+        if (len == 0) return new ProposalView[](0);
 
         pv = new ProposalView[](len);
         uint256 memberCount = members.length;
 
         for (uint256 i; i < len; ++i) {
-            uint256 idx = start + i;
+            uint256 idx = startIdx + i;
             uint256 pid = M.proposalIds(idx);
 
             (uint96 forV, uint96 againstV, uint96 abstainV) = M.tallies(pid);
@@ -819,24 +875,35 @@ contract MolochViewHelper {
     /*                           MESSAGES (INTERNAL)                          */
     /* ---------------------------------------------------------------------- */
 
-    function _getMessagesInternal(address dao, uint256 start, uint256 count)
+    function _getMessagesInternal(address dao, uint256 start, uint256 count, bool reverseOrder)
         internal
         view
         returns (MessageView[] memory out)
     {
         IMoloch M = IMoloch(dao);
         uint256 total = M.getMessageCount();
-        if (start >= total) {
-            return new MessageView[](0);
+        if (total == 0) return new MessageView[](0);
+
+        uint256 startIdx;
+        uint256 endIdx;
+
+        if (reverseOrder) {
+            // Fetch from end: start=0,count=5 with total=100 → indices [95, 99]
+            endIdx = total > start ? total - start : 0;
+            startIdx = endIdx > count ? endIdx - count : 0;
+        } else {
+            if (start >= total) return new MessageView[](0);
+            startIdx = start;
+            endIdx = start + count;
+            if (endIdx > total) endIdx = total;
         }
 
-        uint256 end = start + count;
-        if (end > total) end = total;
-        uint256 len = end - start;
+        uint256 len = endIdx - startIdx;
+        if (len == 0) return new MessageView[](0);
 
         out = new MessageView[](len);
         for (uint256 i; i < len; ++i) {
-            uint256 idx = start + i;
+            uint256 idx = startIdx + i;
             out[i] = MessageView({index: idx, text: M.messages(idx)});
         }
     }
@@ -946,12 +1013,14 @@ contract MolochViewHelper {
 
     /// @notice Full DAO state + DAICO data in one call.
     /// @param dao The DAO address
-    /// @param proposalStart Starting index for proposals
+    /// @param proposalStart Starting index for proposals (or offset from end if reverse)
     /// @param proposalCount Number of proposals to fetch
-    /// @param messageStart Starting index for messages
+    /// @param messageStart Starting index for messages (or offset from end if reverse)
     /// @param messageCount Number of messages to fetch
     /// @param treasuryTokens Tokens to check for treasury balances
     /// @param tribTokens Tribute tokens to check for DAICO sales
+    /// @param reverseProposals If true, fetch from newest proposals first
+    /// @param reverseMessages If true, fetch from newest messages first
     function getDAOWithDAICO(
         address dao,
         uint256 proposalStart,
@@ -959,10 +1028,19 @@ contract MolochViewHelper {
         uint256 messageStart,
         uint256 messageCount,
         address[] calldata treasuryTokens,
-        address[] calldata tribTokens
+        address[] calldata tribTokens,
+        bool reverseProposals,
+        bool reverseMessages
     ) public view returns (DAICOLens memory out) {
         out.dao = _buildDAOFullState(
-            dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+            dao,
+            proposalStart,
+            proposalCount,
+            messageStart,
+            messageCount,
+            treasuryTokens,
+            reverseProposals,
+            reverseMessages
         );
         out.sales = _getSales(dao, tribTokens);
         out.tap = _getTap(dao);
@@ -972,12 +1050,14 @@ contract MolochViewHelper {
     /// @dev Combines getDAOsFullState functionality with DAICO scanning.
     /// @param daoStart Starting index for DAO pagination
     /// @param daoCount Number of DAOs to fetch
-    /// @param proposalStart Starting index for proposals (per DAO)
+    /// @param proposalStart Starting index for proposals (per DAO, or offset from end if reverse)
     /// @param proposalCount Number of proposals to fetch (per DAO)
-    /// @param messageStart Starting index for messages (per DAO)
+    /// @param messageStart Starting index for messages (per DAO, or offset from end if reverse)
     /// @param messageCount Number of messages to fetch (per DAO)
     /// @param treasuryTokens Tokens to check for treasury balances
     /// @param tribTokens Tribute tokens to check for DAICO sales
+    /// @param reverseProposals If true, fetch from newest proposals first
+    /// @param reverseMessages If true, fetch from newest messages first
     function getDAOsWithDAICO(
         uint256 daoStart,
         uint256 daoCount,
@@ -986,7 +1066,9 @@ contract MolochViewHelper {
         uint256 messageStart,
         uint256 messageCount,
         address[] calldata treasuryTokens,
-        address[] calldata tribTokens
+        address[] calldata tribTokens,
+        bool reverseProposals,
+        bool reverseMessages
     ) public view returns (DAICOLens[] memory out) {
         uint256 total = SUMMONER.getDAOCount();
         if (daoStart >= total) {
@@ -1002,7 +1084,14 @@ contract MolochViewHelper {
         for (uint256 i; i < len; ++i) {
             address dao = SUMMONER.daos(daoStart + i);
             out[i].dao = _buildDAOFullState(
-                dao, proposalStart, proposalCount, messageStart, messageCount, treasuryTokens
+                dao,
+                proposalStart,
+                proposalCount,
+                messageStart,
+                messageCount,
+                treasuryTokens,
+                reverseProposals,
+                reverseMessages
             );
             out[i].sales = _getSales(dao, tribTokens);
             out[i].tap = _getTap(dao);
