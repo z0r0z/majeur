@@ -26904,37 +26904,12 @@
           return;
         }
 
-        // Query Message events to get senders and txHashes (chunked to respect RPC block limits)
+        // Clear and render messages immediately - don't wait for sender info
+        chatroomMessages.innerHTML = '';
+
+        // We'll store senders/txHashes here and update DOM async
         const messageSenders = {};
         const messageTxHashes = {};
-        try {
-          await withRpcFallback(async (activeProvider) => {
-            const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
-            const currentBlock = await activeProvider.getBlockNumber();
-            const chunkSize = 10000;
-
-            // Query backwards until we find all senders or reach block 0
-            for (let toBlock = currentBlock; toBlock >= 0; toBlock -= chunkSize) {
-              const fromBlock = Math.max(0, toBlock - chunkSize + 1);
-              const events = await molochContract.queryFilter(molochContract.filters.Message(), fromBlock, toBlock);
-              events.forEach(e => {
-                messageSenders[String(e.args.index)] = e.args.from;
-                messageTxHashes[String(e.args.index)] = e.transactionHash;
-              });
-              if (Object.keys(messageSenders).length >= messages.length || fromBlock === 0) break;
-            }
-          });
-        } catch (e) {
-          logger.warn('Could not fetch message senders:', e.message);
-        }
-
-        // Check if this render is stale (newer render started, DAO changed, or global DAO switch)
-        if (thisRenderId !== chatroomRenderId || globalRenderId !== daoRenderId || currentDAO?.dao?.dao !== daoAddress) {
-          return; // A newer render is in progress, skip this stale one
-        }
-
-        // Clear and render - do this after async work to prevent duplicates from concurrent renders
-        chatroomMessages.innerHTML = '';
 
         // Reverse to show most recent first
         const messagesReversed = [...messages].reverse();
@@ -26952,13 +26927,6 @@
         const _messagesToShow = messagesReversed.slice(0, effectiveLimit);
         const hasMoreMessages = effectiveLimit < totalMessages;
 
-        // Collect unique sender addresses for batched ENS lookup (from all messages)
-        const uniqueSenders = [...new Set(
-          messagesReversed
-            .map(msg => messageSenders[String(msg.index)])
-            .filter(addr => addr)
-        )];
-
         // Render ALL messages but hide those beyond the limit
         messagesReversed.forEach((message, index) => {
           const msgDiv = document.createElement('div');
@@ -26967,11 +26935,9 @@
 
           msgDiv.className = `chatroom-message${proposalData ? ' proposal' : ''}${isHidden ? ' message-hidden' : ''}`;
 
-          // Get sender address for this message
-          const senderAddress = messageSenders[String(message.index)];
-          const senderDisplay = senderAddress
-            ? ` (<a href="${getExplorerAddressUrl(senderAddress)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddress}">${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)}</a>)`
-            : '';
+          // Sender will be loaded async - add a placeholder span
+          const senderSpanId = `msg-sender-${message.index}`;
+          const senderDisplay = ` <span id="${senderSpanId}" class="chatroom-sender-placeholder" style="opacity: 0.5; font-size: 0.85em;"></span>`;
 
           const MAX_MESSAGE_LENGTH = 203;
           const isLongMessage = !proposalData && message.text.length > MAX_MESSAGE_LENGTH;
@@ -27061,28 +27027,76 @@
         const dynamicHeight = Math.round(baseHeight + scaleFactor * (maxHeight - baseHeight));
         chatroomMessages.style.setProperty('--chatroom-dynamic-height', `${dynamicHeight}px`);
 
-        // Batch ENS lookups to improve performance - limit concurrency to avoid overwhelming RPC
-        const BATCH_SIZE = 10;
-        for (let i = 0; i < uniqueSenders.length; i += BATCH_SIZE) {
-          const batch = uniqueSenders.slice(i, i + BATCH_SIZE);
+        // Async fetch senders using indexed Message event queries (don't block UI)
+        // This runs in the background after messages are rendered
+        (async () => {
+          const capturedRenderId = thisRenderId;
+          const capturedGlobalRenderId = globalRenderId;
+          const capturedDaoAddress = daoAddress;
+          const uniqueSendersFound = new Set();
 
-          // Process batch in parallel
-          Promise.all(batch.map(async (senderAddress) => {
-            try {
-              const ensName = await lookupENS(senderAddress);
-              if (ensName) {
-                // Update all messages from this sender
-                const senderLinks = chatroomMessages.querySelectorAll(`.chatroom-sender-link[data-address="${senderAddress}"]`);
-                senderLinks.forEach(link => {
-                  link.textContent = ensName;
-                  link.title = senderAddress; // Show full address on hover
-                });
+          try {
+            await withRpcFallback(async (activeProvider) => {
+              const molochContract = new ethers.Contract(capturedDaoAddress, MOLOCH_ABI, activeProvider);
+
+              // Query for each message index using indexed filter (much more efficient than scanning all blocks)
+              const BATCH_SIZE = 5;
+              for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+                // Check if render is stale
+                if (capturedRenderId !== chatroomRenderId || capturedGlobalRenderId !== daoRenderId) return;
+
+                const batch = messages.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch.map(async (msg) => {
+                  try {
+                    // Query using indexed 'index' parameter - this is efficient as index is indexed
+                    const events = await molochContract.queryFilter(
+                      molochContract.filters.Message(null, msg.index)
+                    );
+                    if (events.length > 0) {
+                      const event = events[0];
+                      const senderAddress = event.args.from;
+                      const txHash = event.transactionHash;
+
+                      // Store for proposal technical details
+                      messageSenders[String(msg.index)] = senderAddress;
+                      messageTxHashes[String(msg.index)] = txHash;
+
+                      // Update DOM with sender info
+                      const senderSpan = document.getElementById(`msg-sender-${msg.index}`);
+                      if (senderSpan && capturedRenderId === chatroomRenderId) {
+                        senderSpan.style.opacity = '1';
+                        senderSpan.innerHTML = `(<a href="${getExplorerAddressUrl(senderAddress)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddress}">${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)}</a>)`;
+                        uniqueSendersFound.add(senderAddress);
+                      }
+                    }
+                  } catch (_e) {
+                    // Ignore errors for individual message lookups
+                  }
+                }));
               }
-            } catch (_e) {
-              // Ignore errors for individual lookups
+            });
+          } catch (e) {
+            logger.warn('Could not fetch message senders:', e.message);
+          }
+
+          // ENS lookups for found senders
+          if (capturedRenderId === chatroomRenderId && uniqueSendersFound.size > 0) {
+            for (const senderAddress of uniqueSendersFound) {
+              try {
+                const ensName = await lookupENS(senderAddress);
+                if (ensName && capturedRenderId === chatroomRenderId) {
+                  const senderLinks = chatroomMessages.querySelectorAll(`.chatroom-sender-link[data-address="${senderAddress}"]`);
+                  senderLinks.forEach(link => {
+                    link.textContent = ensName;
+                    link.title = senderAddress;
+                  });
+                }
+              } catch (_e) {
+                // Ignore ENS lookup errors
+              }
             }
-          })).catch(() => {});
-        }
+          }
+        })();
 
         // No auto-scroll since newest messages are now at the top
       }
