@@ -76,6 +76,7 @@ interface IMoloch {
     function timelockDelay() external view returns (uint64);
     function quorumBps() external view returns (uint16);
     function ragequittable() external view returns (bool);
+    function ragequitTimelock() external view returns (uint64);
     function autoFutarchyParam() external view returns (uint256);
     function autoFutarchyCap() external view returns (uint256);
     function rewardToken() external view returns (address);
@@ -146,6 +147,7 @@ struct DAOGovConfig {
     uint64 timelockDelay;
     uint16 quorumBps;
     bool ragequittable;
+    uint64 ragequitTimelock;
     uint256 autoFutarchyParam;
     uint256 autoFutarchyCap;
     address rewardToken;
@@ -471,6 +473,7 @@ contract MolochViewHelper {
             gov.timelockDelay = M.timelockDelay();
             gov.quorumBps = M.quorumBps();
             gov.ragequittable = M.ragequittable();
+            gov.ragequitTimelock = M.ragequitTimelock();
             gov.autoFutarchyParam = M.autoFutarchyParam();
             gov.autoFutarchyCap = M.autoFutarchyCap();
             gov.rewardToken = M.rewardToken();
@@ -641,6 +644,7 @@ contract MolochViewHelper {
         gov.timelockDelay = M.timelockDelay();
         gov.quorumBps = M.quorumBps();
         gov.ragequittable = M.ragequittable();
+        gov.ragequitTimelock = M.ragequitTimelock();
         gov.autoFutarchyParam = M.autoFutarchyParam();
         gov.autoFutarchyCap = M.autoFutarchyCap();
         gov.rewardToken = M.rewardToken();
