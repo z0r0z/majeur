@@ -10916,6 +10916,7 @@
           name: 'Ethereum',
           shortName: 'ETH',
           rpcs: [
+            'https://rpc.ankr.com/eth',
             'https://1rpc.io/eth',
             'https://eth.drpc.org',
             'https://ethereum-rpc.publicnode.com',
@@ -27039,6 +27040,10 @@
             await withRpcFallback(async (activeProvider) => {
               const molochContract = new ethers.Contract(capturedDaoAddress, MOLOCH_ABI, activeProvider);
 
+              // Track success/failure to detect rate limiting and trigger RPC fallback
+              let successCount = 0;
+              let failCount = 0;
+
               // Query for each message index using indexed filter (much more efficient than scanning all blocks)
               const BATCH_SIZE = 5;
               for (let i = 0; i < messages.length; i += BATCH_SIZE) {
@@ -27046,7 +27051,7 @@
                 if (capturedRenderId !== chatroomRenderId || capturedGlobalRenderId !== daoRenderId) return;
 
                 const batch = messages.slice(i, i + BATCH_SIZE);
-                await Promise.all(batch.map(async (msg) => {
+                const results = await Promise.all(batch.map(async (msg) => {
                   try {
                     // Query using indexed 'index' parameter - this is efficient as index is indexed
                     const events = await molochContract.queryFilter(
@@ -27069,10 +27074,27 @@
                         uniqueSendersFound.add(senderAddress);
                       }
                     }
-                  } catch (_e) {
-                    // Ignore errors for individual message lookups
+                    return { success: true };
+                  } catch (e) {
+                    return { success: false, error: e };
                   }
                 }));
+
+                // Count successes and failures
+                for (const r of results) {
+                  if (r.success) successCount++;
+                  else failCount++;
+                }
+
+                // If first batch all failed, throw to trigger RPC fallback
+                if (i === 0 && failCount > 0 && successCount === 0) {
+                  throw new Error('All queries in first batch failed - RPC may be rate limiting');
+                }
+              }
+
+              // If all queries failed across all batches, throw to trigger RPC fallback
+              if (successCount === 0 && failCount > 0) {
+                throw new Error('All message sender queries failed - RPC may be rate limiting');
               }
             });
           } catch (e) {
@@ -27242,13 +27264,17 @@
             await withRpcFallback(async (activeProvider) => {
               const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
 
+              // Track success/failure to detect rate limiting and trigger RPC fallback
+              let successCount = 0;
+              let failCount = 0;
+
               // Query using indexed 'index' parameter for each message (much more efficient)
               const BATCH_SIZE = 5;
               for (let i = 0; i < messages.length; i += BATCH_SIZE) {
                 if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
                 const batch = messages.slice(i, i + BATCH_SIZE);
-                await Promise.all(batch.map(async (msg) => {
+                const results = await Promise.all(batch.map(async (msg) => {
                   try {
                     const events = await molochContract.queryFilter(
                       molochContract.filters.Message(null, msg.index)
@@ -27256,10 +27282,27 @@
                     if (events.length > 0) {
                       messageTxHashes[Number(msg.index)] = events[0].transactionHash;
                     }
-                  } catch (_e) {
-                    // Ignore individual message lookup errors
+                    return { success: true };
+                  } catch (e) {
+                    return { success: false, error: e };
                   }
                 }));
+
+                // Count successes and failures
+                for (const r of results) {
+                  if (r.success) successCount++;
+                  else failCount++;
+                }
+
+                // If first batch all failed, throw to trigger RPC fallback
+                if (i === 0 && failCount > 0 && successCount === 0) {
+                  throw new Error('All queries in first batch failed - RPC may be rate limiting');
+                }
+              }
+
+              // If all queries failed across all batches, throw to trigger RPC fallback
+              if (successCount === 0 && failCount > 0) {
+                throw new Error('All message tx hash queries failed - RPC may be rate limiting');
               }
             });
           } catch (e) {
