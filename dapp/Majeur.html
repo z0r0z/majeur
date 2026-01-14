@@ -27235,33 +27235,31 @@
             // Continue with existing data
           }
 
-          // Query Message events to get tx hashes for each message
-          // Build a map of message index -> tx hash (chunked to respect RPC block limits)
+          // Query Message events to get tx hashes for each message using indexed queries
+          // Build a map of message index -> tx hash
           const messageTxHashes = {};
           try {
             await withRpcFallback(async (activeProvider) => {
               const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
-              const currentBlock = await activeProvider.getBlockNumber();
-              const chunkSize = 10000;
 
-              // Query backwards in chunks until we have enough or reach block 0
-              for (let toBlock = currentBlock; toBlock >= 0; toBlock -= chunkSize) {
-                const fromBlock = Math.max(0, toBlock - chunkSize + 1);
-                const events = await molochContract.queryFilter(
-                  molochContract.filters.Message(),
-                  fromBlock,
-                  toBlock
-                );
-
+              // Query using indexed 'index' parameter for each message (much more efficient)
+              const BATCH_SIZE = 5;
+              for (let i = 0; i < messages.length; i += BATCH_SIZE) {
                 if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
-                for (const event of events) {
-                  const msgIndex = Number(event.args.index);
-                  messageTxHashes[msgIndex] = event.transactionHash;
-                }
-
-                // Stop if we've found tx hashes for all known messages
-                if (Object.keys(messageTxHashes).length >= totalMessageCount || fromBlock === 0) break;
+                const batch = messages.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch.map(async (msg) => {
+                  try {
+                    const events = await molochContract.queryFilter(
+                      molochContract.filters.Message(null, msg.index)
+                    );
+                    if (events.length > 0) {
+                      messageTxHashes[Number(msg.index)] = events[0].transactionHash;
+                    }
+                  } catch (_e) {
+                    // Ignore individual message lookup errors
+                  }
+                }));
               }
             });
           } catch (e) {
