@@ -126,6 +126,7 @@ contract Moloch {
      * MSG STATE
      */
     string[] public messages;
+    mapping(uint256 => address) public messageSenders;
     event Message(address indexed from, uint256 indexed index, string text);
 
     /**
@@ -817,8 +818,10 @@ contract Moloch {
     function chat(string calldata message) public payable {
         unchecked {
             require(badges.balanceOf(msg.sender) != 0, Unauthorized());
+            uint256 index = messages.length;
             messages.push(message);
-            emit Message(msg.sender, messages.length - 1, message);
+            messageSenders[index] = msg.sender;
+            emit Message(msg.sender, index, message);
         }
     }
 

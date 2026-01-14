@@ -120,6 +120,7 @@ interface IMoloch {
     // Chat / messages
     function getMessageCount() external view returns (uint256);
     function messages(uint256) external view returns (string memory);
+    function messageSenders(uint256) external view returns (address);
 
     // Treasury allowance (for tap budget)
     function allowance(address token, address spender) external view returns (uint256);
@@ -216,6 +217,7 @@ struct DAOTreasury {
 
 struct MessageView {
     uint256 index;
+    address sender;
     string text;
 }
 
@@ -908,7 +910,7 @@ contract MolochViewHelper {
         out = new MessageView[](len);
         for (uint256 i; i < len; ++i) {
             uint256 idx = startIdx + i;
-            out[i] = MessageView({index: idx, text: M.messages(idx)});
+            out[i] = MessageView({index: idx, sender: M.messageSenders(idx), text: M.messages(idx)});
         }
     }
 

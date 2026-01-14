@@ -603,7 +603,7 @@ contract TestViewHelper {
         out = new MessageView[](len);
         for (uint256 i; i < len; ++i) {
             uint256 idx = start + i;
-            out[i] = MessageView({index: idx, text: M.messages(idx)});
+            out[i] = MessageView({index: idx, sender: M.messageSenders(idx), text: M.messages(idx)});
         }
     }
 
