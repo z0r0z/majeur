@@ -276,6 +276,7 @@ contract TestViewHelper {
             gov.timelockDelay = M.timelockDelay();
             gov.quorumBps = M.quorumBps();
             gov.ragequittable = M.ragequittable();
+            gov.ragequitTimelock = M.ragequitTimelock();
             gov.autoFutarchyParam = M.autoFutarchyParam();
             gov.autoFutarchyCap = M.autoFutarchyCap();
             gov.rewardToken = M.rewardToken();
@@ -427,6 +428,7 @@ contract TestViewHelper {
         gov.timelockDelay = M.timelockDelay();
         gov.quorumBps = M.quorumBps();
         gov.ragequittable = M.ragequittable();
+        gov.ragequitTimelock = M.ragequitTimelock();
         gov.autoFutarchyParam = M.autoFutarchyParam();
         gov.autoFutarchyCap = M.autoFutarchyCap();
         gov.rewardToken = M.rewardToken();
@@ -1116,6 +1118,15 @@ contract MolochViewHelperTest is Test {
         assertTrue(lens.gov.ragequittable);
         assertEq(lens.gov.proposalThreshold, 0);
         assertEq(lens.gov.timelockDelay, 0);
+    }
+
+    function test_GetDAOFullState_RagequitTimelock() public view {
+        address[] memory treasuryTokens = new address[](0);
+        DAOLens memory lens =
+            viewHelper.getDAOFullState(address(moloch), 0, 10, 0, 10, treasuryTokens);
+
+        // Default ragequit timelock is 7 days
+        assertEq(lens.gov.ragequitTimelock, 7 days);
     }
 
     function test_GetDAOFullState_Supplies() public view {

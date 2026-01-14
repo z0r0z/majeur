@@ -3157,4 +3157,111 @@ contract MolochTest is Test {
         assertTrue(resolved3);
         assertEq(winner3, 1);
     }
+
+    /* RAGEQUIT TIMELOCK EDGE CASE TESTS */
+
+    function test_Ragequit_TimelockDisabled() public {
+        // Set ragequitTimelock to 0 (disabled)
+        vm.prank(address(moloch));
+        moloch.setRagequitTimelock(0);
+        assertEq(moloch.ragequitTimelock(), 0);
+
+        // Mint fresh shares to charlie
+        vm.prank(address(moloch));
+        shares.mintFromMoloch(charlie, 10e18);
+
+        vm.deal(address(moloch), 10 ether);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+
+        // Charlie should be able to ragequit immediately (no timelock)
+        uint256 balanceBefore = charlie.balance;
+        vm.prank(charlie);
+        moloch.ragequit(tokens, 10e18, 0);
+
+        // Charlie received their share
+        assertGt(charlie.balance, balanceBefore);
+        assertEq(shares.balanceOf(charlie), 0);
+    }
+
+    function test_Ragequit_LootOnlyTimelock() public {
+        // Mint fresh loot to dave (who has no loot initially)
+        vm.prank(address(moloch));
+        loot.mintFromMoloch(dave, 20e18);
+
+        vm.deal(address(moloch), 10 ether);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+
+        // Dave should NOT be able to ragequit loot immediately
+        vm.prank(dave);
+        vm.expectRevert(abi.encodeWithSignature("TooEarly()"));
+        moloch.ragequit(tokens, 0, 20e18);
+
+        // Warp past the 7-day timelock
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Now Dave should be able to ragequit
+        uint256 balanceBefore = dave.balance;
+        vm.prank(dave);
+        moloch.ragequit(tokens, 0, 20e18);
+
+        assertGt(dave.balance, balanceBefore);
+        assertEq(loot.balanceOf(dave), 0);
+    }
+
+    function test_Shares_TransferResetsTimestamp() public {
+        // Alice has shares from setup; record her timestamp
+        uint256 aliceTimestampBefore = shares.lastAcquisitionTimestamp(alice);
+
+        // Warp forward
+        vm.warp(block.timestamp + 1 days);
+
+        // Alice transfers shares to charlie
+        vm.prank(alice);
+        shares.transfer(charlie, 10e18);
+
+        // Charlie's timestamp should be updated to current time
+        assertEq(shares.lastAcquisitionTimestamp(charlie), block.timestamp);
+
+        // Alice's timestamp should remain unchanged
+        assertEq(shares.lastAcquisitionTimestamp(alice), aliceTimestampBefore);
+    }
+
+    function test_Shares_SelfTransferNoTimestampReset() public {
+        // Record Alice's timestamp
+        uint256 aliceTimestampBefore = shares.lastAcquisitionTimestamp(alice);
+
+        // Warp forward
+        vm.warp(block.timestamp + 1 days);
+
+        // Alice transfers to herself
+        vm.prank(alice);
+        shares.transfer(alice, 10e18);
+
+        // Alice's timestamp should NOT change on self-transfer
+        assertEq(shares.lastAcquisitionTimestamp(alice), aliceTimestampBefore);
+    }
+
+    function test_Loot_TransferResetsTimestamp() public {
+        // Mint loot to alice
+        vm.prank(address(moloch));
+        loot.mintFromMoloch(alice, 50e18);
+        uint256 aliceTimestampBefore = loot.lastAcquisitionTimestamp(alice);
+
+        // Warp forward
+        vm.warp(block.timestamp + 1 days);
+
+        // Alice transfers loot to dave
+        vm.prank(alice);
+        loot.transfer(dave, 20e18);
+
+        // Dave's timestamp should be updated to current time
+        assertEq(loot.lastAcquisitionTimestamp(dave), block.timestamp);
+
+        // Alice's timestamp should remain unchanged
+        assertEq(loot.lastAcquisitionTimestamp(alice), aliceTimestampBefore);
+    }
 }
