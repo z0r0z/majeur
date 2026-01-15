@@ -9014,6 +9014,16 @@
             return baseOptions;
         }
 
+        // RPC timeout configuration
+        const RPC_TIMEOUT_MS = 10000; // 10 second timeout per RPC attempt
+
+        function withTimeout(promise, timeoutMs) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('RPC call timed out')), timeoutMs))
+            ]);
+        }
+
         // Initialize and return an RPC provider for read-only calls (quotes, deep links)
         // Tries connected wallet provider first, then falls back to public RPCs
         async function initScanner() {
@@ -9028,8 +9038,8 @@
             for (const rpc of network.rpcs) {
                 try {
                     const rpcProvider = new ethers.JsonRpcProvider(rpc);
-                    // Quick test to ensure RPC is responsive
-                    await rpcProvider.getBlockNumber();
+                    // Quick test to ensure RPC is responsive (with timeout)
+                    await withTimeout(rpcProvider.getBlockNumber(), RPC_TIMEOUT_MS);
                     console.log(`Using RPC: ${rpc}`);
                     return rpcProvider;
                 } catch (e) {
@@ -9050,7 +9060,7 @@
             // Try connected wallet provider first (if not WalletConnect)
             if (provider && !walletConnectProvider) {
                 try {
-                    return await scanFn(provider);
+                    return await withTimeout(scanFn(provider), RPC_TIMEOUT_MS);
                 } catch (e) {
                     console.warn('Connected provider scan failed, trying public RPCs:', e.message);
                 }
@@ -9060,7 +9070,7 @@
             for (const rpc of network.rpcs) {
                 try {
                     const rpcProvider = new ethers.JsonRpcProvider(rpc);
-                    const result = await scanFn(rpcProvider);
+                    const result = await withTimeout(scanFn(rpcProvider), RPC_TIMEOUT_MS);
                     console.log(`Using RPC: ${rpc}`);
                     return result;
                 } catch (e) {
