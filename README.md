@@ -39,6 +39,27 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 
 > [daicowtf.eth](https://daicowtf.eth.limo/)
 
+## Contract Versions (v1/v2)
+
+The codebase maintains **two contract versions in parallel**:
+
+| Version | Status | Networks | Description |
+|---------|--------|----------|-------------|
+| **v1** | Production | Mainnet, all chains | Original deployed contracts |
+| **v2** | Development | Local anvil only | Security fixes + optimizations |
+
+**Key v2 improvements:**
+- Ragequit timelock (7-day default) — prevents flash loan attacks
+- Proposal state protection — prevents vote-sniping during voting period
+- On-chain message senders — no event queries needed for chat history
+- Reverse pagination — newest-first ordering for proposals/messages
+
+**Dapp compatibility:** Both `Majeur.html` and `DAICO.html` support v1 and v2 simultaneously with a user-selectable version switch.
+
+**Developer docs:**
+- [`docs/v1-v2-contract-differences.md`](./docs/v1-v2-contract-differences.md) — Complete API differences, struct changes, address tables
+- [`docs/v1-v2-migration-guide.md`](./docs/v1-v2-migration-guide.md) — Safe patterns for adding v2 support, common pitfalls, code examples
+
 ## Zero to Hero
 
 Start this tutorial as a Majeur newb, end up an expert that could even contribute code!

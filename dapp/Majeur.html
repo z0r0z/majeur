@@ -652,6 +652,83 @@
         gap: 8px;
       }
 
+      /* Version Toggle Styles */
+      .version-toggle {
+        position: relative;
+      }
+
+      .version-badge {
+        padding: 8px 12px;
+        background: rgba(10, 0, 21, 0.9);
+        border: 1px solid rgba(157, 123, 255, 0.5);
+        color: #9d7bff;
+        font-family: "Cinzel", serif;
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-transform: uppercase;
+      }
+
+      .version-badge:hover {
+        background: rgba(157, 123, 255, 0.15);
+        border-color: #9d7bff;
+      }
+
+      .version-badge .dropdown-arrow {
+        font-size: 0.5rem;
+        opacity: 0.7;
+        transition: transform 0.2s ease;
+      }
+
+      .version-toggle.open .dropdown-arrow {
+        transform: rotate(180deg);
+      }
+
+      .version-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        min-width: 140px;
+        background: rgba(10, 0, 21, 0.98);
+        border: 1px solid rgba(157, 123, 255, 0.3);
+        backdrop-filter: blur(10px);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 1000;
+      }
+
+      .version-toggle.open .version-dropdown {
+        display: flex;
+      }
+
+      .version-option {
+        padding: 10px 14px;
+        color: rgba(230, 217, 255, 0.8);
+        font-family: "EB Garamond", serif;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+        background: transparent;
+        text-align: left;
+        width: 100%;
+      }
+
+      .version-option:hover {
+        background: rgba(157, 123, 255, 0.15);
+        color: #e6d9ff;
+      }
+
+      .version-option.active {
+        background: rgba(157, 123, 255, 0.2);
+        color: #9d7bff;
+      }
+
       .network-selector {
         position: relative;
       }
@@ -783,6 +860,11 @@
         color: white;
       }
 
+      .network-option .network-icon.localhost {
+        background: linear-gradient(135deg, #10b981, #34d399);
+        color: white;
+      }
+
       .wallet-button {
         padding: 12px 20px;
         background: rgba(10, 0, 21, 0.85);
@@ -897,29 +979,6 @@
         font-style: italic;
         font-weight: 300;
         letter-spacing: 0.02em;
-      }
-
-      /* Wallet Connect Prompt */
-      .wallet-prompt-section {
-        text-align: center;
-        padding: 3rem 2rem;
-        position: relative;
-        z-index: 1;
-        background: rgba(10, 0, 21, 0.5);
-        border-top: 1px solid var(--accent-gold-3);
-      }
-
-      .wallet-prompt-text {
-        font-family: 'EB Garamond', serif;
-        font-size: 1.1rem;
-        margin-bottom: 0.75rem;
-        color: var(--accent-gold);
-      }
-
-      .wallet-prompt-networks {
-        font-family: 'EB Garamond', serif;
-        font-size: 0.95rem;
-        color: rgba(157, 123, 255, 0.9);
       }
 
       .form-group {
@@ -2574,6 +2633,8 @@
         gap: 2rem;
         max-width: 1400px;
         margin: 0 auto;
+        min-height: 150px;
+        align-content: center;
       }
 
       .dao-tile {
@@ -6309,6 +6370,16 @@
 
     <!-- Network & Wallet (top right) -->
     <div class="wallet-network-container">
+      <div class="version-toggle" id="versionToggle">
+        <button class="version-badge" onclick="toggleVersionDropdown()">
+          <span class="version-label" id="versionLabel">v1</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="version-dropdown" id="versionDropdown">
+          <button class="version-option" data-version="v1" onclick="switchContractVersion('v1')">v1 (Production)</button>
+          <button class="version-option" data-version="v2" onclick="switchContractVersion('v2')">v2 (Development)</button>
+        </div>
+      </div>
       <div class="network-selector" id="networkSelector">
         <button class="network-badge" id="networkBadge" onclick="toggleNetworkDropdown()">
           <span class="network-dot"></span>
@@ -6332,6 +6403,10 @@
           <button class="network-option" data-network="sepolia" onclick="switchNetwork('sepolia')">
             <span class="network-icon sepolia">S</span>
             Sepolia
+          </button>
+          <button class="network-option" data-network="localhost" onclick="switchNetwork('localhost')" id="localhostNetworkOption" style="display: none;">
+            <span class="network-icon localhost">L</span>
+            Localhost
           </button>
         </div>
       </div>
@@ -9131,12 +9206,6 @@
       </div>
     </section>
 
-    <!-- Wallet Connect Prompt -->
-    <div class="wallet-prompt-section" id="walletPromptSection">
-      <p class="wallet-prompt-text">Connect a wallet to see all DAOs and the ones you're a part of.</p>
-      <p class="wallet-prompt-networks">Supported networks: Ethereum, Base, Arbitrum, Sepolia</p>
-    </div>
-
     <!-- PURCHASE MODAL (Full-featured like DAICO.html) -->
     <div class="wallet-modal-overlay" id="purchaseModal">
       <div class="wallet-modal" style="max-width: 500px;">
@@ -9258,7 +9327,7 @@
         <p class="dao-gallery-subtitle">Majeur organizations you belong to</p>
       </div>
       <div class="dao-tiles" id="daoTiles">
-        <!-- DAO tiles will be dynamically rendered here -->
+        <!-- Content set by JavaScript -->
       </div>
     </section>
 
@@ -10879,7 +10948,60 @@
         featurePages.forEach(page => featureObserver.observe(page));
       })();
 
-      const SUMMONER_ADDRESS = '0x0000000000330B8df9E3bc5E553074DA58eE9138';
+      // Contract version state
+      const currentContractVersion = localStorage.getItem('contractVersion') || 'v1';
+
+      // Contract addresses by version
+      const CONTRACT_VERSIONS = {
+        v1: {
+          summoner: '0x0000000000330B8df9E3bc5E553074DA58eE9138',
+          viewHelper: '0x00000000006631040967E58e3430e4B77921a2db',
+          tribute: '0x000000000066524fcf78Dc1E41E9D525d9ea73D0',
+          daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
+        },
+        v2: {
+          summoner: '0x6DC8b0F23B2040BE29187705120FD0076503e688',
+          viewHelper: '0x0cf87b3a114c78907cF7712e2Cbb61Bb3608c776',
+          tribute: '0x000000000066524fcf78Dc1E41E9D525d9ea73D0',
+          daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
+        }
+      };
+
+      // Getter functions for contract addresses
+      function getSummonerAddress() { return CONTRACT_VERSIONS[currentContractVersion].summoner; }
+      function getViewHelperAddress() { return CONTRACT_VERSIONS[currentContractVersion].viewHelper; }
+      function getTributeAddress() { return CONTRACT_VERSIONS[currentContractVersion].tribute; }
+      function getDaicoAddress() { return CONTRACT_VERSIONS[currentContractVersion].daico; }
+
+      // Version toggle functions
+      function toggleVersionDropdown() {
+        document.getElementById('versionToggle').classList.toggle('open');
+      }
+
+      function switchContractVersion(version) {
+        document.getElementById('versionToggle').classList.remove('open');
+        if (version !== currentContractVersion) {
+          localStorage.setItem('contractVersion', version);
+          // Auto-switch to localhost for v2 (only deployed on local anvil)
+          if (version === 'v2' && currentNetwork !== 'localhost') {
+            localStorage.setItem('majeur_network', 'localhost');
+          }
+          window.location.reload();
+        }
+      }
+
+      // Initialize version label and dev mode options on load
+      document.addEventListener('DOMContentLoaded', () => {
+        const label = document.getElementById('versionLabel');
+        if (label) label.textContent = currentContractVersion;
+
+        // Show localhost network option in dev mode
+        const isDevMode = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isDevMode) {
+          const localhostOption = document.getElementById('localhostNetworkOption');
+          if (localhostOption) localhostOption.style.display = '';
+        }
+      });
       const SUMMONER_ABI = [
         {
           "inputs": [
@@ -10904,9 +11026,6 @@
           "type": "function"
         }
       ];
-
-      const VIEW_HELPER_ADDRESS = '0x00000000006631040967E58e3430e4B77921a2db';
-      const TRIBUTE_ADDRESS = '0x000000000066524fcf78Dc1E41E9D525d9ea73D0';
 
       // ==================== NETWORK CONFIGURATION ====================
       const NETWORKS = {
@@ -11020,11 +11139,37 @@
           tokenMeta: {
             [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 }
           }
+        },
+        localhost: {
+          chainId: 31337n,
+          chainIdHex: '0x7a69',
+          name: 'Localhost',
+          shortName: 'LOCAL',
+          rpcs: [
+            'http://localhost:8545'
+          ],
+          explorer: '',
+          treasuryTokens: [
+            ethers.ZeroAddress // ETH only for local
+          ],
+          tokenMeta: {
+            [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 }
+          }
         }
       };
 
-      // Current network (auto-detected from wallet, or defaults to ethereum)
-      let currentNetwork = 'ethereum';
+      // Randomize RPC order on each page load to distribute load across providers
+      function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+      Object.values(NETWORKS).forEach(network => shuffleArray(network.rpcs));
+
+      // Current network (check localStorage first for saved preference, then defaults to ethereum)
+      let currentNetwork = localStorage.getItem('majeur_network') || 'ethereum';
 
       // ==================== TOKEN LIST ====================
       const TOKEN_LIST_URLS = [
@@ -11177,6 +11322,11 @@
         if (selector && !selector.contains(e.target)) {
           selector.classList.remove('open');
         }
+        // Also close version dropdown when clicking outside
+        const versionToggle = document.getElementById('versionToggle');
+        if (versionToggle && !versionToggle.contains(e.target)) {
+          versionToggle.classList.remove('open');
+        }
         // Also close mobile menu when clicking outside
         const mobileMenu = document.getElementById('mobileMenu');
         const hamburger = document.getElementById('hamburgerToggle');
@@ -11296,6 +11446,9 @@
         if (networkBadge) networkBadge.classList.add('unsupported');
       }
 
+      // Initialize network UI on load (reflects localStorage setting)
+      updateNetworkUI();
+
       async function switchNetwork(networkKey) {
         closeNetworkDropdown();
 
@@ -11310,6 +11463,7 @@
             if (currentChainIdHex === targetNetwork.chainIdHex) {
               // Already on target network, just update UI state
               currentNetwork = networkKey;
+              localStorage.setItem('majeur_network', networkKey);
               updateNetworkUI();
               readOnlyProvider = null;
               showStatus(`Switched to ${targetNetwork.name} - refreshing...`, false);
@@ -11334,6 +11488,7 @@
             if (newChainIdHex === targetNetwork.chainIdHex) {
               // Switch successful - update state and reload to refresh everything
               currentNetwork = networkKey;
+              localStorage.setItem('majeur_network', networkKey);
               window.location.reload();
             }
             return;
@@ -11363,6 +11518,7 @@
         } else {
           // No wallet connected - just switch the display network
           currentNetwork = networkKey;
+          localStorage.setItem('majeur_network', networkKey);
           readOnlyProvider = null; // Reset read-only provider for new network
           updateNetworkUI();
 
@@ -11557,17 +11713,18 @@
         return network.tokenMeta[address] || network.tokenMeta[address.toLowerCase()] || null;
       }
 
-      const VIEW_HELPER_ABI = [
+      // V1 ViewHelper ABI - without PaginationParams struct, reverse booleans, ragequitTimelock, and sender field
+      const VIEW_HELPER_ABI_V1 = [
         {
           "inputs": [
             {"internalType": "address", "name": "user", "type": "address"},
             {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
             {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
             {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
             {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
             {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
-            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"}
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"}
           ],
           "name": "getUserDAOsFullState",
           "outputs": [
@@ -11879,265 +12036,6 @@
             {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
             {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
             {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
-            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
-            {"internalType": "address[]", "name": "tribTokens", "type": "address[]"}
-          ],
-          "name": "getDAOWithDAICO",
-          "outputs": [
-            {
-              "components": [
-                {
-                  "components": [
-                    {"internalType": "address", "name": "dao", "type": "address"},
-                    {
-                      "components": [
-                        {"internalType": "string", "name": "name", "type": "string"},
-                        {"internalType": "string", "name": "symbol", "type": "string"},
-                        {"internalType": "string", "name": "contractURI", "type": "string"},
-                        {"internalType": "address", "name": "sharesToken", "type": "address"},
-                        {"internalType": "address", "name": "lootToken", "type": "address"},
-                        {"internalType": "address", "name": "badgesToken", "type": "address"},
-                        {"internalType": "address", "name": "renderer", "type": "address"}
-                      ],
-                      "internalType": "struct DAOMeta",
-                      "name": "meta",
-                      "type": "tuple"
-                    },
-                    {
-                      "components": [
-                        {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
-                        {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
-                        {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
-                        {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
-                        {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
-                        {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
-                        {"internalType": "bool", "name": "ragequittable", "type": "bool"},
-                        {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
-                        {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
-                        {"internalType": "address", "name": "rewardToken", "type": "address"}
-                      ],
-                      "internalType": "struct DAOGovConfig",
-                      "name": "gov",
-                      "type": "tuple"
-                    },
-                    {
-                      "components": [
-                        {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
-                        {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
-                        {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
-                        {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
-                      ],
-                      "internalType": "struct DAOTokenSupplies",
-                      "name": "supplies",
-                      "type": "tuple"
-                    },
-                    {
-                      "components": [
-                        {
-                          "components": [
-                            {"internalType": "address", "name": "token", "type": "address"},
-                            {"internalType": "uint256", "name": "balance", "type": "uint256"}
-                          ],
-                          "internalType": "struct TokenBalance[]",
-                          "name": "balances",
-                          "type": "tuple[]"
-                        }
-                      ],
-                      "internalType": "struct DAOTreasury",
-                      "name": "treasury",
-                      "type": "tuple"
-                    },
-                    {
-                      "components": [
-                        {"internalType": "address", "name": "account", "type": "address"},
-                        {"internalType": "uint256", "name": "shares", "type": "uint256"},
-                        {"internalType": "uint256", "name": "loot", "type": "uint256"},
-                        {"internalType": "uint16", "name": "seatId", "type": "uint16"},
-                        {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
-                        {"internalType": "address[]", "name": "delegates", "type": "address[]"},
-                        {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
-                      ],
-                      "internalType": "struct MemberView[]",
-                      "name": "members",
-                      "type": "tuple[]"
-                    },
-                    {
-                      "components": [
-                        {"internalType": "uint256", "name": "id", "type": "uint256"},
-                        {"internalType": "address", "name": "proposer", "type": "address"},
-                        {"internalType": "uint8", "name": "state", "type": "uint8"},
-                        {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
-                        {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
-                        {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
-                        {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
-                        {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
-                        {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
-                        {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
-                        {
-                          "components": [
-                            {"internalType": "bool", "name": "enabled", "type": "bool"},
-                            {"internalType": "address", "name": "rewardToken", "type": "address"},
-                            {"internalType": "uint256", "name": "pool", "type": "uint256"},
-                            {"internalType": "bool", "name": "resolved", "type": "bool"},
-                            {"internalType": "uint8", "name": "winner", "type": "uint8"},
-                            {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
-                            {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
-                          ],
-                          "internalType": "struct FutarchyView",
-                          "name": "futarchy",
-                          "type": "tuple"
-                        },
-                        {
-                          "components": [
-                            {"internalType": "address", "name": "voter", "type": "address"},
-                            {"internalType": "uint8", "name": "support", "type": "uint8"},
-                            {"internalType": "uint256", "name": "weight", "type": "uint256"}
-                          ],
-                          "internalType": "struct VoterView[]",
-                          "name": "voters",
-                          "type": "tuple[]"
-                        }
-                      ],
-                      "internalType": "struct ProposalView[]",
-                      "name": "proposals",
-                      "type": "tuple[]"
-                    },
-                    {
-                      "components": [
-                        {"internalType": "uint256", "name": "index", "type": "uint256"},
-                        {"internalType": "string", "name": "text", "type": "string"}
-                      ],
-                      "internalType": "struct MessageView[]",
-                      "name": "messages",
-                      "type": "tuple[]"
-                    }
-                  ],
-                  "internalType": "struct DAOLens",
-                  "name": "dao",
-                  "type": "tuple"
-                },
-                {
-                  "components": [
-                    {"internalType": "address", "name": "tribTkn", "type": "address"},
-                    {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
-                    {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
-                    {"internalType": "address", "name": "forTkn", "type": "address"},
-                    {"internalType": "uint40", "name": "deadline", "type": "uint40"},
-                    {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
-                    {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
-                    {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
-                    {"internalType": "uint256", "name": "allowance", "type": "uint256"},
-                    {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
-                    {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
-                    {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
-                  ],
-                  "internalType": "struct SaleView[]",
-                  "name": "sales",
-                  "type": "tuple[]"
-                },
-                {
-                  "components": [
-                    {"internalType": "address", "name": "ops", "type": "address"},
-                    {"internalType": "address", "name": "tribTkn", "type": "address"},
-                    {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
-                    {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
-                    {"internalType": "uint256", "name": "claimable", "type": "uint256"},
-                    {"internalType": "uint256", "name": "pending", "type": "uint256"},
-                    {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
-                    {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
-                  ],
-                  "internalType": "struct TapView",
-                  "name": "tap",
-                  "type": "tuple"
-                }
-              ],
-              "internalType": "struct DAICOLens",
-              "name": "out",
-              "type": "tuple"
-            }
-          ],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "inputs": [
-            {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
-            {"internalType": "address[]", "name": "tribTokens", "type": "address[]"}
-          ],
-          "name": "scanDAICOs",
-          "outputs": [{
-            "components": [
-              {"internalType": "address", "name": "dao", "type": "address"},
-              {"components": [
-                {"internalType": "string", "name": "name", "type": "string"},
-                {"internalType": "string", "name": "symbol", "type": "string"},
-                {"internalType": "string", "name": "contractURI", "type": "string"},
-                {"internalType": "address", "name": "sharesToken", "type": "address"},
-                {"internalType": "address", "name": "lootToken", "type": "address"},
-                {"internalType": "address", "name": "badgesToken", "type": "address"},
-                {"internalType": "address", "name": "renderer", "type": "address"}
-              ], "internalType": "struct DAOMeta", "name": "meta", "type": "tuple"},
-              {"components": [
-                {"internalType": "address", "name": "tribTkn", "type": "address"},
-                {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
-                {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
-                {"internalType": "address", "name": "forTkn", "type": "address"},
-                {"internalType": "uint40", "name": "deadline", "type": "uint40"},
-                {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
-                {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
-                {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
-                {"internalType": "uint256", "name": "allowance", "type": "uint256"},
-                {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
-                {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
-                {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
-              ], "internalType": "struct SaleView[]", "name": "sales", "type": "tuple[]"},
-              {"components": [
-                {"internalType": "address", "name": "ops", "type": "address"},
-                {"internalType": "address", "name": "tribTkn", "type": "address"},
-                {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
-                {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
-                {"internalType": "uint256", "name": "claimable", "type": "uint256"},
-                {"internalType": "uint256", "name": "pending", "type": "uint256"},
-                {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
-                {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
-              ], "internalType": "struct TapView", "name": "tap", "type": "tuple"}
-            ],
-            "internalType": "struct DAICOView[]",
-            "name": "daicos",
-            "type": "tuple[]"
-          }],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "inputs": [
-            {"internalType": "address", "name": "dao", "type": "address"},
-            {"internalType": "uint256", "name": "start", "type": "uint256"},
-            {"internalType": "uint256", "name": "count", "type": "uint256"}
-          ],
-          "name": "getDAOMessages",
-          "outputs": [
-            {
-              "components": [
-                {"internalType": "uint256", "name": "index", "type": "uint256"},
-                {"internalType": "string", "name": "text", "type": "string"}
-              ],
-              "internalType": "struct MessageView[]",
-              "name": "out",
-              "type": "tuple[]"
-            }
-          ],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "inputs": [
-            {"internalType": "address", "name": "dao", "type": "address"},
-            {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
-            {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
             {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"}
           ],
           "name": "getDAOFullState",
@@ -12275,7 +12173,786 @@
           ],
           "stateMutability": "view",
           "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "dao", "type": "address"},
+            {"internalType": "uint256", "name": "start", "type": "uint256"},
+            {"internalType": "uint256", "name": "count", "type": "uint256"}
+          ],
+          "name": "getDAOMessages",
+          "outputs": [
+            {
+              "components": [
+                {"internalType": "uint256", "name": "index", "type": "uint256"},
+                {"internalType": "string", "name": "text", "type": "string"}
+              ],
+              "internalType": "struct MessageView[]",
+              "name": "out",
+              "type": "tuple[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
         }
+      ];
+
+      // V2 ViewHelper ABI - with PaginationParams struct, reverse booleans, ragequitTimelock, and sender field
+      const VIEW_HELPER_ABI_V2 = [
+        {
+          "inputs": [
+            {"internalType": "address", "name": "user", "type": "address"},
+            {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
+            {
+              "components": [
+                {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
+                {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
+                {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
+                {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+                {"internalType": "bool", "name": "reverseProposals", "type": "bool"},
+                {"internalType": "bool", "name": "reverseMessages", "type": "bool"}
+              ],
+              "internalType": "struct PaginationParams",
+              "name": "pagination",
+              "type": "tuple"
+            }
+          ],
+          "name": "getUserDAOsFullState",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "components": [
+                    {"internalType": "address", "name": "dao", "type": "address"},
+                    {
+                      "components": [
+                        {"internalType": "string", "name": "name", "type": "string"},
+                        {"internalType": "string", "name": "symbol", "type": "string"},
+                        {"internalType": "string", "name": "contractURI", "type": "string"},
+                        {"internalType": "address", "name": "sharesToken", "type": "address"},
+                        {"internalType": "address", "name": "lootToken", "type": "address"},
+                        {"internalType": "address", "name": "badgesToken", "type": "address"},
+                        {"internalType": "address", "name": "renderer", "type": "address"}
+                      ],
+                      "internalType": "struct DAOMeta",
+                      "name": "meta",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
+                        {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
+                        {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
+                        {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
+                        {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
+                        {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
+                        {"internalType": "bool", "name": "ragequittable", "type": "bool"},
+                        {"internalType": "uint64", "name": "ragequitTimelock", "type": "uint64"},
+                        {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
+                        {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
+                        {"internalType": "address", "name": "rewardToken", "type": "address"}
+                      ],
+                      "internalType": "struct DAOGovConfig",
+                      "name": "gov",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
+                      ],
+                      "internalType": "struct DAOTokenSupplies",
+                      "name": "supplies",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "token", "type": "address"},
+                            {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                          ],
+                          "internalType": "struct TokenBalance[]",
+                          "name": "balances",
+                          "type": "tuple[]"
+                        }
+                      ],
+                      "internalType": "struct DAOTreasury",
+                      "name": "treasury",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "account", "type": "address"},
+                        {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                        {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                        {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                        {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                        {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                        {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                      ],
+                      "internalType": "struct MemberView[]",
+                      "name": "members",
+                      "type": "tuple[]"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "id", "type": "uint256"},
+                        {"internalType": "address", "name": "proposer", "type": "address"},
+                        {"internalType": "uint8", "name": "state", "type": "uint8"},
+                        {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
+                        {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
+                        {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
+                        {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
+                        {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
+                        {
+                          "components": [
+                            {"internalType": "bool", "name": "enabled", "type": "bool"},
+                            {"internalType": "address", "name": "rewardToken", "type": "address"},
+                            {"internalType": "uint256", "name": "pool", "type": "uint256"},
+                            {"internalType": "bool", "name": "resolved", "type": "bool"},
+                            {"internalType": "uint8", "name": "winner", "type": "uint8"},
+                            {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
+                          ],
+                          "internalType": "struct FutarchyView",
+                          "name": "futarchy",
+                          "type": "tuple"
+                        },
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "voter", "type": "address"},
+                            {"internalType": "uint8", "name": "support", "type": "uint8"},
+                            {"internalType": "uint256", "name": "weight", "type": "uint256"}
+                          ],
+                          "internalType": "struct VoterView[]",
+                          "name": "voters",
+                          "type": "tuple[]"
+                        }
+                      ],
+                      "internalType": "struct ProposalView[]",
+                      "name": "proposals",
+                      "type": "tuple[]"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "index", "type": "uint256"},
+                        {"internalType": "address", "name": "sender", "type": "address"},
+                        {"internalType": "string", "name": "text", "type": "string"}
+                      ],
+                      "internalType": "struct MessageView[]",
+                      "name": "messages",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct DAOLens",
+                  "name": "dao",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "account", "type": "address"},
+                    {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                    {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                    {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                    {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                    {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                    {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                  ],
+                  "internalType": "struct MemberView",
+                  "name": "member",
+                  "type": "tuple"
+                }
+              ],
+              "internalType": "struct UserDAOLens[]",
+              "name": "out",
+              "type": "tuple[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
+            {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
+            {"internalType": "bool", "name": "reverseProposals", "type": "bool"},
+            {"internalType": "bool", "name": "reverseMessages", "type": "bool"}
+          ],
+          "name": "getDAOsFullState",
+          "outputs": [
+            {
+              "components": [
+                {"internalType": "address", "name": "dao", "type": "address"},
+                {
+                  "components": [
+                    {"internalType": "string", "name": "name", "type": "string"},
+                    {"internalType": "string", "name": "symbol", "type": "string"},
+                    {"internalType": "string", "name": "contractURI", "type": "string"},
+                    {"internalType": "address", "name": "sharesToken", "type": "address"},
+                    {"internalType": "address", "name": "lootToken", "type": "address"},
+                    {"internalType": "address", "name": "badgesToken", "type": "address"},
+                    {"internalType": "address", "name": "renderer", "type": "address"}
+                  ],
+                  "internalType": "struct DAOMeta",
+                  "name": "meta",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
+                    {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
+                    {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
+                    {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
+                    {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
+                    {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
+                    {"internalType": "bool", "name": "ragequittable", "type": "bool"},
+                    {"internalType": "uint64", "name": "ragequitTimelock", "type": "uint64"},
+                    {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
+                    {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
+                    {"internalType": "address", "name": "rewardToken", "type": "address"}
+                  ],
+                  "internalType": "struct DAOGovConfig",
+                  "name": "gov",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
+                    {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
+                  ],
+                  "internalType": "struct DAOTokenSupplies",
+                  "name": "supplies",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "token", "type": "address"},
+                        {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                      ],
+                      "internalType": "struct TokenBalance[]",
+                      "name": "balances",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct DAOTreasury",
+                  "name": "treasury",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "account", "type": "address"},
+                    {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                    {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                    {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                    {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                    {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                    {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                  ],
+                  "internalType": "struct MemberView[]",
+                  "name": "members",
+                  "type": "tuple[]"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint256", "name": "id", "type": "uint256"},
+                    {"internalType": "address", "name": "proposer", "type": "address"},
+                    {"internalType": "uint8", "name": "state", "type": "uint8"},
+                    {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
+                    {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
+                    {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
+                    {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
+                    {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
+                    {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
+                    {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
+                    {
+                      "components": [
+                        {"internalType": "bool", "name": "enabled", "type": "bool"},
+                        {"internalType": "address", "name": "rewardToken", "type": "address"},
+                        {"internalType": "uint256", "name": "pool", "type": "uint256"},
+                        {"internalType": "bool", "name": "resolved", "type": "bool"},
+                        {"internalType": "uint8", "name": "winner", "type": "uint8"},
+                        {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
+                      ],
+                      "internalType": "struct FutarchyView",
+                      "name": "futarchy",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "voter", "type": "address"},
+                        {"internalType": "uint8", "name": "support", "type": "uint8"},
+                        {"internalType": "uint256", "name": "weight", "type": "uint256"}
+                      ],
+                      "internalType": "struct VoterView[]",
+                      "name": "voters",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct ProposalView[]",
+                  "name": "proposals",
+                  "type": "tuple[]"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint256", "name": "index", "type": "uint256"},
+                    {"internalType": "address", "name": "sender", "type": "address"},
+                    {"internalType": "string", "name": "text", "type": "string"}
+                  ],
+                  "internalType": "struct MessageView[]",
+                  "name": "messages",
+                  "type": "tuple[]"
+                }
+              ],
+              "internalType": "struct DAOLens[]",
+              "name": "out",
+              "type": "tuple[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "dao", "type": "address"},
+            {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
+            {"internalType": "address[]", "name": "tribTokens", "type": "address[]"},
+            {"internalType": "bool", "name": "reverseProposals", "type": "bool"},
+            {"internalType": "bool", "name": "reverseMessages", "type": "bool"}
+          ],
+          "name": "getDAOWithDAICO",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "components": [
+                    {"internalType": "address", "name": "dao", "type": "address"},
+                    {
+                      "components": [
+                        {"internalType": "string", "name": "name", "type": "string"},
+                        {"internalType": "string", "name": "symbol", "type": "string"},
+                        {"internalType": "string", "name": "contractURI", "type": "string"},
+                        {"internalType": "address", "name": "sharesToken", "type": "address"},
+                        {"internalType": "address", "name": "lootToken", "type": "address"},
+                        {"internalType": "address", "name": "badgesToken", "type": "address"},
+                        {"internalType": "address", "name": "renderer", "type": "address"}
+                      ],
+                      "internalType": "struct DAOMeta",
+                      "name": "meta",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
+                        {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
+                        {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
+                        {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
+                        {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
+                        {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
+                        {"internalType": "bool", "name": "ragequittable", "type": "bool"},
+                        {"internalType": "uint64", "name": "ragequitTimelock", "type": "uint64"},
+                        {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
+                        {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
+                        {"internalType": "address", "name": "rewardToken", "type": "address"}
+                      ],
+                      "internalType": "struct DAOGovConfig",
+                      "name": "gov",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
+                        {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
+                      ],
+                      "internalType": "struct DAOTokenSupplies",
+                      "name": "supplies",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "token", "type": "address"},
+                            {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                          ],
+                          "internalType": "struct TokenBalance[]",
+                          "name": "balances",
+                          "type": "tuple[]"
+                        }
+                      ],
+                      "internalType": "struct DAOTreasury",
+                      "name": "treasury",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "account", "type": "address"},
+                        {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                        {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                        {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                        {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                        {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                        {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                      ],
+                      "internalType": "struct MemberView[]",
+                      "name": "members",
+                      "type": "tuple[]"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "id", "type": "uint256"},
+                        {"internalType": "address", "name": "proposer", "type": "address"},
+                        {"internalType": "uint8", "name": "state", "type": "uint8"},
+                        {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
+                        {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
+                        {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
+                        {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
+                        {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
+                        {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
+                        {
+                          "components": [
+                            {"internalType": "bool", "name": "enabled", "type": "bool"},
+                            {"internalType": "address", "name": "rewardToken", "type": "address"},
+                            {"internalType": "uint256", "name": "pool", "type": "uint256"},
+                            {"internalType": "bool", "name": "resolved", "type": "bool"},
+                            {"internalType": "uint8", "name": "winner", "type": "uint8"},
+                            {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
+                            {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
+                          ],
+                          "internalType": "struct FutarchyView",
+                          "name": "futarchy",
+                          "type": "tuple"
+                        },
+                        {
+                          "components": [
+                            {"internalType": "address", "name": "voter", "type": "address"},
+                            {"internalType": "uint8", "name": "support", "type": "uint8"},
+                            {"internalType": "uint256", "name": "weight", "type": "uint256"}
+                          ],
+                          "internalType": "struct VoterView[]",
+                          "name": "voters",
+                          "type": "tuple[]"
+                        }
+                      ],
+                      "internalType": "struct ProposalView[]",
+                      "name": "proposals",
+                      "type": "tuple[]"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "uint256", "name": "index", "type": "uint256"},
+                        {"internalType": "address", "name": "sender", "type": "address"},
+                        {"internalType": "string", "name": "text", "type": "string"}
+                      ],
+                      "internalType": "struct MessageView[]",
+                      "name": "messages",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct DAOLens",
+                  "name": "dao",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "tribTkn", "type": "address"},
+                    {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
+                    {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
+                    {"internalType": "address", "name": "forTkn", "type": "address"},
+                    {"internalType": "uint40", "name": "deadline", "type": "uint40"},
+                    {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                    {"internalType": "uint256", "name": "allowance", "type": "uint256"},
+                    {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
+                    {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
+                    {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
+                  ],
+                  "internalType": "struct SaleView[]",
+                  "name": "sales",
+                  "type": "tuple[]"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "ops", "type": "address"},
+                    {"internalType": "address", "name": "tribTkn", "type": "address"},
+                    {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
+                    {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
+                    {"internalType": "uint256", "name": "claimable", "type": "uint256"},
+                    {"internalType": "uint256", "name": "pending", "type": "uint256"},
+                    {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                    {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
+                  ],
+                  "internalType": "struct TapView",
+                  "name": "tap",
+                  "type": "tuple"
+                }
+              ],
+              "internalType": "struct DAICOLens",
+              "name": "out",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "tribTokens", "type": "address[]"}
+          ],
+          "name": "scanDAICOs",
+          "outputs": [{
+            "components": [
+              {"internalType": "address", "name": "dao", "type": "address"},
+              {"components": [
+                {"internalType": "string", "name": "name", "type": "string"},
+                {"internalType": "string", "name": "symbol", "type": "string"},
+                {"internalType": "string", "name": "contractURI", "type": "string"},
+                {"internalType": "address", "name": "sharesToken", "type": "address"},
+                {"internalType": "address", "name": "lootToken", "type": "address"},
+                {"internalType": "address", "name": "badgesToken", "type": "address"},
+                {"internalType": "address", "name": "renderer", "type": "address"}
+              ], "internalType": "struct DAOMeta", "name": "meta", "type": "tuple"},
+              {"components": [
+                {"internalType": "address", "name": "tribTkn", "type": "address"},
+                {"internalType": "uint256", "name": "tribAmt", "type": "uint256"},
+                {"internalType": "uint256", "name": "forAmt", "type": "uint256"},
+                {"internalType": "address", "name": "forTkn", "type": "address"},
+                {"internalType": "uint40", "name": "deadline", "type": "uint40"},
+                {"internalType": "uint256", "name": "remainingSupply", "type": "uint256"},
+                {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+                {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                {"internalType": "uint256", "name": "allowance", "type": "uint256"},
+                {"internalType": "uint16", "name": "lpBps", "type": "uint16"},
+                {"internalType": "uint16", "name": "maxSlipBps", "type": "uint16"},
+                {"internalType": "uint256", "name": "feeOrHook", "type": "uint256"}
+              ], "internalType": "struct SaleView[]", "name": "sales", "type": "tuple[]"},
+              {"components": [
+                {"internalType": "address", "name": "ops", "type": "address"},
+                {"internalType": "address", "name": "tribTkn", "type": "address"},
+                {"internalType": "uint128", "name": "ratePerSec", "type": "uint128"},
+                {"internalType": "uint64", "name": "lastClaim", "type": "uint64"},
+                {"internalType": "uint256", "name": "claimable", "type": "uint256"},
+                {"internalType": "uint256", "name": "pending", "type": "uint256"},
+                {"internalType": "uint256", "name": "treasuryBalance", "type": "uint256"},
+                {"internalType": "uint256", "name": "tapAllowance", "type": "uint256"}
+              ], "internalType": "struct TapView", "name": "tap", "type": "tuple"}
+            ],
+            "internalType": "struct DAICOView[]",
+            "name": "daicos",
+            "type": "tuple[]"
+          }],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "dao", "type": "address"},
+            {"internalType": "uint256", "name": "start", "type": "uint256"},
+            {"internalType": "uint256", "name": "count", "type": "uint256"},
+            {"internalType": "bool", "name": "reverseOrder", "type": "bool"}
+          ],
+          "name": "getDAOMessages",
+          "outputs": [
+            {
+              "components": [
+                {"internalType": "uint256", "name": "index", "type": "uint256"},
+                {"internalType": "address", "name": "sender", "type": "address"},
+                {"internalType": "string", "name": "text", "type": "string"}
+              ],
+              "internalType": "struct MessageView[]",
+              "name": "out",
+              "type": "tuple[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "address", "name": "dao", "type": "address"},
+            {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
+            {"internalType": "bool", "name": "reverseProposals", "type": "bool"},
+            {"internalType": "bool", "name": "reverseMessages", "type": "bool"}
+          ],
+          "name": "getDAOFullState",
+          "outputs": [
+            {
+              "components": [
+                {"internalType": "address", "name": "dao", "type": "address"},
+                {
+                  "components": [
+                    {"internalType": "string", "name": "name", "type": "string"},
+                    {"internalType": "string", "name": "symbol", "type": "string"},
+                    {"internalType": "string", "name": "contractURI", "type": "string"},
+                    {"internalType": "address", "name": "sharesToken", "type": "address"},
+                    {"internalType": "address", "name": "lootToken", "type": "address"},
+                    {"internalType": "address", "name": "badgesToken", "type": "address"},
+                    {"internalType": "address", "name": "renderer", "type": "address"}
+                  ],
+                  "internalType": "struct DAOMeta",
+                  "name": "meta",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint96", "name": "proposalThreshold", "type": "uint96"},
+                    {"internalType": "uint96", "name": "minYesVotesAbsolute", "type": "uint96"},
+                    {"internalType": "uint96", "name": "quorumAbsolute", "type": "uint96"},
+                    {"internalType": "uint64", "name": "proposalTTL", "type": "uint64"},
+                    {"internalType": "uint64", "name": "timelockDelay", "type": "uint64"},
+                    {"internalType": "uint16", "name": "quorumBps", "type": "uint16"},
+                    {"internalType": "bool", "name": "ragequittable", "type": "bool"},
+                    {"internalType": "uint64", "name": "ragequitTimelock", "type": "uint64"},
+                    {"internalType": "uint256", "name": "autoFutarchyParam", "type": "uint256"},
+                    {"internalType": "uint256", "name": "autoFutarchyCap", "type": "uint256"},
+                    {"internalType": "address", "name": "rewardToken", "type": "address"}
+                  ],
+                  "internalType": "struct DAOGovConfig",
+                  "name": "gov",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint256", "name": "sharesTotalSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "lootTotalSupply", "type": "uint256"},
+                    {"internalType": "uint256", "name": "sharesHeldByDAO", "type": "uint256"},
+                    {"internalType": "uint256", "name": "lootHeldByDAO", "type": "uint256"}
+                  ],
+                  "internalType": "struct DAOTokenSupplies",
+                  "name": "supplies",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "token", "type": "address"},
+                        {"internalType": "uint256", "name": "balance", "type": "uint256"}
+                      ],
+                      "internalType": "struct TokenBalance[]",
+                      "name": "balances",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct DAOTreasury",
+                  "name": "treasury",
+                  "type": "tuple"
+                },
+                {
+                  "components": [
+                    {"internalType": "address", "name": "account", "type": "address"},
+                    {"internalType": "uint256", "name": "shares", "type": "uint256"},
+                    {"internalType": "uint256", "name": "loot", "type": "uint256"},
+                    {"internalType": "uint16", "name": "seatId", "type": "uint16"},
+                    {"internalType": "uint256", "name": "votingPower", "type": "uint256"},
+                    {"internalType": "address[]", "name": "delegates", "type": "address[]"},
+                    {"internalType": "uint32[]", "name": "delegatesBps", "type": "uint32[]"}
+                  ],
+                  "internalType": "struct MemberView[]",
+                  "name": "members",
+                  "type": "tuple[]"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint256", "name": "id", "type": "uint256"},
+                    {"internalType": "address", "name": "proposer", "type": "address"},
+                    {"internalType": "uint8", "name": "state", "type": "uint8"},
+                    {"internalType": "uint48", "name": "snapshotBlock", "type": "uint48"},
+                    {"internalType": "uint64", "name": "createdAt", "type": "uint64"},
+                    {"internalType": "uint64", "name": "queuedAt", "type": "uint64"},
+                    {"internalType": "uint256", "name": "supplySnapshot", "type": "uint256"},
+                    {"internalType": "uint96", "name": "forVotes", "type": "uint96"},
+                    {"internalType": "uint96", "name": "againstVotes", "type": "uint96"},
+                    {"internalType": "uint96", "name": "abstainVotes", "type": "uint96"},
+                    {
+                      "components": [
+                        {"internalType": "bool", "name": "enabled", "type": "bool"},
+                        {"internalType": "address", "name": "rewardToken", "type": "address"},
+                        {"internalType": "uint256", "name": "pool", "type": "uint256"},
+                        {"internalType": "bool", "name": "resolved", "type": "bool"},
+                        {"internalType": "uint8", "name": "winner", "type": "uint8"},
+                        {"internalType": "uint256", "name": "finalWinningSupply", "type": "uint256"},
+                        {"internalType": "uint256", "name": "payoutPerUnit", "type": "uint256"}
+                      ],
+                      "internalType": "struct FutarchyView",
+                      "name": "futarchy",
+                      "type": "tuple"
+                    },
+                    {
+                      "components": [
+                        {"internalType": "address", "name": "voter", "type": "address"},
+                        {"internalType": "uint8", "name": "support", "type": "uint8"},
+                        {"internalType": "uint256", "name": "weight", "type": "uint256"}
+                      ],
+                      "internalType": "struct VoterView[]",
+                      "name": "voters",
+                      "type": "tuple[]"
+                    }
+                  ],
+                  "internalType": "struct ProposalView[]",
+                  "name": "proposals",
+                  "type": "tuple[]"
+                },
+                {
+                  "components": [
+                    {"internalType": "uint256", "name": "index", "type": "uint256"},
+                    {"internalType": "address", "name": "sender", "type": "address"},
+                    {"internalType": "string", "name": "text", "type": "string"}
+                  ],
+                  "internalType": "struct MessageView[]",
+                  "name": "messages",
+                  "type": "tuple[]"
+                }
+              ],
+              "internalType": "struct DAOLens",
+              "name": "out",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ];
+
+      // Returns the appropriate ViewHelper ABI based on the current contract version
+      function getViewHelperABI() {
+        return currentContractVersion === 'v1' ? VIEW_HELPER_ABI_V1 : VIEW_HELPER_ABI_V2;
+      }
+
+      // Multicall3 - deployed at same address on all EVM chains
+      const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
+      const MULTICALL3_ABI = [
+        'function aggregate3(tuple(address target, bool allowFailure, bytes callData)[] calls) external payable returns (tuple(bool success, bytes returnData)[] returnData)'
       ];
 
       const MOLOCH_ABI = [
@@ -12910,9 +13587,6 @@
         }
       });
 
-      // DAICO contract address (external OTC sale peripheral)
-      const DAICO_ADDRESS = '0x000000000033e92DB97B4B3beCD2c255126C60aC';
-
       // Token addresses - dynamically returns addresses for current network
       // This is a getter object that looks up addresses by symbol
       const TOKEN_ADDRESSES = new Proxy({}, {
@@ -13007,7 +13681,7 @@
         );
 
         // Step 2: Predict Moloch DAO clone
-        const dao = computeCreate2Address(SUMMONER_ADDRESS, summonerSalt, IMPLEMENTATIONS.moloch);
+        const dao = computeCreate2Address(getSummonerAddress(), summonerSalt, IMPLEMENTATIONS.moloch);
 
         // Step 3: Child salt for badges/shares/loot
         // bytes32(bytes20(address(dao))) = dao address right-padded to 32 bytes
@@ -13048,6 +13722,9 @@
         // Storage
         STORAGE_KEY_SUMMON: 'molochSummonDraft',
         STORAGE_KEY_HIDE_INTRO: 'hideIntro',
+
+        // UI Messages
+        CONNECT_WALLET_PROMPT: '<p style="text-align: left; font-family: \'EB Garamond\', serif; font-size: 1.1rem; color: var(--accent-gold); grid-column: 1 / -1;">Connect a wallet to see the DAOs you\'re a part of.</p>',
 
         // Fetch Limits
         DAO_FETCH_LIMIT: 50,
@@ -13210,13 +13887,22 @@
       // Read-only provider for access without wallet
       // Execute a function with RPC fallback
       // Tries connected provider first (unless WalletConnect), then each public RPC until one succeeds
+      const RPC_TIMEOUT_MS = 10000; // 10 second timeout per RPC attempt
+
+      function withTimeout(promise, timeoutMs) {
+        return Promise.race([
+          promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('RPC call timed out')), timeoutMs))
+        ]);
+      }
+
       async function withRpcFallback(fn) {
         const network = getNetwork();
 
         // Try connected wallet provider first (if not WalletConnect - its RPCs are unreliable)
         if (provider && !walletConnectProvider) {
           try {
-            return await fn(provider);
+            return await withTimeout(fn(provider), RPC_TIMEOUT_MS);
           } catch (e) {
             logger.warn('Connected provider failed, trying public RPCs:', e.message);
           }
@@ -13226,7 +13912,9 @@
         for (const rpc of network.rpcs) {
           try {
             const rpcProvider = new ethers.JsonRpcProvider(rpc);
-            return await fn(rpcProvider);
+            const result = await withTimeout(fn(rpcProvider), RPC_TIMEOUT_MS);
+            logger.log(`Using RPC: ${rpc}`);
+            return result;
           } catch (e) {
             logger.warn(`RPC ${rpc} failed:`, e.message);
             // Continue to next RPC
@@ -13308,6 +13996,65 @@
             timestamp: now
           });
           return null;
+        }
+      }
+
+      // Message txHash cache (localStorage for persistence across sessions)
+      // Messages are immutable, so cached txHashes never go stale
+      const MESSAGE_TX_CACHE_PREFIX = 'majeur-msg-tx';
+
+      function getTxCacheKey(chainId, daoAddress, msgIndex) {
+        return `${MESSAGE_TX_CACHE_PREFIX}-${chainId}-${daoAddress.toLowerCase()}-${msgIndex}`;
+      }
+
+      function getCachedTxHash(chainId, daoAddress, msgIndex) {
+        const key = getTxCacheKey(chainId, daoAddress, msgIndex);
+        return localStorage.getItem(key);
+      }
+
+      function cacheTxHash(chainId, daoAddress, msgIndex, txHash) {
+        const key = getTxCacheKey(chainId, daoAddress, msgIndex);
+        localStorage.setItem(key, txHash);
+      }
+
+      // Batch check receipt balances using Multicall3
+      async function batchCheckReceiptBalances(molochContract, userAddress, receiptIds, activeProvider) {
+        if (receiptIds.length === 0) return {};
+
+        const multicall = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI, activeProvider || provider);
+
+        const calls = receiptIds.map(receiptId => ({
+          target: molochContract.target,
+          allowFailure: true,
+          callData: molochContract.interface.encodeFunctionData('balanceOf', [userAddress, receiptId])
+        }));
+
+        try {
+          const results = await multicall.aggregate3(calls);
+          const balances = {};
+
+          results.forEach((result, i) => {
+            if (result.success) {
+              const balance = molochContract.interface.decodeFunctionResult('balanceOf', result.returnData)[0];
+              balances[receiptIds[i]] = balance;
+            } else {
+              balances[receiptIds[i]] = 0n;
+            }
+          });
+
+          return balances;
+        } catch (e) {
+          // Fallback to individual calls if multicall fails
+          logger.warn('Multicall failed, falling back to individual calls:', e.message);
+          const balances = {};
+          for (const receiptId of receiptIds) {
+            try {
+              balances[receiptId] = await molochContract.balanceOf(userAddress, receiptId);
+            } catch {
+              balances[receiptId] = 0n;
+            }
+          }
+          return balances;
         }
       }
 
@@ -13809,8 +14556,6 @@
             summonBtn.disabled = false;
             summonBtn.textContent = 'SUMMON DAO';
           }
-          const walletPrompt = getEl('walletPromptSection');
-          if (walletPrompt) walletPrompt.style.display = 'none';
 
           // Initialize first member with connected wallet
           const foundingMembersList = getEl('foundingMembersList');
@@ -13841,7 +14586,7 @@
           if (allDaosGallery) {
             allDaosGallery.classList.add('show');
             if (!allDAOsLoaded) {
-              fetchAllDAOs(); // Load in background, don't await
+              fetchAllDAOs().catch(() => {}); // Load in background, errors handled in function
             }
           }
 
@@ -14091,9 +14836,6 @@
           summonBtn.disabled = true;
           summonBtn.textContent = 'CONNECT WALLET TO SUMMON';
         }
-        const walletPrompt = getEl('walletPromptSection');
-        if (walletPrompt) walletPrompt.style.display = '';
-
         // Clear the first member if it was auto-added
         const foundingMembersList = getEl('foundingMembersList');
         if (foundingMembersList && foundingMembersList.children.length > 0) {
@@ -14107,11 +14849,13 @@
           }
         }
 
-        // Hide DAO galleries and dashboard
-        const daoGallery = getEl('daoGallery');
-        if (daoGallery) daoGallery.classList.remove('show');
-        const allDaosGallery = getEl('allDaosGallery');
-        if (allDaosGallery) allDaosGallery.classList.remove('show');
+        // Reset Your DAOs section to show connect wallet prompt
+        const daoTiles = getEl('daoTiles');
+        if (daoTiles) {
+          daoTiles.innerHTML = CONSTANTS.CONNECT_WALLET_PROMPT;
+        }
+
+        // Hide dashboard (keep Your DAOs and All DAOs visible)
         const daoDashboard = getEl('daoDashboard');
         if (daoDashboard) daoDashboard.classList.remove('show');
 
@@ -15341,7 +16085,7 @@
           const tribAmt = ethers.parseUnits(tribAmountInput, tribAsset.decimals);
           const forAmt = ethers.parseUnits(reqAmountInput, reqAsset.decimals);
 
-          const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, signer);
+          const tributeContract = new ethers.Contract(getTributeAddress(), TRIBUTE_ABI, signer);
           const daoAddress = currentDAO.dao.dao;
 
           // Enable loading state
@@ -15364,11 +16108,11 @@
             // ERC20 tribute - check allowance and approve if needed
             const tokenContract = new ethers.Contract(tribAsset.address, ERC20_ABI, signer);
             const userAddress = await signer.getAddress();
-            const allowance = await tokenContract.allowance(userAddress, TRIBUTE_ADDRESS);
+            const allowance = await tokenContract.allowance(userAddress, getTributeAddress());
 
             if (allowance < tribAmt) {
               showStatus('Approving token transfer...', false);
-              const approveTx = await tokenContract.approve(TRIBUTE_ADDRESS, tribAmt, getWalletConnectTxOverrides());
+              const approveTx = await tokenContract.approve(getTributeAddress(), tribAmt, getWalletConnectTxOverrides());
               showStatus(`Approval submitted. <a href="${getNetwork().explorer}/tx/${approveTx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
               await approveTx.wait();
               showStatus('Approval confirmed. Creating tribute...', false);
@@ -15474,29 +16218,29 @@
 
             // Step 2: Approve Tribute contract to spend the tokens
             const approveInterface = new ethers.Interface(['function approve(address,uint256)']);
-            const approveCalldata = approveInterface.encodeFunctionData('approve', [TRIBUTE_ADDRESS, tribute.forAmt]);
+            const approveCalldata = approveInterface.encodeFunctionData('approve', [getTributeAddress(), tribute.forAmt]);
             calls.push([tribute.forTkn, 0n, approveCalldata]);
 
             // Step 3: Claim the tribute
             const tributeInterface = new ethers.Interface(TRIBUTE_ABI);
             const claimCalldata = tributeInterface.encodeFunctionData('claimTribute', [tribute.proposer, tribute.tribTkn]);
-            calls.push([TRIBUTE_ADDRESS, 0n, claimCalldata]);
+            calls.push([getTributeAddress(), 0n, claimCalldata]);
           } else if (tribute.forTkn !== ethers.ZeroAddress) {
             // Case 2: Requesting regular ERC20 - just approve and claim
             // Step 1: Approve Tribute contract
             const approveInterface = new ethers.Interface(['function approve(address,uint256)']);
-            const approveCalldata = approveInterface.encodeFunctionData('approve', [TRIBUTE_ADDRESS, tribute.forAmt]);
+            const approveCalldata = approveInterface.encodeFunctionData('approve', [getTributeAddress(), tribute.forAmt]);
             calls.push([tribute.forTkn, 0n, approveCalldata]);
 
             // Step 2: Claim the tribute
             const tributeInterface = new ethers.Interface(TRIBUTE_ABI);
             const claimCalldata = tributeInterface.encodeFunctionData('claimTribute', [tribute.proposer, tribute.tribTkn]);
-            calls.push([TRIBUTE_ADDRESS, 0n, claimCalldata]);
+            calls.push([getTributeAddress(), 0n, claimCalldata]);
           } else {
             // Case 3: Requesting ETH - send ETH with claim call
             const tributeInterface = new ethers.Interface(TRIBUTE_ABI);
             const claimCalldata = tributeInterface.encodeFunctionData('claimTribute', [tribute.proposer, tribute.tribTkn]);
-            calls.push([TRIBUTE_ADDRESS, tribute.forAmt, claimCalldata]);
+            calls.push([getTributeAddress(), tribute.forAmt, claimCalldata]);
           }
 
           // Encode batchCalls for proposal execution (self-call from DAO)
@@ -15610,7 +16354,7 @@
 
           showStatus('Canceling tribute...', false);
 
-          const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, signer);
+          const tributeContract = new ethers.Contract(getTributeAddress(), TRIBUTE_ABI, signer);
           const tx = await tributeContract.cancelTribute(currentDAO.dao.dao, tribute.tribTkn, getWalletConnectTxOverrides());
 
           showStatus(`Transaction submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #9d7bff; text-decoration: underline;">View on Explorer</a>`, false);
@@ -15736,18 +16480,34 @@
         try {
           // Use RPC fallback for reliability (especially important for WalletConnect)
           const result = await withRpcFallback(async (activeProvider) => {
-            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
+            const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
 
             // Default params: start at DAO 0, fetch up to 10 DAOs, recent 50 proposals, recent 20 messages
+            if (currentContractVersion === 'v1') {
+              return await viewHelper.getUserDAOsFullState(
+                userAddr,
+                0,  // daoStart
+                10, // daoCount
+                treasuryTokens,
+                0,  // proposalStart
+                50, // proposalCount
+                0,  // messageStart
+                20  // messageCount
+              );
+            }
             return await viewHelper.getUserDAOsFullState(
               userAddr,
               0,  // daoStart
               10, // daoCount
-              0,  // proposalStart
-              50, // proposalCount (enough to catch active proposals)
-              0,  // messageStart
-              20, // messageCount (increased for better visibility)
-              treasuryTokens
+              treasuryTokens,
+              {
+                proposalStart: 0,
+                proposalCount: 50, // enough to catch active proposals
+                messageStart: 0,
+                messageCount: 20, // increased for better visibility
+                reverseProposals: true, // newest first
+                reverseMessages: true   // newest first
+              }
             );
           });
 
@@ -15765,12 +16525,15 @@
       async function fetchDAICOData(daoAddress) {
         if (!daoAddress) return null;
 
+        // getDAOWithDAICO only exists in v2
+        if (currentContractVersion === 'v1') return null;
+
         const treasuryTokens = getNetwork().treasuryTokens;
         const tribTokens = getNetwork().treasuryTokens; // Same tokens for tribute
 
         try {
           const result = await withRpcFallback(async (activeProvider) => {
-            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
+            const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
 
             // Single batched call that gets DAO state + DAICO sales + tap info
             return await viewHelper.getDAOWithDAICO(
@@ -15780,7 +16543,9 @@
               0,  // messageStart
               0,  // messageCount (skip messages, already loaded)
               treasuryTokens,
-              tribTokens
+              tribTokens,
+              true, // reverseProposals
+              true  // reverseMessages
             );
           });
 
@@ -15971,9 +16736,20 @@
         try {
           // Use RPC fallback for reliability
           const result = await withRpcFallback(async (activeProvider) => {
-            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
+            const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
 
             // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 50 proposals, recent 5 messages
+            if (currentContractVersion === 'v1') {
+              return await viewHelper.getDAOsFullState(
+                0, // daoStart
+                50, // daoCount (get more DAOs than user filter)
+                0, // proposalStart
+                50, // proposalCount (enough to catch active proposals)
+                0, // messageStart
+                5, // messageCount (fewer details for browse view)
+                treasuryTokens
+              );
+            }
             return await viewHelper.getDAOsFullState(
               0, // daoStart
               50, // daoCount (get more DAOs than user filter)
@@ -15981,7 +16757,9 @@
               50, // proposalCount (enough to catch active proposals)
               0, // messageStart
               5, // messageCount (fewer details for browse view)
-              treasuryTokens
+              treasuryTokens,
+              true, // reverseProposals (newest first)
+              true  // reverseMessages (newest first)
             );
           });
 
@@ -16000,12 +16778,18 @@
         } catch (error) {
           logger.error('Error fetching all DAOs:', error);
 
+          // Show error in gallery UI
+          const allDaosTiles = document.getElementById('allDaosTiles');
+          if (allDaosTiles) {
+            allDaosTiles.innerHTML = '<div style="text-align: center; padding: 4rem; font-family: \'EB Garamond\', serif; font-size: 1.2rem; color: rgba(230, 217, 255, 0.5);">Failed to load DAOs. The contracts may not be deployed on this network.</div>';
+          }
+
           // Still render user DAOs even if allDAOs fetch fails
           if (userDAOs.length > 0) {
             renderDAOGallery();
           }
 
-          return [];
+          throw error; // Re-throw so callers can handle too
         }
       }
 
@@ -16015,24 +16799,26 @@
           const tribTokens = getNetwork().treasuryTokens || [];
           const currentTime = Math.floor(Date.now() / 1000);
 
-          // Fetch DAICO status via scanDAICOs
-          await withRpcFallback(async (activeProvider) => {
-            const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
-            const daicoResults = await viewHelper.scanDAICOs(0, 100, tribTokens);
+          // Fetch DAICO status via scanDAICOs (v2 only)
+          if (currentContractVersion !== 'v1') {
+            await withRpcFallback(async (activeProvider) => {
+              const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
+              const daicoResults = await viewHelper.scanDAICOs(0, 100, tribTokens);
 
-            daicoStatusMap.clear();
-            for (const daico of daicoResults) {
-              // Only count as active if has remaining supply and not expired
-              const hasActiveSale = daico.sales?.some(s => {
-                const hasSupply = s.remainingSupply && s.remainingSupply > 0n;
-                const notExpired = !s.deadline || s.deadline === 0n || Number(s.deadline) > currentTime;
-                return s.forAmt > 0n && s.tribAmt > 0n && s.forTkn !== ethers.ZeroAddress && hasSupply && notExpired;
-              });
-              if (hasActiveSale) {
-                daicoStatusMap.set(daico.dao.toLowerCase(), true);
+              daicoStatusMap.clear();
+              for (const daico of daicoResults) {
+                // Only count as active if has remaining supply and not expired
+                const hasActiveSale = daico.sales?.some(s => {
+                  const hasSupply = s.remainingSupply && s.remainingSupply > 0n;
+                  const notExpired = !s.deadline || s.deadline === 0n || Number(s.deadline) > currentTime;
+                  return s.forAmt > 0n && s.tribAmt > 0n && s.forTkn !== ethers.ZeroAddress && hasSupply && notExpired;
+                });
+                if (hasActiveSale) {
+                  daicoStatusMap.set(daico.dao.toLowerCase(), true);
+                }
               }
-            }
-          });
+            });
+          }
 
           // Fetch tribute counts for each DAO
           const daoAddresses = [...new Set([
@@ -16041,7 +16827,7 @@
           ])];
 
           await withRpcFallback(async (activeProvider) => {
-            const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, activeProvider);
+            const tributeContract = new ethers.Contract(getTributeAddress(), TRIBUTE_ABI, activeProvider);
             tributeStatusMap.clear();
 
             await Promise.all(daoAddresses.map(async (addr) => {
@@ -16251,8 +17037,14 @@
               content += `<div style="margin-top: 0.5rem;"><strong style="opacity: 0.8;">Additional Notes:</strong> ${escapeHtml(notes)}</div>`;
             }
           } else if (cleanDesc) {
-            // No separator - show with Additional Notes prefix
-            content += `<div style="margin-top: 0.5rem;"><strong style="opacity: 0.8;">Additional Notes:</strong> ${escapeHtml(cleanDesc)}</div>`;
+            // No separator - only show "Additional Notes:" prefix if we already have transfer content
+            // (meaning the description is supplementary, not the main explanation)
+            if (isETHTransfer || isTokenTransfer) {
+              content += `<div style="margin-top: 0.5rem;"><strong style="opacity: 0.8;">Additional Notes:</strong> ${escapeHtml(cleanDesc)}</div>`;
+            } else {
+              // For non-transfer proposals, the description IS the main explanation
+              content += `<div style="margin-top: 0.5rem;">${escapeHtml(cleanDesc)}</div>`;
+            }
           }
         }
 
@@ -17395,7 +18187,7 @@
         const capturedDaoAddress = currentDAO.dao.dao;
 
         try {
-          const tributeContract = new ethers.Contract(TRIBUTE_ADDRESS, TRIBUTE_ABI, provider);
+          const tributeContract = new ethers.Contract(getTributeAddress(), TRIBUTE_ABI, provider);
           currentDaoTributes = await tributeContract.getActiveDaoTributes(capturedDaoAddress);
 
           // Check if stale after async work
@@ -19392,7 +20184,7 @@
         // Check for active DAICO sales that sell voting shares
         let daicoSharesAvailable = 0n;
         try {
-          const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, provider);
+          const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, provider);
           const sharesAddress = dao.meta.sharesToken;
 
           // Query DAICO for sales with common payment tokens
@@ -19414,7 +20206,7 @@
               if (sale.tribAmt > 0n && sale.forAmt > 0n && sale.forTkn.toLowerCase() === sharesAddress.toLowerCase() && !isExpired) {
                 // This is a DAICO sale selling voting shares - get available allowance
                 const sharesContract = new ethers.Contract(sharesAddress, ERC20_ABI, provider);
-                const allowance = await sharesContract.allowance(daoAddress, DAICO_ADDRESS);
+                const allowance = await sharesContract.allowance(daoAddress, getDaicoAddress());
                 daicoSharesAvailable += allowance;
               }
             } catch (_e) {
@@ -20966,7 +21758,7 @@
           } else {
             const tokenContract = new ethers.Contract(currentDaicoPurchase.tribTkn, ERC20_ABI, provider);
             currentDaicoPurchase.payBalance = await tokenContract.balanceOf(connectedAddress);
-            currentDaicoPurchase.allowance = await tokenContract.allowance(connectedAddress, DAICO_ADDRESS);
+            currentDaicoPurchase.allowance = await tokenContract.allowance(connectedAddress, getDaicoAddress());
           }
 
           // Update balance display
@@ -21006,7 +21798,7 @@
 
         try {
           const payAmt = ethers.parseUnits(payStr, currentDaicoPurchase.tokenDecimals);
-          const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, provider);
+          const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, provider);
           const buyAmt = await daicoContract.quoteBuy(currentDaicoPurchase.dao, currentDaicoPurchase.tribTkn, payAmt);
 
           if (buyAmt > 0n) {
@@ -21034,7 +21826,7 @@
 
         try {
           const buyAmt = ethers.parseEther(receiveStr);
-          const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, provider);
+          const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, provider);
           const payAmt = await daicoContract.quotePayExactOut(currentDaicoPurchase.dao, currentDaicoPurchase.tribTkn, buyAmt);
 
           if (payAmt > 0n) {
@@ -21161,7 +21953,7 @@
           showStatus('Approving token spend... Please confirm in wallet', false);
 
           const tokenContract = new ethers.Contract(currentDaicoPurchase.tribTkn, ERC20_ABI, signer);
-          const tx = await tokenContract.approve(DAICO_ADDRESS, maxPay, getWalletConnectTxOverrides());
+          const tx = await tokenContract.approve(getDaicoAddress(), maxPay, getWalletConnectTxOverrides());
           txHash = tx.hash;
 
           showStatus(`Approval submitted. <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View on Explorer</a>`, false);
@@ -21171,7 +21963,7 @@
           showStatus(`✨ Approval confirmed! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: #64c896; text-decoration: underline;">View transaction</a>`, false);
 
           // Refresh allowance
-          currentDaicoPurchase.allowance = await tokenContract.allowance(connectedAddress, DAICO_ADDRESS);
+          currentDaicoPurchase.allowance = await tokenContract.allowance(connectedAddress, getDaicoAddress());
           updateDaicoPurchaseButton();
         } catch (error) {
           logger.error('Approval failed:', error);
@@ -21224,7 +22016,7 @@
 
           showStatus('Confirming DAICO purchase... Please confirm in wallet', false);
 
-          const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
+          const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, signer);
 
           let tx;
           if (currentDaicoPurchase.inputMode === 'pay') {
@@ -21316,7 +22108,7 @@
 
           showStatus('Claiming tap funds... Please confirm in wallet', false);
 
-          const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
+          const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, signer);
 
           const tx = await daicoContract.claimTap(daoAddress, getWalletConnectTxOverrides());
           txHash = tx.hash;
@@ -21689,7 +22481,7 @@
           const calldata = setSaleIface.encodeFunctionData('setSale', [tribTknParam, tribAmt, forTkn, forAmt, deadline]);
 
           // Target is DAICO contract (DAO calls DAICO.setSale)
-          getEl('proposalTo').value = DAICO_ADDRESS;
+          getEl('proposalTo').value = getDaicoAddress();
           getEl('proposalValue').value = '0';
           getEl('proposalData').value = calldata;
 
@@ -22185,7 +22977,7 @@
           const calldata = setSaleIface.encodeFunctionData('setSale', [tribTknAddr, tribAmt, forTkn, forAmt, deadline]);
 
           // Target is DAICO contract
-          getEl('proposalTo').value = DAICO_ADDRESS;
+          getEl('proposalTo').value = getDaicoAddress();
           getEl('proposalValue').value = '0';
           getEl('proposalData').value = calldata;
 
@@ -22678,7 +23470,7 @@
           const calldata = setTapOpsIface.encodeFunctionData('setTapOps', [newOps]);
 
           // Target is DAICO contract (DAO calls DAICO.setTapOps)
-          getEl('proposalTo').value = DAICO_ADDRESS;
+          getEl('proposalTo').value = getDaicoAddress();
           getEl('proposalValue').value = '0';
           getEl('proposalData').value = calldata;
 
@@ -22734,7 +23526,7 @@
           const calldata = setTapRateIface.encodeFunctionData('setTapRate', [ratePerSec]);
 
           // Target is DAICO contract (DAO calls DAICO.setTapRate)
-          getEl('proposalTo').value = DAICO_ADDRESS;
+          getEl('proposalTo').value = getDaicoAddress();
           getEl('proposalValue').value = '0';
           getEl('proposalData').value = calldata;
 
@@ -23524,12 +24316,12 @@
           calls.push([forToken, 0n, mintCalldata]);
 
           // Step 2: Approve DAICO contract to spend the minted tokens
-          const approveCalldata = INTERFACES.erc20Approve.encodeFunctionData('approve', [DAICO_ADDRESS, saleSupply]);
+          const approveCalldata = INTERFACES.erc20Approve.encodeFunctionData('approve', [getDaicoAddress(), saleSupply]);
           calls.push([forToken, 0n, approveCalldata]);
 
           // Step 3: If tap is enabled, set allowance for DAICO to spend from DAO treasury
           if (enableTap && tapBudget > 0n) {
-            const setAllowanceCalldata = INTERFACES.setAllowance.encodeFunctionData('setAllowance', [DAICO_ADDRESS, tribToken, tapBudget]);
+            const setAllowanceCalldata = INTERFACES.setAllowance.encodeFunctionData('setAllowance', [getDaicoAddress(), tribToken, tapBudget]);
             calls.push([daoAddress, 0n, setAllowanceCalldata]);
             numActions++;
           }
@@ -23562,7 +24354,7 @@
             setSaleCalldata = INTERFACES.daicoSetSale.encodeFunctionData('setSale', [tribToken, tribAmt, forToken, forAmt, 0]);
             saleMethod = 'setSale';
           }
-          calls.push([DAICO_ADDRESS, 0n, setSaleCalldata]);
+          calls.push([getDaicoAddress(), 0n, setSaleCalldata]);
 
           // Encode batchCalls for proposal execution (self-call from DAO)
           const batchCallsInterface = new ethers.Interface(['function batchCalls((address,uint256,bytes)[])']);
@@ -23595,7 +24387,7 @@
           if (enableTap && tapBudget > 0n) {
             description += `\n${actionNum++}. Grant DAICO tap allowance (${parseFloat(ethers.formatUnits(tapBudget, tribDecimals)).toFixed(2).replace(/\.00$/, '')} ${tribSymbol})`;
           }
-          description += `\n${actionNum++}. Configure sale via ${saleMethod} on DAICO (${DAICO_ADDRESS.slice(0, 10)}...)`;
+          description += `\n${actionNum++}. Configure sale via ${saleMethod} on DAICO (${getDaicoAddress().slice(0, 10)}...)`;
 
           // Machine-readable metadata for proposal parsing
           let metadata = `<<<DAICO_SALE tribToken="${tribToken}" tribAmt="${tribAmt}" forToken="${forToken}" forAmt="${forAmt}" supply="${saleSupply}"`;
@@ -24729,44 +25521,40 @@
           return proposal.voters?.some(v => v.voter?.toLowerCase() === connectedAddress.toLowerCase());
         });
 
-        // Batch balance checks in parallel
-        const balancePromises = userVotedProposals.map(async (proposal) => {
+        // Build receipt data and collect all receiptIds
+        const receiptData = userVotedProposals.map(proposal => {
           const userVote = proposal.voters.find(v => v.voter?.toLowerCase() === connectedAddress.toLowerCase());
           const support = Number(userVote.support); // 0=Against, 1=For, 2=Abstain
           const receiptId = ethers.solidityPackedKeccak256(
             ['string', 'uint256', 'uint8'],
             ['Moloch:receipt', proposal.id, support]
           );
-
-          try {
-            const balance = await molochContract.balanceOf(connectedAddress, receiptId);
-
-            // Show receipt if:
-            // 1. User still has balance > 0 (hasn't claimed), OR
-            // 2. User voted on winning side of resolved futarchy (even if claimed/burned)
-            const hasBalance = balance > 0n;
-
-            const isWinningFutarchyVote = proposal.futarchy?.enabled
-              && proposal.futarchy.resolved
-              && Number(proposal.futarchy.winner) === support;
-
-            if (hasBalance || isWinningFutarchyVote) {
-              return {
-                proposalId: proposal.id,
-                support,
-                balance,
-                receiptId,
-                claimed: !hasBalance && isWinningFutarchyVote // Track if already claimed
-              };
-            }
-          } catch (err) {
-            logger.error('Error checking receipt balance:', err);
-          }
-          return null;
+          return { proposal, support, receiptId };
         });
 
-        const results = await Promise.all(balancePromises);
-        receipts.push(...results.filter(r => r !== null));
+        // Batch check all balances with multicall (single RPC call)
+        const receiptIds = receiptData.map(r => r.receiptId);
+        const balances = await batchCheckReceiptBalances(molochContract, connectedAddress, receiptIds);
+
+        // Process results
+        for (const data of receiptData) {
+          const balance = balances[data.receiptId] || 0n;
+          const hasBalance = balance > 0n;
+
+          const isWinningFutarchyVote = data.proposal.futarchy?.enabled
+            && data.proposal.futarchy.resolved
+            && Number(data.proposal.futarchy.winner) === data.support;
+
+          if (hasBalance || isWinningFutarchyVote) {
+            receipts.push({
+              proposalId: data.proposal.id,
+              support: data.support,
+              balance,
+              receiptId: data.receiptId,
+              claimed: !hasBalance && isWinningFutarchyVote
+            });
+          }
+        }
 
         if (receipts.length === 0) {
           receiptsGrid.innerHTML = '';
@@ -26597,7 +27385,8 @@
           const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
           const collectibles = [];
 
-          // Check for vote receipts
+          // Collect all receipt IDs to check
+          const receiptChecks = [];
           for (const proposal of currentDAO.dao.proposals) {
             const voterData = proposal.voters?.find(v => v.voter?.toLowerCase() === memberAddress.toLowerCase());
             if (voterData) {
@@ -26606,28 +27395,44 @@
                 ['string', 'uint256', 'uint8'],
                 ['Moloch:receipt', proposal.id, support]
               );
-
-              const balance = await molochContract.balanceOf(memberAddress, receiptId);
-              if (balance > 0n) {
-                collectibles.push({
-                  type: 'receipt',
-                  proposalId: proposal.id,
-                  support,
-                  balance,
-                  receiptId
-                });
-              }
+              receiptChecks.push({ type: 'receipt', proposalId: proposal.id, support, receiptId });
             }
           }
 
-          // Check for emergency permits
+          // Also prepare emergency permit check
+          let permitId = null;
           try {
             const bumpConfigCalldata = INTERFACES.bumpConfig.encodeFunctionData('bumpConfig', []);
             const emergencyNonce = ethers.id("EMERGENCY_CONFIG_BUMP");
             const config = await molochContract.config();
-            const permitId = computeProposalId(currentDAO.dao.dao, 0, currentDAO.dao.dao, 0, bumpConfigCalldata, emergencyNonce, config);
+            permitId = computeProposalId(currentDAO.dao.dao, 0, currentDAO.dao.dao, 0, bumpConfigCalldata, emergencyNonce, config);
+          } catch (permitError) {
+            logger.error('Error computing emergency permit ID:', permitError);
+          }
 
-            const permitBalance = await molochContract.balanceOf(memberAddress, permitId);
+          // Batch check all balances with multicall (single RPC call)
+          const allIds = receiptChecks.map(r => r.receiptId);
+          if (permitId) allIds.push(permitId);
+
+          const balances = await batchCheckReceiptBalances(molochContract, memberAddress, allIds);
+
+          // Process receipt balances
+          for (const check of receiptChecks) {
+            const balance = balances[check.receiptId] || 0n;
+            if (balance > 0n) {
+              collectibles.push({
+                type: 'receipt',
+                proposalId: check.proposalId,
+                support: check.support,
+                balance,
+                receiptId: check.receiptId
+              });
+            }
+          }
+
+          // Process emergency permit balance
+          if (permitId) {
+            const permitBalance = balances[permitId] || 0n;
             if (permitBalance > 0n) {
               collectibles.push({
                 type: 'emergency_permit',
@@ -26635,8 +27440,6 @@
                 balance: permitBalance
               });
             }
-          } catch (permitError) {
-            logger.error('Error checking emergency permit:', permitError);
           }
 
           // Render collectibles
@@ -26847,6 +27650,11 @@
 
       // Render chatroom messages
       let chatroomRenderId = 0; // Counter to track the most recent render
+      const CHATROOM_PAGE_SIZE = 50;
+      let chatroomOffset = 0;
+      let chatroomTotalMessages = 0;
+      let chatroomLoading = false;
+
       async function renderChatroom() {
         const chatroomMessages = document.getElementById('chatroomMessages');
         if (!chatroomMessages || !currentDAO) return;
@@ -26859,32 +27667,30 @@
 
         // Capture DAO state at start to avoid race conditions with async operations
         const daoAddress = currentDAO.dao.dao;
-        let messages = [...currentDAO.dao.messages];
+        let messages = [];
 
         // Show loading state immediately
         chatroomMessages.innerHTML = '<p style="text-align: center; color: rgba(230, 217, 255, 0.5); font-style: italic;">Loading messages...</p>';
 
-        // Fetch the latest messages if we don't have them
-        // The initial load may have fetched older messages due to messageStart=0
+        // Fetch newest messages first using reverse pagination
         try {
           await withRpcFallback(async (activeProvider) => {
             const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
-            const totalMessageCount = Number(await molochContract.getMessageCount());
+            chatroomTotalMessages = Number(await molochContract.getMessageCount());
 
-            // Fetch ALL messages so "Show more" can reveal them all
-            // Check if current messages are stale (don't include the latest messages)
-            const hasLatestMessage = messages.some(m => Number(m.index) === totalMessageCount - 1);
-            const hasAllMessages = messages.length === totalMessageCount;
+            if (chatroomTotalMessages > 0) {
+              // Fetch newest PAGE_SIZE messages using reverseOrder=true (v2 only)
+              const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
+              const fetchCount = Math.min(CHATROOM_PAGE_SIZE, chatroomTotalMessages);
+              const fetchedMessages = currentContractVersion === 'v1'
+                ? await viewHelper.getDAOMessages(daoAddress, 0, fetchCount)
+                : await viewHelper.getDAOMessages(daoAddress, 0, fetchCount, true);
 
-            if (totalMessageCount > 0 && (!hasLatestMessage || !hasAllMessages)) {
-              // Fetch ALL messages using ViewHelper
-              const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
-              const allMessages = await viewHelper.getDAOMessages(daoAddress, 0, totalMessageCount);
+              // Map messages with sender included (sender only in v2)
+              messages = fetchedMessages.map(m => ({ index: m.index, sender: m.sender, text: m.text }));
+              chatroomOffset = fetchCount;
 
-              // Update messages with all fetched messages
-              messages = allMessages.map(m => ({ index: m.index, text: m.text }));
-
-              // Also update currentDAO so other parts of the app have correct data
+              // Also update currentDAO
               if (currentDAO?.dao?.dao === daoAddress) {
                 currentDAO.dao.messages = messages;
               }
@@ -26892,7 +27698,8 @@
           });
         } catch (e) {
           logger.warn('Could not fetch latest messages:', e.message);
-          // Continue with whatever messages we have
+          // Fall back to cached messages
+          messages = [...currentDAO.dao.messages];
         }
 
         // Check if render is stale after async fetch
@@ -26905,12 +27712,8 @@
           return;
         }
 
-        // Clear and render messages immediately - don't wait for sender info
+        // Clear and render messages
         chatroomMessages.innerHTML = '';
-
-        // We'll store senders/txHashes here and update DOM async
-        const messageSenders = {};
-        const messageTxHashes = {};
 
         // Reverse to show most recent first
         const messagesReversed = [...messages].reverse();
@@ -26936,9 +27739,18 @@
 
           msgDiv.className = `chatroom-message${proposalData ? ' proposal' : ''}${isHidden ? ' message-hidden' : ''}`;
 
-          // Sender will be loaded async - add a placeholder span
-          const senderSpanId = `msg-sender-${message.index}`;
-          const senderDisplay = ` <span id="${senderSpanId}" class="chatroom-sender-placeholder" style="opacity: 0.5; font-size: 0.85em;"></span>`;
+          // Sender handling: v2 has sender in MessageView, v1 needs async event query
+          const senderAddress = message.sender;
+          let senderDisplay;
+          if (currentContractVersion === 'v1') {
+            // v1: Use placeholder span that will be populated via async event query
+            senderDisplay = ` <span id="msg-sender-${message.index}" class="chatroom-sender-placeholder" style="opacity: 0.5; font-size: 0.85em;"></span>`;
+          } else {
+            // v2: Sender comes directly from ViewHelper
+            senderDisplay = senderAddress && senderAddress !== ethers.ZeroAddress
+              ? ` (<a href="${getExplorerAddressUrl(senderAddress)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddress}" style="font-size: 0.85em;">${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)}</a>)`
+              : '';
+          }
 
           const MAX_MESSAGE_LENGTH = 203;
           const isLongMessage = !proposalData && message.text.length > MAX_MESSAGE_LENGTH;
@@ -26971,7 +27783,6 @@
               `;
             }
 
-            const txHash = messageTxHashes[String(message.index)] || null;
             const technicalDetails = {
               op: proposalData.op,
               to: proposalData.to,
@@ -26979,9 +27790,6 @@
               data: proposalData.data,
               nonce: proposalData.nonce
             };
-            if (txHash) {
-              technicalDetails.txHash = txHash;
-            }
 
             messageContent = `
               <strong style="color: #9d7bff; font-size: 0.85rem; letter-spacing: 0.1em;">PROPOSAL</strong>
@@ -27017,6 +27825,19 @@
           chatroomMessages.appendChild(showMoreContainer);
         }
 
+        // Add "Load older messages" button if there are more messages to fetch
+        const hasOlderMessages = chatroomOffset < chatroomTotalMessages;
+        if (hasOlderMessages) {
+          const loadOlderContainer = document.createElement('div');
+          loadOlderContainer.className = 'show-more-container';
+          loadOlderContainer.id = 'loadOlderMessagesContainer';
+          loadOlderContainer.innerHTML = `
+            <button class="show-more-btn" onclick="loadOlderChatroomMessages()">Load older messages (${chatroomTotalMessages - chatroomOffset} more)</button>
+          `;
+          // Insert at the beginning (top) since older messages appear at top
+          chatroomMessages.insertBefore(loadOlderContainer, chatroomMessages.firstChild);
+        }
+
         // Set dynamic height based on message count
         // Scale from base height (1 message) to max height (many messages)
         const messageCount = messages.length;
@@ -27028,99 +27849,255 @@
         const dynamicHeight = Math.round(baseHeight + scaleFactor * (maxHeight - baseHeight));
         chatroomMessages.style.setProperty('--chatroom-dynamic-height', `${dynamicHeight}px`);
 
-        // Async fetch senders using indexed Message event queries (don't block UI)
-        // This runs in the background after messages are rendered
-        (async () => {
+        // For v1: Async fetch senders using indexed Message event queries
+        // v1 ViewHelper doesn't return sender in MessageView, so we query events
+        if (currentContractVersion === 'v1' && messages.length > 0) {
           const capturedRenderId = thisRenderId;
-          const capturedGlobalRenderId = globalRenderId;
+          const capturedGlobalRenderId = daoRenderId;
           const capturedDaoAddress = daoAddress;
           const uniqueSendersFound = new Set();
 
-          try {
-            await withRpcFallback(async (activeProvider) => {
-              const molochContract = new ethers.Contract(capturedDaoAddress, MOLOCH_ABI, activeProvider);
+          (async () => {
+            try {
+              await withRpcFallback(async (activeProvider) => {
+                const molochContract = new ethers.Contract(capturedDaoAddress, MOLOCH_ABI, activeProvider);
 
-              // Track success/failure to detect rate limiting and trigger RPC fallback
-              let successCount = 0;
-              let failCount = 0;
+                // Query for each message index using indexed filter
+                const BATCH_SIZE = 5;
+                for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+                  // Check if render is stale
+                  if (capturedRenderId !== chatroomRenderId || capturedGlobalRenderId !== daoRenderId) return;
 
-              // Query for each message index using indexed filter (much more efficient than scanning all blocks)
-              const BATCH_SIZE = 5;
-              for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-                // Check if render is stale
-                if (capturedRenderId !== chatroomRenderId || capturedGlobalRenderId !== daoRenderId) return;
+                  const batch = messages.slice(i, i + BATCH_SIZE);
+                  await Promise.all(batch.map(async (msg) => {
+                    try {
+                      // Query using indexed 'index' parameter
+                      const events = await molochContract.queryFilter(
+                        molochContract.filters.Message(null, msg.index)
+                      );
+                      if (events.length > 0) {
+                        const event = events[0];
+                        const senderAddress = event.args.from;
 
-                const batch = messages.slice(i, i + BATCH_SIZE);
-                const results = await Promise.all(batch.map(async (msg) => {
+                        // Update DOM with sender info
+                        const senderSpan = document.getElementById(`msg-sender-${msg.index}`);
+                        if (senderSpan && capturedRenderId === chatroomRenderId) {
+                          senderSpan.style.opacity = '1';
+                          senderSpan.innerHTML = `(<a href="${getExplorerAddressUrl(senderAddress)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddress}">${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)}</a>)`;
+                          uniqueSendersFound.add(senderAddress);
+                        }
+                      }
+                    } catch (_e) {
+                      // Ignore individual query errors
+                    }
+                  }));
+                }
+              });
+            } catch (e) {
+              logger.warn('Could not fetch message senders for v1:', e.message);
+            }
+
+            // ENS lookups for found senders (v1)
+            if (capturedRenderId === chatroomRenderId && uniqueSendersFound.size > 0) {
+              for (const senderAddress of uniqueSendersFound) {
+                try {
+                  const ensName = await lookupENS(senderAddress);
+                  if (ensName && capturedRenderId === chatroomRenderId) {
+                    const senderLinks = chatroomMessages.querySelectorAll(`.chatroom-sender-link[data-address="${senderAddress}"]`);
+                    senderLinks.forEach(link => {
+                      link.textContent = ensName;
+                      link.title = senderAddress;
+                    });
+                  }
+                } catch (_e) {
+                  // Ignore ENS lookup errors
+                }
+              }
+            }
+          })();
+        }
+
+        // For v2: ENS lookups for unique senders (background, non-blocking)
+        // v2 already has sender in MessageView from ViewHelper
+        if (currentContractVersion !== 'v1') {
+          const uniqueSenders = new Set(
+            messages.map(m => m.sender).filter(s => s && s !== ethers.ZeroAddress)
+          );
+
+          if (uniqueSenders.size > 0) {
+            const capturedRenderId = thisRenderId;
+            (async () => {
+              for (const senderAddress of uniqueSenders) {
+                try {
+                  const ensName = await lookupENS(senderAddress);
+                  if (ensName && capturedRenderId === chatroomRenderId) {
+                    const senderLinks = chatroomMessages.querySelectorAll(`.chatroom-sender-link[data-address="${senderAddress}"]`);
+                    senderLinks.forEach(link => {
+                      link.textContent = ensName;
+                      link.title = senderAddress;
+                    });
+                  }
+                } catch (_e) {
+                  // Ignore ENS lookup errors
+                }
+              }
+            })();
+          }
+        }
+
+        // No auto-scroll since newest messages are now at the top
+      }
+
+      // Load older chatroom messages (pagination)
+      async function loadOlderChatroomMessages() {
+        if (chatroomLoading || !currentDAO) return;
+        chatroomLoading = true;
+
+        const daoAddress = currentDAO.dao.dao;
+        const chatroomMessages = document.getElementById('chatroomMessages');
+        const loadBtn = document.getElementById('loadOlderMessagesContainer');
+
+        if (loadBtn) {
+          loadBtn.innerHTML = '<span style="color: rgba(230, 217, 255, 0.5);">Loading...</span>';
+        }
+
+        try {
+          await withRpcFallback(async (activeProvider) => {
+            const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
+
+            // Fetch next batch of older messages
+            const remaining = chatroomTotalMessages - chatroomOffset;
+            const fetchCount = Math.min(CHATROOM_PAGE_SIZE, remaining);
+            const olderMessages = currentContractVersion === 'v1'
+              ? await viewHelper.getDAOMessages(daoAddress, chatroomOffset, fetchCount)
+              : await viewHelper.getDAOMessages(daoAddress, chatroomOffset, fetchCount, true);
+
+            if (olderMessages.length > 0) {
+              chatroomOffset += olderMessages.length;
+
+              // Prepend older messages to the DOM (they appear at top)
+              const mappedMessages = olderMessages.map(m => ({ index: m.index, sender: m.sender, text: m.text }));
+
+              // Create message elements and insert before the load button
+              for (const message of mappedMessages) {
+                const msgDiv = document.createElement('div');
+                const proposalData = decodeProposalMessage(message.text);
+                msgDiv.className = `chatroom-message${proposalData ? ' proposal' : ''}`;
+
+                // Sender handling: v2 has sender in MessageView, v1 needs async event query
+                const senderAddress = message.sender;
+                let senderDisplay;
+                if (currentContractVersion === 'v1') {
+                  // v1: Use placeholder span that will be populated via async event query
+                  senderDisplay = ` <span id="msg-sender-${message.index}" class="chatroom-sender-placeholder" style="opacity: 0.5; font-size: 0.85em;"></span>`;
+                } else {
+                  // v2: Sender comes directly from ViewHelper
+                  senderDisplay = senderAddress && senderAddress !== ethers.ZeroAddress
+                    ? ` (<a href="${getExplorerAddressUrl(senderAddress)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddress}" style="font-size: 0.85em;">${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)}</a>)`
+                    : '';
+                }
+
+                const MAX_MESSAGE_LENGTH = 203;
+                const isLongMessage = !proposalData && message.text.length > MAX_MESSAGE_LENGTH;
+                let messageContent;
+
+                if (isLongMessage) {
+                  const truncatedText = escapeHtml(message.text.slice(0, MAX_MESSAGE_LENGTH));
+                  const fullText = escapeHtml(message.text);
+                  const msgId = `msg-${message.index}`;
+                  messageContent = `<span id="${msgId}-short">${truncatedText}...</span><span id="${msgId}-full" style="display: none;">${fullText}</span><button class="chatroom-message-more" onclick="toggleMessageExpand('${msgId}', this)">More</button>`;
+                } else if (proposalData) {
+                  messageContent = `
+                    <strong style="color: #9d7bff; font-size: 0.85rem; letter-spacing: 0.1em;">PROPOSAL</strong>
+                    <div style="margin-top: 0.5rem; font-size: 1rem;">${formatProposalBody(proposalData)}</div>
+                  `;
+                } else {
+                  messageContent = escapeHtml(message.text);
+                }
+
+                msgDiv.innerHTML = `
+                  <div class="chatroom-message-header">
+                    <span>Message #${message.index}${senderDisplay}</span>
+                  </div>
+                  <div class="chatroom-message-text">
+                    ${messageContent}
+                  </div>
+                `;
+
+                // Insert after the load button (which is at top)
+                if (loadBtn?.nextSibling) {
+                  chatroomMessages.insertBefore(msgDiv, loadBtn.nextSibling);
+                } else if (loadBtn) {
+                  chatroomMessages.appendChild(msgDiv);
+                }
+
+                // For v2: ENS lookup for this sender
+                if (currentContractVersion !== 'v1' && senderAddress && senderAddress !== ethers.ZeroAddress) {
+                  lookupENS(senderAddress).then(ensName => {
+                    if (ensName) {
+                      const links = msgDiv.querySelectorAll(`.chatroom-sender-link[data-address="${senderAddress}"]`);
+                      links.forEach(link => {
+                        link.textContent = ensName;
+                        link.title = senderAddress;
+                      });
+                    }
+                  }).catch(() => {});
+                }
+              }
+
+              // For v1: Async fetch senders for the newly loaded messages
+              if (currentContractVersion === 'v1' && mappedMessages.length > 0) {
+                const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
+                for (const msg of mappedMessages) {
                   try {
-                    // Query using indexed 'index' parameter - this is efficient as index is indexed
                     const events = await molochContract.queryFilter(
                       molochContract.filters.Message(null, msg.index)
                     );
                     if (events.length > 0) {
-                      const event = events[0];
-                      const senderAddress = event.args.from;
-                      const txHash = event.transactionHash;
-
-                      // Store for proposal technical details
-                      messageSenders[String(msg.index)] = senderAddress;
-                      messageTxHashes[String(msg.index)] = txHash;
-
-                      // Update DOM with sender info
+                      const senderAddr = events[0].args.from;
                       const senderSpan = document.getElementById(`msg-sender-${msg.index}`);
-                      if (senderSpan && capturedRenderId === chatroomRenderId) {
+                      if (senderSpan) {
                         senderSpan.style.opacity = '1';
-                        senderSpan.innerHTML = `(<a href="${getExplorerAddressUrl(senderAddress)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddress}">${senderAddress.slice(0, 10)}...${senderAddress.slice(-8)}</a>)`;
-                        uniqueSendersFound.add(senderAddress);
+                        senderSpan.innerHTML = `(<a href="${getExplorerAddressUrl(senderAddr)}" target="_blank" rel="noopener noreferrer" class="chatroom-sender-link" data-address="${senderAddr}">${senderAddr.slice(0, 10)}...${senderAddr.slice(-8)}</a>)`;
+                        // ENS lookup
+                        lookupENS(senderAddr).then(ensName => {
+                          if (ensName && senderSpan) {
+                            const link = senderSpan.querySelector('.chatroom-sender-link');
+                            if (link) {
+                              link.textContent = ensName;
+                              link.title = senderAddr;
+                            }
+                          }
+                        }).catch(() => {});
                       }
                     }
-                    return { success: true };
-                  } catch (e) {
-                    return { success: false, error: e };
+                  } catch (_e) {
+                    // Ignore individual query errors
                   }
-                }));
-
-                // Count successes and failures
-                for (const r of results) {
-                  if (r.success) successCount++;
-                  else failCount++;
-                }
-
-                // If first batch all failed, throw to trigger RPC fallback
-                if (i === 0 && failCount > 0 && successCount === 0) {
-                  throw new Error('All queries in first batch failed - RPC may be rate limiting');
                 }
               }
 
-              // If all queries failed across all batches, throw to trigger RPC fallback
-              if (successCount === 0 && failCount > 0) {
-                throw new Error('All message sender queries failed - RPC may be rate limiting');
-              }
-            });
-          } catch (e) {
-            logger.warn('Could not fetch message senders:', e.message);
-          }
-
-          // ENS lookups for found senders
-          if (capturedRenderId === chatroomRenderId && uniqueSendersFound.size > 0) {
-            for (const senderAddress of uniqueSendersFound) {
-              try {
-                const ensName = await lookupENS(senderAddress);
-                if (ensName && capturedRenderId === chatroomRenderId) {
-                  const senderLinks = chatroomMessages.querySelectorAll(`.chatroom-sender-link[data-address="${senderAddress}"]`);
-                  senderLinks.forEach(link => {
-                    link.textContent = ensName;
-                    link.title = senderAddress;
-                  });
-                }
-              } catch (_e) {
-                // Ignore ENS lookup errors
+              // Update or remove the load button
+              const hasMoreOlder = chatroomOffset < chatroomTotalMessages;
+              if (hasMoreOlder && loadBtn) {
+                loadBtn.innerHTML = `
+                  <button class="show-more-btn" onclick="loadOlderChatroomMessages()">Load older messages (${chatroomTotalMessages - chatroomOffset} more)</button>
+                `;
+              } else if (loadBtn) {
+                loadBtn.remove();
               }
             }
+          });
+        } catch (e) {
+          logger.warn('Error loading older messages:', e.message);
+          if (loadBtn) {
+            loadBtn.innerHTML = `
+              <button class="show-more-btn" onclick="loadOlderChatroomMessages()">Retry loading older messages</button>
+            `;
           }
-        })();
-
-        // No auto-scroll since newest messages are now at the top
+        } finally {
+          chatroomLoading = false;
+        }
       }
 
       // Send chat message
@@ -27204,7 +28181,7 @@
           try {
             await withRpcFallback(async (activeProvider) => {
               const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
-              const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, activeProvider);
+              const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
               const treasuryTokens = getNetwork().treasuryTokens;
 
               // Get total counts
@@ -27227,14 +28204,25 @@
 
               if (needsProposals && totalProposalCount > 0) {
                 // Fetch ALL proposals via getDAOFullState
-                const daoState = await viewHelper.getDAOFullState(
-                  daoAddress,
-                  0,                    // proposalStart - start from beginning
-                  totalProposalCount,   // proposalCount - fetch ALL
-                  0,                    // messageStart (we'll fetch all messages separately)
-                  0,                    // messageCount (skip messages here)
-                  treasuryTokens
-                );
+                const daoState = currentContractVersion === 'v1'
+                  ? await viewHelper.getDAOFullState(
+                      daoAddress,
+                      0,                    // proposalStart - start from beginning
+                      totalProposalCount,   // proposalCount - fetch ALL
+                      0,                    // messageStart (we'll fetch all messages separately)
+                      0,                    // messageCount (skip messages here)
+                      treasuryTokens
+                    )
+                  : await viewHelper.getDAOFullState(
+                      daoAddress,
+                      0,                    // proposalStart - start from beginning
+                      totalProposalCount,   // proposalCount - fetch ALL
+                      0,                    // messageStart (we'll fetch all messages separately)
+                      0,                    // messageCount (skip messages here)
+                      treasuryTokens,
+                      false,                // reverseProposals - oldest first
+                      false                 // reverseMessages - not used (messageCount=0)
+                    );
 
                 if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
@@ -27244,7 +28232,9 @@
 
               // Fetch ALL messages for complete proposal verification
               if (totalMessageCount > messages.length) {
-                const allMessages = await viewHelper.getDAOMessages(daoAddress, 0, totalMessageCount);
+                const allMessages = currentContractVersion === 'v1'
+                  ? await viewHelper.getDAOMessages(daoAddress, 0, totalMessageCount)
+                  : await viewHelper.getDAOMessages(daoAddress, 0, totalMessageCount, false);
 
                 if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
 
@@ -27257,57 +28247,75 @@
             // Continue with existing data
           }
 
-          // Query Message events to get tx hashes for each message using indexed queries
-          // Build a map of message index -> tx hash
+          // Query Message events to get tx hashes for each message
+          // Use localStorage cache since messages are immutable
           const messageTxHashes = {};
-          try {
-            await withRpcFallback(async (activeProvider) => {
-              const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
+          const currentChainId = Number(getNetwork().chainId);
 
-              // Track success/failure to detect rate limiting and trigger RPC fallback
-              let successCount = 0;
-              let failCount = 0;
+          // First pass: use cache
+          const uncachedMessages = [];
+          for (const msg of messages) {
+            const cached = getCachedTxHash(currentChainId, daoAddress, msg.index);
+            if (cached) {
+              messageTxHashes[Number(msg.index)] = cached;
+            } else {
+              uncachedMessages.push(msg);
+            }
+          }
 
-              // Query using indexed 'index' parameter for each message (much more efficient)
-              const BATCH_SIZE = 5;
-              for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-                if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
+          // Second pass: fetch only uncached messages from RPC
+          if (uncachedMessages.length > 0) {
+            try {
+              await withRpcFallback(async (activeProvider) => {
+                const molochContract = new ethers.Contract(daoAddress, MOLOCH_ABI, activeProvider);
 
-                const batch = messages.slice(i, i + BATCH_SIZE);
-                const results = await Promise.all(batch.map(async (msg) => {
-                  try {
-                    const events = await molochContract.queryFilter(
-                      molochContract.filters.Message(null, msg.index)
-                    );
-                    if (events.length > 0) {
-                      messageTxHashes[Number(msg.index)] = events[0].transactionHash;
+                // Track success/failure to detect rate limiting and trigger RPC fallback
+                let successCount = 0;
+                let failCount = 0;
+
+                // Query using indexed 'index' parameter for each message
+                const BATCH_SIZE = 5;
+                for (let i = 0; i < uncachedMessages.length; i += BATCH_SIZE) {
+                  if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
+
+                  const batch = uncachedMessages.slice(i, i + BATCH_SIZE);
+                  const results = await Promise.all(batch.map(async (msg) => {
+                    try {
+                      const events = await molochContract.queryFilter(
+                        molochContract.filters.Message(null, msg.index)
+                      );
+                      if (events.length > 0) {
+                        const txHash = events[0].transactionHash;
+                        messageTxHashes[Number(msg.index)] = txHash;
+                        cacheTxHash(currentChainId, daoAddress, msg.index, txHash);
+                      }
+                      return { success: true };
+                    } catch (e) {
+                      return { success: false, error: e };
                     }
-                    return { success: true };
-                  } catch (e) {
-                    return { success: false, error: e };
+                  }));
+
+                  // Count successes and failures
+                  for (const r of results) {
+                    if (r.success) successCount++;
+                    else failCount++;
                   }
-                }));
 
-                // Count successes and failures
-                for (const r of results) {
-                  if (r.success) successCount++;
-                  else failCount++;
+                  // If first batch all failed, throw to trigger RPC fallback
+                  if (i === 0 && failCount > 0 && successCount === 0) {
+                    throw new Error('All queries in first batch failed - RPC may be rate limiting');
+                  }
                 }
 
-                // If first batch all failed, throw to trigger RPC fallback
-                if (i === 0 && failCount > 0 && successCount === 0) {
-                  throw new Error('All queries in first batch failed - RPC may be rate limiting');
+                // If all queries failed across all batches, throw to trigger RPC fallback
+                if (successCount === 0 && failCount > 0) {
+                  throw new Error('All message tx hash queries failed - RPC may be rate limiting');
                 }
-              }
-
-              // If all queries failed across all batches, throw to trigger RPC fallback
-              if (successCount === 0 && failCount > 0) {
-                throw new Error('All message tx hash queries failed - RPC may be rate limiting');
-              }
-            });
-          } catch (e) {
-            logger.warn('Error fetching message tx hashes:', e.message);
-            // Continue without tx hashes - explorer links will fall back to DAO address
+              });
+            } catch (e) {
+              logger.warn('Error fetching message tx hashes:', e.message);
+              // Continue without tx hashes - explorer links will fall back to DAO address
+            }
           }
 
           // Check if stale after async work
@@ -27399,6 +28407,29 @@
         }
 
         const molochContract = new ethers.Contract(currentDAO.dao.dao, MOLOCH_ABI, provider);
+
+        // Pre-fetch futarchy receipt balances for all resolved proposals (single multicall)
+        const futarchyBalances = {};
+        if (connectedAddress) {
+          const futarchyData = proposalsReversed
+            .filter(p => p.futarchy?.enabled && p.futarchy?.resolved)
+            .map(p => {
+              const winnerSupport = Number(p.futarchy.winner);
+              const receiptId = ethers.solidityPackedKeccak256(
+                ['string', 'uint256', 'uint8'],
+                ['Moloch:receipt', p.id, winnerSupport]
+              );
+              return { proposalId: p.id.toString(), receiptId };
+            });
+
+          if (futarchyData.length > 0) {
+            const receiptIds = futarchyData.map(d => d.receiptId);
+            const balances = await batchCheckReceiptBalances(molochContract, connectedAddress, receiptIds);
+            for (const data of futarchyData) {
+              futarchyBalances[data.proposalId] = balances[data.receiptId] || 0n;
+            }
+          }
+        }
 
         // Render ALL proposals but hide those beyond the limit
         proposalsReversed.forEach((proposal, index) => {
@@ -27591,55 +28622,28 @@
             </details>
           ` : '';
 
-          // Check futarchy state and user receipts
+          // Check futarchy state and user receipts (uses pre-fetched balances)
           let futarchyUI = '';
           if (proposal.futarchy?.enabled && connectedAddress) {
             const futarchy = proposal.futarchy;
             const isResolved = futarchy.resolved;
 
             if (isResolved) {
-              // Compute receipt ID for winning side
-              const winnerSupport = Number(futarchy.winner); // 0 or 1
-              const receiptId = ethers.solidityPackedKeccak256(
-                ['string', 'uint256', 'uint8'],
-                ['Moloch:receipt', proposal.id, winnerSupport]
-              );
+              const proposalIdStr = proposal.id.toString();
+              const userReceiptBalance = futarchyBalances[proposalIdStr] || 0n;
 
-              // Check if user holds winning receipts (this will be checked async below)
-              futarchyUI = `<div class="futarchy-reward-box" id="futarchy-${proposal.id.toString()}">
-                <div class="futarchy-reward-title">Futarchy Rewards</div>
-                <div class="futarchy-reward-info" id="futarchy-info-${proposal.id.toString()}">Checking your rewards...</div>
-              </div>`;
+              if (userReceiptBalance > 0n) {
+                const receiptAmount = ethers.formatUnits(userReceiptBalance, 18);
+                const payoutPerUnit = futarchy.payoutPerUnit;
+                const estimatedReward = (userReceiptBalance * payoutPerUnit) / (10n ** 18n);
+                const estimatedRewardFormatted = ethers.formatUnits(estimatedReward, 18);
 
-              // Async check receipt balance and update UI
-              (async () => {
-                try {
-                  const userReceiptBalance = await molochContract.balanceOf(connectedAddress, receiptId);
-                  const infoDiv = document.getElementById(`futarchy-info-${proposal.id.toString()}`);
-                  const boxDiv = document.getElementById(`futarchy-${proposal.id.toString()}`);
-
-                  if (userReceiptBalance > 0n) {
-                    const receiptAmount = ethers.formatUnits(userReceiptBalance, 18);
-                    const payoutPerUnit = futarchy.payoutPerUnit;
-                    const estimatedReward = (userReceiptBalance * payoutPerUnit) / (10n ** 18n);
-                    const estimatedRewardFormatted = ethers.formatUnits(estimatedReward, 18);
-
-                    infoDiv.innerHTML = `You have <strong>${parseFloat(receiptAmount).toFixed(2).replace(/\.00$/, '')} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(2).replace(/\.00$/, '')} LOOT</strong>`;
-
-                    const claimBtn = document.createElement('button');
-                    claimBtn.className = 'proposal-button claim';
-                    claimBtn.textContent = 'Claim Rewards';
-                    claimBtn.onclick = (e) => claimFutarchyReward(proposal.id.toString(), userReceiptBalance.toString(), e);
-                    boxDiv.appendChild(claimBtn);
-                  } else {
-                    boxDiv.style.display = 'none';
-                  }
-                } catch (e) {
-                  logger.error('Error checking futarchy receipts:', e);
-                  const boxDiv = document.getElementById(`futarchy-${proposal.id.toString()}`);
-                  if (boxDiv) boxDiv.style.display = 'none';
-                }
-              })();
+                futarchyUI = `<div class="futarchy-reward-box">
+                  <div class="futarchy-reward-title">Futarchy Rewards</div>
+                  <div class="futarchy-reward-info">You have <strong>${parseFloat(receiptAmount).toFixed(2).replace(/\.00$/, '')} winning receipts</strong><br>Estimated reward: <strong>${parseFloat(estimatedRewardFormatted).toFixed(2).replace(/\.00$/, '')} LOOT</strong></div>
+                  <button class="proposal-button claim" onclick="claimFutarchyReward('${proposalIdStr}', '${userReceiptBalance.toString()}', event)">Claim Rewards</button>
+                </div>`;
+              }
             }
           }
 
@@ -29038,8 +30042,10 @@
               const totalMessageCount = Number(await molochContract.getMessageCount());
 
               if (totalMessageCount > 0) {
-                const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
-                const allMessages = await viewHelper.getDAOMessages(currentDAO.dao.dao, 0, totalMessageCount);
+                const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), provider);
+                const allMessages = currentContractVersion === 'v1'
+                  ? await viewHelper.getDAOMessages(currentDAO.dao.dao, 0, totalMessageCount)
+                  : await viewHelper.getDAOMessages(currentDAO.dao.dao, 0, totalMessageCount, false);
 
                 for (const msg of allMessages) {
                   const propData = decodeProposalMessage(msg.text);
@@ -29139,21 +30145,35 @@
             showStatus('Refreshing...', false);
           }
 
-          const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, provider);
+          const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), provider);
           const treasuryTokens = getNetwork().treasuryTokens;
 
           // Fetch more proposals and messages to ensure we see new items
-          // Note: fetches from start (0), which gets oldest items (not newest)
-          const updatedDAOs = await viewHelper.getUserDAOsFullState(
-            connectedAddress,
-            0,  // daoStart
-            10, // daoCount
-            0,  // proposalStart (0 = oldest)
-            50, // proposalCount (enough to catch active proposals)
-            0,  // messageStart (0 = oldest)
-            20, // messageCount (fetch more messages)
-            treasuryTokens
-          );
+          const updatedDAOs = currentContractVersion === 'v1'
+            ? await viewHelper.getUserDAOsFullState(
+                connectedAddress,
+                0,  // daoStart
+                10, // daoCount
+                treasuryTokens,
+                0,  // proposalStart
+                50, // proposalCount
+                0,  // messageStart
+                20  // messageCount
+              )
+            : await viewHelper.getUserDAOsFullState(
+                connectedAddress,
+                0,  // daoStart
+                10, // daoCount
+                treasuryTokens,
+                {
+                  proposalStart: 0,
+                  proposalCount: 50, // enough to catch active proposals
+                  messageStart: 0,
+                  messageCount: 20, // fetch more messages
+                  reverseProposals: true, // newest first
+                  reverseMessages: true   // newest first
+                }
+              );
 
           // Find current DAO in updated list
           for (let i = 0; i < updatedDAOs.length; i++) {
@@ -30642,7 +31662,7 @@
 
 
           // Connect to summoner
-          const summoner = new ethers.Contract(SUMMONER_ADDRESS, SUMMONER_ABI, signer);
+          const summoner = new ethers.Contract(getSummonerAddress(), SUMMONER_ABI, signer);
 
           // Ensure initShares are BigInt for consistent encoding
           const initSharesForPrediction = initShares.map(s => BigInt(s.toString()));
@@ -30661,15 +31681,13 @@
           // Prepare init calls with predicted DAO address
           const initCalls = [];
 
-          // Add proposal TTL setting if specified
-          const proposalTTL = getSecondsFromInput('proposalTTL', 'proposalTTLUnit');
-          if (proposalTTL > 0) {
-            initCalls.push({
-              target: predictedDao, // Self-call to the DAO
-              value: 0n,
-              data: INTERFACES.setProposalTTL.encodeFunctionData('setProposalTTL', [proposalTTL])
-            });
-          }
+          // proposalTTL is required for proper governance - default to 7 days if not specified
+          const proposalTTL = getSecondsFromInput('proposalTTL', 'proposalTTLUnit') || 604800; // 7 days default
+          initCalls.push({
+            target: predictedDao, // Self-call to the DAO
+            value: 0n,
+            data: INTERFACES.setProposalTTL.encodeFunctionData('setProposalTTL', [proposalTTL])
+          });
 
           // Add timelock delay setting if specified
           const timelockDelay = getSecondsFromInput('timelockDelay', 'timelockDelayUnit');
@@ -30739,6 +31757,12 @@
           }
 
           // Add transferability settings if either is enabled
+          // Logic: Contract defaults to unlocked (transfersLocked=false), so we only call this function
+          // when the user explicitly checks the "Enable Transferability" checkbox. When both checkboxes
+          // are unchecked, no call is made and transfers remain unlocked (matching the contract default).
+          // If the design intent is for transfers to be LOCKED by default, the contract would need to
+          // initialize transfersLocked=true, and this code would need to always call setTransfersLocked
+          // (even when both checkboxes are unchecked) to enforce the user's explicit configuration.
           const enableSharesTransfer = document.getElementById('enableSharesTransfer').checked;
           const enableLootTransfer = document.getElementById('enableLootTransfer').checked;
 
@@ -30998,7 +32022,7 @@
               target: forToken,
               value: 0n,
               data: INTERFACES.erc20Approve.encodeFunctionData('approve', [
-                DAICO_ADDRESS,
+                getDaicoAddress(),
                 saleSupply
               ])
             });
@@ -31009,7 +32033,7 @@
                 target: predictedDao,
                 value: 0n,
                 data: INTERFACES.setAllowance.encodeFunctionData('setAllowance', [
-                  DAICO_ADDRESS,
+                  getDaicoAddress(),
                   tribToken,
                   tapBudget
                 ])
@@ -31043,7 +32067,7 @@
             }
 
             initCalls.push({
-              target: DAICO_ADDRESS,
+              target: getDaicoAddress(),
               value: 0n,
               data: setSaleCalldata
             });
@@ -31247,8 +32271,11 @@
             // Fetch all DAOs using RPC fallback for reliability
             const treasuryTokens = getNetwork().treasuryTokens;
             const result = await withRpcFallback(async (rpcProvider) => {
-              const viewHelper = new ethers.Contract(VIEW_HELPER_ADDRESS, VIEW_HELPER_ABI, rpcProvider);
-              return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens);
+              const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), rpcProvider);
+              if (currentContractVersion === 'v1') {
+                return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens);
+              }
+              return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens, true, true);
             });
             allDAOs = result;
             allDAOsLoaded = true; // Mark as loaded for deep link scenario
@@ -31256,7 +32283,8 @@
             // Try to open the deep-linked DAO
             const opened = await openDAOByAddress(deepLink.address);
             if (!opened) {
-              // DAO not found, show galleries instead
+              // DAO not found - clear the stale hash and show galleries
+              history.replaceState(null, '', window.location.pathname + window.location.search);
               renderAllDAOsGallery();
               DOMCache.allDaosGallery.classList.add('show');
             }
@@ -31268,6 +32296,20 @@
               showStatus('Failed to load DAO. Please try connecting your wallet.', true);
             }
           }
+        }
+
+        // Always show Your DAOs and All DAOs sections on page load (even without wallet)
+        // This allows users to browse DAOs before connecting
+        const daoGallery = document.getElementById('daoGallery');
+        if (daoGallery) {
+          daoGallery.classList.add('show');
+          const daoTiles = document.getElementById('daoTiles');
+          if (daoTiles) daoTiles.innerHTML = CONSTANTS.CONNECT_WALLET_PROMPT;
+        }
+        if (!allDAOsLoaded) {
+          const allDaosGallery = document.getElementById('allDaosGallery');
+          if (allDaosGallery) allDaosGallery.classList.add('show');
+          fetchAllDAOs().catch(() => {}); // Load in background, errors handled in function
         }
 
         // Small delay to allow EIP-6963 providers to announce themselves

@@ -7,6 +7,9 @@ optimizer_runs = 245
 
 via_ir = true
 
+# Allow larger contracts for ViewHelper (bypasses 24576 byte limit)
+code_size_limit = 30000
+
 remappings = [
   "@solady=lib/solady/",
   "@forge=lib/forge-std/src/",

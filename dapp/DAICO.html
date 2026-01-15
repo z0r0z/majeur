@@ -253,6 +253,74 @@
         .network-icon.base { background: #0052FF; }
         .network-icon.sepolia { background: var(--orange); }
         .network-icon.arbitrum { background: #28a0f0; }
+        .network-icon.localhost { background: #10b981; }
+
+        /* VERSION TOGGLE (in header) */
+        .version-toggle {
+            position: relative;
+        }
+
+        .version-toggle .version-badge {
+            background: var(--black);
+            border: 2px solid var(--orange);
+            font-family: 'Oswald', sans-serif;
+            font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.4em;
+            padding: 0.5em 0.8em;
+            color: var(--orange);
+            transition: all 0.2s ease;
+        }
+
+        .version-toggle .version-badge:hover {
+            background: var(--orange);
+            color: var(--black);
+        }
+
+        .version-toggle.open .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .version-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--black);
+            border: 2px solid var(--orange);
+            flex-direction: column;
+            min-width: 140px;
+            margin-top: 0.3em;
+            z-index: 1001;
+        }
+
+        .version-toggle.open .version-dropdown {
+            display: flex;
+        }
+
+        .version-option {
+            background: transparent;
+            border: none;
+            padding: 0.6em 0.8em;
+            font-family: 'Oswald', sans-serif;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-align: left;
+            color: var(--orange);
+            transition: all 0.15s ease;
+        }
+
+        .version-option:hover {
+            background: var(--orange);
+            color: var(--black);
+        }
+
+        .version-option.active {
+            background: var(--orange);
+            color: var(--black);
+        }
 
         /* HERO SECTION */
         .hero {
@@ -4898,6 +4966,16 @@
 
     <!-- WALLET HEADER (Network & Wallet - top right) -->
     <div class="wallet-header">
+        <div class="version-toggle" id="versionToggle">
+          <button class="version-badge" onclick="toggleVersionDropdown()">
+            <span class="version-label" id="versionLabel">v1</span>
+            <span class="dropdown-arrow">▼</span>
+          </button>
+          <div class="version-dropdown" id="versionDropdown">
+            <button class="version-option" data-version="v1" onclick="switchContractVersion('v1')">v1 (Production)</button>
+            <button class="version-option" data-version="v2" onclick="switchContractVersion('v2')">v2 (Development)</button>
+          </div>
+        </div>
         <div class="network-selector" id="networkSelector" data-network="ethereum">
             <button class="network-badge" onclick="toggleNetworkDropdown()">
                 <span class="network-dot"></span>
@@ -4920,6 +4998,10 @@
                 <button class="network-option" data-network="sepolia" onclick="switchNetwork('sepolia')">
                     <span class="network-icon sepolia">S</span>
                     Sepolia
+                </button>
+                <button class="network-option" data-network="localhost" onclick="switchNetwork('localhost')" id="localhostNetworkOption" style="display: none;">
+                    <span class="network-icon localhost">L</span>
+                    Localhost
                 </button>
             </div>
         </div>
@@ -6095,8 +6177,35 @@
                     '0x5979D7b546E38E414F7E9822514be443A4800529': { symbol: 'wstETH', decimals: 18 },
                     '0xEC70Dcb4A1EFa46b8F2D97C310C9c4790ba5ffA8': { symbol: 'rETH', decimals: 18 }
                 }
+            },
+            localhost: {
+                chainId: 31337n,
+                chainIdHex: '0x7a69',
+                name: 'Localhost',
+                shortName: 'LOCAL',
+                rpcs: [
+                    'http://localhost:8545'
+                ],
+                explorer: '',
+                swissKnifeChainId: 31337,
+                treasuryTokens: [
+                    ethers.ZeroAddress // ETH only for local
+                ],
+                tokenMeta: {
+                    [ethers.ZeroAddress]: { symbol: 'ETH', decimals: 18 }
+                }
             }
         };
+
+        // Randomize RPC order on each page load to distribute load across providers
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+        Object.values(NETWORKS).forEach(network => shuffleArray(network.rpcs));
 
         // Current network (persisted in localStorage)
         let currentNetwork = localStorage.getItem('daico_network') || 'ethereum';
@@ -6237,12 +6346,61 @@
             }
         }
 
+        // Contract version state
+        const currentContractVersion = localStorage.getItem('contractVersion') || 'v1';
+
+        // Contract addresses by version
+        const CONTRACT_VERSIONS = {
+          v1: {
+            summoner: '0x0000000000330B8df9E3bc5E553074DA58eE9138',
+            viewHelper: '0x00000000006631040967E58e3430e4B77921a2db',
+            daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
+          },
+          v2: {
+            summoner: '0xE87488BED97417b9040B552cff2E935a2E12AFAc',
+            viewHelper: '0xcE750111F181247ADDdeE82941295E0b9025Af9a',
+            daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
+          }
+        };
+
+        // Getter functions
+        function getSummonerAddress() { return CONTRACT_VERSIONS[currentContractVersion].summoner; }
+        function getViewHelperAddress() { return CONTRACT_VERSIONS[currentContractVersion].viewHelper; }
+        function getDaicoAddress() { return CONTRACT_VERSIONS[currentContractVersion].daico; }
+
+        // Toggle functions
+        function toggleVersionDropdown() {
+          document.getElementById('versionToggle').classList.toggle('open');
+        }
+
+        function switchContractVersion(version) {
+          document.getElementById('versionToggle').classList.remove('open');
+          if (version !== currentContractVersion) {
+            localStorage.setItem('contractVersion', version);
+            // Auto-switch to localhost for v2 (only deployed on local anvil)
+            if (version === 'v2' && currentNetwork !== 'localhost') {
+              localStorage.setItem('daico_network', 'localhost');
+            }
+            window.location.reload();
+          }
+        }
+
+        // Initialize version label and dev mode options on load
+        document.addEventListener('DOMContentLoaded', () => {
+          const label = document.getElementById('versionLabel');
+          if (label) label.textContent = currentContractVersion;
+
+          // Show localhost network option in dev mode
+          const isDevMode = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          if (isDevMode) {
+            const localhostOption = document.getElementById('localhostNetworkOption');
+            if (localhostOption) localhostOption.style.display = '';
+          }
+        });
+
         // Contract addresses (same on all supported networks)
-        const DAICO_ADDRESS = '0x000000000033e92DB97B4B3beCD2c255126C60aC';
-        const SUMMONER_ADDRESS = '0x0000000000330B8df9E3bc5E553074DA58eE9138';
         const DEFAULT_RENDERER = '0x000000000011c799980827f52d3137b4abd6e654';
         const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
-        const MOLOCH_VIEW_HELPER = '0x00000000006631040967E58e3430e4B77921a2db';
 
         // Implementation addresses per network (L2s have different addresses due to EVM differences)
         const IMPLEMENTATIONS = {
@@ -6404,7 +6562,7 @@
         // Swiss Knife calldata decoder URL builder
         const SWISS_KNIFE_BASE = 'https://calldata.swiss-knife.xyz/decoder';
         function buildSwissKnifeUrl(calldata) {
-            return `${SWISS_KNIFE_BASE}?chainId=${getNetwork().swissKnifeChainId}&address=${DAICO_ADDRESS}&calldata=${calldata}`;
+            return `${SWISS_KNIFE_BASE}?chainId=${getNetwork().swissKnifeChainId}&address=${getDaicoAddress()}&calldata=${calldata}`;
         }
 
         // Error handling helpers
@@ -6663,7 +6821,7 @@
                     [initHolders, initShares, userSalt]
                 )
             );
-            return computeCreate2Address(SUMMONER_ADDRESS, summonerSalt, getImplementations().moloch);
+            return computeCreate2Address(getSummonerAddress(), summonerSalt, getImplementations().moloch);
         }
 
         // State
@@ -7831,11 +7989,11 @@
                 document.getElementById('wizardLaunchBtn').disabled = true;
                 showWizardStatus('Preparing transaction...', 'info');
 
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, signer);
 
                 const impls = getImplementations();
                 const summonConfig = {
-                    summoner: SUMMONER_ADDRESS,
+                    summoner: getSummonerAddress(),
                     molochImpl: impls.moloch,
                     sharesImpl: impls.shares,
                     lootImpl: impls.loot
@@ -8531,11 +8689,11 @@
                 document.getElementById('summaryLaunchBtn').disabled = true;
                 document.getElementById('summaryStatus').textContent = 'Preparing transaction...';
 
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, signer);
 
                 const impls = getImplementations();
                 const summonConfig = {
-                    summoner: SUMMONER_ADDRESS,
+                    summoner: getSummonerAddress(),
                     molochImpl: impls.moloch,
                     sharesImpl: impls.shares,
                     lootImpl: impls.loot
@@ -8872,6 +9030,7 @@
                     const rpcProvider = new ethers.JsonRpcProvider(rpc);
                     // Quick test to ensure RPC is responsive
                     await rpcProvider.getBlockNumber();
+                    console.log(`Using RPC: ${rpc}`);
                     return rpcProvider;
                 } catch (e) {
                     console.warn(`RPC ${rpc} failed:`, e.message);
@@ -8901,7 +9060,9 @@
             for (const rpc of network.rpcs) {
                 try {
                     const rpcProvider = new ethers.JsonRpcProvider(rpc);
-                    return await scanFn(rpcProvider);
+                    const result = await scanFn(rpcProvider);
+                    console.log(`Using RPC: ${rpc}`);
+                    return result;
                 } catch (e) {
                     console.warn(`RPC ${rpc} failed:`, e.message);
                     // Continue to next RPC
@@ -8933,7 +9094,7 @@
 
             // Use RPC fallback to ensure reliability
             const daicoResults = await withRpcFallback(async (scanProvider) => {
-                const viewHelper = new ethers.Contract(MOLOCH_VIEW_HELPER, VIEW_HELPER_ABI, scanProvider);
+                const viewHelper = new ethers.Contract(getViewHelperAddress(), VIEW_HELPER_ABI, scanProvider);
                 // Single efficient call - view helper batches all DAICO queries internally:
                 // - Scans all DAOs for active sales
                 // - Gets sales terms, remaining supply, total supply, treasury balance, allowance
@@ -9468,7 +9629,7 @@
                     const token = new ethers.Contract(currentPurchase.tribTkn, ERC20_FULL_ABI, provider);
                     const [balance, allowance] = await Promise.all([
                         token.balanceOf(connectedAddress),
-                        token.allowance(connectedAddress, DAICO_ADDRESS)
+                        token.allowance(connectedAddress, getDaicoAddress())
                     ]);
                     currentPurchase.payBalance = balance;
                     currentPurchase.allowance = allowance;
@@ -9556,7 +9717,7 @@
                 if (!rpcProvider) return;
 
                 const payAmt = ethers.parseUnits(payStr, tribInfo.decimals);
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, rpcProvider);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_PURCHASE_ABI, rpcProvider);
                 const buyAmt = await daicoContract.quoteBuy(currentPurchase.dao, currentPurchase.tribTkn, payAmt);
 
                 if (buyAmt > 0n) {
@@ -9583,7 +9744,7 @@
                 if (!rpcProvider) return;
 
                 const buyAmt = ethers.parseEther(receiveStr);
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, rpcProvider);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_PURCHASE_ABI, rpcProvider);
                 const payAmt = await daicoContract.quotePayExactOut(currentPurchase.dao, currentPurchase.tribTkn, buyAmt);
 
                 if (payAmt > 0n) {
@@ -9681,7 +9842,7 @@
                 showPurchaseStatus(`Approving ${tribInfo.symbol}... Please confirm in wallet`, 'info');
 
                 const token = new ethers.Contract(currentPurchase.tribTkn, ERC20_FULL_ABI, signer);
-                const tx = await token.approve(DAICO_ADDRESS, ethers.MaxUint256, getWalletConnectTxOverrides());
+                const tx = await token.approve(getDaicoAddress(), ethers.MaxUint256, getWalletConnectTxOverrides());
                 txHash = tx.hash;
 
                 approveBtn.textContent = 'Confirming...';
@@ -9725,7 +9886,7 @@
                 buyBtn.disabled = true;
                 buyBtn.textContent = 'Preparing...';
 
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, signer);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_PURCHASE_ABI, signer);
                 const isETH = currentPurchase.tribTkn === ethers.ZeroAddress;
 
                 let tx;
@@ -9847,7 +10008,7 @@
                 // Stop accrual during claim
                 stopTapAccrual();
 
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_PURCHASE_ABI, signer);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_PURCHASE_ABI, signer);
                 const tx = await daicoContract.claimTap(currentPurchase.dao, getWalletConnectTxOverrides());
 
                 showPurchaseStatus(`Claim submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View</a>`, 'info');
@@ -10016,9 +10177,9 @@
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('symbol(uint256)', [0]) },
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('sharesToken', []) },
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('lootToken', []) },
-                    { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('sales', [daoAddr, tribTkn]) },
-                    { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('taps', [daoAddr]) },
-                    { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('claimableTap', [daoAddr]) }
+                    { target: getDaicoAddress(), allowFailure: true, callData: daicoIface.encodeFunctionData('sales', [daoAddr, tribTkn]) },
+                    { target: getDaicoAddress(), allowFailure: true, callData: daicoIface.encodeFunctionData('taps', [daoAddr]) },
+                    { target: getDaicoAddress(), allowFailure: true, callData: daicoIface.encodeFunctionData('claimableTap', [daoAddr]) }
                 ];
 
                 const results = await multicall.aggregate3(calls);
@@ -10270,12 +10431,12 @@
                 showStatus('Preparing transaction...', 'info');
                 document.getElementById('submitBtn').disabled = true;
 
-                const daicoContract = new ethers.Contract(DAICO_ADDRESS, DAICO_ABI, signer);
+                const daicoContract = new ethers.Contract(getDaicoAddress(), DAICO_ABI, signer);
 
                 // Build summon config
                 const impls = getImplementations();
                 const summonConfig = {
-                    summoner: SUMMONER_ADDRESS,
+                    summoner: getSummonerAddress(),
                     molochImpl: impls.moloch,
                     sharesImpl: impls.shares,
                     lootImpl: impls.loot
@@ -10622,11 +10783,15 @@
             if (selector) selector.classList.remove('open');
         }
 
-        // Close dropdown when clicking outside
+        // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
             const selector = document.getElementById('networkSelector');
             if (selector && !selector.contains(e.target)) {
                 closeNetworkDropdown();
+            }
+            const versionToggle = document.getElementById('versionToggle');
+            if (versionToggle && !versionToggle.contains(e.target)) {
+                versionToggle.classList.remove('open');
             }
         });
 
