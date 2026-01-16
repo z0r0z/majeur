@@ -13,8 +13,9 @@ contract CreateTestDAOs is Script {
     address constant V2_VIEW_HELPER = 0x0cf87b3a114c78907cF7712e2Cbb61Bb3608c776;
     address constant RENDERER = 0x000000000011C799980827F52d3137b4abD6E654;
 
-    // Second user for testing
-    uint256 constant USER2_PRIVATE_KEY = 0x40887c48a0c3d55639b0a133bfc757ad0f61540ade8882fa6dc636af8634a752;
+    // Test user private keys (use specific env vars to avoid conflicts with global PRIVATE_KEY)
+    uint256 constant DEFAULT_USER1_KEY = 0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048;
+    uint256 constant DEFAULT_USER2_KEY = 0x40887c48a0c3d55639b0a133bfc757ad0f61540ade8882fa6dc636af8634a752;
 
     /// @dev Predict DAO address from Summoner's CREATE2.
     function _predictDAO(
@@ -96,14 +97,16 @@ contract CreateTestDAOs is Script {
 
     /// @dev Phase 1: Create DAOs and add messages (shares need to checkpoint before voting)
     function runPhase1() public {
-        uint256 deployerPrivateKey = vm.envOr(
-            "PRIVATE_KEY",
-            uint256(0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048)
-        );
-        address deployer = vm.addr(deployerPrivateKey);
-        address user2 = vm.addr(USER2_PRIVATE_KEY);
+        // Use TEST_USER1_KEY to avoid conflicts with global PRIVATE_KEY env var
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
 
-        vm.startBroadcast(deployerPrivateKey);
+        console.log("User 1 (deployer):", deployer);
+        console.log("User 2:", user2);
+
+        vm.startBroadcast(user1Key);
 
         Summoner summoner = Summoner(V2_SUMMONER);
 
@@ -328,7 +331,7 @@ contract CreateTestDAOs is Script {
         console.log("");
         console.log("Adding 40 chat messages to DAO 1...");
         for (uint256 i = 0; i < 40; i++) {
-            uint256 pk = (i % 2 == 0) ? deployerPrivateKey : USER2_PRIVATE_KEY;
+            uint256 pk = (i % 2 == 0) ? user1Key : user2Key;
             vm.broadcast(pk);
             dao1.chat(string.concat("Test message #", vm.toString(i + 1)));
         }
@@ -346,12 +349,14 @@ contract CreateTestDAOs is Script {
     /// @dev Phase 2: Create governance proposals and vote (run after mining a block)
     /// Call with: forge script script/CreateTestDAOs.s.sol --sig "runPhase2()" --rpc-url ... --broadcast
     function runPhase2() public {
-        uint256 deployerPrivateKey = vm.envOr(
-            "PRIVATE_KEY",
-            uint256(0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048)
-        );
-        address deployer = vm.addr(deployerPrivateKey);
-        address user2 = vm.addr(USER2_PRIVATE_KEY);
+        // Use TEST_USER1_KEY to avoid conflicts with global PRIVATE_KEY env var
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
+
+        console.log("User 1 (deployer):", deployer);
+        console.log("User 2:", user2);
 
         // DAO 2 address (deterministic from Phase 1)
         Moloch dao2 = Moloch(payable(0x1A79d36bcAA43891B99bB749FF6e016B683dDAaa));
@@ -369,7 +374,7 @@ contract CreateTestDAOs is Script {
 
         // 1. Set Metadata - Change DAO name, symbol, and description
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setMetadata(string,string,string)", "Beta DAO Renamed", "BETA2", "ipfs://QmNewDescription"),
             bytes32(uint256(1)),
             "Set Metadata: Rename to Beta DAO Renamed"
@@ -379,7 +384,7 @@ contract CreateTestDAOs is Script {
 
         // 2. Change Renderer - Update the NFT metadata renderer
         proposalIds[idx] = _createProposal(
-            dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+            dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setRenderer(address)", RENDERER),
             bytes32(uint256(2)),
             "Change Renderer: Set to official renderer"
@@ -389,7 +394,7 @@ contract CreateTestDAOs is Script {
 
         // 3. Set Quorum (BPS) - Change quorum to 30%
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setQuorumBps(uint16)", uint16(3000)),
             bytes32(uint256(3)),
             "Set Quorum BPS: Change to 30%"
@@ -399,7 +404,7 @@ contract CreateTestDAOs is Script {
 
         // 4. Set Absolute Quorum - Require 500 votes minimum
         proposalIds[idx] = _createProposal(
-            dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+            dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setQuorumAbsolute(uint96)", uint96(500 ether)),
             bytes32(uint256(4)),
             "Set Absolute Quorum: Require 500 votes minimum"
@@ -409,7 +414,7 @@ contract CreateTestDAOs is Script {
 
         // 5. Set Min YES Votes - Require 200 YES votes to pass
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setMinYesVotesAbsolute(uint96)", uint96(200 ether)),
             bytes32(uint256(5)),
             "Set Min YES Votes: Require 200 YES to pass"
@@ -419,7 +424,7 @@ contract CreateTestDAOs is Script {
 
         // 6. Set Vote Threshold - Require 50 shares to propose
         proposalIds[idx] = _createProposal(
-            dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+            dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setProposalThreshold(uint96)", uint96(50 ether)),
             bytes32(uint256(6)),
             "Set Vote Threshold: Require 50 shares to propose"
@@ -429,7 +434,7 @@ contract CreateTestDAOs is Script {
 
         // 7. Set Proposal TTL - Change voting period to 5 days
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setProposalTTL(uint64)", uint64(5 days)),
             bytes32(uint256(7)),
             "Set Proposal TTL: Change voting period to 5 days"
@@ -439,7 +444,7 @@ contract CreateTestDAOs is Script {
 
         // 8. Set Timelock Delay - Add 2 day execution delay
         proposalIds[idx] = _createProposal(
-            dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+            dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(2 days)),
             bytes32(uint256(8)),
             "Set Timelock Delay: Add 2 day execution delay"
@@ -449,7 +454,7 @@ contract CreateTestDAOs is Script {
 
         // 9. Toggle Ragequit - Enable ragequit for members
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setRagequittable(bool)", true),
             bytes32(uint256(9)),
             "Toggle Ragequit: Enable ragequit for members"
@@ -459,7 +464,7 @@ contract CreateTestDAOs is Script {
 
         // 10. Toggle Transferability - Lock shares and loot transfers
         proposalIds[idx] = _createProposal(
-            dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+            dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setTransfersLocked(bool,bool)", true, true),
             bytes32(uint256(10)),
             "Toggle Transferability: Lock shares and loot transfers"
@@ -469,7 +474,7 @@ contract CreateTestDAOs is Script {
 
         // 11. Configure Auto-Futarchy - Enable 0.5% param, 10 LOOT cap
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setAutoFutarchy(uint256,uint256)", uint256(50), uint256(10 ether)),
             bytes32(uint256(11)),
             "Configure Auto-Futarchy: Enable 0.5% param, 10 LOOT cap"
@@ -479,7 +484,7 @@ contract CreateTestDAOs is Script {
 
         // 12. Set Futarchy Reward Token - Use ETH (address(0)) for rewards
         proposalIds[idx] = _createProposal(
-            dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+            dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setFutarchyRewardToken(address)", address(0)),
             bytes32(uint256(12)),
             "Set Futarchy Reward Token: Use ETH for rewards"
@@ -497,7 +502,7 @@ contract CreateTestDAOs is Script {
             });
             bytes memory batchData = abi.encodeWithSignature("batchCalls((address,uint256,bytes)[])", slashCalls);
             proposalIds[idx] = _createProposal(
-                dao2, deployerPrivateKey, 0, dao2Addr, 0,
+                dao2, user1Key, 0, dao2Addr, 0,
                 batchData,
                 bytes32(uint256(13)),
                 "Slash Member: Burn 10 shares from user2"
@@ -541,7 +546,7 @@ contract CreateTestDAOs is Script {
             });
             bytes memory batchData = abi.encodeWithSignature("batchCalls((address,uint256,bytes)[])", daicoCalls);
             proposalIds[idx] = _createProposal(
-                dao2, USER2_PRIVATE_KEY, 0, dao2Addr, 0,
+                dao2, user2Key, 0, dao2Addr, 0,
                 batchData,
                 bytes32(uint256(14)),
                 "DAICO Sale: Sell 100 shares for 10 ETH (0.1 ETH each)"
@@ -552,7 +557,7 @@ contract CreateTestDAOs is Script {
 
         // 15. Set Ragequit Timelock - Add 3 day ragequit delay
         proposalIds[idx] = _createProposal(
-            dao2, deployerPrivateKey, 0, dao2Addr, 0,
+            dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setRagequitTimelock(uint64)", uint64(3 days)),
             bytes32(uint256(15)),
             "Set Ragequit Timelock: Add 3 day ragequit delay"
@@ -565,23 +570,23 @@ contract CreateTestDAOs is Script {
         console.log("Voting on proposals 13, 14, 15...");
 
         // Proposal 13 (Slash): Both vote FOR
-        vm.broadcast(deployerPrivateKey);
+        vm.broadcast(user1Key);
         dao2.castVote(proposalIds[12], 1);
-        vm.broadcast(USER2_PRIVATE_KEY);
+        vm.broadcast(user2Key);
         dao2.castVote(proposalIds[12], 1);
         console.log("  - Proposal 13 (Slash): Both voted FOR");
 
         // Proposal 14 (DAICO): Both vote AGAINST
-        vm.broadcast(deployerPrivateKey);
+        vm.broadcast(user1Key);
         dao2.castVote(proposalIds[13], 0);
-        vm.broadcast(USER2_PRIVATE_KEY);
+        vm.broadcast(user2Key);
         dao2.castVote(proposalIds[13], 0);
         console.log("  - Proposal 14 (DAICO): Both voted AGAINST");
 
         // Proposal 15 (Ragequit Timelock): Both vote ABSTAIN
-        vm.broadcast(deployerPrivateKey);
+        vm.broadcast(user1Key);
         dao2.castVote(proposalIds[14], 2);
-        vm.broadcast(USER2_PRIVATE_KEY);
+        vm.broadcast(user2Key);
         dao2.castVote(proposalIds[14], 2);
         console.log("  - Proposal 15 (Ragequit Timelock): Both voted ABSTAIN");
 
