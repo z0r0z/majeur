@@ -53,6 +53,7 @@ The codebase maintains **two contract versions in parallel**:
 - Proposal state protection — prevents vote-sniping during voting period
 - On-chain message senders — no event queries needed for chat history
 - Reverse pagination — newest-first ordering for proposals/messages
+- Public impl getters — discover implementation addresses programmatically
 
 **Dapp compatibility:** Both `Majeur.html` and `DAICO.html` support v1 and v2 simultaneously with a user-selectable version switch.
 

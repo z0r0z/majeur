@@ -22,8 +22,8 @@ const CONTRACT_VERSIONS = {
     daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
   },
   v2: {
-    summoner: '0xE87488BED97417b9040B552cff2E935a2E12AFAc',
-    viewHelper: '0xcE750111F181247ADDdeE82941295E0b9025Af9a',
+    summoner: '0xC1fE5F7163A3fe20b40f0410Dbdea1D0e4AE0d2A',
+    viewHelper: '0x851D78aeE76329A0e8E0B8896214976A4059B37c',
     tribute: '0x000000000066524fcf78Dc1E41E9D525d9ea73D0',  // same
     daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'    // same
   }
@@ -118,6 +118,7 @@ Not everything needs branching. Here's what does and doesn't:
 | **Pagination** | Forward only | Supports `reverseOrder` for newest-first |
 | **MessageView struct** | `{index, text}` | `{index, sender, text}` |
 | **DAOGovConfig struct** | No ragequitTimelock | Has `ragequitTimelock` field |
+| **Impl addresses** | Internal (not exposed) | Public getters: `molochImpl`, `sharesImpl`, etc. |
 
 ---
 

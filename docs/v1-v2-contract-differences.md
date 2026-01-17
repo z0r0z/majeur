@@ -11,6 +11,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | `aafe5fc` | Add ragequitTimelock to ViewHelper | Exposes timelock in view helper |
 | `f2e368e` | Add reverse pagination to ViewHelper | Adds `PaginationParams` struct, `reverseOrder` flags |
 | `c06b759` | Add messageSenders mapping for on-chain chat | Stores sender address per message |
+| `aff4b5f` | Expose implementation addresses via public getters | Adds `molochImpl`, `sharesImpl`, `badgesImpl`, `lootImpl` |
 
 ---
 
@@ -24,6 +25,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | **Pagination** | Forward only | Forward + reverse ordering |
 | **DAOGovConfig struct** | No ragequitTimelock field | Has `ragequitTimelock` field |
 | **MessageView struct** | No sender field | Has `sender` field |
+| **Impl addresses** | Internal visibility | Public getters on Summoner and Moloch |
 
 ---
 
@@ -34,8 +36,15 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 - **ViewHelper**: `0x00000000006631040967E58e3430e4B77921a2db`
 
 ### v2 Contracts
-- **Summoner**: `0xE87488BED97417b9040B552cff2E935a2E12AFAc`
-- **ViewHelper**: `0xcE750111F181247ADDdeE82941295E0b9025Af9a`
+- **Summoner**: `0xC1fE5F7163A3fe20b40f0410Dbdea1D0e4AE0d2A`
+- **ViewHelper**: `0x851D78aeE76329A0e8E0B8896214976A4059B37c`
+
+### v2 Implementation Contracts
+These are deployed by the Summoner and can be queried via public getters:
+- **Moloch Impl**: `0xAFB72C54658f7332f695EbFfd9797C4eC1DAC863` (`summoner.molochImpl()`)
+- **Shares Impl**: `0x50621b4d32F91e9F2d38c7E498F45D0A8b79444E` (`molochImpl.sharesImpl()`)
+- **Badges Impl**: `0xF376f0066084a4b1739FC784D53b2aaC90dC173d` (`molochImpl.badgesImpl()`)
+- **Loot Impl**: `0x8af18386Bff7fD3549c6c8520CB86F271CdA6999` (`molochImpl.lootImpl()`)
 
 ---
 
@@ -62,9 +71,21 @@ mapping(address => uint256) public lastAcquisitionTimestamp;
 
 ## New v2 Functions
 
+### Summoner.sol
+
+```solidity
+/// @dev Public getter for the Moloch implementation address
+function molochImpl() public view returns (Moloch);
+```
+
 ### Moloch.sol
 
 ```solidity
+/// @dev Public getters for token implementation addresses
+function sharesImpl() public view returns (address);
+function badgesImpl() public view returns (address);
+function lootImpl() public view returns (address);
+
 /// @dev Configure the ragequit delay period
 /// @param s The timelock duration in seconds (0 to disable)
 function setRagequitTimelock(uint64 s) public payable onlyDAO {
@@ -83,6 +104,9 @@ function messageSenders(uint256 index) public view returns (address);
 // New in v2
 function ragequitTimelock() external view returns (uint64);
 function messageSenders(uint256) external view returns (address);
+function sharesImpl() external view returns (address);
+function badgesImpl() external view returns (address);
+function lootImpl() external view returns (address);
 ```
 
 ---
@@ -340,8 +364,8 @@ const CONTRACTS = {
     viewHelper: '0x00000000006631040967E58e3430e4B77921a2db'
   },
   v2: {
-    summoner: '0xE87488BED97417b9040B552cff2E935a2E12AFAc',
-    viewHelper: '0xcE750111F181247ADDdeE82941295E0b9025Af9a'
+    summoner: '0xC1fE5F7163A3fe20b40f0410Dbdea1D0e4AE0d2A',
+    viewHelper: '0x851D78aeE76329A0e8E0B8896214976A4059B37c'
   }
 };
 
@@ -567,6 +591,45 @@ async function fetchMessagesWithSenders(daoAddress, version, provider) {
 }
 ```
 
+### 6. Fetching Implementation Addresses (v2 only)
+
+```javascript
+async function getImplementationAddresses(summonerAddress, provider) {
+  const summonerAbi = [
+    'function molochImpl() view returns (address)'
+  ];
+  const molochAbi = [
+    'function sharesImpl() view returns (address)',
+    'function badgesImpl() view returns (address)',
+    'function lootImpl() view returns (address)'
+  ];
+
+  const summoner = new ethers.Contract(summonerAddress, summonerAbi, provider);
+  const molochImplAddr = await summoner.molochImpl();
+
+  const molochImpl = new ethers.Contract(molochImplAddr, molochAbi, provider);
+  const [sharesImpl, badgesImpl, lootImpl] = await Promise.all([
+    molochImpl.sharesImpl(),
+    molochImpl.badgesImpl(),
+    molochImpl.lootImpl()
+  ]);
+
+  return {
+    molochImpl: molochImplAddr,
+    sharesImpl,
+    badgesImpl,
+    lootImpl
+  };
+}
+
+// Usage
+const impls = await getImplementationAddresses(CONTRACTS.v2.summoner, provider);
+console.log('Moloch impl:', impls.molochImpl);
+console.log('Shares impl:', impls.sharesImpl);
+console.log('Badges impl:', impls.badgesImpl);
+console.log('Loot impl:', impls.lootImpl);
+```
+
 ---
 
 ## Migration Considerations
@@ -582,6 +645,7 @@ async function fetchMessagesWithSenders(daoAddress, version, provider) {
 3. **Handle MessageView.sender** being undefined for v1 (fetch from events if needed)
 4. **Display ragequit timelock info** for v2 DAOs
 5. **Use reverse pagination** for better UX when fetching recent proposals/messages
+6. **Use public impl getters** (v2) to discover implementation addresses programmatically
 
 ### Gas Considerations
 - v2 `chat()` costs ~20k more gas due to storing sender address

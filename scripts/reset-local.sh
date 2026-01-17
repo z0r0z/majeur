@@ -21,7 +21,7 @@ USER2_ADDR="0x4A81cBd1f0AF714F19AF819757Fb688DEf24AA24"
 # V2 Contract addresses (deterministic via CREATE2)
 SUMMONER="0xC1fE5F7163A3fe20b40f0410Dbdea1D0e4AE0d2A"
 VIEW_HELPER="0x851D78aeE76329A0e8E0B8896214976A4059B37c"
-MOLOCH_IMPL="0xAFB72C54658f7332f695EbFfd9797C4eC1DAC863"
+# Impl addresses are fetched dynamically from contracts in the report section
 
 echo "╔══════════════════════════════════════════════════════════════════════════════╗"
 echo "║                      MAJEUR LOCAL ENVIRONMENT RESET                          ║"
@@ -92,13 +92,23 @@ echo "║                           DEPLOYMENT REPORT                           
 echo "╚══════════════════════════════════════════════════════════════════════════════╝"
 echo ""
 
+# Fetch implementation addresses from contracts
+MOLOCH_IMPL=$(cast call $SUMMONER "molochImpl()(address)" --rpc-url "$LOCAL_RPC")
+SHARES_IMPL=$(cast call $MOLOCH_IMPL "sharesImpl()(address)" --rpc-url "$LOCAL_RPC")
+BADGES_IMPL=$(cast call $MOLOCH_IMPL "badgesImpl()(address)" --rpc-url "$LOCAL_RPC")
+LOOT_IMPL=$(cast call $MOLOCH_IMPL "lootImpl()(address)" --rpc-url "$LOCAL_RPC")
+
 # V2 Contracts
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  V2 CONTRACT ADDRESSES                                                       │"
 echo "├──────────────────────────────────────────────────────────────────────────────┤"
 echo "│  Summoner:      $SUMMONER                │"
 echo "│  ViewHelper:    $VIEW_HELPER                │"
+echo "├──────────────────────────────────────────────────────────────────────────────┤"
 echo "│  Moloch Impl:   $MOLOCH_IMPL                │"
+echo "│  Shares Impl:   $SHARES_IMPL                │"
+echo "│  Badges Impl:   $BADGES_IMPL                │"
+echo "│  Loot Impl:     $LOOT_IMPL                │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
