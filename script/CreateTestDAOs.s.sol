@@ -8,9 +8,9 @@ import {Renderer} from "../src/Renderer.sol";
 
 contract CreateTestDAOs is Script {
     // V2 addresses (deterministic via CREATE2)
-    address constant V2_SUMMONER = 0x6DC8b0F23B2040BE29187705120FD0076503e688;
-    address constant V2_MOLOCH_IMPL = 0x83422479458103D9c1088d3EB036AdFa5e4fE4F6;
-    address constant V2_VIEW_HELPER = 0x0cf87b3a114c78907cF7712e2Cbb61Bb3608c776;
+    address constant V2_SUMMONER = 0xC1fE5F7163A3fe20b40f0410Dbdea1D0e4AE0d2A;
+    address constant V2_MOLOCH_IMPL = 0xAFB72C54658f7332f695EbFfd9797C4eC1DAC863;
+    address constant V2_VIEW_HELPER = 0x851D78aeE76329A0e8E0B8896214976A4059B37c;
     address constant RENDERER = 0x000000000011C799980827F52d3137b4abD6E654;
 
     // Test user private keys (use specific env vars to avoid conflicts with global PRIVATE_KEY)

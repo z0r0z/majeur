@@ -25,6 +25,13 @@ contract DeployV2 is Script {
         Summoner summoner = new Summoner{salt: SUMMONER_SALT}();
         console.log("Summoner deployed at:", address(summoner));
 
+        // Log implementation addresses
+        Moloch molochImpl = summoner.molochImpl();
+        console.log("Moloch impl:", address(molochImpl));
+        console.log("Shares impl:", molochImpl.sharesImpl());
+        console.log("Loot impl:", molochImpl.lootImpl());
+        console.log("Badges impl:", molochImpl.badgesImpl());
+
         // Deploy ViewHelper with CREATE2
         MolochViewHelper viewHelper = new MolochViewHelper{salt: VIEW_HELPER_SALT}(address(summoner), DAICO);
         console.log("ViewHelper deployed at:", address(viewHelper));

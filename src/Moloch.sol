@@ -47,9 +47,9 @@ contract Moloch {
     bool public ragequittable; // `true` if owners can ragequit shares
 
     address immutable SUMMONER = msg.sender;
-    address immutable sharesImpl;
-    address immutable badgesImpl;
-    address immutable lootImpl;
+    address public immutable sharesImpl;
+    address public immutable badgesImpl;
+    address public immutable lootImpl;
 
     address public renderer;
     Shares public shares;
@@ -2082,10 +2082,10 @@ contract Summoner {
     event NewDAO(address indexed summoner, Moloch indexed dao);
 
     Moloch[] public daos;
-    Moloch immutable implementation;
+    Moloch public immutable molochImpl;
 
     constructor() payable {
-        emit NewDAO(address(this), implementation = new Moloch{salt: bytes32(0)}());
+        emit NewDAO(address(this), molochImpl = new Moloch{salt: bytes32(0)}());
     }
 
     /// @dev Summon new Majeur clone with initialization calls:
@@ -2102,7 +2102,7 @@ contract Summoner {
         Call[] calldata initCalls
     ) public payable returns (Moloch dao) {
         bytes32 _salt = keccak256(abi.encode(initHolders, initShares, salt));
-        Moloch _implementation = implementation;
+        Moloch _implementation = molochImpl;
         assembly ("memory-safe") {
             mstore(0x24, 0x5af43d5f5f3e6029573d5ffd5b3d5ff3)
             mstore(0x14, _implementation)
