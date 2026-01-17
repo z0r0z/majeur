@@ -1604,12 +1604,39 @@
       }
 
       .checkbox-group input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
         width: 20px;
         height: 20px;
-        accent-color: #9d7bff;
         cursor: pointer;
         flex-shrink: 0;
         position: relative;
+        background: rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(157, 123, 255, 0.4);
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      }
+
+      .checkbox-group input[type="checkbox"]:hover {
+        border-color: rgba(157, 123, 255, 0.7);
+        background: rgba(157, 123, 255, 0.1);
+      }
+
+      .checkbox-group input[type="checkbox"]:checked {
+        background: #9d7bff;
+        border-color: #9d7bff;
+      }
+
+      .checkbox-group input[type="checkbox"]:checked::after {
+        content: '';
+        position: absolute;
+        left: 5px;
+        top: 1px;
+        width: 6px;
+        height: 11px;
+        border: solid #fff;
+        border-width: 0 2.5px 2.5px 0;
+        transform: rotate(45deg);
       }
 
       /* Enhanced visual feedback for checked state */
@@ -1639,6 +1666,55 @@
       .checkbox-group:has(input[type="checkbox"]:checked) span {
         color: #e6d9ff;
         font-weight: 500;
+      }
+
+      /* Custom checkbox styling for standalone checkboxes (not in .checkbox-group or nav-toggle) */
+      input[type="checkbox"]:not(.nav-toggle-label input):not(.checkbox-group input) {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        position: relative;
+        background: rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(157, 123, 255, 0.4);
+        border-radius: 3px;
+        transition: all 0.2s ease;
+        vertical-align: middle;
+      }
+
+      input[type="checkbox"]:not(.nav-toggle-label input):not(.checkbox-group input):hover {
+        border-color: rgba(157, 123, 255, 0.7);
+        background: rgba(157, 123, 255, 0.1);
+      }
+
+      input[type="checkbox"]:not(.nav-toggle-label input):not(.checkbox-group input):checked {
+        background: #9d7bff;
+        border-color: #9d7bff;
+      }
+
+      input[type="checkbox"]:not(.nav-toggle-label input):not(.checkbox-group input):checked::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 0px;
+        width: 5px;
+        height: 10px;
+        border: solid #fff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+
+      /* LP checkbox color variant - higher specificity to override generic styles */
+      input[type="checkbox"].lp-checkbox:not(.nav-toggle-label input):not(.checkbox-group input):checked {
+        background: #64b5ff;
+        border-color: #64b5ff;
+      }
+
+      /* Tap checkbox color variant - higher specificity to override generic styles */
+      input[type="checkbox"].tap-checkbox:not(.nav-toggle-label input):not(.checkbox-group input):checked {
+        background: #ffb464;
+        border-color: #ffb464;
       }
 
       .status-message {
@@ -5620,6 +5696,14 @@
           margin-top: 0.1rem;
         }
 
+        .checkbox-group input[type="checkbox"]:checked::after {
+          left: 7px;
+          top: 2px;
+          width: 7px;
+          height: 13px;
+          border-width: 0 3px 3px 0;
+        }
+
         .checkbox-group span {
           font-size: 0.95rem;
           line-height: 1.4;
@@ -8919,6 +9003,20 @@
               <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Delay between proposal passing and execution</small>
             </div>
 
+            <div class="form-group v2-only" style="display: none;">
+              <label class="form-label">Ragequit Timelock</label>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="number" class="form-input" id="ragequitTimelock" placeholder="0" value="0" style="flex: 1;">
+                <select class="form-input" id="ragequitTimelockUnit" style="width: auto;">
+                  <option value="86400" selected>Days</option>
+                  <option value="3600">Hours</option>
+                  <option value="60">Minutes</option>
+                  <option value="1">Seconds</option>
+                </select>
+              </div>
+              <small style="color: rgba(230, 217, 255, 0.5); font-size: 0.8rem;">Delay after voting before members can ragequit (v2 only)</small>
+            </div>
+
             <div class="form-group">
               <label class="form-label">Proposal Threshold (optional)</label>
               <input type="number" class="form-input" id="proposalThreshold" placeholder="0" min="0" step="1">
@@ -9129,7 +9227,7 @@
                 <!-- DAICO LP Configuration (Optional) -->
                 <div id="daicoSummonLPSection" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: rgba(100, 150, 255, 0.08); border: 1px solid rgba(100, 150, 255, 0.25); border-radius: 4px;">
                   <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <input type="checkbox" id="daicoSummonEnableLP" onchange="toggleDaicoSummonLPFields(); updateDaicoSaleSummary();" style="width: 16px; height: 16px; accent-color: #64b5ff;">
+                    <input type="checkbox" id="daicoSummonEnableLP" class="lp-checkbox" onchange="toggleDaicoSummonLPFields(); updateDaicoSaleSummary();">
                     <label for="daicoSummonEnableLP" style="font-size: 0.8rem; color: #64b5ff; font-weight: 600; cursor: pointer;">Enable Liquidity Provision (LP)</label>
                     <span title="Auto-route a portion of tribute to ZAMM liquidity pool. Builds liquidity automatically but buyers receive slightly fewer tokens." style="cursor: help; font-size: 0.8rem;">ℹ️</span>
                   </div>
@@ -9155,7 +9253,7 @@
                 <!-- DAICO Tap Configuration (Optional) -->
                 <div id="daicoSummonTapSection" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: rgba(255, 180, 100, 0.08); border: 1px solid rgba(255, 180, 100, 0.25); border-radius: 4px;">
                   <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <input type="checkbox" id="daicoSummonEnableTap" onchange="toggleDaicoSummonTapFields(); updateDaicoSaleSummary();" style="width: 16px; height: 16px; accent-color: #ffb464;">
+                    <input type="checkbox" id="daicoSummonEnableTap" class="tap-checkbox" onchange="toggleDaicoSummonTapFields(); updateDaicoSaleSummary();">
                     <label for="daicoSummonEnableTap" style="font-size: 0.8rem; color: #ffb464; font-weight: 600; cursor: pointer;">Enable Tap (Continuous Funding)</label>
                     <span title="Set up a continuous funding stream from sale proceeds to an operations address. Like Vitalik's DAICO tap mechanism." style="cursor: help; font-size: 0.8rem;">ℹ️</span>
                   </div>
@@ -11001,6 +11099,12 @@
           const localhostOption = document.getElementById('localhostNetworkOption');
           if (localhostOption) localhostOption.style.display = '';
         }
+
+        // Show/hide v2-only form fields
+        const v2OnlyFields = document.querySelectorAll('.v2-only');
+        v2OnlyFields.forEach(el => {
+          el.style.display = currentContractVersion === 'v2' ? '' : 'none';
+        });
       });
       const SUMMONER_ABI = [
         {
@@ -11720,11 +11824,11 @@
             {"internalType": "address", "name": "user", "type": "address"},
             {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
             {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
-            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"},
             {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
             {"internalType": "uint256", "name": "proposalCount", "type": "uint256"},
             {"internalType": "uint256", "name": "messageStart", "type": "uint256"},
-            {"internalType": "uint256", "name": "messageCount", "type": "uint256"}
+            {"internalType": "uint256", "name": "messageCount", "type": "uint256"},
+            {"internalType": "address[]", "name": "treasuryTokens", "type": "address[]"}
           ],
           "name": "getUserDAOsFullState",
           "outputs": [
@@ -13576,6 +13680,12 @@
           shares: '0x71E9b38d301b5A58cb998C1295045FE276Acf600',
           badges: '0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5',
           loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
+        },
+        localhost: {
+          moloch: '0xAFB72C54658f7332f695EbFfd9797C4eC1DAC863',
+          shares: '0x50621b4d32F91e9F2d38c7E498F45D0A8b79444E',
+          loot: '0x8af18386Bff7fD3549c6c8520CB86F271CdA6999',
+          badges: '0xF376f0066084a4b1739FC784D53b2aaC90dC173d'
         }
       };
 
@@ -13617,6 +13727,7 @@
         setMinYesVotesAbsolute: new ethers.Interface(['function setMinYesVotesAbsolute(uint96)']),
         setQuorumAbsolute: new ethers.Interface(['function setQuorumAbsolute(uint96)']),
         setFutarchyRewardToken: new ethers.Interface(['function setFutarchyRewardToken(address)']),
+        setRagequitTimelock: new ethers.Interface(['function setRagequitTimelock(uint64)']),
         // DAICO interfaces
         daicoSetSale: new ethers.Interface(['function setSale(address tribTkn, uint256 tribAmt, address forTkn, uint256 forAmt, uint40 deadline)']),
         daicoSetLPConfig: new ethers.Interface(['function setLPConfig(address tribTkn, uint16 lpBps, uint16 maxSlipBps, uint256 feeOrHook)']),
@@ -13902,8 +14013,10 @@
         // Try connected wallet provider first (if not WalletConnect - its RPCs are unreliable)
         if (provider && !walletConnectProvider) {
           try {
+            console.log('withRpcFallback: trying connected wallet provider');
             return await withTimeout(fn(provider), RPC_TIMEOUT_MS);
           } catch (e) {
+            console.error('withRpcFallback: wallet provider failed:', e);
             logger.warn('Connected provider failed, trying public RPCs:', e.message);
           }
         }
@@ -13911,11 +14024,13 @@
         // Try each public RPC until one works
         for (const rpc of network.rpcs) {
           try {
+            console.log('withRpcFallback: trying RPC:', rpc);
             const rpcProvider = new ethers.JsonRpcProvider(rpc);
             const result = await withTimeout(fn(rpcProvider), RPC_TIMEOUT_MS);
             logger.log(`Using RPC: ${rpc}`);
             return result;
           } catch (e) {
+            console.error(`withRpcFallback: RPC ${rpc} failed:`, e);
             logger.warn(`RPC ${rpc} failed:`, e.message);
             // Continue to next RPC
           }
@@ -16482,23 +16597,24 @@
           const result = await withRpcFallback(async (activeProvider) => {
             const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
 
-            // Default params: start at DAO 0, fetch up to 10 DAOs, recent 50 proposals, recent 20 messages
+            // Default params: start at DAO 0, fetch up to 100 DAOs, recent 50 proposals, recent 20 messages
             if (currentContractVersion === 'v1') {
+              // v1 has treasuryTokens as last param (different from v2)
               return await viewHelper.getUserDAOsFullState(
                 userAddr,
                 0,  // daoStart
-                10, // daoCount
-                treasuryTokens,
+                100, // daoCount - scan all DAOs (ViewHelper filters to user's memberships)
                 0,  // proposalStart
                 50, // proposalCount
                 0,  // messageStart
-                20  // messageCount
+                20, // messageCount
+                treasuryTokens
               );
             }
             return await viewHelper.getUserDAOsFullState(
               userAddr,
               0,  // daoStart
-              10, // daoCount
+              100, // daoCount - scan all DAOs (ViewHelper filters to user's memberships)
               treasuryTokens,
               {
                 proposalStart: 0,
@@ -16515,6 +16631,7 @@
 
           return userDAOs;
         } catch (error) {
+          console.error('fetchUserDAOs error:', error);
           logger.error('Error fetching user DAOs:', error);
           return [];
         }
@@ -23979,7 +24096,7 @@
           <!-- LP Configuration (Optional) -->
           <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(100, 150, 255, 0.08); border: 1px solid rgba(100, 150, 255, 0.25); border-radius: 4px;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <input type="checkbox" id="daicoProposalEnableLP" onchange="toggleDaicoLPFields()" style="width: 16px; height: 16px; accent-color: #64b5ff;">
+              <input type="checkbox" id="daicoProposalEnableLP" class="lp-checkbox" onchange="toggleDaicoLPFields()">
               <label for="daicoProposalEnableLP" style="font-size: 0.8rem; color: #64b5ff; font-weight: 600; cursor: pointer;">Enable Liquidity Provision (LP)</label>
               <span title="Auto-route a portion of tribute to ZAMM liquidity pool. Buyers receive slightly fewer tokens but liquidity is built automatically." style="cursor: help;">ℹ️</span>
             </div>
@@ -24005,7 +24122,7 @@
           <!-- Tap Configuration (Optional) -->
           <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255, 180, 100, 0.08); border: 1px solid rgba(255, 180, 100, 0.25); border-radius: 4px;">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <input type="checkbox" id="daicoProposalEnableTap" onchange="toggleDaicoTapFields()" style="width: 16px; height: 16px; accent-color: #ffb464;">
+              <input type="checkbox" id="daicoProposalEnableTap" class="tap-checkbox" onchange="toggleDaicoTapFields()">
               <label for="daicoProposalEnableTap" style="font-size: 0.8rem; color: #ffb464; font-weight: 600; cursor: pointer;">Enable Tap (Continuous Funding)</label>
               <span title="Set up a continuous funding stream from sale proceeds to an operations address. Like Vitalik's DAICO tap mechanism." style="cursor: help;">ℹ️</span>
             </div>
@@ -30149,21 +30266,22 @@
           const treasuryTokens = getNetwork().treasuryTokens;
 
           // Fetch more proposals and messages to ensure we see new items
+          // v1 has treasuryTokens as last param (different from v2)
           const updatedDAOs = currentContractVersion === 'v1'
             ? await viewHelper.getUserDAOsFullState(
                 connectedAddress,
                 0,  // daoStart
-                10, // daoCount
-                treasuryTokens,
+                100, // daoCount - scan all DAOs
                 0,  // proposalStart
                 50, // proposalCount
                 0,  // messageStart
-                20  // messageCount
+                20, // messageCount
+                treasuryTokens
               )
             : await viewHelper.getUserDAOsFullState(
                 connectedAddress,
                 0,  // daoStart
-                10, // daoCount
+                100, // daoCount - scan all DAOs
                 treasuryTokens,
                 {
                   proposalStart: 0,
@@ -31699,6 +31817,18 @@
             });
           }
 
+          // Add ragequit timelock setting if specified (v2 only)
+          if (currentContractVersion === 'v2') {
+            const ragequitTimelock = getSecondsFromInput('ragequitTimelock', 'ragequitTimelockUnit');
+            if (ragequitTimelock > 0) {
+              initCalls.push({
+                target: predictedDao,
+                value: 0n,
+                data: INTERFACES.setRagequitTimelock.encodeFunctionData('setRagequitTimelock', [ragequitTimelock])
+              });
+            }
+          }
+
           // Add loot distribution if enabled
           const distributeLoot = getEl('distributeLoot').checked;
           if (distributeLoot) {
@@ -32081,6 +32211,22 @@
             ? ethers.parseEther(initialEthDepositInput)
             : 0n;
 
+          // Debug logging for v2 transaction
+          console.log('=== v2 Summon Debug Info ===');
+          console.log('Contract version:', currentContractVersion);
+          console.log('Current network:', currentNetwork);
+          const providerNetwork = await provider.getNetwork();
+          console.log('Provider network chainId:', providerNetwork.chainId.toString());
+          console.log('Wallet chainId (hex):', walletChainIdHex);
+          console.log('Summoner address:', getSummonerAddress());
+          console.log('initCalls count:', initCalls.length);
+          initCalls.forEach((call, i) => {
+            console.log(`  initCall[${i}]: target=${call.target}, value=${call.value}, data=${call.data.substring(0, 66)}...`);
+          });
+          console.log('initHolders:', initHolders);
+          console.log('initShares:', initShares.map(s => s.toString()));
+          console.log('=== End Debug Info ===');
+
           // Call summon
           showStatus('Please confirm the transaction in your wallet...');
 
@@ -32312,8 +32458,8 @@
           fetchAllDAOs().catch(() => {}); // Load in background, errors handled in function
         }
 
-        // Small delay to allow EIP-6963 providers to announce themselves
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Delay to allow EIP-6963 providers to announce themselves
+        await new Promise(resolve => setTimeout(resolve, 200));
 
         // Auto-reconnect logic - only reconnect if user has a stored wallet preference
         // This ensures users who explicitly disconnected stay disconnected
@@ -32331,9 +32477,24 @@
               // Try to reconnect with the user's preferred wallet
               const wallets = detectWallets();
 
-              if (wallets.some(w => w.key === preferredWallet)) {
-                // Reconnect with preferred wallet
-                await connectWithWallet(preferredWallet);
+              // Find wallet by exact key match first
+              let walletToConnect = wallets.find(w => w.key === preferredWallet);
+
+              // For EIP-6963 wallets, the UUID may change across reloads
+              // Fall back to matching by name if exact key fails
+              if (!walletToConnect && preferredWallet.startsWith('eip6963_')) {
+                // Try legacy detection (e.g., 'metamask', 'rabby') since those have stable keys
+                const legacyWallet = wallets.find(w => !w.key.startsWith('eip6963_') && w.detect?.());
+                if (legacyWallet) {
+                  walletToConnect = legacyWallet;
+                  // Update preference to the stable legacy key
+                  saveWalletPreference(legacyWallet.key);
+                }
+              }
+
+              if (walletToConnect) {
+                // Reconnect with found wallet
+                await connectWithWallet(walletToConnect.key);
                 autoReconnected = true;
               }
               // No fallback - if preferred wallet is not available, user must connect manually

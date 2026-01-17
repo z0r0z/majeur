@@ -38,7 +38,7 @@ echo "│  [1/4] Restarting Anvil                                               
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 tmux send-keys -t dev:1 C-c
 sleep 1
-tmux send-keys -t dev:1 "anvil --fork-url $FORK_URL --code-size-limit 50000" Enter
+tmux send-keys -t dev:1 "anvil --fork-url $FORK_URL --code-size-limit 50000 --chain-id 31337" Enter
 
 echo -n "  Waiting for Anvil"
 for i in {1..30}; do

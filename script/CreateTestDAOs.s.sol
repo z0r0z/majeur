@@ -144,7 +144,7 @@ contract CreateTestDAOs is Script {
             dao1 = summoner.summon(
                 "Alpha DAO",
                 "ALPHA",
-                "https://example.com/alpha",
+                "https://st.depositphotos.com/2892507/4212/i/600/depositphotos_42123797-stock-photo-easter-dalmatain-puppy.jpg",
                 5000, // 50% quorum
                 true, // ragequittable
                 RENDERER,
@@ -222,7 +222,7 @@ contract CreateTestDAOs is Script {
             Moloch dao3 = summoner.summon(
                 "Solo DAO",
                 "SOLO",
-                "ipfs://QmTest123456789",
+                "ipfs://QmNa8mQkrNKp1WEEeGjFezDmDeodkWRevGFN8JCV7b4Xir",
                 10000, // 100% quorum (all must vote)
                 true,
                 RENDERER,
@@ -312,7 +312,7 @@ contract CreateTestDAOs is Script {
             Moloch dao5 = summoner.summon(
                 "Delta Protocol",
                 "DELTA",
-                "https://delta.example.com",
+                "https://static9.depositphotos.com/1594920/1088/i/600/depositphotos_10881569-stock-photo-araucana-chicken-8-days-old.jpg",
                 100, // 1% quorum
                 true,
                 RENDERER,
