@@ -64,14 +64,24 @@ FORGE_FLAGS="--rpc-url $LOCAL_RPC --broadcast --code-size-limit 50000"
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [2/4] Deploying V2 Contracts                                                │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-forge script script/DeployV2.s.sol $FORGE_FLAGS 2>&1 | grep -E "(Summoner|ViewHelper|===)" | sed 's/^/  /'
+DEPLOY_OUTPUT=$(forge script script/DeployV2.s.sol $FORGE_FLAGS 2>&1) || {
+    echo "  ✗ Deployment failed!"
+    echo "$DEPLOY_OUTPUT" | sed 's/^/  /'
+    exit 1
+}
+echo "$DEPLOY_OUTPUT" | grep -E "(Summoner|ViewHelper|===)" | sed 's/^/  /'
 echo ""
 
 # 3. Deploy test DAOs (Phase 1)
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [3/4] Creating Test DAOs (Phase 1)                                          │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-forge script script/CreateTestDAOs.s.sol --sig "runPhase1()" $FORGE_FLAGS 2>&1 | grep -E "(DAO [0-9]|User|messages|Phase)" | sed 's/^/  /'
+DAO_OUTPUT=$(forge script script/CreateTestDAOs.s.sol --sig "runPhase1()" $FORGE_FLAGS 2>&1) || {
+    echo "  ✗ DAO creation failed!"
+    echo "$DAO_OUTPUT" | sed 's/^/  /'
+    exit 1
+}
+echo "$DAO_OUTPUT" | grep -E "(DAO [0-9]|User|messages|Phase)" | sed 's/^/  /'
 echo ""
 
 # 4. Mine a block
