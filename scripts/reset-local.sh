@@ -34,7 +34,7 @@ echo ""
 
 # 1. Restart Anvil in tmux dev:1
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
-echo "│  [1/4] Restarting Anvil                                                      │"
+echo "│  [1/5] Restarting Anvil                                                      │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 tmux send-keys -t dev:1 C-c
 sleep 1
@@ -62,7 +62,7 @@ FORGE_FLAGS="--rpc-url $LOCAL_RPC --broadcast --code-size-limit 50000"
 
 # 2. Deploy V2 contracts
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
-echo "│  [2/4] Deploying V2 Contracts                                                │"
+echo "│  [2/5] Deploying V2 Contracts                                                │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 DEPLOY_OUTPUT=$(forge script script/DeployV2.s.sol $FORGE_FLAGS 2>&1) || {
     echo "  ✗ Deployment failed!"
@@ -74,7 +74,7 @@ echo ""
 
 # 3. Deploy test DAOs (Phase 1)
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
-echo "│  [3/4] Creating Test DAOs (Phase 1)                                          │"
+echo "│  [3/5] Creating Test DAOs (Phase 1)                                          │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 DAO_OUTPUT=$(forge script script/CreateTestDAOs.s.sol --sig "runPhase1()" $FORGE_FLAGS 2>&1) || {
     echo "  ✗ DAO creation failed!"
@@ -86,10 +86,22 @@ echo ""
 
 # 4. Mine a block
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
-echo "│  [4/4] Mining Block for Checkpoint                                           │"
+echo "│  [4/5] Mining Block for Checkpoint                                           │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 cast rpc anvil_mine --rpc-url "$LOCAL_RPC" >/dev/null
 echo "  Block mined ✓"
+echo ""
+
+# 5. Create governance proposals (Phase 2)
+echo "┌──────────────────────────────────────────────────────────────────────────────┐"
+echo "│  [5/5] Creating Governance Proposals (Phase 2)                               │"
+echo "└──────────────────────────────────────────────────────────────────────────────┘"
+PHASE2_OUTPUT=$(forge script script/CreateTestDAOs.s.sol --sig "runPhase2()" $FORGE_FLAGS 2>&1) || {
+    echo "  ✗ Phase 2 failed!"
+    echo "$PHASE2_OUTPUT" | sed 's/^/  /'
+    exit 1
+}
+echo "$PHASE2_OUTPUT" | grep -E "(proposal created|Voting|Phase|votes)" | sed 's/^/  /'
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════════
@@ -273,21 +285,6 @@ echo "  │  Activity: None (pristine DAO for testing fast governance)          
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
-# Next Steps
-echo "┌──────────────────────────────────────────────────────────────────────────────┐"
-echo "│  NEXT STEPS                                                                  │"
-echo "├──────────────────────────────────────────────────────────────────────────────┤"
-echo "│                                                                              │"
-echo "│  Run Phase 2 to create governance proposals in Beta Collective:              │"
-echo "│                                                                              │"
-echo "│    forge script script/CreateTestDAOs.s.sol --sig 'runPhase2()' \\           │"
-echo "│      --rpc-url http://localhost:8545 --broadcast --code-size-limit 50000     │"
-echo "│                                                                              │"
-echo "│  Or use the frontend:                                                        │"
-echo "│    http://localhost:8080/Majeur.html                                         │"
-echo "│                                                                              │"
-echo "└──────────────────────────────────────────────────────────────────────────────┘"
-echo ""
 echo "═══════════════════════════════════════════════════════════════════════════════"
 echo "                          LOCAL ENVIRONMENT READY ✓"
 echo "═══════════════════════════════════════════════════════════════════════════════"

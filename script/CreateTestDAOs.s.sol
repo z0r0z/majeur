@@ -358,12 +358,12 @@ contract CreateTestDAOs is Script {
         console.log("User 1 (deployer):", deployer);
         console.log("User 2:", user2);
 
-        // DAO 2 address (deterministic from Phase 1)
-        Moloch dao2 = Moloch(payable(0x1A79d36bcAA43891B99bB749FF6e016B683dDAaa));
+        // Fetch DAO 2 address from Summoner (index 1)
+        Summoner summoner = Summoner(V2_SUMMONER);
+        Moloch dao2 = Moloch(payable(summoner.daos(1)));
         address dao2Addr = address(dao2);
         address sharesToken = address(dao2.shares());
         address lootToken = address(dao2.loot());
-        Summoner summoner = Summoner(V2_SUMMONER);
 
         console.log("Creating governance proposals in DAO 2...");
         console.log("  Shares token:", sharesToken);
@@ -377,7 +377,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setMetadata(string,string,string)", "Beta DAO Renamed", "BETA2", "ipfs://QmNewDescription"),
             bytes32(uint256(1)),
-            "Set Metadata: Rename to Beta DAO Renamed"
+            "I told my wife she was drawing her eyebrows too high. She looked surprised."
         );
         console.log("  1. Set Metadata proposal created");
         idx++;
@@ -387,7 +387,7 @@ contract CreateTestDAOs is Script {
             dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setRenderer(address)", RENDERER),
             bytes32(uint256(2)),
-            "Change Renderer: Set to official renderer"
+            "My grandfather has the heart of a lion and a lifetime ban from the zoo."
         );
         console.log("  2. Change Renderer proposal created");
         idx++;
@@ -397,7 +397,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setQuorumBps(uint16)", uint16(3000)),
             bytes32(uint256(3)),
-            "Set Quorum BPS: Change to 30%"
+            "I have a fish that can breakdance! Only for 20 seconds though, and only once."
         );
         console.log("  3. Set Quorum BPS proposal created");
         idx++;
@@ -407,7 +407,7 @@ contract CreateTestDAOs is Script {
             dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setQuorumAbsolute(uint96)", uint96(500 ether)),
             bytes32(uint256(4)),
-            "Set Absolute Quorum: Require 500 votes minimum"
+            "My wife told me to stop impersonating a flamingo. I had to put my foot down."
         );
         console.log("  4. Set Absolute Quorum proposal created");
         idx++;
@@ -417,7 +417,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setMinYesVotesAbsolute(uint96)", uint96(200 ether)),
             bytes32(uint256(5)),
-            "Set Min YES Votes: Require 200 YES to pass"
+            "I threw a boomerang a few years ago. I now live in constant fear."
         );
         console.log("  5. Set Min YES Votes proposal created");
         idx++;
@@ -427,7 +427,7 @@ contract CreateTestDAOs is Script {
             dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setProposalThreshold(uint96)", uint96(50 ether)),
             bytes32(uint256(6)),
-            "Set Vote Threshold: Require 50 shares to propose"
+            "My therapist says I have a preoccupation with vengeance. We'll see about that."
         );
         console.log("  6. Set Vote Threshold proposal created");
         idx++;
@@ -437,7 +437,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setProposalTTL(uint64)", uint64(5 days)),
             bytes32(uint256(7)),
-            "Set Proposal TTL: Change voting period to 5 days"
+            "I have a stepladder because my real ladder left when I was a kid."
         );
         console.log("  7. Set Proposal TTL proposal created");
         idx++;
@@ -447,7 +447,7 @@ contract CreateTestDAOs is Script {
             dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(2 days)),
             bytes32(uint256(8)),
-            "Set Timelock Delay: Add 2 day execution delay"
+            "The cemetery is so crowded. People are just dying to get in."
         );
         console.log("  8. Set Timelock Delay proposal created");
         idx++;
@@ -457,7 +457,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setRagequittable(bool)", true),
             bytes32(uint256(9)),
-            "Toggle Ragequit: Enable ragequit for members"
+            "I told my suitcases there will be no vacation this year. Now I'm dealing with emotional baggage."
         );
         console.log("  9. Toggle Ragequit proposal created");
         idx++;
@@ -467,7 +467,7 @@ contract CreateTestDAOs is Script {
             dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setTransfersLocked(bool,bool)", true, true),
             bytes32(uint256(10)),
-            "Toggle Transferability: Lock shares and loot transfers"
+            "My parents raised me as an only child, which really annoyed my sister."
         );
         console.log("  10. Toggle Transferability proposal created");
         idx++;
@@ -477,7 +477,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setAutoFutarchy(uint256,uint256)", uint256(50), uint256(10 ether)),
             bytes32(uint256(11)),
-            "Configure Auto-Futarchy: Enable 0.5% param, 10 LOOT cap"
+            "I have many jokes about unemployed people. Sadly none of them work."
         );
         console.log("  11. Configure Auto-Futarchy proposal created");
         idx++;
@@ -487,7 +487,7 @@ contract CreateTestDAOs is Script {
             dao2, user2Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setFutarchyRewardToken(address)", address(0)),
             bytes32(uint256(12)),
-            "Set Futarchy Reward Token: Use ETH for rewards"
+            "I asked the librarian if the library had books about paranoia. She whispered, 'They're right behind you.'"
         );
         console.log("  12. Set Futarchy Reward Token proposal created");
         idx++;
@@ -505,7 +505,7 @@ contract CreateTestDAOs is Script {
                 dao2, user1Key, 0, dao2Addr, 0,
                 batchData,
                 bytes32(uint256(13)),
-                "Slash Member: Burn 10 shares from user2"
+                "I used to think the brain was the most important organ. Then I thought, look what's telling me that."
             );
             console.log("  13. Slash Member proposal created");
             idx++;
@@ -549,7 +549,7 @@ contract CreateTestDAOs is Script {
                 dao2, user2Key, 0, dao2Addr, 0,
                 batchData,
                 bytes32(uint256(14)),
-                "DAICO Sale: Sell 100 shares for 10 ETH (0.1 ETH each)"
+                "Build a man a fire and he's warm for a day. Set a man on fire and he's warm for the rest of his life."
             );
             console.log("  14. DAICO Sale proposal created");
             idx++;
@@ -560,7 +560,7 @@ contract CreateTestDAOs is Script {
             dao2, user1Key, 0, dao2Addr, 0,
             abi.encodeWithSignature("setRagequitTimelock(uint64)", uint64(3 days)),
             bytes32(uint256(15)),
-            "Set Ragequit Timelock: Add 3 day ragequit delay"
+            "I'd like to have kids one day. I don't think I could stand them any longer than that."
         );
         console.log("  15. Set Ragequit Timelock proposal created");
         idx++;
