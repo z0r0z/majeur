@@ -17077,14 +17077,166 @@
       }
 
       // Format proposal body with transfer details first, then description as "Additional Notes:"
+      // Decode governance calldata for proposal display
+      function decodeGovernanceCalldata(data, to, daoAddress) {
+        if (!data || data === '0x' || data.length < 10) return null;
+
+        const functionSelector = data.slice(0, 10).toLowerCase();
+        const abiCoder = new ethers.AbiCoder();
+        const isDaoSelfCall = to?.toLowerCase() === daoAddress?.toLowerCase();
+
+        try {
+          // setMetadata(string,string,string) - 0x6f2d3098
+          if (isDaoSelfCall && functionSelector === '0x6f2d3098') {
+            const decoded = abiCoder.decode(['string', 'string', 'string'], `0x${data.slice(10)}`);
+            return { type: 'Set Metadata', details: `Name: <strong>${escapeHtml(decoded[0])}</strong>, Symbol: <strong>${escapeHtml(decoded[1])}</strong>` };
+          }
+          // setRenderer(address) - 0x56d3163d
+          if (isDaoSelfCall && functionSelector === '0x56d3163d') {
+            const decoded = abiCoder.decode(['address'], `0x${data.slice(10)}`);
+            return { type: 'Change Renderer', details: `Address: <code>${decoded[0].slice(0, 10)}...${decoded[0].slice(-6)}</code>` };
+          }
+          // setQuorumBps(uint16) - 0x0527aab6
+          if (isDaoSelfCall && functionSelector === '0x0527aab6') {
+            const decoded = abiCoder.decode(['uint16'], `0x${data.slice(10)}`);
+            return { type: 'Set Quorum (BPS)', details: `<strong>${(Number(decoded[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong>` };
+          }
+          // setQuorumAbsolute(uint96) - 0xcf9d6ed6
+          if (isDaoSelfCall && functionSelector === '0xcf9d6ed6') {
+            const decoded = abiCoder.decode(['uint96'], `0x${data.slice(10)}`);
+            return { type: 'Set Absolute Quorum', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[0], 18))} votes</strong>` };
+          }
+          // setMinYesVotesAbsolute(uint96) - 0xb83b4137
+          if (isDaoSelfCall && functionSelector === '0xb83b4137') {
+            const decoded = abiCoder.decode(['uint96'], `0x${data.slice(10)}`);
+            return { type: 'Set Min YES Votes', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[0], 18))} votes</strong>` };
+          }
+          // setProposalThreshold(uint96) - 0x80ca42a1
+          if (isDaoSelfCall && functionSelector === '0x80ca42a1') {
+            const decoded = abiCoder.decode(['uint96'], `0x${data.slice(10)}`);
+            return { type: 'Set Proposal Threshold', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[0], 18))} shares</strong>` };
+          }
+          // setProposalTTL(uint64) - 0xff391467
+          if (isDaoSelfCall && functionSelector === '0xff391467') {
+            const decoded = abiCoder.decode(['uint64'], `0x${data.slice(10)}`);
+            return { type: 'Set Proposal TTL', details: `<strong>${formatDuration(Number(decoded[0]))}</strong>` };
+          }
+          // setTimelockDelay(uint64) - 0x3821933a
+          if (isDaoSelfCall && functionSelector === '0x3821933a') {
+            const decoded = abiCoder.decode(['uint64'], `0x${data.slice(10)}`);
+            return { type: 'Set Timelock Delay', details: `<strong>${formatDuration(Number(decoded[0]))}</strong>` };
+          }
+          // setRagequittable(bool) - 0x174c480e
+          if (isDaoSelfCall && functionSelector === '0x174c480e') {
+            const decoded = abiCoder.decode(['bool'], `0x${data.slice(10)}`);
+            return { type: 'Toggle Ragequit', details: decoded[0] ? '<strong style="color: #7bff9d;">Enable</strong>' : '<strong style="color: #ff7b9d;">Disable</strong>' };
+          }
+          // setRagequitTimelock(uint64) - 0x463c1e71
+          if (isDaoSelfCall && functionSelector === '0x463c1e71') {
+            const decoded = abiCoder.decode(['uint64'], `0x${data.slice(10)}`);
+            return { type: 'Set Ragequit Timelock', details: `<strong>${formatDuration(Number(decoded[0]))}</strong>` };
+          }
+          // setTransfersLocked(bool,bool) - 0x80fe038f
+          if (isDaoSelfCall && functionSelector === '0x80fe038f') {
+            const decoded = abiCoder.decode(['bool', 'bool'], `0x${data.slice(10)}`);
+            return { type: 'Set Transferability', details: `Shares: <strong>${decoded[0] ? 'Locked' : 'Unlocked'}</strong>, Loot: <strong>${decoded[1] ? 'Locked' : 'Unlocked'}</strong>` };
+          }
+          // setAutoFutarchy(uint256,uint256) - 0x92a023a9
+          if (isDaoSelfCall && functionSelector === '0x92a023a9') {
+            const decoded = abiCoder.decode(['uint256', 'uint256'], `0x${data.slice(10)}`);
+            if (decoded[0] === 0n && decoded[1] === 0n) {
+              return { type: 'Configure Auto-Futarchy', details: '<strong>Disabled</strong>' };
+            }
+            return { type: 'Configure Auto-Futarchy', details: `<strong>${(Number(decoded[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong> of supply, <strong>${formatDisplayNumber(ethers.formatUnits(decoded[1], 18))}</strong> cap` };
+          }
+          // setFutarchyRewardToken(address) - 0x8fb66f42
+          if (isDaoSelfCall && functionSelector === '0x8fb66f42') {
+            const decoded = abiCoder.decode(['address'], `0x${data.slice(10)}`);
+            const label = decoded[0] === ethers.ZeroAddress ? 'ETH' : `${decoded[0].slice(0, 8)}...`;
+            return { type: 'Set Futarchy Reward Token', details: `<strong>${label}</strong>` };
+          }
+          // bumpConfig() - 0x7ec924db
+          if (isDaoSelfCall && functionSelector === '0x7ec924db') {
+            return { type: '🚨 Bump Config', details: '<strong style="color: #ff7b9d;">Invalidate all pending proposals</strong>' };
+          }
+          // setPermit(uint8,address,uint256,bytes,bytes32,address,uint256) - 0x12374b04
+          if (isDaoSelfCall && functionSelector === '0x12374b04') {
+            const decoded = abiCoder.decode(['uint8', 'address', 'uint256', 'bytes', 'bytes32', 'address', 'uint256'], `0x${data.slice(10)}`);
+            const count = Number(decoded[6]);
+            return { type: 'Set Permit', details: `<strong>${count === 0 ? 'Revoke' : `${count} use(s)`}</strong> for ${decoded[5].slice(0, 8)}...` };
+          }
+          // setAllowance(address,address,uint256) - 0xda46098c
+          if (isDaoSelfCall && functionSelector === '0xda46098c') {
+            const decoded = abiCoder.decode(['address', 'address', 'uint256'], `0x${data.slice(10)}`);
+            const tokenLabel = decoded[1] === ethers.ZeroAddress ? 'ETH' : 'Token';
+            return { type: 'Set Allowance', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[2], 18))} ${tokenLabel}</strong> to ${decoded[0].slice(0, 8)}...` };
+          }
+          // setSale(address,uint256,uint256,bool,bool,bool) - 0x48b7fef2
+          if (isDaoSelfCall && functionSelector === '0x48b7fef2') {
+            const decoded = abiCoder.decode(['address', 'uint256', 'uint256', 'bool', 'bool', 'bool'], `0x${data.slice(10)}`);
+            const payToken = decoded[0] === ethers.ZeroAddress ? 'ETH' : 'ERC20';
+            const tokenType = decoded[5] ? 'Loot' : 'Shares';
+            const source = decoded[3] ? 'mint' : 'transfer';
+            const status = decoded[4] ? 'Enable' : 'Disable';
+            const cap = decoded[2] > 0n ? `${formatDisplayNumber(ethers.formatUnits(decoded[2], 18))} cap` : 'no cap';
+            return { type: `${status} ${tokenType} Sale`, details: `<strong>${payToken}</strong> payment, ${source}, ${cap}` };
+          }
+          // batchCalls((address,uint256,bytes)[]) - 0x11c76fd9
+          if (isDaoSelfCall && functionSelector === '0x11c76fd9') {
+            const decoded = abiCoder.decode(['(address,uint256,bytes)[]'], `0x${data.slice(10)}`);
+            const calls = decoded[0];
+            const innerDetails = [];
+            for (const [target, _value, innerData] of calls) {
+              if (innerData && innerData.length >= 10) {
+                const innerSelector = innerData.slice(0, 10).toLowerCase();
+                if (innerSelector === '0x62a6677b') { // burnFromMoloch
+                  const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
+                  innerDetails.push(`<span style="color: #ff7b9d;">Burn ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> from ${inner[0].slice(0, 8)}...`);
+                } else if (innerSelector === '0x2806b0af') { // mintFromMoloch
+                  const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
+                  innerDetails.push(`<span style="color: #7bff9d;">Mint ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> to ${inner[0].slice(0, 8)}...`);
+                } else {
+                  innerDetails.push(`Call to ${target.slice(0, 8)}...`);
+                }
+              }
+            }
+            return { type: `📦 Batch (${calls.length} calls)`, details: innerDetails.join('<br>') };
+          }
+          // mintFromMoloch(address,uint256) - 0x2806b0af (token call)
+          if (functionSelector === '0x2806b0af') {
+            const decoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
+            return { type: 'Mint Tokens', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[1], 18))}</strong> to ${decoded[0].slice(0, 8)}...` };
+          }
+          // burnFromMoloch(address,uint256) - 0x62a6677b (token call)
+          if (functionSelector === '0x62a6677b') {
+            const decoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
+            return { type: '🔥 Burn Tokens', details: `<strong style="color: #ff7b9d;">${formatDisplayNumber(ethers.formatUnits(decoded[1], 18))}</strong> from ${decoded[0].slice(0, 8)}...` };
+          }
+        } catch (_e) {
+          // Silently fail - return null
+        }
+        return null;
+      }
+
       function formatProposalBody(proposalDetails) {
         if (!proposalDetails) return '';
 
         let content = '';
 
-        // Detect and format transfer types - shown first
-        const isETHTransfer = proposalDetails.value !== '0' && proposalDetails.data === '0x';
-        const isTokenTransfer = proposalDetails.data?.startsWith('0xa9059cbb');
+        // Try to decode governance calldata first
+        const govDecoded = decodeGovernanceCalldata(proposalDetails.data, proposalDetails.to, currentDAO?.dao?.dao);
+        if (govDecoded) {
+          content += `
+            <div style="padding: 0.75rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff; margin-bottom: 0.5rem;">
+              <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.35rem;">${govDecoded.type}</div>
+              <div style="font-size: 0.9rem;">${govDecoded.details}</div>
+            </div>
+          `;
+        }
+
+        // Detect and format transfer types - shown first (if not already decoded as governance)
+        const isETHTransfer = !govDecoded && proposalDetails.value !== '0' && proposalDetails.data === '0x';
+        const isTokenTransfer = !govDecoded && proposalDetails.data?.startsWith('0xa9059cbb');
 
         if (isETHTransfer) {
           const ethAmount = ethers.formatEther(proposalDetails.value).replace(/\.?0+$/, '');
