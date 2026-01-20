@@ -17087,6 +17087,7 @@
       // Each entry: { types, format(decoded) -> {type, details} }
       const GOVERNANCE_SELECTORS = {
         '0x6f2d3098': { types: ['string', 'string', 'string'], format: d => ({ type: 'Set Metadata', details: `Name: <strong>${escapeHtml(d[0])}</strong>, Symbol: <strong>${escapeHtml(d[1])}</strong>` }) },
+        '0x0890d80c': { types: ['string', 'string', 'string'], format: d => ({ type: 'Set Metadata', details: `Name: <strong>${escapeHtml(d[0])}</strong>, Symbol: <strong>${escapeHtml(d[1])}</strong>` }) }, // v1 selector
         '0x56d3163d': { types: ['address'], format: d => ({ type: 'Change Renderer', details: `<code>${d[0].slice(0, 10)}...</code>` }) },
         '0x0527aab6': { types: ['uint16'], format: d => ({ type: 'Set Quorum (BPS)', details: `<strong>${(Number(d[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong>` }) },
         '0xcf9d6ed6': { types: ['uint96'], format: d => ({ type: 'Set Absolute Quorum', details: `<strong>${formatDisplayNumber(ethers.formatUnits(d[0], 18))} votes</strong>` }) },
