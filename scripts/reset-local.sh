@@ -36,14 +36,27 @@ echo ""
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [1/5] Restarting Anvil                                                      │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
+
+# Kill existing Anvil and wait for port to be free
 tmux send-keys -t dev:1 C-c
-sleep 1
+echo -n "  Stopping old Anvil"
+for i in {1..20}; do
+    if ! ss -tln | grep -q ':8545 '; then
+        echo " ✓"
+        break
+    fi
+    echo -n "."
+    sleep 0.25
+done
+
+# Start new Anvil
 tmux send-keys -t dev:1 "anvil --fork-url $FORK_URL --code-size-limit 50000 --chain-id 31337 --block-time 1" Enter
 
-echo -n "  Waiting for Anvil"
+# Wait for Anvil to respond to RPC
+echo -n "  Waiting for RPC"
 for i in {1..30}; do
     if cast chain-id --rpc-url "$LOCAL_RPC" &>/dev/null; then
-        echo " ✓ (ready)"
+        echo " ✓"
         break
     fi
     echo -n "."
@@ -55,16 +68,50 @@ if ! cast chain-id --rpc-url "$LOCAL_RPC" &>/dev/null; then
     exit 1
 fi
 
+# Verify fork is fully operational (requires fetching remote state)
+echo -n "  Verifying fork"
+for i in {1..10}; do
+    # eth_getBalance on a known Sepolia address forces fork state fetch
+    if cast balance 0x0000000000000000000000000000000000000001 --rpc-url "$LOCAL_RPC" &>/dev/null; then
+        echo " ✓ (ready)"
+        break
+    fi
+    echo -n "."
+    sleep 0.5
+done
+
 echo ""
 
 # Common forge flags
 FORGE_FLAGS="--rpc-url $LOCAL_RPC --broadcast --code-size-limit 50000"
 
+# Helper: run forge script with retries on transient failures
+run_forge() {
+    local script="$1"
+    local sig="$2"
+    local max_retries=3
+    local output
+    for attempt in $(seq 1 $max_retries); do
+        if [ -n "$sig" ]; then
+            output=$(forge script "$script" --sig "$sig" $FORGE_FLAGS 2>&1) && { echo "$output"; return 0; }
+        else
+            output=$(forge script "$script" $FORGE_FLAGS 2>&1) && { echo "$output"; return 0; }
+        fi
+        if [ $attempt -lt $max_retries ] && echo "$output" | grep -qE "(timed out|connection refused)"; then
+            echo "  ⟳ Retry $attempt/$max_retries (transient error)" >&2
+            sleep 2
+        else
+            echo "$output"
+            return 1
+        fi
+    done
+}
+
 # 2. Deploy V2 contracts
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [2/5] Deploying V2 Contracts                                                │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-DEPLOY_OUTPUT=$(forge script script/DeployV2.s.sol $FORGE_FLAGS 2>&1) || {
+DEPLOY_OUTPUT=$(run_forge script/DeployV2.s.sol) || {
     echo "  ✗ Deployment failed!"
     echo "$DEPLOY_OUTPUT" | sed 's/^/  /'
     exit 1
@@ -76,7 +123,7 @@ echo ""
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [3/5] Creating Test DAOs (Phase 1)                                          │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-DAO_OUTPUT=$(forge script script/CreateTestDAOs.s.sol --sig "runPhase1()" $FORGE_FLAGS 2>&1) || {
+DAO_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase1()") || {
     echo "  ✗ DAO creation failed!"
     echo "$DAO_OUTPUT" | sed 's/^/  /'
     exit 1
@@ -96,7 +143,7 @@ echo ""
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [5/5] Creating Governance Proposals (Phase 2)                               │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-PHASE2_OUTPUT=$(forge script script/CreateTestDAOs.s.sol --sig "runPhase2()" $FORGE_FLAGS 2>&1) || {
+PHASE2_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase2()") || {
     echo "  ✗ Phase 2 failed!"
     echo "$PHASE2_OUTPUT" | sed 's/^/  /'
     exit 1
