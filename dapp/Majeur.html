@@ -17116,19 +17116,43 @@
           if (isDaoSelfCall && selector === '0x11c76fd9') {
             const decoded = abiCoder.decode(['(address,uint256,bytes)[]'], `0x${data.slice(10)}`);
             const calls = decoded[0];
-            const innerDetails = calls.map(([target, , innerData]) => {
+            const innerDetails = calls.map(([target, value, innerData]) => {
               if (innerData?.length >= 10) {
                 const innerSel = innerData.slice(0, 10).toLowerCase();
-                if (innerSel === '0x62a6677b') { // burnFromMoloch
-                  const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
-                  return `<span style="color: #ff7b9d;">Burn ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> from ${inner[0].slice(0, 8)}...`;
-                }
-                if (innerSel === '0x2806b0af') { // mintFromMoloch
-                  const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
-                  return `<span style="color: #7bff9d;">Mint ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> to ${inner[0].slice(0, 8)}...`;
-                }
+                try {
+                  if (innerSel === '0x62a6677b') { // burnFromMoloch
+                    const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
+                    return `<span style="color: #ff7b9d;">Burn ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> from ${inner[0].slice(0, 8)}...`;
+                  }
+                  if (innerSel === '0x2806b0af') { // mintFromMoloch
+                    const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
+                    return `<span style="color: #7bff9d;">Mint ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> to ${inner[0].slice(0, 8)}...`;
+                  }
+                  if (innerSel === '0x095ea7b3') { // approve(address,uint256)
+                    const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
+                    const amt = inner[1] === ethers.MaxUint256 ? 'unlimited' : formatDisplayNumber(ethers.formatUnits(inner[1], 18));
+                    return `Approve <strong>${amt}</strong> to ${inner[0].slice(0, 8)}...`;
+                  }
+                  if (innerSel === '0xa9059cbb') { // transfer(address,uint256)
+                    const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
+                    return `Transfer <strong>${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</strong> to ${inner[0].slice(0, 8)}...`;
+                  }
+                  if (innerSel === '0x23b872dd') { // transferFrom(address,address,uint256)
+                    const inner = abiCoder.decode(['address', 'address', 'uint256'], `0x${innerData.slice(10)}`);
+                    return `TransferFrom ${inner[0].slice(0, 8)}... → ${inner[1].slice(0, 8)}... (<strong>${formatDisplayNumber(ethers.formatUnits(inner[2], 18))}</strong>)`;
+                  }
+                  // DAICO setSale(address,uint256,address,uint256,uint40) - 0xe3e7e7a7
+                  if (innerSel === '0xe3e7e7a7') {
+                    const inner = abiCoder.decode(['address', 'uint256', 'address', 'uint256', 'uint40'], `0x${innerData.slice(10)}`);
+                    const tribToken = inner[0] === ethers.ZeroAddress ? 'ETH' : `${inner[0].slice(0, 8)}...`;
+                    const forToken = inner[2] === ethers.ZeroAddress ? 'ETH' : `${inner[2].slice(0, 8)}...`;
+                    return `<span style="color: #9d7bff;">DAICO Sale:</span> ${formatDisplayNumber(ethers.formatUnits(inner[3], 18))} ${forToken} for ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))} ${tribToken}`;
+                  }
+                } catch (_e) { /* continue to fallback */ }
               }
-              return `Call to ${target.slice(0, 8)}...`;
+              // Fallback: show target and value if any
+              const valStr = value > 0n ? ` + ${ethers.formatEther(value)} ETH` : '';
+              return `Call ${target.slice(0, 10)}...${valStr}`;
             });
             return { type: `📦 Batch (${calls.length} calls)`, details: innerDetails.join('<br>') };
           }
@@ -17233,12 +17257,12 @@
               content += `<div style="margin-top: 0.5rem;"><strong style="opacity: 0.8;">Additional Notes:</strong> ${escapeHtml(notes)}</div>`;
             }
           } else if (cleanDesc) {
-            // No separator - only show "Additional Notes:" prefix if we already have transfer content
+            // No separator - only show "Additional Notes:" prefix if we already have action content
             // (meaning the description is supplementary, not the main explanation)
-            if (isETHTransfer || isTokenTransfer) {
+            if (govDecoded || isETHTransfer || isTokenTransfer) {
               content += `<div style="margin-top: 0.5rem;"><strong style="opacity: 0.8;">Additional Notes:</strong> ${escapeHtml(cleanDesc)}</div>`;
             } else {
-              // For non-transfer proposals, the description IS the main explanation
+              // For proposals without decoded action, the description IS the main explanation
               content += `<div style="margin-top: 0.5rem;">${escapeHtml(cleanDesc)}</div>`;
             }
           }
