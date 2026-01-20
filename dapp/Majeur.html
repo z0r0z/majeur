@@ -17076,145 +17076,72 @@
         return result;
       }
 
-      // Format proposal body with transfer details first, then description as "Additional Notes:"
-      // Decode governance calldata for proposal display
+      // Governance selector configs - shared between proposal list and form preview
+      // Each entry: { types, format(decoded) -> {type, details} }
+      const GOVERNANCE_SELECTORS = {
+        '0x6f2d3098': { types: ['string', 'string', 'string'], format: d => ({ type: 'Set Metadata', details: `Name: <strong>${escapeHtml(d[0])}</strong>, Symbol: <strong>${escapeHtml(d[1])}</strong>` }) },
+        '0x56d3163d': { types: ['address'], format: d => ({ type: 'Change Renderer', details: `<code>${d[0].slice(0, 10)}...</code>` }) },
+        '0x0527aab6': { types: ['uint16'], format: d => ({ type: 'Set Quorum (BPS)', details: `<strong>${(Number(d[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong>` }) },
+        '0xcf9d6ed6': { types: ['uint96'], format: d => ({ type: 'Set Absolute Quorum', details: `<strong>${formatDisplayNumber(ethers.formatUnits(d[0], 18))} votes</strong>` }) },
+        '0xb83b4137': { types: ['uint96'], format: d => ({ type: 'Set Min YES Votes', details: `<strong>${formatDisplayNumber(ethers.formatUnits(d[0], 18))} votes</strong>` }) },
+        '0x80ca42a1': { types: ['uint96'], format: d => ({ type: 'Set Proposal Threshold', details: `<strong>${formatDisplayNumber(ethers.formatUnits(d[0], 18))} shares</strong>` }) },
+        '0xff391467': { types: ['uint64'], format: d => ({ type: 'Set Proposal TTL', details: `<strong>${formatDuration(Number(d[0]))}</strong>` }) },
+        '0x3821933a': { types: ['uint64'], format: d => ({ type: 'Set Timelock Delay', details: `<strong>${formatDuration(Number(d[0]))}</strong>` }) },
+        '0x174c480e': { types: ['bool'], format: d => ({ type: 'Toggle Ragequit', details: d[0] ? '<strong style="color: #7bff9d;">Enable</strong>' : '<strong style="color: #ff7b9d;">Disable</strong>' }) },
+        '0x463c1e71': { types: ['uint64'], format: d => ({ type: 'Set Ragequit Timelock', details: `<strong>${formatDuration(Number(d[0]))}</strong>` }) }, // v2 only
+        '0x80fe038f': { types: ['bool', 'bool'], format: d => ({ type: 'Set Transferability', details: `Shares: <strong>${d[0] ? 'Locked' : 'Unlocked'}</strong>, Loot: <strong>${d[1] ? 'Locked' : 'Unlocked'}</strong>` }) },
+        '0x92a023a9': { types: ['uint256', 'uint256'], format: d => d[0] === 0n && d[1] === 0n ? { type: 'Configure Auto-Futarchy', details: '<strong>Disabled</strong>' } : { type: 'Configure Auto-Futarchy', details: `<strong>${(Number(d[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong>, <strong>${formatDisplayNumber(ethers.formatUnits(d[1], 18))}</strong> cap` } },
+        '0x8fb66f42': { types: ['address'], format: d => ({ type: 'Set Futarchy Reward Token', details: `<strong>${d[0] === ethers.ZeroAddress ? 'ETH' : `${d[0].slice(0, 8)}...`}</strong>` }) },
+        '0x7ec924db': { types: [], format: () => ({ type: '🚨 Bump Config', details: '<strong style="color: #ff7b9d;">Invalidate all pending proposals</strong>' }) },
+        '0x12374b04': { types: ['uint8', 'address', 'uint256', 'bytes', 'bytes32', 'address', 'uint256'], format: d => ({ type: 'Set Permit', details: `<strong>${Number(d[6]) === 0 ? 'Revoke' : `${d[6]} use(s)`}</strong> for ${d[5].slice(0, 8)}...` }) },
+        '0xda46098c': { types: ['address', 'address', 'uint256'], format: d => ({ type: 'Set Allowance', details: `<strong>${formatDisplayNumber(ethers.formatUnits(d[2], 18))} ${d[1] === ethers.ZeroAddress ? 'ETH' : 'Token'}</strong> to ${d[0].slice(0, 8)}...` }) },
+        '0x48b7fef2': { types: ['address', 'uint256', 'uint256', 'bool', 'bool', 'bool'], format: d => ({ type: `${d[4] ? 'Enable' : 'Disable'} ${d[5] ? 'Loot' : 'Shares'} Sale`, details: `<strong>${d[0] === ethers.ZeroAddress ? 'ETH' : 'ERC20'}</strong>, ${d[3] ? 'mint' : 'transfer'}, ${d[2] > 0n ? `${formatDisplayNumber(ethers.formatUnits(d[2], 18))} cap` : 'no cap'}` }) },
+      };
+
+      // Decode governance calldata for proposal display - uses shared GOVERNANCE_SELECTORS config
       function decodeGovernanceCalldata(data, to, daoAddress) {
         if (!data || data === '0x' || data.length < 10) return null;
-
-        const functionSelector = data.slice(0, 10).toLowerCase();
-        const abiCoder = new ethers.AbiCoder();
+        const selector = data.slice(0, 10).toLowerCase();
         const isDaoSelfCall = to?.toLowerCase() === daoAddress?.toLowerCase();
+        const abiCoder = new ethers.AbiCoder();
 
         try {
-          // setMetadata(string,string,string) - 0x6f2d3098
-          if (isDaoSelfCall && functionSelector === '0x6f2d3098') {
-            const decoded = abiCoder.decode(['string', 'string', 'string'], `0x${data.slice(10)}`);
-            return { type: 'Set Metadata', details: `Name: <strong>${escapeHtml(decoded[0])}</strong>, Symbol: <strong>${escapeHtml(decoded[1])}</strong>` };
+          // DAO self-call governance actions
+          if (isDaoSelfCall && GOVERNANCE_SELECTORS[selector]) {
+            const cfg = GOVERNANCE_SELECTORS[selector];
+            const decoded = cfg.types.length ? abiCoder.decode(cfg.types, `0x${data.slice(10)}`) : [];
+            return cfg.format(decoded);
           }
-          // setRenderer(address) - 0x56d3163d
-          if (isDaoSelfCall && functionSelector === '0x56d3163d') {
-            const decoded = abiCoder.decode(['address'], `0x${data.slice(10)}`);
-            return { type: 'Change Renderer', details: `Address: <code>${decoded[0].slice(0, 10)}...${decoded[0].slice(-6)}</code>` };
-          }
-          // setQuorumBps(uint16) - 0x0527aab6
-          if (isDaoSelfCall && functionSelector === '0x0527aab6') {
-            const decoded = abiCoder.decode(['uint16'], `0x${data.slice(10)}`);
-            return { type: 'Set Quorum (BPS)', details: `<strong>${(Number(decoded[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong>` };
-          }
-          // setQuorumAbsolute(uint96) - 0xcf9d6ed6
-          if (isDaoSelfCall && functionSelector === '0xcf9d6ed6') {
-            const decoded = abiCoder.decode(['uint96'], `0x${data.slice(10)}`);
-            return { type: 'Set Absolute Quorum', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[0], 18))} votes</strong>` };
-          }
-          // setMinYesVotesAbsolute(uint96) - 0xb83b4137
-          if (isDaoSelfCall && functionSelector === '0xb83b4137') {
-            const decoded = abiCoder.decode(['uint96'], `0x${data.slice(10)}`);
-            return { type: 'Set Min YES Votes', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[0], 18))} votes</strong>` };
-          }
-          // setProposalThreshold(uint96) - 0x80ca42a1
-          if (isDaoSelfCall && functionSelector === '0x80ca42a1') {
-            const decoded = abiCoder.decode(['uint96'], `0x${data.slice(10)}`);
-            return { type: 'Set Proposal Threshold', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[0], 18))} shares</strong>` };
-          }
-          // setProposalTTL(uint64) - 0xff391467
-          if (isDaoSelfCall && functionSelector === '0xff391467') {
-            const decoded = abiCoder.decode(['uint64'], `0x${data.slice(10)}`);
-            return { type: 'Set Proposal TTL', details: `<strong>${formatDuration(Number(decoded[0]))}</strong>` };
-          }
-          // setTimelockDelay(uint64) - 0x3821933a
-          if (isDaoSelfCall && functionSelector === '0x3821933a') {
-            const decoded = abiCoder.decode(['uint64'], `0x${data.slice(10)}`);
-            return { type: 'Set Timelock Delay', details: `<strong>${formatDuration(Number(decoded[0]))}</strong>` };
-          }
-          // setRagequittable(bool) - 0x174c480e
-          if (isDaoSelfCall && functionSelector === '0x174c480e') {
-            const decoded = abiCoder.decode(['bool'], `0x${data.slice(10)}`);
-            return { type: 'Toggle Ragequit', details: decoded[0] ? '<strong style="color: #7bff9d;">Enable</strong>' : '<strong style="color: #ff7b9d;">Disable</strong>' };
-          }
-          // setRagequitTimelock(uint64) - 0x463c1e71
-          if (isDaoSelfCall && functionSelector === '0x463c1e71') {
-            const decoded = abiCoder.decode(['uint64'], `0x${data.slice(10)}`);
-            return { type: 'Set Ragequit Timelock', details: `<strong>${formatDuration(Number(decoded[0]))}</strong>` };
-          }
-          // setTransfersLocked(bool,bool) - 0x80fe038f
-          if (isDaoSelfCall && functionSelector === '0x80fe038f') {
-            const decoded = abiCoder.decode(['bool', 'bool'], `0x${data.slice(10)}`);
-            return { type: 'Set Transferability', details: `Shares: <strong>${decoded[0] ? 'Locked' : 'Unlocked'}</strong>, Loot: <strong>${decoded[1] ? 'Locked' : 'Unlocked'}</strong>` };
-          }
-          // setAutoFutarchy(uint256,uint256) - 0x92a023a9
-          if (isDaoSelfCall && functionSelector === '0x92a023a9') {
-            const decoded = abiCoder.decode(['uint256', 'uint256'], `0x${data.slice(10)}`);
-            if (decoded[0] === 0n && decoded[1] === 0n) {
-              return { type: 'Configure Auto-Futarchy', details: '<strong>Disabled</strong>' };
-            }
-            return { type: 'Configure Auto-Futarchy', details: `<strong>${(Number(decoded[0]) / 100).toFixed(2).replace(/\.00$/, '')}%</strong> of supply, <strong>${formatDisplayNumber(ethers.formatUnits(decoded[1], 18))}</strong> cap` };
-          }
-          // setFutarchyRewardToken(address) - 0x8fb66f42
-          if (isDaoSelfCall && functionSelector === '0x8fb66f42') {
-            const decoded = abiCoder.decode(['address'], `0x${data.slice(10)}`);
-            const label = decoded[0] === ethers.ZeroAddress ? 'ETH' : `${decoded[0].slice(0, 8)}...`;
-            return { type: 'Set Futarchy Reward Token', details: `<strong>${label}</strong>` };
-          }
-          // bumpConfig() - 0x7ec924db
-          if (isDaoSelfCall && functionSelector === '0x7ec924db') {
-            return { type: '🚨 Bump Config', details: '<strong style="color: #ff7b9d;">Invalidate all pending proposals</strong>' };
-          }
-          // setPermit(uint8,address,uint256,bytes,bytes32,address,uint256) - 0x12374b04
-          if (isDaoSelfCall && functionSelector === '0x12374b04') {
-            const decoded = abiCoder.decode(['uint8', 'address', 'uint256', 'bytes', 'bytes32', 'address', 'uint256'], `0x${data.slice(10)}`);
-            const count = Number(decoded[6]);
-            return { type: 'Set Permit', details: `<strong>${count === 0 ? 'Revoke' : `${count} use(s)`}</strong> for ${decoded[5].slice(0, 8)}...` };
-          }
-          // setAllowance(address,address,uint256) - 0xda46098c
-          if (isDaoSelfCall && functionSelector === '0xda46098c') {
-            const decoded = abiCoder.decode(['address', 'address', 'uint256'], `0x${data.slice(10)}`);
-            const tokenLabel = decoded[1] === ethers.ZeroAddress ? 'ETH' : 'Token';
-            return { type: 'Set Allowance', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[2], 18))} ${tokenLabel}</strong> to ${decoded[0].slice(0, 8)}...` };
-          }
-          // setSale(address,uint256,uint256,bool,bool,bool) - 0x48b7fef2
-          if (isDaoSelfCall && functionSelector === '0x48b7fef2') {
-            const decoded = abiCoder.decode(['address', 'uint256', 'uint256', 'bool', 'bool', 'bool'], `0x${data.slice(10)}`);
-            const payToken = decoded[0] === ethers.ZeroAddress ? 'ETH' : 'ERC20';
-            const tokenType = decoded[5] ? 'Loot' : 'Shares';
-            const source = decoded[3] ? 'mint' : 'transfer';
-            const status = decoded[4] ? 'Enable' : 'Disable';
-            const cap = decoded[2] > 0n ? `${formatDisplayNumber(ethers.formatUnits(decoded[2], 18))} cap` : 'no cap';
-            return { type: `${status} ${tokenType} Sale`, details: `<strong>${payToken}</strong> payment, ${source}, ${cap}` };
-          }
-          // batchCalls((address,uint256,bytes)[]) - 0x11c76fd9
-          if (isDaoSelfCall && functionSelector === '0x11c76fd9') {
+          // batchCalls - special handling for nested decoding
+          if (isDaoSelfCall && selector === '0x11c76fd9') {
             const decoded = abiCoder.decode(['(address,uint256,bytes)[]'], `0x${data.slice(10)}`);
             const calls = decoded[0];
-            const innerDetails = [];
-            for (const [target, _value, innerData] of calls) {
-              if (innerData && innerData.length >= 10) {
-                const innerSelector = innerData.slice(0, 10).toLowerCase();
-                if (innerSelector === '0x62a6677b') { // burnFromMoloch
+            const innerDetails = calls.map(([target, , innerData]) => {
+              if (innerData?.length >= 10) {
+                const innerSel = innerData.slice(0, 10).toLowerCase();
+                if (innerSel === '0x62a6677b') { // burnFromMoloch
                   const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
-                  innerDetails.push(`<span style="color: #ff7b9d;">Burn ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> from ${inner[0].slice(0, 8)}...`);
-                } else if (innerSelector === '0x2806b0af') { // mintFromMoloch
+                  return `<span style="color: #ff7b9d;">Burn ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> from ${inner[0].slice(0, 8)}...`;
+                }
+                if (innerSel === '0x2806b0af') { // mintFromMoloch
                   const inner = abiCoder.decode(['address', 'uint256'], `0x${innerData.slice(10)}`);
-                  innerDetails.push(`<span style="color: #7bff9d;">Mint ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> to ${inner[0].slice(0, 8)}...`);
-                } else {
-                  innerDetails.push(`Call to ${target.slice(0, 8)}...`);
+                  return `<span style="color: #7bff9d;">Mint ${formatDisplayNumber(ethers.formatUnits(inner[1], 18))}</span> to ${inner[0].slice(0, 8)}...`;
                 }
               }
-            }
+              return `Call to ${target.slice(0, 8)}...`;
+            });
             return { type: `📦 Batch (${calls.length} calls)`, details: innerDetails.join('<br>') };
           }
-          // mintFromMoloch(address,uint256) - 0x2806b0af (token call)
-          if (functionSelector === '0x2806b0af') {
+          // Token mint/burn calls (not DAO self-calls)
+          if (selector === '0x2806b0af') {
             const decoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
             return { type: 'Mint Tokens', details: `<strong>${formatDisplayNumber(ethers.formatUnits(decoded[1], 18))}</strong> to ${decoded[0].slice(0, 8)}...` };
           }
-          // burnFromMoloch(address,uint256) - 0x62a6677b (token call)
-          if (functionSelector === '0x62a6677b') {
+          if (selector === '0x62a6677b') {
             const decoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
             return { type: '🔥 Burn Tokens', details: `<strong style="color: #ff7b9d;">${formatDisplayNumber(ethers.formatUnits(decoded[1], 18))}</strong> from ${decoded[0].slice(0, 8)}...` };
           }
-        } catch (_e) {
-          // Silently fail - return null
-        }
+        } catch (_e) { /* ignore */ }
         return null;
       }
 
