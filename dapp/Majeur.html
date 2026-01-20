@@ -18297,15 +18297,18 @@
       // Render tributes
       async function renderTributes() {
         const tributeOffers = document.getElementById('tributeOffers');
-        if (!tributeOffers || !currentDAO || !provider) return;
+        if (!tributeOffers || !currentDAO) return;
 
         // Capture render context for stale checks
         const thisRenderId = daoRenderId;
         const capturedDaoAddress = currentDAO.dao.dao;
 
         try {
-          const tributeContract = new ethers.Contract(getTributeAddress(), TRIBUTE_ABI, provider);
-          currentDaoTributes = await tributeContract.getActiveDaoTributes(capturedDaoAddress);
+          // Use withRpcFallback to work without wallet connection
+          currentDaoTributes = await withRpcFallback(async (rpcProvider) => {
+            const tributeContract = new ethers.Contract(getTributeAddress(), TRIBUTE_ABI, rpcProvider);
+            return await tributeContract.getActiveDaoTributes(capturedDaoAddress);
+          });
 
           // Check if stale after async work
           if (isStaleRender(thisRenderId, capturedDaoAddress)) return;
@@ -18401,21 +18404,25 @@
         }
       }
 
-      // Helper to get token symbol
+      // Helper to get token symbol (uses withRpcFallback for walletless access)
       async function getTokenSymbol(tokenAddress) {
         try {
-          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-          return await tokenContract.symbol();
+          return await withRpcFallback(async (rpcProvider) => {
+            const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, rpcProvider);
+            return await tokenContract.symbol();
+          });
         } catch (_error) {
           return tokenAddress.slice(0, 6);
         }
       }
 
-      // Helper to get token decimals
+      // Helper to get token decimals (uses withRpcFallback for walletless access)
       async function getTokenDecimals(tokenAddress) {
         try {
-          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-          return await tokenContract.decimals();
+          return await withRpcFallback(async (rpcProvider) => {
+            const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, rpcProvider);
+            return await tokenContract.decimals();
+          });
         } catch (_error) {
           return 18;
         }
@@ -29750,6 +29757,91 @@
               <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
             `;
           }
+          // setRagequitTimelock(uint64) - 0x463c1e71
+          else if (isDaoSelfCall && functionSelector === '0x463c1e71' && calldata.length >= 74) {
+            const decoded = abiCoder.decode(['uint64'], `0x${calldata.slice(10)}`);
+            const timelockSeconds = Number(decoded[0]);
+            const timelockFormatted = formatDuration(timelockSeconds);
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">⏱️ Set Ragequit Timelock</div>
+              <div style="margin-bottom: 0.25rem;"><strong>Hold Period:</strong> ${timelockFormatted}</div>
+              <div style="font-size: 0.75rem; opacity: 0.7;">Minimum time tokens must be held before ragequitting</div>
+              <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (governance)</div>
+            `;
+          }
+          // batchCalls((address,uint256,bytes)[]) - 0x11c76fd9
+          else if (isDaoSelfCall && functionSelector === '0x11c76fd9') {
+            try {
+              const decoded = abiCoder.decode(['(address,uint256,bytes)[]'], `0x${calldata.slice(10)}`);
+              const calls = decoded[0];
+
+              let callsHtml = '';
+              for (let i = 0; i < calls.length; i++) {
+                const [target, value, data] = calls[i];
+                const targetShort = `${target.slice(0, 6)}...${target.slice(-4)}`;
+                const valueEth = value > 0n ? ` (${ethers.formatEther(value)} ETH)` : '';
+
+                // Try to decode inner call
+                let innerDesc = '';
+                if (data && data.length >= 10) {
+                  const innerSelector = data.slice(0, 10).toLowerCase();
+
+                  // Check known inner selectors
+                  if (innerSelector === '0x62a6677b') { // burnFromMoloch
+                    try {
+                      const innerDecoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
+                      const burnTarget = innerDecoded[0];
+                      const burnAmount = ethers.formatUnits(innerDecoded[1], 18);
+                      innerDesc = `<span style="color: #ff7b9d;">Burn ${formatDisplayNumber(burnAmount)} tokens from ${burnTarget.slice(0, 6)}...${burnTarget.slice(-4)}</span>`;
+                    } catch (_e) { /* ignore */ }
+                  } else if (innerSelector === '0x2806b0af') { // mintFromMoloch
+                    try {
+                      const innerDecoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
+                      const mintTo = innerDecoded[0];
+                      const mintAmount = ethers.formatUnits(innerDecoded[1], 18);
+                      innerDesc = `<span style="color: #7bff9d;">Mint ${formatDisplayNumber(mintAmount)} tokens to ${mintTo.slice(0, 6)}...${mintTo.slice(-4)}</span>`;
+                    } catch (_e) { /* ignore */ }
+                  } else if (innerSelector === '0x095ea7b3') { // approve
+                    try {
+                      const innerDecoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
+                      const spender = innerDecoded[0];
+                      const amount = innerDecoded[1] === ethers.MaxUint256 ? 'unlimited' : formatDisplayNumber(ethers.formatUnits(innerDecoded[1], 18));
+                      innerDesc = `Approve ${amount} to ${spender.slice(0, 6)}...${spender.slice(-4)}`;
+                    } catch (_e) { /* ignore */ }
+                  } else if (innerSelector === '0xa9059cbb') { // transfer
+                    try {
+                      const innerDecoded = abiCoder.decode(['address', 'uint256'], `0x${data.slice(10)}`);
+                      const to = innerDecoded[0];
+                      const amount = ethers.formatUnits(innerDecoded[1], 18);
+                      innerDesc = `Transfer ${formatDisplayNumber(amount)} to ${to.slice(0, 6)}...${to.slice(-4)}`;
+                    } catch (_e) { /* ignore */ }
+                  }
+                }
+
+                if (!innerDesc) {
+                  innerDesc = data.length > 10 ? `Call ${data.slice(0, 10)}...` : 'Empty call';
+                }
+
+                callsHtml += `<div style="margin-left: 0.5rem; padding: 0.25rem 0; border-left: 2px solid rgba(157, 123, 255, 0.3); padding-left: 0.5rem; margin-top: 0.25rem;">
+                  <div style="font-size: 0.75rem; opacity: 0.7;">${i + 1}. Target: ${targetShort}${valueEth}</div>
+                  <div style="font-size: 0.8rem;">${innerDesc}</div>
+                </div>`;
+              }
+
+              translation = `
+                <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">📦 Batch Calls (${calls.length} actions)</div>
+                ${callsHtml}
+                <div style="margin-top: 0.35rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (multi-action)</div>
+              `;
+            } catch (_e) {
+              translation = `
+                <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">📦 Batch Calls</div>
+                <div>Multiple actions bundled together</div>
+                <div style="margin-top: 0.25rem; font-size: 0.75rem; opacity: 0.7;">DAO self-call (multi-action)</div>
+              `;
+            }
+          }
           // mintFromMoloch(address recipient, uint256 amount) - 0x2806b0af
           else if (token && functionSelector === '0x2806b0af' && calldata.length >= 138) {
             const decoded = abiCoder.decode(['address', 'uint256'], `0x${calldata.slice(10)}`);
@@ -29761,6 +29853,19 @@
               <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem;">Mint Tokens</div>
               <div>Mint <strong>${formattedAmount} ${token.symbol}</strong></div>
               <div style="margin-top: 0.25rem; font-size: 0.8rem;">To: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${recipient}</code></div>
+            `;
+          }
+          // burnFromMoloch(address from, uint256 amount) - 0x62a6677b
+          else if (token && functionSelector === '0x62a6677b' && calldata.length >= 138) {
+            const decoded = abiCoder.decode(['address', 'uint256'], `0x${calldata.slice(10)}`);
+            const from = decoded[0];
+            const amount = decoded[1];
+            const formattedAmount = formatDisplayNumber(ethers.formatUnits(amount, token.decimals));
+
+            translation = `
+              <div style="opacity: 0.8; margin-bottom: 0.35rem; font-size: 0.8rem; color: #ff7b9d;">🔥 Burn Tokens (Slash)</div>
+              <div>Burn <strong>${formattedAmount} ${token.symbol}</strong></div>
+              <div style="margin-top: 0.25rem; font-size: 0.8rem;">From: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem;">${from}</code></div>
             `;
           }
           // transfer(address recipient, uint256 amount) - 0xa9059cbb

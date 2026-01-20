@@ -173,11 +173,11 @@ echo "│  DEPLOYED DAOs                                                        
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
-# DAO 1: Alpha DAO
+# DAO 1: 40 messages
 U1_BAL=$(get_shares $DAO1 $USER1_ADDR)
 U2_BAL=$(get_shares $DAO1 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
-echo "  │  1. ALPHA DAO                                                              │"
+echo "  │  1. 40 MESSAGES                                                            │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
 echo "  │  Address: $DAO1                              │"
 echo "  │                                                                            │"
@@ -191,16 +191,15 @@ echo "  │                                                                     
 printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                               │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
 echo "  │  Activity:                                                                 │"
-echo "  │    ★ Users 1 & 2 held a conversation of 40 chat messages                   │"
-echo "  │      (alternating senders, testing the SBT-gated chat feature)             │"
+echo "  │    ★ 40 chat messages with dark jokes (alternating senders)                │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
-# DAO 2: Beta Collective
+# DAO 2: All gov proposals
 U1_BAL=$(get_shares $DAO2 $USER1_ADDR)
 U2_BAL=$(get_shares $DAO2 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
-echo "  │  2. BETA COLLECTIVE                                                        │"
+echo "  │  2. ALL GOV PROPOSALS                                                      │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
 echo "  │  Address: $DAO2                              │"
 echo "  │                                                                            │"
@@ -213,21 +212,20 @@ echo "  │                                                                     
 printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                              │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
 echo "  │  Activity (after Phase 2):                                                 │"
-echo "  │    ★ 15 governance proposals covering ALL proposal types:                  │"
-echo "  │      Set Metadata, Change Renderer, Set Quorum (BPS & Absolute),           │"
-echo "  │      Set Min YES Votes, Set Vote Threshold, Set Proposal TTL,              │"
-echo "  │      Set Timelock Delay, Toggle Ragequit, Toggle Transferability,          │"
-echo "  │      Configure Auto-Futarchy, Set Futarchy Reward Token,                   │"
-echo "  │      Slash Member (burn shares), DAICO Sale, Set Ragequit Timelock         │"
-echo "  │    ★ Users voted on proposals 13-15: FOR, AGAINST, and ABSTAIN             │"
+echo "  │    ★ 24 governance proposals covering ALL proposal types:                  │"
+echo "  │      Set Metadata, Renderer, Quorum, Min YES, Threshold, TTL,              │"
+echo "  │      Timelock, Ragequit, Transferability, Auto-Futarchy, Reward Token,     │"
+echo "  │      Slash Shares, DAICO Sale, Ragequit Timelock, Bump Config, Permit,     │"
+echo "  │      Allowance (ETH & ERC20), Sale variations (4), Slash Loot              │"
+echo "  │    ★ Users voted on proposals 13-15, 22-24 with varied patterns            │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
-# DAO 3: Solo DAO
+# DAO 3: Various tributes
 U1_BAL=$(get_shares $DAO3 $USER1_ADDR)
 U2_BAL=$(get_shares $DAO3 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
-echo "  │  3. SOLO DAO                                                               │"
+echo "  │  3. VARIOUS TRIBUTES                                                       │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
 echo "  │  Address: $DAO3                              │"
 echo "  │                                                                            │"
@@ -239,7 +237,11 @@ echo "  │    • Ragequit: Enabled                                            
 echo "  │                                                                            │"
 printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                              │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
-echo "  │  Activity: None (pristine DAO for testing strict governance)               │"
+echo "  │  Activity:                                                                 │"
+echo "  │    ★ 3 tribute offers (2 from User1, 1 from User2):                        │"
+echo "  │      • 0.1 ETH → 20 WETH (absurd ask)                                      │"
+echo "  │      • 100 USDF → 1 ETH                                                    │"
+echo "  │      • 0.5 ETH → 1000 USDF (lowballer special)                             │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
