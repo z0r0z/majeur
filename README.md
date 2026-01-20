@@ -665,6 +665,91 @@ forge snapshot
 forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 ```
 
+### Local Development Environment
+
+Reset local Anvil with V2 contracts and test DAOs:
+
+```bash
+./scripts/reset-local.sh                    # Deploy to localhost (default)
+./scripts/reset-local.sh --network sepolia  # Deploy to Sepolia
+```
+
+Deploy individual DAOs selectively:
+
+```bash
+./scripts/deploy-dao.sh 1                   # Deploy only DAO 1
+./scripts/deploy-dao.sh --network sepolia 4 # Deploy DAO 4 to Sepolia
+./scripts/deploy-dao.sh all                 # Deploy all DAOs
+```
+
+**Supported Networks:**
+| Network | RPC |
+|---------|-----|
+| `local` (default) | `http://localhost:8545` |
+| `sepolia` | Alchemy Sepolia |
+| `ethereum` / `mainnet` | Alchemy Mainnet |
+| `arbitrum` | Alchemy Arbitrum |
+| `base` | Alchemy Base |
+| `unichain` | Alchemy Unichain |
+
+Set `ALCHEMY_API_KEY` for non-local networks, or use `RPC_URL` directly.
+
+### Test DAOs
+
+The `CreateTestDAOs.s.sol` script deploys 5 DAOs demonstrating different governance configurations and sale mechanisms:
+
+| # | Name | Symbol | Key Features |
+|---|------|--------|--------------|
+| 1 | **40 messages** | 40MSG | 40 chat messages (dark jokes), 50% quorum, 7-day TTL, 1-day timelock |
+| 2 | **All gov proposals** | ALLGOV | 24 proposals covering ALL governance types, 25% quorum, ragequit disabled |
+| 3 | **Various tributes** | TRIBUTES | 3 tribute offers, 100% quorum, 100-share proposal threshold |
+| 4 | **DAICO Loot Sale** | DLOOT | DAICO with LP + tap, auto-futarchy enabled, 10% quorum |
+| 5 | **Full DAICO Test** | FDAICO | DAICO with LP + tap, fast governance (1-day TTL, 1-hour timelock) |
+
+**DAO 1: 40 messages** — Tests chat functionality with 40 alternating messages between User1 and User2. Standard governance settings.
+
+**DAO 2: All gov proposals** — Contains 24 proposals demonstrating every governance action type:
+- Metadata & Renderer changes
+- Quorum settings (BPS, absolute, min YES)
+- Timing (TTL, timelock, ragequit timelock)
+- Transferability & auto-futarchy config
+- Slashing (shares and loot)
+- DAICO sale setup
+- Permits & allowances
+- Built-in Moloch sales (4 variations)
+
+**DAO 3: Various tributes** — Contains 3 tribute proposals via the Tribute contract:
+- User1 offers 0.1 ETH, wants 20 WETH (absurd ask)
+- User1 offers 100 USDF, wants 1 ETH
+- User2 offers 0.5 ETH, wants 1000 USDF
+
+**DAO 4: DAICO Loot Sale** — Full DAICO demonstration with LP and tap mechanism.
+
+**DAO 5: Full DAICO Test** — Both User1 and User2 are members. Fast governance for quick iteration.
+
+### Test DAO Sales Configuration
+
+| DAO | Sale Type | Token | Rate | Cap | LP | Tap |
+|-----|-----------|-------|------|-----|-----|-----|
+| 1 | **Moloch** | SHARES | ~1 ETH = 2M shares | Unlimited | — | — |
+| 2 | **Moloch** | LOOT | 3 USDF = 1 loot | 1,000 loot | — | — |
+| 3 | **DAICO** | SHARES | 1 ETH = 1M shares | 1M shares | — | — |
+| 4 | **DAICO** | LOOT | 1 USDF = 3 loot | 10k loot | 70%, 5% slip, 0.3% fee | User1, ~100 USDF/day |
+| 5 | **DAICO** | SHARES | 0.001 ETH = 1k shares | 100k shares | 30%, 1% slip, 1% fee | User2, ~0.001 ETH/day |
+
+**DAOs 1-2** use Moloch's built-in `setSale()` — simple, direct minting at a fixed price.
+
+**DAOs 3-5** use the external DAICO contract — adds tap mechanism (controlled fund release), optional LP auto-initialization via ZAMM, and deadline support. DAO 4 has a 30-day deadline; DAOs 3 and 5 have no deadline.
+
+### Test Users
+
+| User | Address | Role |
+|------|---------|------|
+| User 1 | `0x1475E6FB0Df57Be4D8E9Cb0496e686e95347bb90` | Deployer, member of all DAOs, tap ops for DAO 4 |
+| User 2 | `0x4A81cBd1f0AF714F19AF819757Fb688DEf24AA24` | Member of DAOs 1-5, tap ops for DAO 5 |
+
+Private keys are in `scripts/reset-local.sh` for local testing.
+
 ## Security Model
 
 | Protection | Mechanism |

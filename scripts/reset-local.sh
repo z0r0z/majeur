@@ -2,15 +2,63 @@
 set -e
 
 # Reset local Anvil and deploy V2 contracts + test DAOs
-# Usage: ./scripts/reset-local.sh
+# Usage: ./scripts/reset-local.sh [--network <network>]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-# Always use localhost for local Anvil (ignore RPC_URL env var)
-LOCAL_RPC="http://localhost:8545"
+# Network selection helper
+get_rpc_url() {
+    local network="${1:-local}"
+    case "$network" in
+        local|localhost) echo "http://localhost:8545" ;;
+        sepolia)   echo "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}" ;;
+        ethereum|mainnet) echo "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}" ;;
+        arbitrum)  echo "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}" ;;
+        base)      echo "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}" ;;
+        unichain)  echo "https://unichain-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}" ;;
+        *) echo "$network" ;;  # Custom RPC URL
+    esac
+}
+
+# Parse --network flag
+NETWORK="${NETWORK:-local}"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --network|-n) NETWORK="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+
+LOCAL_RPC="${RPC_URL:-$(get_rpc_url "$NETWORK")}"
 FORK_URL="${FORK_URL:-https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY:-GGvud8iu8sJI2fF2SEKQ3}}"
+
+# Ensure tmux is installed
+if ! command -v tmux &>/dev/null; then
+    echo "tmux not found. Installing..."
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get update && sudo apt-get install -y tmux
+    elif command -v brew &>/dev/null; then
+        brew install tmux
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm tmux
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y tmux
+    else
+        echo "Error: Cannot install tmux. Please install it manually."
+        exit 1
+    fi
+fi
+
+# Ensure tmux 'dev' session exists with required windows
+if ! tmux has-session -t dev 2>/dev/null; then
+    echo "Creating tmux session 'dev'..."
+    tmux new-session -d -s dev -n anvil
+    tmux new-window -t dev -n server
+    tmux new-window -t dev -n dapps
+    echo "  Created windows: anvil (1), server (2), dapps (3)"
+fi
 
 # Test users
 USER1_KEY="0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048"
@@ -28,7 +76,8 @@ echo "║                      MAJEUR LOCAL ENVIRONMENT RESET                   
 echo "╚══════════════════════════════════════════════════════════════════════════════╝"
 echo ""
 echo "  Project:  $PROJECT_DIR"
-echo "  Local:    $LOCAL_RPC"
+echo "  Network:  $NETWORK"
+echo "  RPC:      $LOCAL_RPC"
 echo "  Fork:     Sepolia"
 echo ""
 
@@ -40,14 +89,17 @@ echo "└───────────────────────�
 # Kill existing Anvil and wait for port to be free
 tmux send-keys -t dev:1 C-c
 echo -n "  Stopping old Anvil"
+STOPPED=false
 for i in {1..20}; do
     if ! ss -tln | grep -q ':8545 '; then
         echo " ✓"
+        STOPPED=true
         break
     fi
     echo -n "."
     sleep 0.25
 done
+[ "$STOPPED" = false ] && echo ""
 
 # Start new Anvil
 tmux send-keys -t dev:1 "anvil --fork-url $FORK_URL --code-size-limit 50000 --chain-id 31337 --block-time 1" Enter
@@ -226,7 +278,7 @@ U2_BAL=$(get_shares $DAO1 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
 echo "  │  1. 40 MESSAGES                                                            │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
-echo "  │  Address: $DAO1                              │"
+printf "  │  Address: %-65s│\n" "$DAO1"
 echo "  │                                                                            │"
 echo "  │  Settings:                                                                 │"
 echo "  │    • Quorum: 50% (5000 BPS)                                                │"
@@ -235,10 +287,11 @@ echo "  │    • Timelock Delay: 1 day                                        
 echo "  │    • Ragequit: Enabled                                                     │"
 echo "  │    • Ragequit Timelock: 7 days (default)                                   │"
 echo "  │                                                                            │"
-printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                               │\n" "$U1_BAL" "$U2_BAL"
+printf "  │  Shares:  User 1: %-6s  User 2: %-6s                                   │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
 echo "  │  Activity:                                                                 │"
 echo "  │    ★ 40 chat messages with dark jokes (alternating senders)                │"
+echo "  │    ★ Sale: ~1 ETH = 2,000,000 SHARES (Moloch built-in, very cheap!)        │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
@@ -248,7 +301,7 @@ U2_BAL=$(get_shares $DAO2 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
 echo "  │  2. ALL GOV PROPOSALS                                                      │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
-echo "  │  Address: $DAO2                              │"
+printf "  │  Address: %-65s│\n" "$DAO2"
 echo "  │                                                                            │"
 echo "  │  Settings:                                                                 │"
 echo "  │    • Quorum: 25% (2500 BPS)                                                │"
@@ -256,15 +309,12 @@ echo "  │    • Proposal TTL: 3 days                                         
 echo "  │    • Timelock Delay: None                                                  │"
 echo "  │    • Ragequit: Disabled                                                    │"
 echo "  │                                                                            │"
-printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                              │\n" "$U1_BAL" "$U2_BAL"
+printf "  │  Shares:  User 1: %-6s  User 2: %-6s                                   │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
 echo "  │  Activity (after Phase 2):                                                 │"
-echo "  │    ★ 24 governance proposals covering ALL proposal types:                  │"
-echo "  │      Set Metadata, Renderer, Quorum, Min YES, Threshold, TTL,              │"
-echo "  │      Timelock, Ragequit, Transferability, Auto-Futarchy, Reward Token,     │"
-echo "  │      Slash Shares, DAICO Sale, Ragequit Timelock, Bump Config, Permit,     │"
-echo "  │      Allowance (ETH & ERC20), Sale variations (4), Slash Loot              │"
+echo "  │    ★ 24 governance proposals covering ALL proposal types                   │"
 echo "  │    ★ Users voted on proposals 13-15, 22-24 with varied patterns            │"
+echo "  │    ★ Sale: 3 USDF = 1 LOOT (Moloch built-in, 1000 LOOT cap)                │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
@@ -274,7 +324,7 @@ U2_BAL=$(get_shares $DAO3 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
 echo "  │  3. VARIOUS TRIBUTES                                                       │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
-echo "  │  Address: $DAO3                              │"
+printf "  │  Address: %-65s│\n" "$DAO3"
 echo "  │                                                                            │"
 echo "  │  Settings:                                                                 │"
 echo "  │    • Quorum: 100% (10000 BPS) — all members must vote                      │"
@@ -282,23 +332,24 @@ echo "  │    • Proposal TTL: 14 days                                        
 echo "  │    • Proposal Threshold: 100 shares (~6.7% of supply)                      │"
 echo "  │    • Ragequit: Enabled                                                     │"
 echo "  │                                                                            │"
-printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                              │\n" "$U1_BAL" "$U2_BAL"
+printf "  │  Shares:  User 1: %-6s  User 2: %-6s                                   │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
 echo "  │  Activity:                                                                 │"
 echo "  │    ★ 3 tribute offers (2 from User1, 1 from User2):                        │"
 echo "  │      • 0.1 ETH → 20 WETH (absurd ask)                                      │"
 echo "  │      • 100 USDF → 1 ETH                                                    │"
 echo "  │      • 0.5 ETH → 1000 USDF (lowballer special)                             │"
+echo "  │    ★ DAICO Sale: 1 ETH = 1,000,000 SHARES (no LP, no tap)                  │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
-# DAO 4: Gamma Guild
+# DAO 4: DAICO Loot Sale
 U1_BAL=$(get_shares $DAO4 $USER1_ADDR)
 U2_BAL=$(get_shares $DAO4 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
-echo "  │  4. GAMMA GUILD                                                            │"
+echo "  │  4. DAICO LOOT SALE                                                        │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
-echo "  │  Address: $DAO4                              │"
+printf "  │  Address: %-65s│\n" "$DAO4"
 echo "  │                                                                            │"
 echo "  │  Settings:                                                                 │"
 echo "  │    • Quorum: 10% (1000 BPS)                                                │"
@@ -307,19 +358,21 @@ echo "  │    • Timelock Delay: 12 hours                                     
 echo "  │    • Ragequit: Enabled                                                     │"
 echo "  │    • Auto-Futarchy: 0.1% of supply, capped at 5 LOOT per proposal          │"
 echo "  │                                                                            │"
-printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                              │\n" "$U1_BAL" "$U2_BAL"
+printf "  │  Shares:  User 1: %-6s  User 2: %-6s                                   │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
-echo "  │  Activity: None (pristine DAO for testing futarchy features)               │"
+echo "  │  Activity:                                                                 │"
+echo "  │    ★ DAICO: 1 USDF = 3 LOOT, 70% LP, 5% slippage, 30-day deadline          │"
+echo "  │    ★ Tap: User1 ops, ~100 USDF/day, 10k USDF budget                        │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
-# DAO 5: Delta Protocol
+# DAO 5: Full DAICO Test
 U1_BAL=$(get_shares $DAO5 $USER1_ADDR)
 U2_BAL=$(get_shares $DAO5 $USER2_ADDR)
 echo "  ┌────────────────────────────────────────────────────────────────────────────┐"
-echo "  │  5. DELTA PROTOCOL                                                         │"
+echo "  │  5. FULL DAICO TEST                                                        │"
 echo "  ├────────────────────────────────────────────────────────────────────────────┤"
-echo "  │  Address: $DAO5                              │"
+printf "  │  Address: %-65s│\n" "$DAO5"
 echo "  │                                                                            │"
 echo "  │  Settings:                                                                 │"
 echo "  │    • Quorum: 1% (100 BPS)                                                  │"
@@ -327,13 +380,23 @@ echo "  │    • Proposal TTL: 1 day (fast governance)                        
 echo "  │    • Timelock Delay: 1 hour                                                │"
 echo "  │    • Ragequit: Enabled                                                     │"
 echo "  │                                                                            │"
-printf "  │  Shares:  User 1: %-6s  │  User 2: %-6s                                 │\n" "$U1_BAL" "$U2_BAL"
+printf "  │  Shares:  User 1: %-6s  User 2: %-6s                                   │\n" "$U1_BAL" "$U2_BAL"
 echo "  │                                                                            │"
-echo "  │  Note: User 2 is NOT a member. Second member is 0x5555...5555              │"
-echo "  │  Activity: None (pristine DAO for testing fast governance)                 │"
+echo "  │  Note: Both User1 and User2 are members                                    │"
+echo "  │  Activity:                                                                 │"
+echo "  │    ★ DAICO: 0.001 ETH = 1000 SHARES, 30% LP, 1% slippage, no deadline      │"
+echo "  │    ★ Tap: User2 ops, ~0.001 ETH/day, 5 ETH budget                          │"
 echo "  └────────────────────────────────────────────────────────────────────────────┘"
 echo ""
 
 echo "═══════════════════════════════════════════════════════════════════════════════"
 echo "                          LOCAL ENVIRONMENT READY ✓"
 echo "═══════════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "  TMUX SESSION: dev"
+echo "  ─────────────────────────────────────────────────────────────────────────────"
+echo "  • Attach to session:     tmux attach -t dev"
+echo "  • View Anvil logs:       tmux select-window -t dev:1  (or Ctrl-b 1)"
+echo "  • Switch windows:        Ctrl-b <window-number>  (1=anvil, 2=server, 3=dapps)"
+echo "  • Detach from session:   Ctrl-b d"
+echo ""

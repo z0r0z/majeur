@@ -13,6 +13,9 @@ contract CreateTestDAOs is Script {
     address constant V2_MOLOCH_IMPL = 0xAFB72C54658f7332f695EbFfd9797C4eC1DAC863;
     address constant V2_VIEW_HELPER = 0x851D78aeE76329A0e8E0B8896214976A4059B37c;
     address constant RENDERER = 0x000000000011C799980827F52d3137b4abD6E654;
+    // Token implementations (deployed by Moloch impl constructor)
+    address constant V2_SHARES_IMPL = 0x50621b4d32F91e9F2d38c7E498F45D0A8b79444E;
+    address constant V2_LOOT_IMPL = 0x8af18386Bff7fD3549c6c8520CB86F271CdA6999;
 
     // Test user private keys (use specific env vars to avoid conflicts with global PRIVATE_KEY)
     uint256 constant DEFAULT_USER1_KEY = 0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048;
@@ -42,6 +45,32 @@ contract CreateTestDAOs is Script {
                 )
             )
         );
+    }
+
+    /// @dev Predict shares token address from DAO address (minimal proxy CREATE2).
+    function _predictShares(address daoAddr) internal pure returns (address) {
+        bytes32 _salt = bytes32(bytes20(daoAddr));
+        bytes memory creationCode = abi.encodePacked(
+            hex"602d5f8160095f39f35f5f365f5f37365f73",
+            V2_SHARES_IMPL,
+            hex"5af43d5f5f3e6029573d5ffd5b3d5ff3"
+        );
+        return address(uint160(uint256(keccak256(
+            abi.encodePacked(bytes1(0xff), daoAddr, _salt, keccak256(creationCode))
+        ))));
+    }
+
+    /// @dev Predict loot token address from DAO address (minimal proxy CREATE2).
+    function _predictLoot(address daoAddr) internal pure returns (address) {
+        bytes32 _salt = bytes32(bytes20(daoAddr));
+        bytes memory creationCode = abi.encodePacked(
+            hex"602d5f8160095f39f35f5f365f5f37365f73",
+            V2_LOOT_IMPL,
+            hex"5af43d5f5f3e6029573d5ffd5b3d5ff3"
+        );
+        return address(uint160(uint256(keccak256(
+            abi.encodePacked(bytes1(0xff), daoAddr, _salt, keccak256(creationCode))
+        ))));
     }
 
     /// @dev Build tagged proposal message for UI verification (matches Majeur.html format)
@@ -116,7 +145,7 @@ contract CreateTestDAOs is Script {
         Moloch dao2;
         Moloch dao3;
 
-        // DAO 1: Standard settings with 7-day TTL and 1-day timelock
+        // DAO 1: Standard settings with 7-day TTL and 1-day timelock + Cheap ETH Shares Sale
         {
             address[] memory holders = new address[](2);
             holders[0] = deployer;
@@ -129,7 +158,7 @@ contract CreateTestDAOs is Script {
             // Predict the DAO address for init calls
             address predictedDao = _predictDAO(bytes32(uint256(101)), holders, shares);
 
-            Call[] memory initCalls = new Call[](2);
+            Call[] memory initCalls = new Call[](3);
             // Set proposal TTL to 7 days
             initCalls[0] = Call({
                 target: predictedDao,
@@ -141,6 +170,20 @@ contract CreateTestDAOs is Script {
                 target: predictedDao,
                 value: 0,
                 data: abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(1 days))
+            });
+            // Moloch built-in sale: ~1 ETH = 2,000,000 SHARES (very cheap!)
+            initCalls[2] = Call({
+                target: predictedDao,
+                value: 0,
+                data: abi.encodeWithSignature(
+                    "setSale(address,uint256,uint256,bool,bool,bool)",
+                    address(0),        // ETH payment
+                    0.0000005 ether,   // price per share (~1 ETH = 2M shares)
+                    uint256(0),        // unlimited cap
+                    true,              // minting
+                    true,              // active
+                    false              // shares (not loot)
+                )
             });
 
             dao1 = summoner.summon(
@@ -157,9 +200,10 @@ contract CreateTestDAOs is Script {
             );
             console.log("DAO 1 (40 messages) deployed at:", address(dao1));
             console.log("  - Proposal TTL: 7 days, Timelock: 1 day, Ragequit: enabled");
+            console.log("  - Sale: ~1 ETH = 2M SHARES (Moloch built-in, very cheap!)");
         }
 
-        // DAO 2: No ragequit, 3-day TTL, no timelock
+        // DAO 2: No ragequit, 3-day TTL, no timelock + Expensive USDF Loot Sale
         {
             address[] memory holders = new address[](2);
             holders[0] = deployer;
@@ -171,12 +215,26 @@ contract CreateTestDAOs is Script {
 
             address predictedDao = _predictDAO(bytes32(uint256(102)), holders, shares);
 
-            Call[] memory initCalls = new Call[](1);
+            Call[] memory initCalls = new Call[](2);
             // Set proposal TTL to 3 days
             initCalls[0] = Call({
                 target: predictedDao,
                 value: 0,
                 data: abi.encodeWithSignature("setProposalTTL(uint64)", uint64(3 days))
+            });
+            // Moloch built-in sale: 3 USDF = 1 LOOT, 1000 LOOT cap
+            initCalls[1] = Call({
+                target: predictedDao,
+                value: 0,
+                data: abi.encodeWithSignature(
+                    "setSale(address,uint256,uint256,bool,bool,bool)",
+                    USDF,          // USDF payment
+                    3 ether,       // 3 USDF per loot
+                    1000 ether,    // 1000 loot cap
+                    true,          // minting
+                    true,          // active
+                    true           // loot (not shares)
+                )
             });
 
             dao2 = summoner.summon(
@@ -193,9 +251,10 @@ contract CreateTestDAOs is Script {
             );
             console.log("DAO 2 (All gov proposals) deployed at:", address(dao2));
             console.log("  - Proposal TTL: 3 days, Ragequit: disabled");
+            console.log("  - Sale: 3 USDF = 1 LOOT (Moloch built-in, 1000 LOOT cap)");
         }
 
-        // DAO 3: Two-member with 14-day TTL and proposal threshold
+        // DAO 3: Two-member with 14-day TTL, proposal threshold + DAICO sale
         {
             address[] memory holders = new address[](2);
             holders[0] = deployer;
@@ -206,8 +265,9 @@ contract CreateTestDAOs is Script {
             shares[1] = 500 ether;
 
             address predictedDao = _predictDAO(bytes32(uint256(103)), holders, shares);
+            address predictedShares = _predictShares(predictedDao);
 
-            Call[] memory initCalls = new Call[](2);
+            Call[] memory initCalls = new Call[](5);
             // Set proposal TTL to 14 days
             initCalls[0] = Call({
                 target: predictedDao,
@@ -219,6 +279,31 @@ contract CreateTestDAOs is Script {
                 target: predictedDao,
                 value: 0,
                 data: abi.encodeWithSignature("setProposalThreshold(uint96)", uint96(100 ether))
+            });
+            // Mint 1M shares to DAO for DAICO sale
+            initCalls[2] = Call({
+                target: predictedShares,
+                value: 0,
+                data: abi.encodeWithSignature("mintFromMoloch(address,uint256)", predictedDao, 1_000_000 ether)
+            });
+            // Approve DAICO to spend shares
+            initCalls[3] = Call({
+                target: predictedShares,
+                value: 0,
+                data: abi.encodeWithSignature("approve(address,uint256)", DAICO, 1_000_000 ether)
+            });
+            // DAICO sale: 1 ETH = 1,000,000 SHARES (no LP, no tap)
+            initCalls[4] = Call({
+                target: DAICO,
+                value: 0,
+                data: abi.encodeWithSignature(
+                    "setSale(address,uint256,address,uint256,uint40)",
+                    address(0),        // ETH tribute
+                    1 ether,           // 1 ETH
+                    predictedShares,   // for shares
+                    1_000_000 ether,   // 1M shares
+                    uint40(0)          // no deadline
+                )
             });
 
             dao3 = summoner.summon(
@@ -235,9 +320,10 @@ contract CreateTestDAOs is Script {
             );
             console.log("DAO 3 (Various tributes) deployed at:", address(dao3));
             console.log("  - Proposal TTL: 14 days, Threshold: 100 shares, 100% quorum");
+            console.log("  - DAICO Sale: 1 ETH = 1M SHARES (no LP, no tap)");
         }
 
-        // DAO 4: Two members with auto-futarchy enabled
+        // DAO 4: DAICO Loot Sale - USDF payment, 70% LP, tap enabled
         {
             address[] memory holders = new address[](2);
             holders[0] = deployer;
@@ -248,8 +334,9 @@ contract CreateTestDAOs is Script {
             shares[1] = 500 ether;
 
             address predictedDao = _predictDAO(bytes32(uint256(104)), holders, shares);
+            address predictedLoot = _predictLoot(predictedDao);
 
-            Call[] memory initCalls = new Call[](3);
+            Call[] memory initCalls = new Call[](7);
             // Set proposal TTL to 5 days
             initCalls[0] = Call({
                 target: predictedDao,
@@ -268,10 +355,47 @@ contract CreateTestDAOs is Script {
                 value: 0,
                 data: abi.encodeWithSignature("setAutoFutarchy(uint256,uint256)", uint256(10), uint256(5 ether))
             });
+            // Mint 10000 loot to DAO for DAICO sale
+            initCalls[3] = Call({
+                target: predictedLoot,
+                value: 0,
+                data: abi.encodeWithSignature("mintFromMoloch(address,uint256)", predictedDao, 10_000 ether)
+            });
+            // Approve DAICO to spend loot
+            initCalls[4] = Call({
+                target: predictedLoot,
+                value: 0,
+                data: abi.encodeWithSignature("approve(address,uint256)", DAICO, 10_000 ether)
+            });
+            // DAICO sale with LP and tap: 1 USDF = 3 LOOT, 70% LP, 5% slippage, 0.3% fee
+            // Tap: deployer (USER1) as ops, ~100 USDF/day = 1,157,407,407,407,407 wei/sec
+            initCalls[5] = Call({
+                target: DAICO,
+                value: 0,
+                data: abi.encodeWithSignature(
+                    "setSaleWithLPAndTap(address,uint256,address,uint256,uint40,uint16,uint16,uint256,address,uint128)",
+                    USDF,              // USDF payment
+                    1 ether,           // 1 USDF
+                    predictedLoot,     // for loot
+                    3 ether,           // 3 LOOT per 1 USDF
+                    uint40(block.timestamp + 30 days), // 30-day deadline
+                    uint16(7000),      // 70% LP
+                    uint16(500),       // 5% max slippage
+                    uint256(30),       // 0.3% pool fee
+                    deployer,          // ops = USER1
+                    uint128(1_157_407_407_407_407) // ~100 USDF/day
+                )
+            });
+            // Set allowance for tap budget: 10,000 USDF to DAICO
+            initCalls[6] = Call({
+                target: predictedDao,
+                value: 0,
+                data: abi.encodeWithSignature("setAllowance(address,address,uint256)", DAICO, USDF, 10_000 ether)
+            });
 
             Moloch dao4 = summoner.summon(
-                "Gamma Guild",
-                "GAMMA",
+                "DAICO Loot Sale",
+                "DLOOT",
                 "",
                 1000, // 10% quorum
                 true,
@@ -281,23 +405,26 @@ contract CreateTestDAOs is Script {
                 shares,
                 initCalls
             );
-            console.log("DAO 4 (Gamma Guild) deployed at:", address(dao4));
+            console.log("DAO 4 (DAICO Loot Sale) deployed at:", address(dao4));
             console.log("  - Proposal TTL: 5 days, Timelock: 12h, Auto-futarchy: 0.1%/5 LOOT");
+            console.log("  - DAICO: 1 USDF = 3 LOOT, 70% LP, 5% slippage, 30-day deadline");
+            console.log("  - Tap: User1 ops, ~100 USDF/day, 10k USDF budget");
         }
 
-        // DAO 5: Fast governance (1-day TTL, 1-hour timelock)
+        // DAO 5: Full DAICO Test - ETH payment, 30% LP, tap enabled, both users are members
         {
             address[] memory holders = new address[](2);
             holders[0] = deployer;
-            holders[1] = address(0x5555555555555555555555555555555555555555);
+            holders[1] = user2;  // User2 is now a member
 
             uint256[] memory shares = new uint256[](2);
             shares[0] = 50 ether;
             shares[1] = 50 ether;
 
             address predictedDao = _predictDAO(bytes32(uint256(105)), holders, shares);
+            address predictedShares = _predictShares(predictedDao);
 
-            Call[] memory initCalls = new Call[](2);
+            Call[] memory initCalls = new Call[](6);
             // Set proposal TTL to 1 day (fast governance)
             initCalls[0] = Call({
                 target: predictedDao,
@@ -310,10 +437,47 @@ contract CreateTestDAOs is Script {
                 value: 0,
                 data: abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(1 hours))
             });
+            // Mint 100000 shares to DAO for DAICO sale
+            initCalls[2] = Call({
+                target: predictedShares,
+                value: 0,
+                data: abi.encodeWithSignature("mintFromMoloch(address,uint256)", predictedDao, 100_000 ether)
+            });
+            // Approve DAICO to spend shares
+            initCalls[3] = Call({
+                target: predictedShares,
+                value: 0,
+                data: abi.encodeWithSignature("approve(address,uint256)", DAICO, 100_000 ether)
+            });
+            // DAICO sale with LP and tap: 0.001 ETH = 1000 SHARES, 30% LP, 1% slippage, 1% fee
+            // Tap: user2 as ops, ~0.001 ETH/day = 11,574,074,074 wei/sec
+            initCalls[4] = Call({
+                target: DAICO,
+                value: 0,
+                data: abi.encodeWithSignature(
+                    "setSaleWithLPAndTap(address,uint256,address,uint256,uint40,uint16,uint16,uint256,address,uint128)",
+                    address(0),        // ETH payment
+                    0.001 ether,       // 0.001 ETH
+                    predictedShares,   // for shares
+                    1000 ether,        // 1000 shares per 0.001 ETH
+                    uint40(0),         // no deadline
+                    uint16(3000),      // 30% LP
+                    uint16(100),       // 1% max slippage
+                    uint256(100),      // 1% pool fee
+                    user2,             // ops = USER2
+                    uint128(11_574_074_074) // ~0.001 ETH/day
+                )
+            });
+            // Set allowance for tap budget: 5 ETH to DAICO
+            initCalls[5] = Call({
+                target: predictedDao,
+                value: 0,
+                data: abi.encodeWithSignature("setAllowance(address,address,uint256)", DAICO, address(0), 5 ether)
+            });
 
             Moloch dao5 = summoner.summon(
-                "Delta Protocol",
-                "DELTA",
+                "Full DAICO Test",
+                "FDAICO",
                 "https://static9.depositphotos.com/1594920/1088/i/600/depositphotos_10881569-stock-photo-araucana-chicken-8-days-old.jpg",
                 100, // 1% quorum
                 true,
@@ -323,8 +487,11 @@ contract CreateTestDAOs is Script {
                 shares,
                 initCalls
             );
-            console.log("DAO 5 (Delta Protocol) deployed at:", address(dao5));
+            console.log("DAO 5 (Full DAICO Test) deployed at:", address(dao5));
             console.log("  - Proposal TTL: 1 day, Timelock: 1 hour (fast governance)");
+            console.log("  - DAICO: 0.001 ETH = 1000 SHARES, 30% LP, 1% slippage, no deadline");
+            console.log("  - Tap: User2 ops, ~0.001 ETH/day, 5 ETH budget");
+            console.log("  - Both User1 and User2 are members");
         }
 
         vm.stopBroadcast();
@@ -876,6 +1043,300 @@ contract CreateTestDAOs is Script {
         console.log("  24. Slash Member (Loot)");
         console.log("");
         console.log("Votes cast on proposals 13-15 and 22-24 with varied voting patterns");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Individual Deploy Functions (for selective deployment via deploy-dao.sh)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// @notice Deploy only DAO 1: "40 messages" with cheap ETH shares sale
+    function deployDAO1() public {
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
+
+        vm.startBroadcast(user1Key);
+        Summoner summoner = Summoner(V2_SUMMONER);
+
+        address[] memory holders = new address[](2);
+        holders[0] = deployer;
+        holders[1] = user2;
+
+        uint256[] memory shares = new uint256[](2);
+        shares[0] = 100 ether;
+        shares[1] = 50 ether;
+
+        address predictedDao = _predictDAO(bytes32(uint256(101)), holders, shares);
+
+        Call[] memory initCalls = new Call[](3);
+        initCalls[0] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setProposalTTL(uint64)", uint64(7 days))
+        });
+        initCalls[1] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(1 days))
+        });
+        initCalls[2] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature(
+                "setSale(address,uint256,uint256,bool,bool,bool)",
+                address(0), 0.0000005 ether, uint256(0), true, true, false
+            )
+        });
+
+        Moloch dao = summoner.summon(
+            "40 messages", "40MSG",
+            "https://st.depositphotos.com/2892507/4212/i/600/depositphotos_42123797-stock-photo-easter-dalmatain-puppy.jpg",
+            5000, true, RENDERER, bytes32(uint256(101)), holders, shares, initCalls
+        );
+        vm.stopBroadcast();
+        console.log("DAO 1 deployed at:", address(dao));
+    }
+
+    /// @notice Deploy only DAO 2: "All gov proposals" with USDF loot sale
+    function deployDAO2() public {
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
+
+        vm.startBroadcast(user1Key);
+        Summoner summoner = Summoner(V2_SUMMONER);
+
+        address[] memory holders = new address[](2);
+        holders[0] = deployer;
+        holders[1] = user2;
+
+        uint256[] memory shares = new uint256[](2);
+        shares[0] = 1000 ether;
+        shares[1] = 500 ether;
+
+        address predictedDao = _predictDAO(bytes32(uint256(102)), holders, shares);
+
+        Call[] memory initCalls = new Call[](2);
+        initCalls[0] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setProposalTTL(uint64)", uint64(3 days))
+        });
+        initCalls[1] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature(
+                "setSale(address,uint256,uint256,bool,bool,bool)",
+                USDF, 3 ether, 1000 ether, true, true, true
+            )
+        });
+
+        Moloch dao = summoner.summon(
+            "All gov proposals", "ALLGOV", "",
+            2500, false, RENDERER, bytes32(uint256(102)), holders, shares, initCalls
+        );
+        vm.stopBroadcast();
+        console.log("DAO 2 deployed at:", address(dao));
+    }
+
+    /// @notice Deploy only DAO 3: "Various tributes" with DAICO sale
+    function deployDAO3() public {
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
+
+        vm.startBroadcast(user1Key);
+        Summoner summoner = Summoner(V2_SUMMONER);
+
+        address[] memory holders = new address[](2);
+        holders[0] = deployer;
+        holders[1] = user2;
+
+        uint256[] memory shares = new uint256[](2);
+        shares[0] = 1000 ether;
+        shares[1] = 500 ether;
+
+        address predictedDao = _predictDAO(bytes32(uint256(103)), holders, shares);
+        address predictedShares = _predictShares(predictedDao);
+
+        Call[] memory initCalls = new Call[](5);
+        initCalls[0] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setProposalTTL(uint64)", uint64(14 days))
+        });
+        initCalls[1] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setProposalThreshold(uint96)", uint96(100 ether))
+        });
+        initCalls[2] = Call({
+            target: predictedShares,
+            value: 0,
+            data: abi.encodeWithSignature("mintFromMoloch(address,uint256)", predictedDao, 1_000_000 ether)
+        });
+        initCalls[3] = Call({
+            target: predictedShares,
+            value: 0,
+            data: abi.encodeWithSignature("approve(address,uint256)", DAICO, 1_000_000 ether)
+        });
+        initCalls[4] = Call({
+            target: DAICO,
+            value: 0,
+            data: abi.encodeWithSignature(
+                "setSale(address,uint256,address,uint256,uint40)",
+                address(0), 1 ether, predictedShares, 1_000_000 ether, uint40(0)
+            )
+        });
+
+        Moloch dao = summoner.summon(
+            "Various tributes", "TRIBUTES",
+            "ipfs://QmNa8mQkrNKp1WEEeGjFezDmDeodkWRevGFN8JCV7b4Xir",
+            10000, true, RENDERER, bytes32(uint256(103)), holders, shares, initCalls
+        );
+        vm.stopBroadcast();
+        console.log("DAO 3 deployed at:", address(dao));
+    }
+
+    /// @notice Deploy only DAO 4: "DAICO Loot Sale" with LP and tap
+    function deployDAO4() public {
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
+
+        vm.startBroadcast(user1Key);
+        Summoner summoner = Summoner(V2_SUMMONER);
+
+        address[] memory holders = new address[](2);
+        holders[0] = deployer;
+        holders[1] = user2;
+
+        uint256[] memory shares = new uint256[](2);
+        shares[0] = 1000 ether;
+        shares[1] = 500 ether;
+
+        address predictedDao = _predictDAO(bytes32(uint256(104)), holders, shares);
+        address predictedLoot = _predictLoot(predictedDao);
+
+        Call[] memory initCalls = new Call[](7);
+        initCalls[0] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setProposalTTL(uint64)", uint64(5 days))
+        });
+        initCalls[1] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(12 hours))
+        });
+        initCalls[2] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setAutoFutarchy(uint256,uint256)", uint256(10), uint256(5 ether))
+        });
+        initCalls[3] = Call({
+            target: predictedLoot,
+            value: 0,
+            data: abi.encodeWithSignature("mintFromMoloch(address,uint256)", predictedDao, 10_000 ether)
+        });
+        initCalls[4] = Call({
+            target: predictedLoot,
+            value: 0,
+            data: abi.encodeWithSignature("approve(address,uint256)", DAICO, 10_000 ether)
+        });
+        initCalls[5] = Call({
+            target: DAICO,
+            value: 0,
+            data: abi.encodeWithSignature(
+                "setSaleWithLPAndTap(address,uint256,address,uint256,uint40,uint16,uint16,uint256,address,uint128)",
+                USDF, 1 ether, predictedLoot, 3 ether,
+                uint40(block.timestamp + 30 days), uint16(7000), uint16(500), uint256(30),
+                deployer, uint128(1_157_407_407_407_407)
+            )
+        });
+        initCalls[6] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setAllowance(address,address,uint256)", DAICO, USDF, 10_000 ether)
+        });
+
+        Moloch dao = summoner.summon(
+            "DAICO Loot Sale", "DLOOT", "",
+            1000, true, RENDERER, bytes32(uint256(104)), holders, shares, initCalls
+        );
+        vm.stopBroadcast();
+        console.log("DAO 4 deployed at:", address(dao));
+    }
+
+    /// @notice Deploy only DAO 5: "Full DAICO Test" with LP and tap
+    function deployDAO5() public {
+        uint256 user1Key = vm.envOr("TEST_USER1_KEY", DEFAULT_USER1_KEY);
+        uint256 user2Key = vm.envOr("TEST_USER2_KEY", DEFAULT_USER2_KEY);
+        address deployer = vm.addr(user1Key);
+        address user2 = vm.addr(user2Key);
+
+        vm.startBroadcast(user1Key);
+        Summoner summoner = Summoner(V2_SUMMONER);
+
+        address[] memory holders = new address[](2);
+        holders[0] = deployer;
+        holders[1] = user2;
+
+        uint256[] memory shares = new uint256[](2);
+        shares[0] = 50 ether;
+        shares[1] = 50 ether;
+
+        address predictedDao = _predictDAO(bytes32(uint256(105)), holders, shares);
+        address predictedShares = _predictShares(predictedDao);
+
+        Call[] memory initCalls = new Call[](6);
+        initCalls[0] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setProposalTTL(uint64)", uint64(1 days))
+        });
+        initCalls[1] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setTimelockDelay(uint64)", uint64(1 hours))
+        });
+        initCalls[2] = Call({
+            target: predictedShares,
+            value: 0,
+            data: abi.encodeWithSignature("mintFromMoloch(address,uint256)", predictedDao, 100_000 ether)
+        });
+        initCalls[3] = Call({
+            target: predictedShares,
+            value: 0,
+            data: abi.encodeWithSignature("approve(address,uint256)", DAICO, 100_000 ether)
+        });
+        initCalls[4] = Call({
+            target: DAICO,
+            value: 0,
+            data: abi.encodeWithSignature(
+                "setSaleWithLPAndTap(address,uint256,address,uint256,uint40,uint16,uint16,uint256,address,uint128)",
+                address(0), 0.001 ether, predictedShares, 1000 ether,
+                uint40(0), uint16(3000), uint16(100), uint256(100),
+                user2, uint128(11_574_074_074)
+            )
+        });
+        initCalls[5] = Call({
+            target: predictedDao,
+            value: 0,
+            data: abi.encodeWithSignature("setAllowance(address,address,uint256)", DAICO, address(0), 5 ether)
+        });
+
+        Moloch dao = summoner.summon(
+            "Full DAICO Test", "FDAICO",
+            "https://static9.depositphotos.com/1594920/1088/i/600/depositphotos_10881569-stock-photo-araucana-chicken-8-days-old.jpg",
+            100, true, RENDERER, bytes32(uint256(105)), holders, shares, initCalls
+        );
+        vm.stopBroadcast();
+        console.log("DAO 5 deployed at:", address(dao));
     }
 }
 
