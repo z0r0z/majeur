@@ -26,7 +26,7 @@ contract CreateTestDAOs is Script {
         uint256 chainId = block.chainid;
         if (chainId == 1) return 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // Ethereum
         if (chainId == 8453) return 0x4200000000000000000000000000000000000006; // Base
-        if (chainId == 42161) return 0x82aF49447D8a07e3bd95BD0d56f14241523fBab1; // Arbitrum
+        if (chainId == 42161) return 0x82aF49447D8a07E3bd95BD0d56F14241523fbAb1; // Arbitrum
         return 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9; // Sepolia / localhost
     }
 

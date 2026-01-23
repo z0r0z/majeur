@@ -296,6 +296,9 @@ contract Moloch {
 
             supply = _shares.getPastTotalSupply(snap);
             if (supply == 0) revert TooEarly();
+
+            // Exclude DAO's voting power from supply (can't vote, shouldn't inflate quorum)
+            supply -= _shares.getPastVotes(address(this), snap);
             supplySnapshot[id] = supply;
 
             // ---- registry push ----
@@ -350,6 +353,7 @@ contract Moloch {
     function castVote(uint256 id, uint8 support) public {
         if (executed[id]) revert AlreadyExecuted();
         if (support > 2) revert NotOk();
+        if (msg.sender == address(this)) revert Unauthorized(); // DAO can't vote
 
         // auto-open on first vote if unopened
         if (createdAt[id] == 0) openProposal(id);
@@ -454,7 +458,7 @@ contract Moloch {
 
         // evaluate gates (only reached when TTL is 0 or TTL has elapsed)
         uint256 ts = supplySnapshot[id];
-        if (ts == 0) return ProposalState.Active;
+        // Note: ts can be 0 if DAO holds all voting power (edge case)
 
         Tally storage t = tallies[id];
         uint256 forVotes = t.forVotes;

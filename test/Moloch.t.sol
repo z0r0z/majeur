@@ -3256,4 +3256,182 @@ contract MolochTest is Test {
         // Alice's timestamp should remain unchanged
         assertEq(loot.lastAcquisitionTimestamp(alice), aliceTimestampBefore);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        QUORUM EXCLUDES DAO SHARES
+    //////////////////////////////////////////////////////////////*/
+
+    function test_QuorumExcludesDAOShares() public {
+        // Mint a large amount of shares to the DAO (simulating DAICO treasury)
+        vm.prank(address(moloch));
+        shares.mintFromMoloch(address(moloch), 1000e18);
+
+        vm.roll(block.number + 1);
+
+        // Total supply is now 1100e18 (alice 60 + bob 40 + DAO 1000)
+        assertEq(shares.totalSupply(), 1100e18);
+
+        // Create and open a proposal
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 999);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Supply snapshot should EXCLUDE DAO's shares (only 100e18 votable)
+        assertEq(moloch.supplySnapshot(id), 100e18);
+
+        // With 50% quorum on 100e18 effective supply, need 50e18 votes
+        // Alice's 60e18 alone should be enough to meet quorum
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Warp past TTL
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Should be Succeeded (60e18 > 50e18 quorum, FOR wins)
+        assertEq(uint256(moloch.state(id)), 3); // Succeeded
+    }
+
+    function test_QuorumWithDAODelegation() public {
+        // Charlie delegates their voting power to the DAO
+        vm.prank(address(moloch));
+        shares.mintFromMoloch(charlie, 50e18);
+
+        vm.roll(block.number + 1);
+
+        vm.prank(charlie);
+        shares.delegate(address(moloch));
+
+        // Roll forward to ensure delegation checkpoint is in the past
+        // Note: vm.roll evaluates block.number at call time, so use explicit jump
+        vm.roll(block.number + 10);
+
+        // Total supply is 150e18, but DAO has 50e18 voting power (delegated from charlie)
+        assertEq(shares.totalSupply(), 150e18);
+        assertEq(shares.getVotes(address(moloch)), 50e18);
+
+        // Create and open a proposal
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 888);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Supply snapshot should exclude DAO's voting power (150 - 50 = 100e18)
+        assertEq(moloch.supplySnapshot(id), 100e18);
+
+        // Charlie can't vote (delegated to DAO)
+        vm.prank(charlie);
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
+        moloch.castVote(id, 1);
+
+        // Alice's 60e18 should meet 50% quorum on 100e18 effective supply
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        vm.warp(block.timestamp + 7 days + 1);
+        assertEq(uint256(moloch.state(id)), 3); // Succeeded
+    }
+
+    function test_QuorumWithZeroDAOShares() public {
+        // Normal case: DAO has no shares
+        assertEq(shares.balanceOf(address(moloch)), 0);
+        assertEq(shares.getVotes(address(moloch)), 0);
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 777);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Supply snapshot should be full supply (100e18)
+        assertEq(moloch.supplySnapshot(id), 100e18);
+
+        // Need 50e18 for quorum, alice alone meets it
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        vm.warp(block.timestamp + 7 days + 1);
+        assertEq(uint256(moloch.state(id)), 3); // Succeeded
+    }
+
+    function test_QuorumWithAllDAOShares() public {
+        // Edge case: DAO holds ALL voting power
+        vm.startPrank(address(moloch));
+        shares.mintFromMoloch(address(moloch), 100e18);
+        vm.stopPrank();
+
+        // Transfer all user shares to DAO
+        vm.prank(alice);
+        shares.transfer(address(moloch), 60e18);
+        vm.prank(bob);
+        shares.transfer(address(moloch), 40e18);
+
+        vm.roll(block.number + 1);
+
+        // DAO now has all 200e18 shares
+        assertEq(shares.balanceOf(address(moloch)), 200e18);
+        assertEq(shares.totalSupply(), 200e18);
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 666);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(address(moloch)); // DAO can still open proposals
+        moloch.openProposal(id);
+
+        // Effective supply should be 0
+        assertEq(moloch.supplySnapshot(id), 0);
+
+        // With 0 effective supply, quorum is 0 - but no one can vote anyway
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // State should be Defeated (no FOR votes, FOR !> AGAINST)
+        assertEq(uint256(moloch.state(id)), 4); // Defeated
+    }
+
+    function test_DAOCannotVote() public {
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 555);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // DAO trying to vote should revert
+        vm.prank(address(moloch));
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
+        moloch.castVote(id, 1);
+    }
+
+    function test_DAOCannotVoteViaDelegateCall() public {
+        // Mint shares to DAO so it would have voting power
+        vm.prank(address(moloch));
+        shares.mintFromMoloch(address(moloch), 50e18);
+
+        vm.roll(block.number + 1);
+
+        // Create two proposals
+        bytes memory data1 = abi.encodeWithSelector(Target.setValue.selector, 111);
+        uint256 id1 = moloch.proposalId(0, address(target), 0, data1, bytes32(0));
+
+        // Second proposal that tries to make DAO vote on first proposal
+        bytes memory voteData = abi.encodeWithSignature("castVote(uint256,uint8)", id1, 1);
+        uint256 id2 = moloch.proposalId(0, address(moloch), 0, voteData, bytes32("attack"));
+
+        vm.prank(alice);
+        moloch.openProposal(id1);
+        vm.prank(alice);
+        moloch.openProposal(id2);
+
+        // Alice votes for the attack proposal
+        vm.prank(alice);
+        moloch.castVote(id2, 1);
+
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Execute the attack proposal - should fail because DAO can't vote
+        // The inner Unauthorized() error gets wrapped as NotOk() by _execute()
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.executeByVotes(0, address(moloch), 0, voteData, bytes32("attack"));
+    }
 }
