@@ -51,15 +51,15 @@ The codebase maintains **two contract versions in parallel**:
 **Key v2 improvements:**
 - Ragequit timelock (7-day default) — prevents flash loan attacks
 - Proposal state protection — prevents vote-sniping during voting period
+- Quorum excludes DAO shares — prevents governance deadlocks when DAO holds treasury shares
+- DAO self-voting blocked — prevents manipulation via proposal execution
 - On-chain message senders — no event queries needed for chat history
 - Reverse pagination — newest-first ordering for proposals/messages
 - Public impl getters — discover implementation addresses programmatically
 
 **Dapp compatibility:** Both `Majeur.html` and `DAICO.html` support v1 and v2 simultaneously with a user-selectable version switch.
 
-**Developer docs:**
-- [`docs/v1-v2-contract-differences.md`](./docs/v1-v2-contract-differences.md) — Complete API differences, struct changes, address tables
-- [`docs/v1-v2-migration-guide.md`](./docs/v1-v2-migration-guide.md) — Safe patterns for adding v2 support, common pitfalls, code examples
+**Developer docs:** [`docs/v1-v2-contract-differences.md`](./docs/v1-v2-contract-differences.md) — Complete API differences, struct changes, code examples
 
 ## Zero to Hero
 
@@ -755,10 +755,13 @@ Private keys are in `scripts/reset-local.sh` for local testing.
 | Protection | Mechanism |
 |------------|-----------|
 | Flash loan attacks | Snapshot at block N-1 |
+| Ragequit flash loans | 7-day timelock before ragequit (v2) |
 | Reentrancy | Transient storage guards (EIP-1153) |
 | Majority tyranny | Ragequit — minorities can exit with their share |
 | Malicious proposals | Timelocks give time to ragequit; `bumpConfig()` invalidates all pending |
 | Token reentrancy | Ragequit requires sorted token arrays |
+| Quorum deadlocks | DAO-held shares excluded from quorum denominator (v2) |
+| DAO self-voting | DAO cannot vote on proposals (v2) |
 
 ## Complete Workflow Example
 
@@ -843,6 +846,12 @@ dao.ragequit(tokens, myShares, 0);
 
 ### Q: Can I offer assets in exchange for DAO membership?
 **A:** Yes, use the Tribute contract. Lock your assets, propose the trade to the DAO, and if they vote to accept, the swap executes atomically.
+
+### Q: What happens to quorum if the DAO holds shares in its treasury?
+**A:** In v2, DAO-held shares are automatically excluded from the quorum denominator. This prevents governance deadlocks where the DAO mints shares to its treasury (e.g., for a DAICO sale) and members can never reach quorum because the DAO itself cannot vote. The `supplySnapshot` stored with each proposal represents the *votable* supply, not the total supply.
+
+### Q: Can the DAO vote on its own proposals?
+**A:** No. In v2, if `msg.sender == address(this)`, the `castVote()` function reverts with `Unauthorized()`. This prevents manipulation via malicious proposals that would make the DAO vote on other proposals.
 
 ## Disclaimer
 

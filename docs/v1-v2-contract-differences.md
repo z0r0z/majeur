@@ -12,6 +12,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | `f2e368e` | Add reverse pagination to ViewHelper | Adds `PaginationParams` struct, `reverseOrder` flags |
 | `c06b759` | Add messageSenders mapping for on-chain chat | Stores sender address per message |
 | `aff4b5f` | Expose implementation addresses via public getters | Adds `molochImpl`, `sharesImpl`, `badgesImpl`, `lootImpl` |
+| `e42d14f` | Exclude DAO-held shares from quorum calculation | Prevents governance deadlocks when DAO holds treasury shares |
 
 ---
 
@@ -21,6 +22,8 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 |---------|----|----|
 | **Ragequit** | Immediate | 7-day timelock after token acquisition |
 | **Proposal state** | Can resolve during voting | Protected until TTL expires |
+| **Quorum calculation** | Uses total supply | Excludes DAO-held voting power |
+| **DAO self-voting** | Possible via proposal execution | Blocked (reverts with `Unauthorized`) |
 | **Chat messages** | Sender via events only | `messageSenders` mapping + ViewHelper |
 | **Pagination** | Forward only | Forward + reverse ordering |
 | **DAOGovConfig struct** | No ragequitTimelock field | Has `ragequitTimelock` field |
@@ -187,6 +190,92 @@ function state(uint256 id) public view returns (ProposalState) {
     // ...
 }
 ```
+
+---
+
+## Changed Behavior: Quorum Calculation
+
+### v1 Quorum
+```solidity
+// v1: Quorum uses total supply (includes DAO-held shares)
+function openProposal(uint256 id) public {
+    // ...
+    supply = _shares.getPastTotalSupply(snap);
+    supplySnapshot[id] = supply;  // Total supply used for quorum denominator
+}
+```
+
+**Problem:** When DAOs mint shares to their treasury (e.g., for DAICO sales), those shares inflate `totalSupply` but the DAO contract cannot vote. This creates governance deadlocks where members cannot reach quorum.
+
+**Example (DAICO scenario):**
+- Members: 100 shares (can vote)
+- DAO treasury: 100,000 shares (cannot vote)
+- Quorum 1% = 1,001 shares needed
+- **Result: Permanent governance deadlock**
+
+### v2 Quorum
+```solidity
+// v2: Quorum excludes DAO-held voting power
+function openProposal(uint256 id) public {
+    // ...
+    supply = _shares.getPastTotalSupply(snap);
+    if (supply == 0) revert TooEarly();
+
+    // Exclude DAO's voting power from supply (can't vote, shouldn't inflate quorum)
+    supply -= _shares.getPastVotes(address(this), snap);
+    supplySnapshot[id] = supply;
+}
+
+function castVote(uint256 id, uint8 support) public {
+    // ...
+    if (msg.sender == address(this)) revert Unauthorized(); // DAO can't vote
+    // ...
+}
+```
+
+**Why `getPastVotes` instead of `balanceOf`:**
+- Uses same snapshot block (N-1) as supply snapshot for consistency
+- Captures both DAO's own shares AND any voting power delegated TO the DAO
+- Both are unusable for voting, so both should be excluded
+
+**Edge cases handled:**
+- DAO has 0 shares: No change to behavior
+- DAO has ALL shares: Effective supply = 0, quorum auto-passes (no one can vote anyway)
+- Shares delegated TO the DAO: Correctly excluded from quorum denominator
+- DAO tries to vote: Reverts with `Unauthorized()`
+
+---
+
+## Changed Behavior: DAO Self-Voting
+
+### v1 Self-Voting
+```solidity
+// v1: No guard - DAO could vote on proposals via executeByVotes
+function castVote(uint256 id, uint8 support) public {
+    // No check for msg.sender == address(this)
+    // ...
+}
+```
+
+**Attack vector:** A malicious proposal could make the DAO vote on other proposals:
+```solidity
+// Malicious proposal: op=0, to=address(this), data=abi.encodeCall(castVote, (targetId, 1))
+// Execution path: executeByVotes() → _execute() → to.call(data) → castVote()
+// Result: DAO votes with its own shares (which shouldn't count)
+```
+
+### v2 Self-Voting
+```solidity
+// v2: Explicit guard prevents DAO from voting
+function castVote(uint256 id, uint8 support) public {
+    if (executed[id]) revert AlreadyExecuted();
+    if (support > 2) revert NotOk();
+    if (msg.sender == address(this)) revert Unauthorized(); // DAO can't vote
+    // ...
+}
+```
+
+With v2, any attempt for the DAO to vote (directly or via proposal execution) reverts with `Unauthorized()`.
 
 ---
 
@@ -678,3 +767,25 @@ The proposal state guard prevents:
 2. **Yes-vote snipe**: Vote FOR, immediately execute malicious proposal
 
 With v2, proposals remain `Active` until TTL expires, preventing premature resolution.
+
+### Quorum Deadlock Prevention (v2)
+The quorum exclusion prevents governance deadlocks when DAOs hold treasury shares:
+
+**Problem scenario:**
+- DAO mints 100,000 shares to treasury for DAICO sale
+- Members hold only 100 shares
+- Quorum at 1% requires 1,001 votes
+- Members can never reach quorum → permanent deadlock
+
+**Solution:** v2 subtracts the DAO's voting power from `supplySnapshot` when proposals open. This ensures quorum is calculated against *votable* supply, not *total* supply.
+
+### DAO Self-Voting Prevention (v2)
+The `castVote()` guard prevents the DAO from voting on its own proposals:
+
+**Attack vector (v1):**
+```solidity
+// Malicious proposal makes DAO vote on another proposal
+executeByVotes(0, address(this), 0, abi.encodeCall(castVote, (targetId, 1)), nonce)
+```
+
+With v2, any `castVote()` call where `msg.sender == address(this)` reverts with `Unauthorized()`, closing this attack vector.
