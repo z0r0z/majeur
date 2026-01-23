@@ -21,6 +21,15 @@ contract CreateTestDAOs is Script {
     uint256 constant DEFAULT_USER1_KEY = 0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048;
     uint256 constant DEFAULT_USER2_KEY = 0x40887c48a0c3d55639b0a133bfc757ad0f61540ade8882fa6dc636af8634a752;
 
+    /// @dev Get WETH address based on chain ID
+    function _getWETH() internal view returns (address) {
+        uint256 chainId = block.chainid;
+        if (chainId == 1) return 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // Ethereum
+        if (chainId == 8453) return 0x4200000000000000000000000000000000000006; // Base
+        if (chainId == 42161) return 0x82aF49447D8a07e3bd95BD0d56f14241523fBab1; // Arbitrum
+        return 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9; // Sepolia / localhost
+    }
+
     /// @dev Predict DAO address from Summoner's CREATE2.
     function _predictDAO(
         bytes32 salt,
@@ -561,7 +570,7 @@ contract CreateTestDAOs is Script {
             dao3Addr,
             address(0), // ETH tribute
             0, // amount set by msg.value
-            0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, // WETH
+            _getWETH(), // WETH (network-dependent)
             20 ether // wants 20 WETH for 0.1 ETH lol
         );
         console.log("  - Tribute 1: User1 offers 0.1 ETH, wants 20 WETH (good luck with that)");
