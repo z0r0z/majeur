@@ -67,8 +67,8 @@ USER1_ADDR="0x1475E6FB0Df57Be4D8E9Cb0496e686e95347bb90"
 USER2_ADDR="0x4A81cBd1f0AF714F19AF819757Fb688DEf24AA24"
 
 # V2 Contract addresses (deterministic via CREATE2)
-SUMMONER="0x9E2bCf188F651b60DE21dE6F8c04783a8a7A3b4e"
-VIEW_HELPER="0x2Be87A9B7054dfcf572B9009aae2aA13F4ae9989"
+SUMMONER="0xdB9aDc369424f08bBd2300571801A0ADAD0B4410"
+VIEW_HELPER="0xe4022b04c55ca03ED91B0B666015bA29437B7026"
 # Impl addresses are fetched dynamically from contracts in the report section
 
 echo "╔══════════════════════════════════════════════════════════════════════════════╗"
@@ -159,16 +159,23 @@ run_forge() {
     done
 }
 
-# 2. Deploy V2 contracts
+# 2. Deploy V2 contracts (skip if already deployed on fork)
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [2/5] Deploying V2 Contracts                                                │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-DEPLOY_OUTPUT=$(run_forge script/DeployV2.s.sol) || {
-    echo "  ✗ Deployment failed!"
-    echo "$DEPLOY_OUTPUT" | sed 's/^/  /'
-    exit 1
-}
-echo "$DEPLOY_OUTPUT" | grep -E "(Summoner|ViewHelper|===)" | sed 's/^/  /'
+SUMMONER_CODE=$(cast codesize "$SUMMONER" --rpc-url "$LOCAL_RPC" 2>/dev/null || echo "0")
+if [ "$SUMMONER_CODE" != "0" ]; then
+    echo "  ✓ Contracts already deployed on fork (Summoner has $SUMMONER_CODE bytes)"
+    echo "    Summoner: $SUMMONER"
+    echo "    ViewHelper: $VIEW_HELPER"
+else
+    DEPLOY_OUTPUT=$(run_forge script/DeployV2.s.sol) || {
+        echo "  ✗ Deployment failed!"
+        echo "$DEPLOY_OUTPUT" | sed 's/^/  /'
+        exit 1
+    }
+    echo "$DEPLOY_OUTPUT" | grep -E "(Summoner|ViewHelper|===)" | sed 's/^/  /'
+fi
 echo ""
 
 # 3. Deploy test DAOs (Phase 1)

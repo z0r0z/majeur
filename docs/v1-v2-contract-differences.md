@@ -36,15 +36,15 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 - **ViewHelper**: `0x00000000006631040967E58e3430e4B77921a2db`
 
 ### v2 Contracts
-- **Summoner**: `0x9E2bCf188F651b60DE21dE6F8c04783a8a7A3b4e`
-- **ViewHelper**: `0x2Be87A9B7054dfcf572B9009aae2aA13F4ae9989`
+- **Summoner**: `0xdB9aDc369424f08bBd2300571801A0ADAD0B4410`
+- **ViewHelper**: `0xe4022b04c55ca03ED91B0B666015bA29437B7026`
 
 ### v2 Implementation Contracts
 These are deployed by the Summoner and can be queried via public getters:
-- **Moloch Impl**: `0x07855B550b9152eBDa4F31a5b8196224287e72fD` (`summoner.molochImpl()`)
-- **Shares Impl**: `0xF0913Eb6e2FF8A6Bbb7EC1c3e5d3c686ee2A52d5` (`molochImpl.sharesImpl()`)
-- **Badges Impl**: `0x6621adA33fb76aBA9D406A28520845e7d3eE9b59` (`molochImpl.badgesImpl()`)
-- **Loot Impl**: `0xaad9BA4678e1367f5A8BB5A8bE92dBd7C0CDFb15` (`molochImpl.lootImpl()`)
+- **Moloch Impl**: `0x7EE961133ba3D5f89a7540D559604FC2b0e72A51` (`summoner.molochImpl()`)
+- **Shares Impl**: `0xcE799983D38D69127E3b6fa83C294A28A1F31EBb` (`molochImpl.sharesImpl()`)
+- **Badges Impl**: `0x9462Ca09451b6e1405Fc9e32fE991b16Dd53Cd76` (`molochImpl.badgesImpl()`)
+- **Loot Impl**: `0x19C79260Ce3ce904C29cCC9c684D4DC486f00b71` (`molochImpl.lootImpl()`)
 
 ---
 
@@ -364,8 +364,8 @@ const CONTRACTS = {
     viewHelper: '0x00000000006631040967E58e3430e4B77921a2db'
   },
   v2: {
-    summoner: '0x9E2bCf188F651b60DE21dE6F8c04783a8a7A3b4e',
-    viewHelper: '0x2Be87A9B7054dfcf572B9009aae2aA13F4ae9989'
+    summoner: '0xdB9aDc369424f08bBd2300571801A0ADAD0B4410',
+    viewHelper: '0xe4022b04c55ca03ED91B0B666015bA29437B7026'
   }
 };
 
