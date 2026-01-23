@@ -45,10 +45,10 @@ function getViewHelperABI() {
 
 | Version | Available Networks |
 |---------|-------------------|
-| v1 | Mainnet, Sepolia, Arbitrum, Base, etc. |
-| v2 | **localhost only** (Sepolia-forking anvil) |
+| v1 | Mainnet, Arbitrum, Base, etc. |
+| v2 | **Sepolia** and localhost (Sepolia fork) |
 
-When user selects v2, the dapp auto-switches to localhost.
+v2 contracts are deployed on Sepolia testnet with the same deterministic CREATE2 addresses as the localhost fork. Test DAOs with sample data are also deployed on Sepolia.
 
 ---
 
@@ -518,21 +518,30 @@ Before merging any changes, test BOTH versions:
 
 ### v1 Testing (Production contracts)
 - [ ] Select "v1" in version dropdown
-- [ ] Connect to mainnet or Sepolia
+- [ ] Connect to mainnet or Arbitrum/Base
 - [ ] Load a DAO → verify proposals/messages load
 - [ ] Check chatroom → messages display (sender may be missing, that's OK)
 - [ ] Check ragequit → no timelock warning shown
 - [ ] Submit a vote → transaction succeeds
 - [ ] No console errors related to undefined properties
 
-### v2 Testing (Development contracts)
-- [ ] Select "v2" in version dropdown (auto-switches to localhost)
-- [ ] Ensure anvil is running with v2 contracts deployed
-- [ ] Load a DAO → verify proposals/messages load with reverse ordering
+### v2 Testing (Sepolia or localhost)
+- [ ] Select "v2" in version dropdown
+- [ ] Connect to Sepolia (or localhost if running anvil fork)
+- [ ] Load a test DAO → verify proposals/messages load with reverse ordering
 - [ ] Check chatroom → messages display WITH sender addresses
 - [ ] Check ragequit → timelock warning shown if applicable
 - [ ] Submit a vote → transaction succeeds
 - [ ] No console errors
+
+### v2 Test DAOs on Sepolia
+| DAO | Address | Features |
+|-----|---------|----------|
+| 40 messages | `0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc` | 40 chat messages, ETH share sale |
+| All gov proposals | `0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799` | 24 proposal types, USDF loot sale |
+| Various tributes | `0x1d6ACAC3F7C473575d6fDd774cd566F07406b33e` | 3 tribute offers, DAICO sale |
+| DAICO Loot Sale | `0x8E8b8E23a7B77FfB90C74643c3a02cc8c0307Ab8` | DAICO with tap, auto-futarchy |
+| Full DAICO Test | `0xE8dCCc61C5E8134A666140e4d6Aaeb080d4D5947` | Fast governance, ETH DAICO |
 
 ### Regression Checks
 - [ ] After testing v2, switch back to v1 and verify it still works

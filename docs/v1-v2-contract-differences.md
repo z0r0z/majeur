@@ -31,11 +31,11 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 
 ## Contract Addresses
 
-### v1 Contracts
+### v1 Contracts (Mainnet, Arbitrum, Base, etc.)
 - **Summoner**: `0x0000000000330B8df9E3bc5E553074DA58eE9138`
 - **ViewHelper**: `0x00000000006631040967E58e3430e4B77921a2db`
 
-### v2 Contracts
+### v2 Contracts (Sepolia + localhost fork)
 - **Summoner**: `0xdB9aDc369424f08bBd2300571801A0ADAD0B4410`
 - **ViewHelper**: `0xe4022b04c55ca03ED91B0B666015bA29437B7026`
 
@@ -45,6 +45,15 @@ These are deployed by the Summoner and can be queried via public getters:
 - **Shares Impl**: `0xcE799983D38D69127E3b6fa83C294A28A1F31EBb` (`molochImpl.sharesImpl()`)
 - **Badges Impl**: `0x9462Ca09451b6e1405Fc9e32fE991b16Dd53Cd76` (`molochImpl.badgesImpl()`)
 - **Loot Impl**: `0x19C79260Ce3ce904C29cCC9c684D4DC486f00b71` (`molochImpl.lootImpl()`)
+
+### v2 Test DAOs (Sepolia)
+| Name | Address | Purpose |
+|------|---------|---------|
+| 40 messages | `0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc` | Chat testing, ETH share sale |
+| All gov proposals | `0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799` | 24 proposal types, USDF loot sale |
+| Various tributes | `0x1d6ACAC3F7C473575d6fDd774cd566F07406b33e` | Tribute offers, DAICO sale |
+| DAICO Loot Sale | `0x8E8b8E23a7B77FfB90C74643c3a02cc8c0307Ab8` | DAICO with tap, auto-futarchy |
+| Full DAICO Test | `0xE8dCCc61C5E8134A666140e4d6Aaeb080d4D5947` | Fast governance, ETH DAICO |
 
 ---
 

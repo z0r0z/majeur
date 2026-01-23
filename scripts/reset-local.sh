@@ -178,36 +178,59 @@ else
 fi
 echo ""
 
-# 3. Deploy test DAOs (Phase 1)
+# 3. Check if test DAOs exist (they should exist on Sepolia fork)
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
-echo "│  [3/5] Creating Test DAOs (Phase 1)                                          │"
+echo "│  [3/5] Checking Test DAOs                                                    │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-DAO_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase1()") || {
-    echo "  ✗ DAO creation failed!"
-    echo "$DAO_OUTPUT" | sed 's/^/  /'
-    exit 1
-}
-echo "$DAO_OUTPUT" | grep -E "(DAO [0-9]|User|messages|Phase)" | sed 's/^/  /'
+
+# DAO addresses are deterministic based on Summoner nonce - check first DAO
+DAO1_CODE=$(cast codesize 0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc --rpc-url "$LOCAL_RPC" 2>/dev/null || echo "0")
+if [ "$DAO1_CODE" != "0" ]; then
+    echo "  ✓ Test DAOs already deployed on fork"
+    echo "    DAO 1 (40 messages): 0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc"
+    echo "    DAO 2 (All gov proposals): 0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799"
+    echo "    DAO 3 (Various tributes): 0x1d6ACAC3F7C473575d6fDd774cd566F07406b33e"
+    echo "    DAO 4 (DAICO Loot Sale): 0x8E8b8E23a7B77FfB90C74643c3a02cc8c0307Ab8"
+    echo "    DAO 5 (Full DAICO Test): 0xE8dCCc61C5E8134A666140e4d6Aaeb080d4D5947"
+    DAOS_EXISTED=true
+else
+    echo "  Deploying test DAOs..."
+    DAO_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase1()") || {
+        echo "  ✗ DAO creation failed!"
+        echo "$DAO_OUTPUT" | sed 's/^/  /'
+        exit 1
+    }
+    echo "$DAO_OUTPUT" | grep -E "(DAO [0-9]|User|messages|Phase)" | sed 's/^/  /'
+    DAOS_EXISTED=false
+fi
 echo ""
 
-# 4. Mine a block
+# 4. Mine a block (only needed if we deployed new DAOs)
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [4/5] Mining Block for Checkpoint                                           │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-cast rpc anvil_mine --rpc-url "$LOCAL_RPC" >/dev/null
-echo "  Block mined ✓"
+if [ "$DAOS_EXISTED" = true ]; then
+    echo "  ✓ Skipped (DAOs already exist on fork)"
+else
+    cast rpc anvil_mine --rpc-url "$LOCAL_RPC" >/dev/null
+    echo "  Block mined ✓"
+fi
 echo ""
 
-# 5. Create governance proposals (Phase 2)
+# 5. Create governance proposals (Phase 2) - only if DAOs were just created
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [5/5] Creating Governance Proposals (Phase 2)                               │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-PHASE2_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase2()") || {
-    echo "  ✗ Phase 2 failed!"
-    echo "$PHASE2_OUTPUT" | sed 's/^/  /'
-    exit 1
-}
-echo "$PHASE2_OUTPUT" | grep -E "(proposal created|Voting|Phase|votes)" | sed 's/^/  /'
+if [ "$DAOS_EXISTED" = true ]; then
+    echo "  ✓ Skipped (proposals already exist on fork)"
+else
+    PHASE2_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase2()") || {
+        echo "  ✗ Phase 2 failed!"
+        echo "$PHASE2_OUTPUT" | sed 's/^/  /'
+        exit 1
+    }
+    echo "$PHASE2_OUTPUT" | grep -E "(proposal created|Voting|Phase|votes)" | sed 's/^/  /'
+fi
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════════
