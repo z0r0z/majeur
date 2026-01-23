@@ -588,37 +588,28 @@ contract MolochTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_ShareSale_ETH() public {
-        // The contract does: shares.mintFromMoloch(buyer, shareAmount)
-        // shares.mintFromMoloch expects amount with full decimals (10e18 for 10 shares)
-        // So shareAmount passed to buyShares should be 10e18
-
-        // But then: cost = shareAmount * pricePerShare
-        // If shareAmount = 10e18 and we want cost = 1e18 (1 ETH)
-        // Then: pricePerShare = 1e18 / 10e18 = 0.1 wei (not possible in Solidity)
-
-        // We need to use a different ratio. Let's buy 1e17 units (0.1 share) for 1 ETH
-        // Then: pricePerShare = 1e18 / 1e17 = 10 wei per unit
+        // Price is in payToken units per whole share (1e18 units)
+        // cost = mulDiv(shareAmount, price, 1e18)
+        // For 1 whole share at 1 ETH each: cost = 1e18 * 1e18 / 1e18 = 1 ETH
 
         vm.prank(address(moloch));
-        moloch.setSale(address(0), 10, 50e18, true, true, false); // 10 wei per unit, 50e18 cap
+        moloch.setSale(address(0), 1 ether, 50e18, true, true, false); // 1 ETH per share, 50e18 cap
 
         uint256 initialSupply = shares.totalSupply();
 
-        // Charlie buys 1e17 units (0.1 whole share) for 1 ETH
+        // Charlie buys 1 whole share for 1 ETH
         vm.prank(charlie);
-        moloch.buyShares{value: 1e18}(address(0), 1e17, 0);
+        moloch.buyShares{value: 1 ether}(address(0), 1e18, 0);
 
-        assertEq(shares.balanceOf(charlie), 1e17); // 0.1 share
-        assertEq(shares.totalSupply(), initialSupply + 1e17);
+        assertEq(shares.balanceOf(charlie), 1e18); // 1 share
+        assertEq(shares.totalSupply(), initialSupply + 1e18);
         assertEq(address(moloch).balance, 1 ether);
 
         (uint256 price, uint256 cap, bool minting, bool active, bool isLoot) =
             moloch.sales(address(0));
-        assertEq(cap, 50e18 - 1e17);
-        assertEq(price, 10);
+        assertEq(cap, 50e18 - 1e18);
+        assertEq(price, 1 ether);
         assertTrue(minting);
-        assertTrue(active);
-        assertFalse(isLoot);
         assertTrue(active);
         assertFalse(isLoot);
     }
@@ -630,30 +621,29 @@ contract MolochTest is Test {
 
         assertEq(shares.balanceOf(address(moloch)), 20e18);
 
-        // Setup sale: for 1e17 units at 5 wei per unit = 5e17 wei (0.5 ETH)
+        // 0.5 ETH per share: cost = 1e18 * 0.5e18 / 1e18 = 0.5 ETH
         vm.prank(address(moloch));
-        moloch.setSale(address(0), 5, 20e18, false, true, false); // 5 wei per unit
+        moloch.setSale(address(0), 0.5 ether, 20e18, false, true, false);
 
-        // Charlie buys 1e17 units for 0.5 ether
+        // Charlie buys 1 whole share for 0.5 ETH
         vm.prank(charlie);
-        moloch.buyShares{value: 5e17}(address(0), 1e17, 0);
+        moloch.buyShares{value: 0.5 ether}(address(0), 1e18, 0);
 
-        assertEq(shares.balanceOf(charlie), 1e17);
-        assertEq(shares.balanceOf(address(moloch)), 20e18 - 1e17);
+        assertEq(shares.balanceOf(charlie), 1e18);
+        assertEq(shares.balanceOf(address(moloch)), 20e18 - 1e18);
         assertEq(shares.totalSupply(), 100e18); // No new minting
     }
 
     function test_LootSale() public {
-        // Similar to shares, loot needs proper pricing
-        // For 5e16 units at 10 wei per unit = 5e17 wei (0.5 ETH)
+        // 10 ETH per loot: cost = 5e16 * 10e18 / 1e18 = 0.5 ETH
         vm.prank(address(moloch));
-        moloch.setSale(address(0), 10, 0, true, true, true); // 10 wei per unit, no cap
+        moloch.setSale(address(0), 10 ether, 0, true, true, true); // 10 ETH per loot, no cap
 
         uint256 initialLootSupply = loot.totalSupply();
 
-        // Charlie buys 5e16 loot units for 0.5 ether
+        // Charlie buys 0.05 loot for 0.5 ETH
         vm.prank(charlie);
-        moloch.buyShares{value: 5e17}(address(0), 5e16, 0);
+        moloch.buyShares{value: 0.5 ether}(address(0), 5e16, 0);
 
         assertEq(loot.balanceOf(charlie), 5e16);
         assertEq(loot.totalSupply(), initialLootSupply + 5e16);
@@ -2239,21 +2229,23 @@ contract MolochTest is Test {
     }
 
     function test_BuyShares_ExceedsMaxPay() public {
+        // 2 ETH per share: cost = 5e18 * 2e18 / 1e18 = 10 ETH
         vm.prank(address(moloch));
-        moloch.setSale(address(0), 2, 0, true, true, false); // 2 wei per share
+        moloch.setSale(address(0), 2 ether, 0, true, true, false);
 
         vm.prank(charlie);
         vm.expectRevert(abi.encodeWithSignature("NotOk()"));
-        moloch.buyShares{value: 10e18}(address(0), 5e18, 1e18); // maxPay too low
+        moloch.buyShares{value: 10e18}(address(0), 5e18, 1e18); // maxPay 1 ETH < cost 10 ETH
     }
 
     function test_BuyShares_InsufficientETH() public {
+        // 1 ETH per share: cost = 1e18 * 1e18 / 1e18 = 1 ETH
         vm.prank(address(moloch));
-        moloch.setSale(address(0), 1e18, 0, true, true, false);
+        moloch.setSale(address(0), 1 ether, 0, true, true, false);
 
         vm.prank(charlie);
         vm.expectRevert(abi.encodeWithSignature("NotOk()"));
-        moloch.buyShares{value: 0.5 ether}(address(0), 1, 0); // Not enough ETH
+        moloch.buyShares{value: 0.5 ether}(address(0), 1e18, 0); // Needs 1 ETH, only sent 0.5
     }
 
     function test_Ragequit_NotRagequittable() public {

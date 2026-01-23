@@ -107,7 +107,7 @@ contract Moloch {
      * SALE STATE
      */
     struct Sale {
-        uint256 pricePerShare; // in payToken units (wei for ETH)
+        uint256 pricePerShare; // payToken units per whole share (1e18 share units)
         uint256 cap; // remaining shares (0 = unlimited)
         bool minting; // true=mint, false=transfer Moloch-held
         bool active;
@@ -721,7 +721,7 @@ contract Moloch {
         if (cap != 0 && shareAmount > cap) revert NotOk();
 
         uint256 price = s.pricePerShare;
-        uint256 cost = shareAmount * price;
+        uint256 cost = mulDiv(shareAmount, price, 1e18);
 
         if (maxPay != 0 && cost > maxPay) revert NotOk();
 

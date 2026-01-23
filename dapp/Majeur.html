@@ -11065,8 +11065,8 @@
           daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
         },
         v2: {
-          summoner: '0xC1fE5F7163A3fe20b40f0410Dbdea1D0e4AE0d2A',
-          viewHelper: '0x851D78aeE76329A0e8E0B8896214976A4059B37c',
+          summoner: '0x9E2bCf188F651b60DE21dE6F8c04783a8a7A3b4e',
+          viewHelper: '0x2Be87A9B7054dfcf572B9009aae2aA13F4ae9989',
           tribute: '0x000000000066524fcf78Dc1E41E9D525d9ea73D0',
           daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
         }
@@ -13689,10 +13689,10 @@
           loot: '0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5'
         },
         localhost: {
-          moloch: '0xAFB72C54658f7332f695EbFfd9797C4eC1DAC863',
-          shares: '0x50621b4d32F91e9F2d38c7E498F45D0A8b79444E',
-          loot: '0x8af18386Bff7fD3549c6c8520CB86F271CdA6999',
-          badges: '0xF376f0066084a4b1739FC784D53b2aaC90dC173d'
+          moloch: '0x07855B550b9152eBDa4F31a5b8196224287e72fD',
+          shares: '0xF0913Eb6e2FF8A6Bbb7EC1c3e5d3c686ee2A52d5',
+          loot: '0xaad9BA4678e1367f5A8BB5A8bE92dBd7C0CDFb15',
+          badges: '0x6621adA33fb76aBA9D406A28520845e7d3eE9b59'
         }
       };
 
@@ -17940,14 +17940,15 @@
           for (const sale of activeSales) {
             const tokenType = sale.isLoot ? 'LOOT' : 'SHARES';
             const tokenSymbol = sale.isLoot ? `${currentDAO.dao.meta.symbol}-LOOT` : currentDAO.dao.meta.symbol;
-            // pricePerShare is a simple integer ratio (token-wei per share-wei)
-            const priceRatio = sale.pricePerShare.toString();
-            const priceFormatted = `${priceRatio}:1`;
+            // pricePerShare is payToken units per whole share (1e18 share units)
+            // Format for display (e.g., 1e18 displays as "1")
+            const priceFormatted = parseFloat(ethers.formatEther(sale.pricePerShare)).toString().replace(/\.0+$/, '');
             const capText = sale.cap > 0n ? `${parseFloat(ethers.formatEther(sale.cap)).toFixed(2).replace(/\.00$/, '')} remaining` : 'Unlimited';
             const sourceText = sale.minting ? 'Minting new' : 'From treasury';
 
-            // Detect 1:1 ratio for governance staking/upgrade (18 decimals, price = 1)
-            const is1to1Upgrade = sale.token.decimals === 18 && sale.pricePerShare === 1n;
+            // Detect 1:1 ratio for governance staking/upgrade (18 decimals, price = 1e18)
+            const SCALE = 1000000000000000000n;
+            const is1to1Upgrade = sale.token.decimals === 18 && sale.pricePerShare === SCALE;
             const displayTitle = is1to1Upgrade ? `${tokenType} GOVERNANCE STAKING/UPGRADE` : `${tokenType} SALE`;
 
             // Fetch DAO balance for custom tokens
@@ -21977,10 +21978,12 @@
           const balanceFormatted = parseFloat(ethers.formatUnits(userBalance, tokenDecimals)).toFixed(2).replace(/\.00$/, '');
 
           // Calculate max affordable shares based on user balance
-          // pricePerShare is payToken wei per share wei
+          // pricePerShare is payToken units per whole share (1e18 share units)
+          // Contract math: cost = mulDiv(shareAmount, price, 1e18), so maxShares = balance * 1e18 / price
           let maxAffordable = '0';
           if (userBalance > 0n && sale.pricePerShare > 0n) {
-            const maxShares = userBalance / sale.pricePerShare;
+            const SCALE = 1000000000000000000n;
+            const maxShares = (userBalance * SCALE) / sale.pricePerShare;
             maxAffordable = ethers.formatEther(maxShares);
           }
 
@@ -22059,9 +22062,11 @@
           }
 
           // Calculate cost
-          // pricePerShare is payToken wei per share wei (no extra scaling)
-          // For 18-dec tokens: pricePerShare=1 means 1:1 (1e18 tokens buys 1e18 shares)
-          const cost = shareAmount * sale.pricePerShare;
+          // pricePerShare is payToken units per whole share (1e18 share units)
+          // Contract math: cost = mulDiv(shareAmount, price, 1e18)
+          // For 1:1 pricing with 18-decimal tokens, pricePerShare should be 1e18
+          const SCALE = 1000000000000000000n;
+          const cost = (shareAmount * sale.pricePerShare) / SCALE;
           const maxPay = (cost * 105n) / 100n; // 5% slippage
 
           // ERC20 token: check allowance and approve if needed
@@ -23854,12 +23859,12 @@
             return;
           }
 
-          // Price is in "token-wei per share-wei" (simple integer ratio)
-          // For 1:1 with 18-decimal tokens: user enters "1", price = 1 (not 1e18!)
-          // This is because contract does: cost = shareAmount * price (no scaling)
-          const pricePerShare = BigInt(Math.round(parseFloat(priceInput)));
+          // Price is payToken units per whole share (1e18 share units)
+          // For 1:1 with 18-decimal tokens: user enters "1", we parse to 1e18
+          // Contract math: cost = mulDiv(shareAmount, price, 1e18)
+          const pricePerShare = ethers.parseEther(priceInput);
           if (pricePerShare === 0n) {
-            showStatus('Price must be at least 1 (fractional prices < 1 not supported)', true);
+            showStatus('Price must be greater than 0', true);
             return;
           }
 
@@ -25034,12 +25039,12 @@
             decimals = tokenDecimals[payToken];
           }
 
-          // Price is in "token-wei per share-wei" (simple integer ratio)
-          // For 1:1 with 18-decimal tokens: user enters "1", price = 1 (not 1e18!)
-          // This is because contract does: cost = shareAmount * price (no scaling)
-          const pricePerShare = BigInt(Math.round(parseFloat(priceInput)));
+          // Price is payToken units per whole share (1e18 share units)
+          // For 1:1 with 18-decimal tokens: user enters "1", we parse to 1e18
+          // Contract math: cost = mulDiv(shareAmount, price, 1e18)
+          const pricePerShare = ethers.parseEther(priceInput);
           if (pricePerShare === 0n) {
-            showStatus('Price must be at least 1 (fractional prices < 1 not supported)', true);
+            showStatus('Price must be greater than 0', true);
             return;
           }
 
@@ -29568,9 +29573,9 @@
             tokenName = tokenName || 'Unknown';
             decimals = decimals || 18;
 
-            // pricePerShare is a simple integer ratio (token-wei per share-wei)
-            // For display, just show the raw number (e.g., "1" for 1:1, "2" for 2:1)
-            const price = pricePerShare.toString();
+            // pricePerShare is payToken units per whole share (1e18 share units)
+            // Format for display (e.g., 1e18 displays as "1")
+            const price = parseFloat(ethers.formatEther(pricePerShare)).toString().replace(/\.0+$/, '');
             const tokenType = isLoot ? 'LOOT' : 'SHARES';
             const statusText = active ? 'Enable' : 'Disable';
             const capText = cap > 0n ? `${parseFloat(ethers.formatEther(cap)).toFixed(2).replace(/\.00$/, '')} cap` : 'unlimited';
@@ -32079,8 +32084,9 @@
               throw new Error('No wrap token selected');
             }
 
-            // Internal sale is always 1:1 (pricePerShare = 1), unlimited (cap = 0), minting = true
-            const pricePerShare = 1n;
+            // Internal sale is always 1:1, unlimited (cap = 0), minting = true
+            // For 1:1 pricing with 18-decimal tokens, pricePerShare should be 1e18
+            const pricePerShare = ethers.parseEther('1');
             const cap = 0n;
             const isLoot = tokenType === 'loot';
 
