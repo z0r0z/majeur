@@ -217,12 +217,15 @@ else
 fi
 echo ""
 
-# 5. Create governance proposals (Phase 2) - only if DAOs were just created
+# 5. Create governance proposals (Phase 2) - check if proposals actually exist
 echo "┌──────────────────────────────────────────────────────────────────────────────┐"
 echo "│  [5/5] Creating Governance Proposals (Phase 2)                               │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
-if [ "$DAOS_EXISTED" = true ]; then
-    echo "  ✓ Skipped (proposals already exist on fork)"
+# Check actual proposal count on DAO2 (the "All gov proposals" DAO)
+DAO2_ADDR="0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799"
+PROPOSAL_COUNT=$(cast call $DAO2_ADDR "getProposalCount()(uint256)" --rpc-url "$LOCAL_RPC" 2>/dev/null || echo "0")
+if [ "$PROPOSAL_COUNT" != "0" ]; then
+    echo "  ✓ Skipped (DAO2 has $PROPOSAL_COUNT proposals)"
 else
     PHASE2_OUTPUT=$(run_forge script/CreateTestDAOs.s.sol "runPhase2()") || {
         echo "  ✗ Phase 2 failed!"
