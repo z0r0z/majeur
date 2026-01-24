@@ -9,13 +9,13 @@ import {Tribute} from "../src/peripheral/Tribute.sol";
 
 contract CreateTestDAOs is Script {
     // V2 addresses (deterministic via CREATE2)
-    address constant V2_SUMMONER = 0xdB9aDc369424f08bBd2300571801A0ADAD0B4410;
-    address constant V2_MOLOCH_IMPL = 0x7EE961133ba3D5f89a7540D559604FC2b0e72A51;
+    address constant V2_SUMMONER = 0xadc33cbf7715219D9DC0d3958020835AaE36c338;
+    address constant V2_MOLOCH_IMPL = 0x30C0b2AE8A02c5cEaD946aBD823783c58343C7Be;
     address constant V2_VIEW_HELPER = 0xe4022b04c55ca03ED91B0B666015bA29437B7026;
     address constant RENDERER = 0x000000000011C799980827F52d3137b4abD6E654;
     // Token implementations (deployed by Moloch impl constructor)
-    address constant V2_SHARES_IMPL = 0xcE799983D38D69127E3b6fa83C294A28A1F31EBb;
-    address constant V2_LOOT_IMPL = 0x19C79260Ce3ce904C29cCC9c684D4DC486f00b71;
+    address constant V2_SHARES_IMPL = 0xb9f6C846783B8E33A1ab82916fDA52D412e16091;
+    address constant V2_LOOT_IMPL = 0x7Ae035eBF4FBe4A6B1F01d905Ea397e376FBF7c0;
 
     // Test user private keys (use specific env vars to avoid conflicts with global PRIVATE_KEY)
     uint256 constant DEFAULT_USER1_KEY = 0xc4382ae42dfc444c62f678d6e7b480d468fe9a97018e922ac4cf47ba028d4048;

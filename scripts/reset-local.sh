@@ -67,7 +67,7 @@ USER1_ADDR="0x1475E6FB0Df57Be4D8E9Cb0496e686e95347bb90"
 USER2_ADDR="0x4A81cBd1f0AF714F19AF819757Fb688DEf24AA24"
 
 # V2 Contract addresses (deterministic via CREATE2)
-SUMMONER="0xdB9aDc369424f08bBd2300571801A0ADAD0B4410"
+SUMMONER="0xadc33cbf7715219D9DC0d3958020835AaE36c338"
 VIEW_HELPER="0xe4022b04c55ca03ED91B0B666015bA29437B7026"
 # Impl addresses are fetched dynamically from contracts in the report section
 
@@ -101,8 +101,8 @@ for i in {1..20}; do
 done
 [ "$STOPPED" = false ] && echo ""
 
-# Start new Anvil
-tmux send-keys -t dev:1 "anvil --fork-url $FORK_URL --code-size-limit 50000 --chain-id 31337 --block-time 1" Enter
+# Start new Anvil (state goes to /tmp, cleaned on reboot)
+tmux send-keys -t dev:1 "anvil --fork-url $FORK_URL --code-size-limit 50000 --chain-id 31337 --block-time 1 --state /tmp/anvil-state" Enter
 
 # Wait for Anvil to respond to RPC
 echo -n "  Waiting for RPC"
@@ -184,14 +184,14 @@ echo "│  [3/5] Checking Test DAOs                                             
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 
 # DAO addresses are deterministic based on Summoner nonce - check first DAO
-DAO1_CODE=$(cast codesize 0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc --rpc-url "$LOCAL_RPC" 2>/dev/null || echo "0")
+DAO1_CODE=$(cast codesize 0xadB86294698a5A21379B5E00f72B1f659348341C --rpc-url "$LOCAL_RPC" 2>/dev/null || echo "0")
 if [ "$DAO1_CODE" != "0" ]; then
     echo "  ✓ Test DAOs already deployed on fork"
-    echo "    DAO 1 (40 messages): 0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc"
-    echo "    DAO 2 (All gov proposals): 0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799"
-    echo "    DAO 3 (Various tributes): 0x1d6ACAC3F7C473575d6fDd774cd566F07406b33e"
-    echo "    DAO 4 (DAICO Loot Sale): 0x8E8b8E23a7B77FfB90C74643c3a02cc8c0307Ab8"
-    echo "    DAO 5 (Full DAICO Test): 0xE8dCCc61C5E8134A666140e4d6Aaeb080d4D5947"
+    echo "    DAO 1 (40 messages): 0xadB86294698a5A21379B5E00f72B1f659348341C"
+    echo "    DAO 2 (All gov proposals): 0x9F870012cD88434F00D78513285D064A7A3100a1"
+    echo "    DAO 3 (Various tributes): 0x0F3921Cc97960F591DbB834Bb4B9f6D370e8Cc3F"
+    echo "    DAO 4 (DAICO Loot Sale): 0x364EAE5269809F386A16BFB5574E45797424D73a"
+    echo "    DAO 5 (Full DAICO Test): 0xb6AF02286E63380d9F31AA4bf5041759b7CA0572"
     DAOS_EXISTED=true
 else
     echo "  Deploying test DAOs..."
@@ -222,7 +222,7 @@ echo "┌───────────────────────�
 echo "│  [5/5] Creating Governance Proposals (Phase 2)                               │"
 echo "└──────────────────────────────────────────────────────────────────────────────┘"
 # Check actual proposal count on DAO2 (the "All gov proposals" DAO)
-DAO2_ADDR="0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799"
+DAO2_ADDR="0x9F870012cD88434F00D78513285D064A7A3100a1"
 PROPOSAL_COUNT=$(cast call $DAO2_ADDR "getProposalCount()(uint256)" --rpc-url "$LOCAL_RPC" 2>/dev/null || echo "0")
 if [ "$PROPOSAL_COUNT" != "0" ]; then
     echo "  ✓ Skipped (DAO2 has $PROPOSAL_COUNT proposals)"
