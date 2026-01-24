@@ -51,6 +51,7 @@ The codebase maintains **two contract versions in parallel**:
 **Key v2 improvements:**
 - Ragequit timelock (7-day default) — prevents flash loan attacks
 - Proposal state protection — prevents vote-sniping during voting period
+- Unanimous consent early execution — 100% FOR bypasses TTL and timelock
 - Quorum excludes DAO shares — prevents governance deadlocks when DAO holds treasury shares
 - DAO self-voting blocked — prevents manipulation via proposal execution
 - On-chain message senders — no event queries needed for chat history
@@ -852,6 +853,9 @@ dao.ragequit(tokens, myShares, 0);
 
 ### Q: Can the DAO vote on its own proposals?
 **A:** No. In v2, if `msg.sender == address(this)`, the `castVote()` function reverts with `Unauthorized()`. This prevents manipulation via malicious proposals that would make the DAO vote on other proposals.
+
+### Q: Can proposals execute before the voting period ends?
+**A:** Yes, in v2 with unanimous consent. If 100% of voting power votes FOR, the proposal can execute immediately — bypassing both the TTL and timelock. This is safe because if everyone agrees, there's no minority that needs protection time. It's particularly useful for early-stage DAOs with few founders who want to move quickly when aligned.
 
 ## Disclaimer
 

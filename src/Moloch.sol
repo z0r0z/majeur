@@ -451,9 +451,11 @@ contract Moloch {
             if (delay != 0 && block.timestamp < queued + delay) return ProposalState.Queued;
         } else {
             uint64 ttl = proposalTTL;
-            // While the voting window is open, the proposal is ALWAYS Active.
-            // This prevents both "No-vote" pot snipes and "Yes-vote" treasury snipes.
-            if (ttl != 0 && block.timestamp < t0 + ttl) return ProposalState.Active;
+            if (ttl != 0 && block.timestamp < t0 + ttl) {
+                // Unanimous consent: 100% FOR votes allows early execution
+                if (tallies[id].forVotes < supplySnapshot[id]) return ProposalState.Active;
+                // Fall through to quorum/majority checks (which will trivially pass)
+            }
         }
 
         // evaluate gates (only reached when TTL is 0 or TTL has elapsed)
@@ -515,7 +517,10 @@ contract Moloch {
         // only Succeeded or Queued proposals are allowed through
         if (st != ProposalState.Succeeded && st != ProposalState.Queued) revert NotOk();
 
-        if (timelockDelay != 0) {
+        // Unanimous consent bypasses timelock
+        bool unanimous = tallies[id].forVotes == supplySnapshot[id] && supplySnapshot[id] != 0;
+
+        if (!unanimous && timelockDelay != 0) {
             if (queuedAt[id] == 0) {
                 queuedAt[id] = uint64(block.timestamp);
                 emit Queued(id, queuedAt[id]);

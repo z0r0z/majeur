@@ -13,6 +13,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | `c06b759` | Add messageSenders mapping for on-chain chat | Stores sender address per message |
 | `aff4b5f` | Expose implementation addresses via public getters | Adds `molochImpl`, `sharesImpl`, `badgesImpl`, `lootImpl` |
 | `e42d14f` | Exclude DAO-held shares from quorum calculation | Prevents governance deadlocks when DAO holds treasury shares |
+| (pending) | Unanimous consent early execution | 100% FOR votes bypass TTL and timelock |
 
 ---
 
@@ -22,6 +23,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 |---------|----|----|
 | **Ragequit** | Immediate | 7-day timelock after token acquisition |
 | **Proposal state** | Can resolve during voting | Protected until TTL expires |
+| **Unanimous consent** | Must wait for TTL + timelock | 100% FOR bypasses TTL and timelock |
 | **Quorum calculation** | Uses total supply | Excludes DAO-held voting power |
 | **DAO self-voting** | Possible via proposal execution | Blocked (reverts with `Unauthorized`) |
 | **Chat messages** | Sender via events only | `messageSenders` mapping + ViewHelper |
@@ -178,18 +180,65 @@ function state(uint256 id) public view returns (ProposalState) {
 
 ### v2 State Function
 ```solidity
-// v2: Guards against premature resolution during voting period
+// v2: Guards against premature resolution, with unanimous consent exception
 function state(uint256 id) public view returns (ProposalState) {
     // ...
 
-    // While the voting window is open, the proposal is ALWAYS Active.
-    // This prevents both "No-vote" pot snipes and "Yes-vote" treasury snipes.
-    if (ttl != 0 && block.timestamp < t0 + ttl) return ProposalState.Active;
+    if (ttl != 0 && block.timestamp < t0 + ttl) {
+        // Unanimous consent: 100% FOR votes allows early execution
+        if (tallies[id].forVotes < supplySnapshot[id]) return ProposalState.Active;
+        // Fall through to quorum/majority checks (which will trivially pass)
+    }
 
-    // Vote evaluation only runs after TTL expires
+    // Vote evaluation runs after TTL expires OR with unanimous consent
     // ...
 }
 ```
+
+---
+
+## Changed Behavior: Unanimous Consent Early Execution
+
+### v1 Execution
+```solidity
+// v1: Must always wait for TTL to expire, then wait for timelock
+// Even if everyone votes YES immediately, still wait for full TTL + timelock
+```
+
+### v2 Execution
+```solidity
+// v2: 100% FOR votes bypass both TTL and timelock
+function executeByVotes(...) {
+    // ...
+
+    // Unanimous consent bypasses timelock
+    bool unanimous = tallies[id].forVotes == supplySnapshot[id] && supplySnapshot[id] != 0;
+
+    if (!unanimous && timelockDelay != 0) {
+        // Normal timelock logic applies for non-unanimous proposals
+        if (queuedAt[id] == 0) {
+            queuedAt[id] = uint64(block.timestamp);
+            emit Queued(id, queuedAt[id]);
+            return (true, "");
+        }
+        uint64 untilWhen = queuedAt[id] + timelockDelay;
+        if (block.timestamp < untilWhen) revert Timelocked(untilWhen);
+    }
+    // Unanimous proposals execute immediately
+}
+```
+
+**Why this is safe:**
+- **No minority to protect**: If everyone agrees, there's no one who needs time to ragequit
+- **Flash loan resistant**: Snapshot at block N-1 prevents instant token acquisition
+- **Self-limiting**: As DAO grows, unanimous consent becomes naturally harder to achieve
+
+**Use case:** Early-stage DAOs with few founders can move quickly when everyone agrees. A 2-person DAO with a 7-day TTL and 2-day timelock can now execute immediately if both vote YES.
+
+**Edge cases:**
+- `supplySnapshot = 0`: No early execution (prevents vacuous truth)
+- Abstain votes: Don't count toward unanimous — must be explicit FOR votes
+- 99% FOR: Still requires full TTL + timelock (not unanimous)
 
 ---
 
@@ -789,3 +838,16 @@ executeByVotes(0, address(this), 0, abi.encodeCall(castVote, (targetId, 1)), non
 ```
 
 With v2, any `castVote()` call where `msg.sender == address(this)` reverts with `Unauthorized()`, closing this attack vector.
+
+### Unanimous Consent Early Execution (v2)
+The unanimous consent feature allows 100% FOR votes to bypass both TTL and timelock:
+
+**Why this is safe:**
+- **No minority to protect**: Unanimous means everyone agreed — no one needs ragequit time
+- **Flash loan resistant**: Snapshot at block N-1 already prevents vote manipulation
+- **Self-limiting**: As DAO grows, achieving unanimity becomes exponentially harder
+
+**Guards against abuse:**
+- `supplySnapshot != 0` required — can't use on zero-supply proposals
+- Must be explicit FOR votes — abstain doesn't count toward unanimous
+- Still requires quorum (trivially met with 100% participation)

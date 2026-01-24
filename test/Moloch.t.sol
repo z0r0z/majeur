@@ -3434,4 +3434,181 @@ contract MolochTest is Test {
         vm.expectRevert(abi.encodeWithSignature("NotOk()"));
         moloch.executeByVotes(0, address(moloch), 0, voteData, bytes32("attack"));
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        UNANIMOUS CONSENT EARLY EXECUTION
+    //////////////////////////////////////////////////////////////*/
+
+    function test_UnanimousConsentEarlyExecution() public {
+        // Set both TTL and timelock to ensure early execution bypasses both
+        vm.startPrank(address(moloch));
+        moloch.setProposalTTL(7 days);
+        moloch.setTimelockDelay(2 days);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 42);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Open proposal
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Should be Active initially
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Alice votes YES (60% of supply)
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Still Active - not unanimous yet
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Bob votes YES (40% of supply) - now 100% FOR
+        vm.prank(bob);
+        moloch.castVote(id, 1);
+
+        // Should be Succeeded immediately (100% FOR bypasses TTL)
+        assertEq(uint256(moloch.state(id)), 3); // Succeeded
+
+        // Execute immediately - should bypass timelock too
+        vm.prank(alice);
+        (bool ok,) = moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        assertTrue(ok);
+        assertEq(target.value(), 42);
+        assertTrue(moloch.executed(id));
+        // Timelock should NOT have been set (unanimous bypasses it)
+        assertEq(moloch.queuedAt(id), 0);
+    }
+
+    function test_UnanimousConsentRequiresAllVotes() public {
+        vm.prank(address(moloch));
+        moloch.setProposalTTL(7 days);
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 123);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Only Alice votes (60% FOR, not 100%)
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Should still be Active during TTL (not unanimous)
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Cannot execute during TTL without unanimous consent
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        // After TTL, should be Succeeded
+        vm.warp(block.timestamp + 7 days + 1);
+        assertEq(uint256(moloch.state(id)), 3); // Succeeded
+    }
+
+    function test_UnanimousConsentZeroSupply() public {
+        // Edge case: supplySnapshot = 0 should NOT allow early execution
+        // This happens when DAO holds all voting power at snapshot
+
+        // Use existing moloch - mint shares to DAO itself, removing from alice/bob
+        vm.startPrank(address(moloch));
+        shares.burnFromMoloch(alice, 60e18);
+        shares.burnFromMoloch(bob, 40e18);
+        shares.mintFromMoloch(address(moloch), 100e18);
+        vm.stopPrank();
+
+        // Roll forward so snapshot captures zero external supply
+        vm.roll(block.number + 1);
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 1);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Open proposal - external supply should be 0 (DAO-held shares excluded)
+        moloch.openProposal(id);
+
+        // supplySnapshot should be 0 (DAO shares excluded from voting)
+        assertEq(moloch.supplySnapshot(id), 0);
+
+        // With zero supply, 0 < 0 is false so it falls through to quorum/majority checks
+        // forVotes (0) <= againstVotes (0) → Defeated immediately
+        // This is correct: with no external voting power, no proposals can pass
+        assertEq(uint256(moloch.state(id)), 4); // Defeated
+
+        // Cannot execute
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+    }
+
+    function test_NormalExecutionAfterTTL() public {
+        vm.startPrank(address(moloch));
+        moloch.setProposalTTL(7 days);
+        moloch.setTimelockDelay(2 days);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 789);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        // Only Alice votes (60% FOR, not unanimous)
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Still Active during TTL
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Wait for TTL to expire
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Now Succeeded
+        assertEq(uint256(moloch.state(id)), 3); // Succeeded
+
+        // First execute call should queue (non-unanimous, so timelock applies)
+        vm.prank(alice);
+        (bool ok,) = moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+        assertTrue(ok);
+        assertGt(moloch.queuedAt(id), 0); // Timelock WAS set
+        assertEq(uint256(moloch.state(id)), 2); // Queued
+
+        // Cannot execute during timelock
+        vm.prank(alice);
+        vm.expectRevert();
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        // After timelock, can execute
+        vm.warp(block.timestamp + 2 days + 1);
+        vm.prank(alice);
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+
+        assertEq(target.value(), 789);
+        assertTrue(moloch.executed(id));
+    }
+
+    function test_UnanimousConsentWithAbstainNotCounted() public {
+        // Abstain votes should NOT count toward unanimous consent
+        vm.prank(address(moloch));
+        moloch.setProposalTTL(7 days);
+
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 456);
+        uint256 id = moloch.proposalId(0, address(target), 0, data, bytes32(0));
+
+        vm.prank(alice);
+        moloch.openProposal(id);
+
+        // Alice votes FOR (60%)
+        vm.prank(alice);
+        moloch.castVote(id, 1);
+
+        // Bob votes ABSTAIN (40%) - NOT unanimous FOR
+        vm.prank(bob);
+        moloch.castVote(id, 2);
+
+        // Should still be Active (abstain doesn't count as FOR)
+        assertEq(uint256(moloch.state(id)), 1); // Active
+
+        // Cannot execute during TTL
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("NotOk()"));
+        moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+    }
 }
