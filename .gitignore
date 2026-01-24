@@ -4,4 +4,7 @@ broadcast
 TODO.md
 CLAUDE*
 claude*
+.claude
+.cursor
+.vscode
 .playwright*
