@@ -13,7 +13,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | `c06b759` | Add messageSenders mapping for on-chain chat | Stores sender address per message |
 | `aff4b5f` | Expose implementation addresses via public getters | Adds `molochImpl`, `sharesImpl`, `badgesImpl`, `lootImpl` |
 | `e42d14f` | Exclude DAO-held shares from quorum calculation | Prevents governance deadlocks when DAO holds treasury shares |
-| (pending) | Unanimous consent early execution | 100% FOR votes bypass TTL and timelock |
+| `b30c227` | Unanimous consent early execution | 100% FOR votes bypass TTL and timelock |
 
 ---
 
@@ -41,24 +41,24 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 - **ViewHelper**: `0x00000000006631040967E58e3430e4B77921a2db`
 
 ### v2 Contracts (Sepolia + localhost fork)
-- **Summoner**: `0xdB9aDc369424f08bBd2300571801A0ADAD0B4410`
+- **Summoner**: `0xadc33cbf7715219D9DC0d3958020835AaE36c338`
 - **ViewHelper**: `0xe4022b04c55ca03ED91B0B666015bA29437B7026`
 
 ### v2 Implementation Contracts
 These are deployed by the Summoner and can be queried via public getters:
-- **Moloch Impl**: `0x7EE961133ba3D5f89a7540D559604FC2b0e72A51` (`summoner.molochImpl()`)
-- **Shares Impl**: `0xcE799983D38D69127E3b6fa83C294A28A1F31EBb` (`molochImpl.sharesImpl()`)
-- **Badges Impl**: `0x9462Ca09451b6e1405Fc9e32fE991b16Dd53Cd76` (`molochImpl.badgesImpl()`)
-- **Loot Impl**: `0x19C79260Ce3ce904C29cCC9c684D4DC486f00b71` (`molochImpl.lootImpl()`)
+- **Moloch Impl**: `0x30C0b2AE8A02c5cEaD946aBD823783c58343C7Be` (`summoner.molochImpl()`)
+- **Shares Impl**: `0xb9f6C846783B8E33A1ab82916fDA52D412e16091` (`molochImpl.sharesImpl()`)
+- **Badges Impl**: `0x9B81F2ecf8746E9fbA2f6D90795f734bEdf2cE50` (`molochImpl.badgesImpl()`)
+- **Loot Impl**: `0x7Ae035eBF4FBe4A6B1F01d905Ea397e376FBF7c0` (`molochImpl.lootImpl()`)
 
 ### v2 Test DAOs (Sepolia)
 | Name | Address | Purpose |
 |------|---------|---------|
-| 40 messages | `0x57Ca299351229748ac55C6C8a3DA60FDaED848Dc` | Chat testing, ETH share sale |
-| All gov proposals | `0x8FA70236Fe8Bd6E7a22c55Fa12247DdC25407799` | 24 proposal types, USDF loot sale |
-| Various tributes | `0x1d6ACAC3F7C473575d6fDd774cd566F07406b33e` | Tribute offers, DAICO sale |
-| DAICO Loot Sale | `0x8E8b8E23a7B77FfB90C74643c3a02cc8c0307Ab8` | DAICO with tap, auto-futarchy |
-| Full DAICO Test | `0xE8dCCc61C5E8134A666140e4d6Aaeb080d4D5947` | Fast governance, ETH DAICO |
+| 40 messages | `0xadB86294698a5A21379B5E00f72B1f659348341C` | Chat testing, ETH share sale |
+| All gov proposals | `0x9F870012cD88434F00D78513285D064A7A3100a1` | 24 proposal types, USDF loot sale |
+| Various tributes | `0x0F3921Cc97960F591DbB834Bb4B9f6D370e8Cc3F` | Tribute offers, DAICO sale |
+| DAICO Loot Sale | `0x364EAE5269809F386A16BFB5574E45797424D73a` | DAICO with tap, auto-futarchy |
+| Full DAICO Test | `0xb6AF02286E63380d9F31AA4bf5041759b7CA0572` | Fast governance, ETH DAICO |
 
 ---
 
