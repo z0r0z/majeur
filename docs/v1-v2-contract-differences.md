@@ -42,7 +42,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 
 ### v2 Contracts (Sepolia + localhost fork)
 - **Summoner**: `0xadc33cbf7715219D9DC0d3958020835AaE36c338`
-- **ViewHelper**: `0xe4022b04c55ca03ED91B0B666015bA29437B7026`
+- **ViewHelper**: `0x791150F1a264951ddD9698462a111eB04838D1F6`
 
 ### v2 Implementation Contracts
 These are deployed by the Summoner and can be queried via public getters:
@@ -511,8 +511,8 @@ const CONTRACTS = {
     viewHelper: '0x00000000006631040967E58e3430e4B77921a2db'
   },
   v2: {
-    summoner: '0xdB9aDc369424f08bBd2300571801A0ADAD0B4410',
-    viewHelper: '0xe4022b04c55ca03ED91B0B666015bA29437B7026'
+    summoner: '0xadc33cbf7715219D9DC0d3958020835AaE36c338',
+    viewHelper: '0x791150F1a264951ddD9698462a111eB04838D1F6'
   }
 };
 

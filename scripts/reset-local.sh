@@ -68,7 +68,7 @@ USER2_ADDR="0x4A81cBd1f0AF714F19AF819757Fb688DEf24AA24"
 
 # V2 Contract addresses (deterministic via CREATE2)
 SUMMONER="0xadc33cbf7715219D9DC0d3958020835AaE36c338"
-VIEW_HELPER="0xe4022b04c55ca03ED91B0B666015bA29437B7026"
+VIEW_HELPER="0x791150F1a264951ddD9698462a111eB04838D1F6"
 # Impl addresses are fetched dynamically from contracts in the report section
 
 echo "╔══════════════════════════════════════════════════════════════════════════════╗"

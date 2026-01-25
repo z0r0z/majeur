@@ -308,16 +308,11 @@ struct PaginationParams {
 contract MolochViewHelper {
     /* ---------------------------- Core references --------------------------- */
 
-    // Summoner factory (configurable per deployment)
-    ISummoner public immutable SUMMONER;
+    // V2 Summoner factory (deterministic CREATE2 address)
+    ISummoner public constant SUMMONER = ISummoner(0xadc33cbf7715219D9DC0d3958020835AaE36c338);
 
-    // DAICO contract (configurable per deployment)
-    IDAICO public immutable DAICO;
-
-    constructor(address summoner_, address daico_) {
-        SUMMONER = ISummoner(summoner_);
-        DAICO = IDAICO(daico_);
-    }
+    // DAICO contract (shared CREATE2 address between v1/v2)
+    IDAICO public constant DAICO = IDAICO(0x000000000033e92DB97B4B3beCD2c255126C60aC);
 
     /* ---------------------------------------------------------------------- */
     /*                             DAO PAGINATION                             */

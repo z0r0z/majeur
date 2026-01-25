@@ -32,8 +32,8 @@ contract DeployV2 is Script {
         console.log("Loot impl:", molochImpl.lootImpl());
         console.log("Badges impl:", molochImpl.badgesImpl());
 
-        // Deploy ViewHelper with CREATE2
-        MolochViewHelper viewHelper = new MolochViewHelper{salt: VIEW_HELPER_SALT}(address(summoner), DAICO);
+        // Deploy ViewHelper with CREATE2 (uses hardcoded SUMMONER/DAICO constants)
+        MolochViewHelper viewHelper = new MolochViewHelper{salt: VIEW_HELPER_SALT}();
         console.log("ViewHelper deployed at:", address(viewHelper));
 
         vm.stopBroadcast();
