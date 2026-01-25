@@ -637,7 +637,16 @@ forge test --match-test test_Ragequit
 
 # Gas snapshot
 forge snapshot
+
+# Check contract sizes before deployment
+forge build --sizes
 ```
+
+**Build notes:**
+- Build takes ~30-150s due to `via_ir = true` optimization - this is normal
+- EVM hard limit is 24576 bytes for deployed bytecode
+- ViewHelper is near the limit (24,448 bytes) - check sizes after changes
+- If stack-too-deep errors occur, see `docs/viewhelper-stack-bug.md`
 
 ### Test Suite
 
