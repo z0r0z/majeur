@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import {Moloch, Summoner} from "../src/Moloch.sol";
-import {Renderer} from "../src/Renderer.sol"; // only needed to ensure artifact is built
+import {Renderer} from "../src/Renderer.sol";
+import {CovenantRenderer} from "../src/renderers/CovenantRenderer.sol";
+import {ProposalRenderer} from "../src/renderers/ProposalRenderer.sol";
+import {ReceiptRenderer} from "../src/renderers/ReceiptRenderer.sol";
+import {PermitRenderer} from "../src/renderers/PermitRenderer.sol";
+import {BadgeRenderer} from "../src/renderers/BadgeRenderer.sol";
 
 contract BytecodeSizeTest is Test {
     // 24 KB runtime size cap (your custom / L2-style limit)
@@ -131,6 +136,45 @@ contract BytecodeSizeTest is Test {
                 vm.toString(MAX_INITCODE_SIZE)
             )
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           SUB-RENDERERS
+    //////////////////////////////////////////////////////////////*/
+
+    function testCovenantRendererRuntimeSize() public view {
+        uint256 size = getRuntimeSizeFromFile("CovenantRenderer.sol", "CovenantRenderer");
+        console.log("Checking CovenantRenderer RUNTIME size...");
+        console.log("Size:", size, "bytes");
+        assertLe(size, MAX_RUNTIME_SIZE, "CovenantRenderer RUNTIME exceeds max size");
+    }
+
+    function testProposalRendererRuntimeSize() public view {
+        uint256 size = getRuntimeSizeFromFile("ProposalRenderer.sol", "ProposalRenderer");
+        console.log("Checking ProposalRenderer RUNTIME size...");
+        console.log("Size:", size, "bytes");
+        assertLe(size, MAX_RUNTIME_SIZE, "ProposalRenderer RUNTIME exceeds max size");
+    }
+
+    function testReceiptRendererRuntimeSize() public view {
+        uint256 size = getRuntimeSizeFromFile("ReceiptRenderer.sol", "ReceiptRenderer");
+        console.log("Checking ReceiptRenderer RUNTIME size...");
+        console.log("Size:", size, "bytes");
+        assertLe(size, MAX_RUNTIME_SIZE, "ReceiptRenderer RUNTIME exceeds max size");
+    }
+
+    function testPermitRendererRuntimeSize() public view {
+        uint256 size = getRuntimeSizeFromFile("PermitRenderer.sol", "PermitRenderer");
+        console.log("Checking PermitRenderer RUNTIME size...");
+        console.log("Size:", size, "bytes");
+        assertLe(size, MAX_RUNTIME_SIZE, "PermitRenderer RUNTIME exceeds max size");
+    }
+
+    function testBadgeRendererRuntimeSize() public view {
+        uint256 size = getRuntimeSizeFromFile("BadgeRenderer.sol", "BadgeRenderer");
+        console.log("Checking BadgeRenderer RUNTIME size...");
+        console.log("Size:", size, "bytes");
+        assertLe(size, MAX_RUNTIME_SIZE, "BadgeRenderer RUNTIME exceeds max size");
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 import {Script, console} from "@forge/Script.sol";
 import {Summoner, Moloch, Call} from "../src/Moloch.sol";
 import {MolochViewHelper} from "../src/peripheral/MolochViewHelper.sol";
+import {Renderer} from "../src/Renderer.sol";
+import {CovenantRenderer} from "../src/renderers/CovenantRenderer.sol";
+import {ProposalRenderer} from "../src/renderers/ProposalRenderer.sol";
+import {ReceiptRenderer} from "../src/renderers/ReceiptRenderer.sol";
+import {PermitRenderer} from "../src/renderers/PermitRenderer.sol";
+import {BadgeRenderer} from "../src/renderers/BadgeRenderer.sol";
 
 contract DeployV2 is Script {
     // DAICO address (shared between v1 and v2)
@@ -12,6 +18,7 @@ contract DeployV2 is Script {
     // Fixed salts for CREATE2 deterministic deployment
     bytes32 constant SUMMONER_SALT = bytes32(uint256(0xdead));
     bytes32 constant VIEW_HELPER_SALT = bytes32(uint256(0xbeef));
+    bytes32 constant RENDERER_SALT = bytes32(uint256(0xcafe));
 
     function run() external {
         uint256 deployerPrivateKey = vm.envOr(
@@ -36,6 +43,20 @@ contract DeployV2 is Script {
         MolochViewHelper viewHelper = new MolochViewHelper{salt: VIEW_HELPER_SALT}();
         console.log("ViewHelper deployed at:", address(viewHelper));
 
+        // Deploy Renderer (router + 5 sub-renderers)
+        address c = address(new CovenantRenderer());
+        address p = address(new ProposalRenderer());
+        address r = address(new ReceiptRenderer());
+        address pm = address(new PermitRenderer());
+        address b = address(new BadgeRenderer());
+        Renderer renderer = new Renderer{salt: RENDERER_SALT}(c, p, r, pm, b);
+        console.log("Renderer deployed at:", address(renderer));
+        console.log("  CovenantRenderer:", c);
+        console.log("  ProposalRenderer:", p);
+        console.log("  ReceiptRenderer:", r);
+        console.log("  PermitRenderer:", pm);
+        console.log("  BadgeRenderer:", b);
+
         vm.stopBroadcast();
 
         console.log("");
@@ -43,5 +64,6 @@ contract DeployV2 is Script {
         console.log("Addresses are deterministic via CREATE2.");
         console.log("Summoner salt:", vm.toString(SUMMONER_SALT));
         console.log("ViewHelper salt:", vm.toString(VIEW_HELPER_SALT));
+        console.log("Renderer salt:", vm.toString(RENDERER_SALT));
     }
 }

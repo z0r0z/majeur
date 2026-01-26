@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 import {Test, console2, Vm} from "../lib/forge-std/src/Test.sol";
 import {Moloch, Shares, Loot, Badges, Summoner, Call, Locked} from "../src/Moloch.sol";

@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 import {Script, console} from "@forge/Script.sol";
 import {Summoner, Moloch, Call} from "../src/Moloch.sol";
 import {MolochViewHelper} from "../src/peripheral/MolochViewHelper.sol";
 import {Renderer} from "../src/Renderer.sol";
+import {CovenantRenderer} from "../src/renderers/CovenantRenderer.sol";
+import {ProposalRenderer} from "../src/renderers/ProposalRenderer.sol";
+import {ReceiptRenderer} from "../src/renderers/ReceiptRenderer.sol";
+import {PermitRenderer} from "../src/renderers/PermitRenderer.sol";
+import {BadgeRenderer} from "../src/renderers/BadgeRenderer.sol";
 import {Tribute} from "../src/peripheral/Tribute.sol";
 
 contract CreateTestDAOs is Script {

@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 import {Test, console2} from "../lib/forge-std/src/Test.sol";
 import {Renderer} from "../src/Renderer.sol";
+import {CovenantRenderer} from "../src/renderers/CovenantRenderer.sol";
+import {ProposalRenderer} from "../src/renderers/ProposalRenderer.sol";
+import {ReceiptRenderer} from "../src/renderers/ReceiptRenderer.sol";
+import {PermitRenderer} from "../src/renderers/PermitRenderer.sol";
+import {BadgeRenderer} from "../src/renderers/BadgeRenderer.sol";
 import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
 
 contract Target {
@@ -78,7 +83,13 @@ contract MolochTest is Test {
 
         summoner = new Summoner();
 
-        renderer = address(new Renderer());
+        renderer = address(new Renderer(
+            address(new CovenantRenderer()),
+            address(new ProposalRenderer()),
+            address(new ReceiptRenderer()),
+            address(new PermitRenderer()),
+            address(new BadgeRenderer())
+        ));
 
         // Create the DAO without initial holders to avoid badge conflicts
         address[] memory initialHolders = new address[](0);

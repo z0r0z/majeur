@@ -416,14 +416,13 @@ Summoner (Factory)
         ├── Automatically minted for top 256 shareholders
         └── Auto-updated as balances change
 
-Renderer (Singleton)
-├── On-chain SVG generation
-├── DUNA covenant display
-├── DAO contract metadata
-├── Proposal cards
-├── Vote receipt cards
-├── Permit cards
-└── Badge cards
+Renderer (Router Singleton)
+├── Dispatches to 5 immutable sub-renderers
+├── CovenantRenderer — DUNA covenant card
+├── ProposalRenderer — Proposal state cards
+├── ReceiptRenderer — Vote receipt cards
+├── PermitRenderer — Permit cards
+└── BadgeRenderer — Member badge cards
 ```
 
 ## Peripheral Contracts
