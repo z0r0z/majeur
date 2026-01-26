@@ -52,7 +52,7 @@ Throughout these tutorials, we'll interact with a real DAO on Sepolia testnet:
 | **Address** | `0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7` |
 | **Network** | Sepolia (Chain ID: 11155111) |
 
-You can view this DAO at [majeurdao.eth.limo](https://majeurdao.eth.limo/).
+You can view this DAO at [launcher.finance](https://launcher.finance) (or at [majeurdao.eth.limo](https://majeurdao.eth.limo/)).
 
 ## Course Structure
 

@@ -1,4 +1,4 @@
-# Moloch (Majeur) DAO Framework
+# Majeur v2 DAO Framework
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Solidity](https://img.shields.io/badge/solidity-%5E0.8.30-black)](https://docs.soliditylang.org/en/v0.8.30/)
@@ -35,9 +35,11 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 
 ## Dapps
 
-> [majeurdao.eth](https://majeurdao.eth.limo/)
+The most feature-rich dapp is [launcher.finance](https://launcher.finance).
 
-> [daicowtf.eth](https://daicowtf.eth.limo/)
+The reference dapps included in this repository are:
+- [majeurdao.eth](https://majeurdao.eth.limo/) — DAO governance interface
+- [daicowtf.eth](https://daicowtf.eth.limo/) — Token sale interface
 
 ## Contract Versions (v1/v2)
 
@@ -846,7 +848,7 @@ dao.ragequit(tokens, myShares, 0);
 **A:** A version number that's part of every proposal ID. The DAO can increment it via `bumpConfig()` to invalidate all old/pending proposal IDs and permits. This is a governance "emergency brake" if malicious proposals were created.
 
 ### Q: Can I build a front-end for this?
-**A:** Yes! All metadata is on-chain (including SVGs). Use MolochViewHelper for batch reads.
+**A:** Yes! All metadata is on-chain (including SVGs). Use MolochViewHelper for batch reads. See [launcher.finance](https://launcher.finance) for the most feature-rich existing dapp.
 
 ### Q: What's the difference between built-in sales and DAICO?
 **A:** Built-in `setSale()` is simpler — direct minting at a fixed price. DAICO adds tap mechanisms (controlled fund release), optional LP initialization, and operates as an external escrow contract for investor protection.

@@ -3,6 +3,10 @@
 Single-page HTML dApps for DAO governance. No build step, no dependencies — just HTML files you can pin to IPFS and serve from ENS.
 
 **Live:**
+
+The most feature-rich dapp is [launcher.finance](https://launcher.finance).
+
+These reference dapps are pinned to IPFS and served from ENS:
 - [majeurdao.eth](https://majeurdao.eth.limo/) — DAO governance interface
 - [daicowtf.eth](https://daicowtf.eth.limo/) — Token sale interface
 
@@ -36,7 +40,7 @@ Press `0` to show the hotkeys modal. Available shortcuts:
 | 1 | Focus Summon section |
 | 2 | Focus "Your DAOs" |
 | 3 | Focus "All DAOs" |
-| 4 | Open GitHub / Focus DAO info |
+| 4 | Open Launcher / Focus DAO info |
 | 5 | Focus Chatroom |
 | 6 | Focus Treasury |
 | 7 | Focus Active Sales |

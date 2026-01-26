@@ -80,7 +80,7 @@ const VIEW_HELPER_ADDRESS = "0x00000000006631040967E58e3430e4B77921a2db";
 const DAO_ADDRESS = "0x7a45e6764eCfF2F0eea245ca14a75d6d3d6053b7";
 ```
 
-> **Important**: To submit proposals and vote, you need voting shares in this DAO. If you're following along with the Elite Coders Union DAO, visit [majeurdao.eth.limo](https://majeurdao.eth.limo/) and use some Sepolia ETH to buy shares through its DAICO. If you already have shares in a different DAO, change the `DAO_ADDRESS` constant to that DAO's address instead.
+> **Important**: To submit proposals and vote, you need voting shares in this DAO. If you're following along with the Elite Coders Union DAO, visit [launcher.finance](https://launcher.finance) (or [majeurdao.eth.limo](https://majeurdao.eth.limo/)) and use some Sepolia ETH to buy shares through its DAICO. If you already have shares in a different DAO, change the `DAO_ADDRESS` constant to that DAO's address instead.
 
 ---
 

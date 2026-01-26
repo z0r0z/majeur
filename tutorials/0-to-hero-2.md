@@ -110,7 +110,7 @@ This helper stops the script immediately with a clear error message if any requi
 
 **DAO_ADDRESS**: The "Elite Coders Union" DAO we're working with.
 
-> **Important**: To vote on proposals, you need voting shares in this DAO. If you're following along with the Elite Coders Union DAO, visit [majeurdao.eth.limo](https://majeurdao.eth.limo/) and use some Sepolia ETH to buy shares through its DAICO. If you already have shares in a different DAO, change the `DAO_ADDRESS` constant to that DAO's address instead.
+> **Important**: To vote on proposals, you need voting shares in this DAO. If you're following along with the Elite Coders Union DAO, visit [launcher.finance](https://launcher.finance) (or [majeurdao.eth.limo](https://majeurdao.eth.limo/)) and use some Sepolia ETH to buy shares through its DAICO. If you already have shares in a different DAO, change the `DAO_ADDRESS` constant to that DAO's address instead.
 
 ---
 
