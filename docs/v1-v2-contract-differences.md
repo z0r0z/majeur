@@ -16,6 +16,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | `b30c227` | Unanimous consent early execution | 100% FOR votes bypass TTL and timelock |
 | `d486f52` | Refactor Renderer into router + 5 sub-renderers | Splits monolith into independently deployable contracts |
 | `2d18c28` | Pin Solidity 0.8.33, safe contractURI, idempotent deploys | ViewHelper resilience + compiler upgrade |
+| `cbb8652` | Add governance events, NatSpec, and _ffs verification | Full event-driven observability for all setter + ragequit |
 
 ---
 
@@ -35,6 +36,7 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | **Impl addresses** | Internal visibility | Public getters on Summoner and Moloch |
 | **Renderer** | Single monolith (~24KB) | Router + 5 sub-renderers (largest ~10KB) |
 | **ViewHelper contractURI** | Direct call (reverts poison batch) | Safe wrapper (returns "" on failure) |
+| **Governance events** | No setter/ragequit events | `ConfigUpdated` + 6 individual + `Ragequit` events |
 | **Solidity version** | 0.8.30 | 0.8.33 |
 
 ---
@@ -47,16 +49,16 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 - **Renderer**: `0x000000000011C799980827F52d3137b4abD6E654`
 
 ### v2 Contracts (Sepolia + localhost fork)
-- **Summoner**: `0xadc33cbf7715219D9DC0d3958020835AaE36c338`
-- **ViewHelper**: `0x791150F1a264951ddD9698462a111eB04838D1F6`
+- **Summoner**: `0x227a87bf254393c1559252C19050817ED5608777`
+- **ViewHelper**: `0x6b0c0a9489cBF2FD6B6199f9BDA48b46c0939DCf`
 - **Renderer**: `0x635E5BB4916C4D9C0E120e13bab63Be3867155f6`
 
 ### v2 Implementation Contracts
 These are deployed by the Summoner and can be queried via public getters:
-- **Moloch Impl**: `0x30C0b2AE8A02c5cEaD946aBD823783c58343C7Be` (`summoner.molochImpl()`)
-- **Shares Impl**: `0xb9f6C846783B8E33A1ab82916fDA52D412e16091` (`molochImpl.sharesImpl()`)
-- **Badges Impl**: `0x9B81F2ecf8746E9fbA2f6D90795f734bEdf2cE50` (`molochImpl.badgesImpl()`)
-- **Loot Impl**: `0x7Ae035eBF4FBe4A6B1F01d905Ea397e376FBF7c0` (`molochImpl.lootImpl()`)
+- **Moloch Impl**: `0x9a9da57b22DE850fFD0665dAcFfE42279406b333` (`summoner.molochImpl()`)
+- **Shares Impl**: `0xC7581D1331023d4CfD011Cb2BfB54F5552818eBb` (`molochImpl.sharesImpl()`)
+- **Badges Impl**: `0x7AB362323267E7E30B718216f30B336057B3De24` (`molochImpl.badgesImpl()`)
+- **Loot Impl**: `0x18065b9fb48367416BDCCAe2Bf10dD39e3165060` (`molochImpl.lootImpl()`)
 
 ### v2 Test DAOs (Sepolia)
 | Name | Address | Purpose |
@@ -650,8 +652,8 @@ const CONTRACTS = {
     renderer: '0x000000000011C799980827F52d3137b4abD6E654'
   },
   v2: {
-    summoner: '0xadc33cbf7715219D9DC0d3958020835AaE36c338',
-    viewHelper: '0x791150F1a264951ddD9698462a111eB04838D1F6',
+    summoner: '0x227a87bf254393c1559252C19050817ED5608777',
+    viewHelper: '0x6b0c0a9489cBF2FD6B6199f9BDA48b46c0939DCf',
     renderer: '0x635E5BB4916C4D9C0E120e13bab63Be3867155f6'
   }
 };
