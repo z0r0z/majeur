@@ -588,6 +588,55 @@ All 3 call sites (`getUserDAOs`, `_buildDAOFullState`, `_getMeta`) use `_safeCon
 
 ---
 
+## Governance Configuration Events (v2)
+
+v2 adds comprehensive event emissions for all governance parameter changes and ragequit, enabling full observability for indexers and off-chain monitoring.
+
+### Generic Config Event
+
+```solidity
+event ConfigUpdated(bytes32 indexed param, uint256 oldValue, uint256 newValue);
+```
+
+Emitted by the 8 scalar governance setters. The `param` field is an indexed `bytes32` string literal, filterable by topic1:
+
+| Setter | `param` value |
+|--------|--------------|
+| `setQuorumBps(uint16)` | `"quorumBps"` |
+| `setMinYesVotesAbsolute(uint96)` | `"minYesVotesAbsolute"` |
+| `setQuorumAbsolute(uint96)` | `"quorumAbsolute"` |
+| `setProposalTTL(uint64)` | `"proposalTTL"` |
+| `setTimelockDelay(uint64)` | `"timelockDelay"` |
+| `setRagequittable(bool)` | `"ragequittable"` (bool→uint: 0/1) |
+| `setRagequitTimelock(uint64)` | `"ragequitTimelock"` |
+| `setProposalThreshold(uint96)` | `"proposalThreshold"` |
+| `bumpConfig()` | `"config"` |
+
+### Individual Setter Events
+
+```solidity
+event AllowanceSet(address indexed spender, address indexed token, uint256 amount);
+event TransfersLockSet(bool sharesLocked, bool lootLocked);
+event MetadataSet(string name, string symbol, string uri);
+event RendererSet(address indexed oldRenderer, address indexed newRenderer);
+event AutoFutarchySet(uint256 param, uint256 cap);
+event FutarchyRewardTokenSet(address indexed oldToken, address indexed newToken);
+```
+
+### Ragequit Event
+
+```solidity
+event Ragequit(address indexed member, uint256 sharesBurned, uint256 lootBurned, address[] tokens);
+```
+
+Emitted at the end of `ragequit()` after all token payouts complete.
+
+### v1 vs v2 Comparison
+
+v1 had **no events** for governance parameter changes or ragequit. Indexers had to poll storage or parse transaction calldata. v2 provides full event-driven observability for all state-changing governance functions.
+
+---
+
 ## Code Examples: Supporting Both Versions
 
 ### 1. Version Detection

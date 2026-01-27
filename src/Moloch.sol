@@ -94,6 +94,18 @@ contract Moloch {
     event Queued(uint256 indexed id, uint64 when);
     event Executed(uint256 indexed id, address indexed by, uint8 op, address to, uint256 value);
 
+    /* CONFIG EVENTS */
+    event ConfigUpdated(bytes32 indexed param, uint256 oldValue, uint256 newValue);
+    event AllowanceSet(address indexed spender, address indexed token, uint256 amount);
+    event TransfersLockSet(bool sharesLocked, bool lootLocked);
+    event MetadataSet(string name, string symbol, string uri);
+    event RendererSet(address indexed oldRenderer, address indexed newRenderer);
+    event AutoFutarchySet(uint256 param, uint256 cap);
+    event FutarchyRewardTokenSet(address indexed oldToken, address indexed newToken);
+
+    /* RAGEQUIT EVENT */
+    event Ragequit(address indexed member, uint256 sharesBurned, uint256 lootBurned, address[] tokens);
+
     /**
      * PERMIT STATE
      */
@@ -276,8 +288,10 @@ contract Moloch {
         return proposalIds.length;
     }
 
-    /// @dev Explicitly open a proposal and fix the snapshot to the previous block,
-    /// ensuring Majeur ERC20Votes-style checkpoints can be queried safely:
+    /// @notice Open a proposal by fixing the voting snapshot to the previous block.
+    /// @dev Idempotent (no-op if already opened). Excludes DAO-held voting power from supply snapshot.
+    ///      Auto-earmarks futarchy if autoFutarchyParam is set.
+    /// @param id Proposal ID
     function openProposal(uint256 id) public {
         if (snapshotBlock[id] != 0) return;
 
@@ -347,9 +361,11 @@ contract Moloch {
         }
     }
 
-    /// @dev Cast a vote for a proposal:
-    /// always uses past checkpoints at the proposal’s snapshot block (no current-state fallback),
-    /// auto-opens the proposal on first vote (threshold uses current votes by design):
+    /// @notice Cast a vote on a proposal (FOR=1, AGAINST=0, ABSTAIN=2).
+    /// @dev Uses past checkpoints at the proposal's snapshot block (no current-state fallback).
+    ///      Auto-opens the proposal on first vote. Mints an ERC-6909 receipt for the vote.
+    /// @param id Proposal ID
+    /// @param support Vote type: 0=AGAINST, 1=FOR, 2=ABSTAIN
     function castVote(uint256 id, uint8 support) public {
         if (executed[id]) revert AlreadyExecuted();
         if (support > 2) revert NotOk();
@@ -398,6 +414,9 @@ contract Moloch {
         emit Voted(id, msg.sender, support, weight);
     }
 
+    /// @notice Revoke a previously cast vote during the Active period.
+    /// @dev Burns the ERC-6909 receipt and restores the tally. Only callable while proposal is Active.
+    /// @param id Proposal ID
     function cancelVote(uint256 id) public {
         unchecked {
             if (state(id) != ProposalState.Active) revert NotOk();
@@ -437,6 +456,12 @@ contract Moloch {
         emit ProposalCancelled(id, msg.sender);
     }
 
+    /// @notice Compute the current state of a proposal.
+    /// @dev 7-path state machine: Executed -> Unopened -> Queued -> Active (with unanimous bypass) ->
+    ///      Expired (quorum miss) -> Defeated (majority fail) -> Succeeded.
+    ///      During TTL, proposals remain Active unless 100% FOR (unanimous consent bypass).
+    /// @param id Proposal ID (keccak hash of intent parameters)
+    /// @return Current ProposalState enum value
     function state(uint256 id) public view returns (ProposalState) {
         if (executed[id]) return ProposalState.Executed;
 
@@ -500,7 +525,16 @@ contract Moloch {
     }
 
     /* EXECUTE */
-    /// @dev Execute when the proposal is ready (handles immediate or timelocked):
+    /// @notice Execute a proposal that has passed voting and timelock requirements.
+    /// @dev Handles both immediate execution (no timelock or unanimous consent) and timelocked execution.
+    ///      On first call with timelock, queues the proposal. On second call after delay, executes.
+    /// @param op Execution mode: 0 = CALL, 1 = DELEGATECALL
+    /// @param to Target contract address
+    /// @param value ETH value to send
+    /// @param data Calldata for the target
+    /// @param nonce Unique nonce for proposal deduplication
+    /// @return ok Whether the call succeeded
+    /// @return retData Return data from the call
     function executeByVotes(
         uint8 op, // 0 = call, 1 = delegatecall
         address to,
@@ -594,6 +628,11 @@ contract Moloch {
         _finalizeFutarchy(id, F, 0);
     }
 
+    /// @notice Redeem winning-side futarchy receipts for a pro-rata share of the reward pool.
+    /// @dev Burns `amount` of the winning receipt and pays out `amount * payoutPerUnit / 1e18`.
+    /// @param id Proposal ID with a resolved futarchy pool
+    /// @param amount Number of winning-side receipt tokens to burn
+    /// @return payout Amount of reward tokens paid out
     function cashOutFutarchy(uint256 id, uint256 amount)
         public
         nonReentrant
@@ -692,8 +731,13 @@ contract Moloch {
     /**
      * ALLOWANCE
      */
+    /// @notice Set an ERC-20/ETH spending allowance for a spender.
+    /// @param spender Address authorized to spend
+    /// @param token Token address (or address(0) for ETH)
+    /// @param amount Maximum amount spendable
     function setAllowance(address spender, address token, uint256 amount) public payable onlyDAO {
         allowance[token][spender] = amount;
+        emit AllowanceSet(spender, token, amount);
     }
 
     function spendAllowance(address token, uint256 amount) public nonReentrant {
@@ -717,6 +761,11 @@ contract Moloch {
         emit SaleUpdated(payToken, pricePerShare, cap, minting, active, isLoot);
     }
 
+    /// @notice Purchase shares or loot via a configured token sale.
+    /// @dev Supports ETH (payToken=address(0)) and ERC-20 payments. Mints or transfers from DAO holdings.
+    /// @param payToken Payment token address (address(0) for ETH)
+    /// @param shareAmount Number of shares/loot to purchase (in token units, 1e18 = 1 share)
+    /// @param maxPay Maximum payment willing to make (0 = no limit; slippage protection)
     function buyShares(address payToken, uint256 shareAmount, uint256 maxPay)
         public
         payable
@@ -770,6 +819,12 @@ contract Moloch {
     }
 
     /* RAGEQUIT */
+    /// @notice Exit the DAO by burning shares/loot and receiving pro-rata treasury tokens.
+    /// @dev Tokens must be sorted by address ascending. A ragequit timelock is enforced:
+    ///      shares/loot must be held for `ragequitTimelock` seconds before ragequitting.
+    /// @param tokens Treasury token addresses to claim (ascending order; address(0) = ETH)
+    /// @param sharesToBurn Number of share tokens to burn
+    /// @param lootToBurn Number of loot tokens to burn
     function ragequit(address[] calldata tokens, uint256 sharesToBurn, uint256 lootToBurn)
         public
         nonReentrant
@@ -816,6 +871,7 @@ contract Moloch {
 
                 _payout(tk, msg.sender, due);
             }
+            emit Ragequit(msg.sender, sharesToBurn, lootToBurn, tokens);
         }
     }
 
@@ -835,54 +891,91 @@ contract Moloch {
     }
 
     /* SETTINGS */
+
+    /// @notice Set dynamic quorum as basis points of snapshot supply.
+    /// @param bps Quorum BPS (0–10000; 0 = disabled)
     function setQuorumBps(uint16 bps) public payable onlyDAO {
         if (bps > 10_000) revert NotOk();
+        emit ConfigUpdated("quorumBps", quorumBps, bps);
         quorumBps = bps;
     }
 
+    /// @notice Set minimum absolute FOR votes required for a proposal to pass.
+    /// @param v Minimum FOR votes (0 = disabled)
     function setMinYesVotesAbsolute(uint96 v) public payable onlyDAO {
+        emit ConfigUpdated("minYesVotesAbsolute", minYesVotesAbsolute, v);
         minYesVotesAbsolute = v;
     }
 
+    /// @notice Set minimum absolute turnout (FOR+AGAINST+ABSTAIN) for quorum.
+    /// @param v Minimum total votes (0 = disabled)
     function setQuorumAbsolute(uint96 v) public payable onlyDAO {
+        emit ConfigUpdated("quorumAbsolute", quorumAbsolute, v);
         quorumAbsolute = v;
     }
 
+    /// @notice Set the voting period duration for proposals.
+    /// @param s Duration in seconds (0 = no expiry)
     function setProposalTTL(uint64 s) public payable onlyDAO {
+        emit ConfigUpdated("proposalTTL", proposalTTL, s);
         proposalTTL = s;
     }
 
+    /// @notice Set the timelock delay between proposal success and execution.
+    /// @param s Delay in seconds (0 = no timelock)
     function setTimelockDelay(uint64 s) public payable onlyDAO {
+        emit ConfigUpdated("timelockDelay", timelockDelay, s);
         timelockDelay = s;
     }
 
+    /// @notice Enable or disable ragequit (pro-rata treasury exit).
+    /// @param on True to enable, false to disable
     function setRagequittable(bool on) public payable onlyDAO {
+        emit ConfigUpdated("ragequittable", ragequittable ? 1 : 0, on ? 1 : 0);
         ragequittable = on;
     }
 
+    /// @notice Set the minimum hold period before ragequit is allowed.
+    /// @param s Timelock duration in seconds (0 = no timelock)
     function setRagequitTimelock(uint64 s) public payable onlyDAO {
+        emit ConfigUpdated("ragequitTimelock", ragequitTimelock, s);
         ragequitTimelock = s;
     }
 
+    /// @notice Lock or unlock share and loot token transfers.
+    /// @param sharesLocked True to lock shares transfers
+    /// @param lootLocked True to lock loot transfers
     function setTransfersLocked(bool sharesLocked, bool lootLocked) public payable onlyDAO {
         shares.setTransfersLocked(sharesLocked);
         loot.setTransfersLocked(lootLocked);
+        emit TransfersLockSet(sharesLocked, lootLocked);
     }
 
+    /// @notice Set minimum voting power needed to create proposals.
+    /// @param v Minimum votes (0 = anyone can propose)
     function setProposalThreshold(uint96 v) public payable onlyDAO {
+        emit ConfigUpdated("proposalThreshold", proposalThreshold, v);
         proposalThreshold = v;
     }
 
+    /// @notice Set the on-chain metadata renderer contract.
+    /// @param r New renderer address
     function setRenderer(address r) public payable onlyDAO {
+        emit RendererSet(renderer, r);
         renderer = r;
     }
 
+    /// @notice Update the DAO's name, symbol, and URI.
+    /// @param n New name
+    /// @param s New symbol
+    /// @param uri New contract URI
     function setMetadata(string calldata n, string calldata s, string calldata uri)
         public
         payable
         onlyDAO
     {
         (_orgName, _orgSymbol, _orgURI) = (n, s, uri);
+        emit MetadataSet(n, s, uri);
     }
 
     /// @dev Configure automatic futarchy earmark per proposal:
@@ -891,22 +984,27 @@ contract Moloch {
     /// @param cap Hard per-proposal cap applied after param calculation (0 = no cap)
     function setAutoFutarchy(uint256 param, uint256 cap) public payable onlyDAO {
         (autoFutarchyParam, autoFutarchyCap) = (param, cap);
+        emit AutoFutarchySet(param, cap);
     }
 
-    /// @dev Default reward token for futarchy pools:
+    /// @notice Set the default reward token for futarchy pools.
+    /// @param _rewardToken Reward token (address(0)=ETH, address(this)=shares, address(1007)=loot, or shares/loot contract)
     function setFutarchyRewardToken(address _rewardToken) public payable onlyDAO {
         if (
             _rewardToken != address(0) && _rewardToken != address(this)
                 && _rewardToken != address(1007) && _rewardToken != address(shares)
                 && _rewardToken != address(loot)
         ) revert NotOk();
+        emit FutarchyRewardTokenSet(rewardToken, _rewardToken);
         rewardToken = _rewardToken;
     }
 
-    /// @dev Governance "bump" to invalidate pre-bump proposal hashes:
+    /// @notice Increment the governance config nonce, invalidating all pre-bump proposal hashes.
     function bumpConfig() public payable onlyDAO {
         unchecked {
+            uint64 old = config;
             ++config;
+            emit ConfigUpdated("config", old, config);
         }
     }
 
@@ -918,7 +1016,9 @@ contract Moloch {
         }
     }
 
-    /// @dev Execute sequence of calls to this Majeur contract:
+    /// @notice Execute a sequence of delegatecalls to this contract. Reverts if any call fails.
+    /// @param data Array of encoded function calls to execute
+    /// @return results Array of return data from each call
     function multicall(bytes[] calldata data) public returns (bytes[] memory results) {
         results = new bytes[](data.length);
         for (uint256 i; i != data.length; ++i) {
@@ -1014,6 +1114,12 @@ contract Moloch {
         if (!ok) revert NotOk();
     }
 
+    /// @notice Internal payout dispatcher using sentinel addresses.
+    /// @dev address(0) = ETH transfer, address(this) = mint shares, address(1007) = mint loot,
+    ///      any other address = ERC-20 safeTransfer.
+    /// @param token Payout token (or sentinel address)
+    /// @param to Recipient
+    /// @param amount Amount to pay
     function _payout(address token, address to, uint256 amount) internal {
         if (amount == 0) return;
         if (token == address(0)) {

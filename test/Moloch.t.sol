@@ -25,6 +25,21 @@ contract Target {
     receive() external payable {}
 }
 
+contract FfsHelper {
+    function ffs(uint256 x) external pure returns (uint256 r) {
+        assembly ("memory-safe") {
+            x := and(x, add(not(x), 1))
+            // forgefmt: disable-next-item
+            r := shl(5, shr(252, shl(shl(2, shr(250, mul(x,
+                0xb6db6db6ddddddddd34d34d349249249210842108c6318c639ce739cffffffff))),
+                0x8040405543005266443200005020610674053026020000107506200176117077)))
+            // forgefmt: disable-next-item
+            r := or(r, byte(and(div(0xd76453e0, shr(r, x)), 0x1f),
+                0x001f0d1e100c1d070f090b19131c1706010e11080a1a141802121b1503160405))
+        }
+    }
+}
+
 contract MolochTest is Test {
     Summoner internal summoner;
     Moloch internal moloch;
@@ -69,6 +84,14 @@ contract MolochTest is Test {
     event Message(address indexed from, uint256 indexed index, string text);
     event PermitSet(address spender, uint256 indexed hash, uint256 newCount);
     event PermitSpent(uint256 indexed id, address indexed by, uint8 op, address to, uint256 value);
+    event ConfigUpdated(bytes32 indexed param, uint256 oldValue, uint256 newValue);
+    event AllowanceSet(address indexed spender, address indexed token, uint256 amount);
+    event TransfersLockSet(bool sharesLocked, bool lootLocked);
+    event MetadataSet(string name, string symbol, string uri);
+    event RendererSet(address indexed oldRenderer, address indexed newRenderer);
+    event AutoFutarchySet(uint256 param, uint256 cap);
+    event FutarchyRewardTokenSet(address indexed oldToken, address indexed newToken);
+    event Ragequit(address indexed member, uint256 sharesBurned, uint256 lootBurned, address[] tokens);
 
     function setUp() public {
         vm.label(alice, "ALICE");
@@ -3621,5 +3644,158 @@ contract MolochTest is Test {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("NotOk()"));
         moloch.executeByVotes(0, address(target), 0, data, bytes32(0));
+    }
+
+    /* EVENT EMISSION TESTS */
+
+    function test_Event_SetQuorumBps() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("quorumBps", 5000, 3000);
+        vm.prank(address(moloch));
+        moloch.setQuorumBps(3000);
+    }
+
+    function test_Event_SetMinYesVotesAbsolute() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("minYesVotesAbsolute", 0, 100);
+        vm.prank(address(moloch));
+        moloch.setMinYesVotesAbsolute(100);
+    }
+
+    function test_Event_SetQuorumAbsolute() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("quorumAbsolute", 0, 50);
+        vm.prank(address(moloch));
+        moloch.setQuorumAbsolute(50);
+    }
+
+    function test_Event_SetProposalTTL() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("proposalTTL", 7 days, 14 days);
+        vm.prank(address(moloch));
+        moloch.setProposalTTL(14 days);
+    }
+
+    function test_Event_SetTimelockDelay() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("timelockDelay", 0, 2 days);
+        vm.prank(address(moloch));
+        moloch.setTimelockDelay(2 days);
+    }
+
+    function test_Event_SetRagequittable() public {
+        // starts as true (set in setUp)
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("ragequittable", 1, 0);
+        vm.prank(address(moloch));
+        moloch.setRagequittable(false);
+    }
+
+    function test_Event_SetRagequitTimelock() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("ragequitTimelock", 7 days, 14 days);
+        vm.prank(address(moloch));
+        moloch.setRagequitTimelock(14 days);
+    }
+
+    function test_Event_SetTransfersLocked() public {
+        vm.expectEmit(false, false, false, true);
+        emit TransfersLockSet(true, false);
+        vm.prank(address(moloch));
+        moloch.setTransfersLocked(true, false);
+    }
+
+    function test_Event_SetProposalThreshold() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("proposalThreshold", 0, 1000);
+        vm.prank(address(moloch));
+        moloch.setProposalThreshold(1000);
+    }
+
+    function test_Event_SetRenderer() public {
+        address newRenderer = address(0xBEEF);
+        vm.expectEmit(true, true, false, true);
+        emit RendererSet(moloch.renderer(), newRenderer);
+        vm.prank(address(moloch));
+        moloch.setRenderer(newRenderer);
+    }
+
+    function test_Event_SetMetadata() public {
+        vm.expectEmit(false, false, false, true);
+        emit MetadataSet("NewName", "NEW", "https://new.uri");
+        vm.prank(address(moloch));
+        moloch.setMetadata("NewName", "NEW", "https://new.uri");
+    }
+
+    function test_Event_SetAutoFutarchy() public {
+        vm.expectEmit(false, false, false, true);
+        emit AutoFutarchySet(500, 1 ether);
+        vm.prank(address(moloch));
+        moloch.setAutoFutarchy(500, 1 ether);
+    }
+
+    function test_Event_SetFutarchyRewardToken() public {
+        vm.expectEmit(true, true, false, true);
+        emit FutarchyRewardTokenSet(address(0), address(0));
+        vm.prank(address(moloch));
+        moloch.setFutarchyRewardToken(address(0));
+    }
+
+    function test_Event_BumpConfig() public {
+        vm.expectEmit(true, false, false, true);
+        emit ConfigUpdated("config", 0, 1);
+        vm.prank(address(moloch));
+        moloch.bumpConfig();
+    }
+
+    function test_Event_SetAllowance() public {
+        vm.expectEmit(true, true, false, true);
+        emit AllowanceSet(alice, address(0), 1 ether);
+        vm.prank(address(moloch));
+        moloch.setAllowance(alice, address(0), 1 ether);
+    }
+
+    function test_Event_Ragequit() public {
+        // Warp past ragequit timelock
+        vm.warp(block.timestamp + 8 days);
+
+        // Send ETH to DAO for ragequit payout
+        vm.deal(address(moloch), 10 ether);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0); // ETH
+
+        uint256 aliceShares = shares.balanceOf(alice);
+
+        vm.expectEmit(true, false, false, true);
+        emit Ragequit(alice, aliceShares, 0, tokens);
+        vm.prank(alice);
+        moloch.ragequit(tokens, aliceShares, 0);
+    }
+
+    /* FFS VERIFICATION */
+    function test_Ffs_AllSingleBits() public {
+        FfsHelper h = new FfsHelper();
+        for (uint256 i; i < 256; ++i) {
+            assertEq(h.ffs(1 << i), i, string.concat("ffs(1<<", vm.toString(i), ")"));
+        }
+    }
+
+    function test_Ffs_Zero() public {
+        FfsHelper h = new FfsHelper();
+        // ffs(0) is undefined behavior (no bit set); document the return value
+        h.ffs(0); // should not revert — just verify it doesn't panic
+    }
+
+    function test_Ffs_MultipleBits() public {
+        FfsHelper h = new FfsHelper();
+        // ffs should return the index of the LOWEST set bit
+        assertEq(h.ffs(0x6), 1);       // 0b110 → bit 1
+        assertEq(h.ffs(0xF0), 4);      // 0b1111_0000 → bit 4
+        assertEq(h.ffs(0x80), 7);      // 0b1000_0000 → bit 7
+        assertEq(h.ffs(0x100), 8);     // bit 8
+        assertEq(h.ffs(type(uint256).max), 0); // all bits set → bit 0
+        assertEq(h.ffs(1 << 255 | 1 << 128), 128); // bits 255 and 128 → bit 128
+        assertEq(h.ffs(1 << 255), 255); // only highest bit → bit 255
     }
 }
