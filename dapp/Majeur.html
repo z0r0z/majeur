@@ -12004,6 +12004,16 @@
         },
         {
           "inputs": [
+            {"internalType": "uint256", "name": "start", "type": "uint256"},
+            {"internalType": "uint256", "name": "count", "type": "uint256"}
+          ],
+          "name": "getDaos",
+          "outputs": [{"internalType": "address[]", "name": "out", "type": "address[]"}],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
             {"internalType": "uint256", "name": "daoStart", "type": "uint256"},
             {"internalType": "uint256", "name": "daoCount", "type": "uint256"},
             {"internalType": "uint256", "name": "proposalStart", "type": "uint256"},
@@ -12494,6 +12504,16 @@
               "type": "tuple[]"
             }
           ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {"internalType": "uint256", "name": "start", "type": "uint256"},
+            {"internalType": "uint256", "name": "count", "type": "uint256"}
+          ],
+          "name": "getDaos",
+          "outputs": [{"internalType": "address[]", "name": "out", "type": "address[]"}],
           "stateMutability": "view",
           "type": "function"
         },
@@ -16869,30 +16889,30 @@
           // Use RPC fallback for reliability
           const result = await withRpcFallback(async (activeProvider) => {
             const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), activeProvider);
+            const isV1 = currentContractVersion === 'v1';
 
-            // Fetch all DAOs: start at DAO 0, fetch up to 50, recent 50 proposals, recent 5 messages
-            if (currentContractVersion === 'v1') {
-              return await viewHelper.getDAOsFullState(
-                0, // daoStart
-                50, // daoCount (get more DAOs than user filter)
-                0, // proposalStart
-                50, // proposalCount (enough to catch active proposals)
-                0, // messageStart
-                5, // messageCount (fewer details for browse view)
-                treasuryTokens
-              );
+            // Try batch call first
+            try {
+              if (isV1) {
+                return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens);
+              }
+              return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens, true, true);
+            } catch (batchErr) {
+              // Batch failed (e.g. one DAO's renderer reverts); fall back to per-DAO calls
+              logger.warn('Batch getDAOsFullState failed, fetching DAOs individually:', batchErr.message);
+              const addrs = await viewHelper.getDaos(0, 50);
+              const results = await Promise.all(addrs.map(async (addr) => {
+                try {
+                  return isV1
+                    ? await viewHelper.getDAOFullState(addr, 0, 50, 0, 5, treasuryTokens)
+                    : await viewHelper.getDAOFullState(addr, 0, 50, 0, 5, treasuryTokens, true, true);
+                } catch {
+                  logger.warn('Skipping DAO', addr, '(renderer or state call failed)');
+                  return null;
+                }
+              }));
+              return results.filter(Boolean);
             }
-            return await viewHelper.getDAOsFullState(
-              0, // daoStart
-              50, // daoCount (get more DAOs than user filter)
-              0, // proposalStart
-              50, // proposalCount (enough to catch active proposals)
-              0, // messageStart
-              5, // messageCount (fewer details for browse view)
-              treasuryTokens,
-              true, // reverseProposals (newest first)
-              true  // reverseMessages (newest first)
-            );
           });
 
           allDAOs = result;
@@ -32546,10 +32566,22 @@
             const treasuryTokens = getNetwork().treasuryTokens;
             const result = await withRpcFallback(async (rpcProvider) => {
               const viewHelper = new ethers.Contract(getViewHelperAddress(), getViewHelperABI(), rpcProvider);
-              if (currentContractVersion === 'v1') {
-                return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens);
+              const isV1 = currentContractVersion === 'v1';
+              try {
+                if (isV1) return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens);
+                return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens, true, true);
+              } catch (batchErr) {
+                logger.warn('Batch getDAOsFullState failed, fetching DAOs individually:', batchErr.message);
+                const addrs = await viewHelper.getDaos(0, 50);
+                const results = await Promise.all(addrs.map(async (addr) => {
+                  try {
+                    return isV1
+                      ? await viewHelper.getDAOFullState(addr, 0, 50, 0, 5, treasuryTokens)
+                      : await viewHelper.getDAOFullState(addr, 0, 50, 0, 5, treasuryTokens, true, true);
+                  } catch { return null; }
+                }));
+                return results.filter(Boolean);
               }
-              return await viewHelper.getDAOsFullState(0, 50, 0, 50, 0, 5, treasuryTokens, true, true);
             });
             allDAOs = result;
             allDAOsLoaded = true; // Mark as loaded for deep link scenario
