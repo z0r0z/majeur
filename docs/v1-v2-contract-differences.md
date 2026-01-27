@@ -14,6 +14,8 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | `aff4b5f` | Expose implementation addresses via public getters | Adds `molochImpl`, `sharesImpl`, `badgesImpl`, `lootImpl` |
 | `e42d14f` | Exclude DAO-held shares from quorum calculation | Prevents governance deadlocks when DAO holds treasury shares |
 | `b30c227` | Unanimous consent early execution | 100% FOR votes bypass TTL and timelock |
+| `d486f52` | Refactor Renderer into router + 5 sub-renderers | Splits monolith into independently deployable contracts |
+| `2d18c28` | Pin Solidity 0.8.33, safe contractURI, idempotent deploys | ViewHelper resilience + compiler upgrade |
 
 ---
 
@@ -31,6 +33,9 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 | **DAOGovConfig struct** | No ragequitTimelock field | Has `ragequitTimelock` field |
 | **MessageView struct** | No sender field | Has `sender` field |
 | **Impl addresses** | Internal visibility | Public getters on Summoner and Moloch |
+| **Renderer** | Single monolith (~24KB) | Router + 5 sub-renderers (largest ~10KB) |
+| **ViewHelper contractURI** | Direct call (reverts poison batch) | Safe wrapper (returns "" on failure) |
+| **Solidity version** | 0.8.30 | 0.8.33 |
 
 ---
 
@@ -39,10 +44,12 @@ This document details the differences between v1 and v2 of the Majeur (Moloch) c
 ### v1 Contracts (Mainnet, Arbitrum, Base, etc.)
 - **Summoner**: `0x0000000000330B8df9E3bc5E553074DA58eE9138`
 - **ViewHelper**: `0x00000000006631040967E58e3430e4B77921a2db`
+- **Renderer**: `0x000000000011C799980827F52d3137b4abD6E654`
 
 ### v2 Contracts (Sepolia + localhost fork)
 - **Summoner**: `0xadc33cbf7715219D9DC0d3958020835AaE36c338`
 - **ViewHelper**: `0x791150F1a264951ddD9698462a111eB04838D1F6`
+- **Renderer**: `0x635E5BB4916C4D9C0E120e13bab63Be3867155f6`
 
 ### v2 Implementation Contracts
 These are deployed by the Summoner and can be queried via public getters:
@@ -499,6 +506,88 @@ function getDAOMessages(
 
 ---
 
+## Changed Architecture: Renderer
+
+### v1 Renderer
+Single monolithic contract containing all SVG rendering logic (~24KB, near the EVM size limit):
+```
+Renderer (monolith)
+├── daoContractURI()   — DUNA covenant card
+├── daoTokenURI()      — proposal / receipt / permit card (routing + rendering)
+├── badgeTokenURI()    — member badge card
+└── Display library    — SVG/string helpers (inlined)
+```
+
+### v2 Renderer
+Thin router with 5 immutable sub-renderer addresses. Each sub-renderer is an independent contract:
+```
+Renderer (router, 1.8KB)
+├── daoContractURI()  → CovenantRenderer.render()   (10KB)
+├── daoTokenURI()     → routing logic, then:
+│   ├── receipt?      → ReceiptRenderer.render()     (8.4KB)
+│   ├── permit?       → PermitRenderer.render()      (4.8KB)
+│   └── default       → ProposalRenderer.render()    (6.4KB)
+└── badgeTokenURI()   → BadgeRenderer.render()       (6.6KB)
+```
+
+**External interface is identical** — `daoContractURI`, `daoTokenURI`, and `badgeTokenURI` have the same signatures. Moloch.sol requires no changes; DAOs upgrade via the existing `setRenderer(address)` governance function.
+
+### v2 Renderer Sub-Contracts (Sepolia + localhost)
+| Contract | Address |
+|----------|---------|
+| CovenantRenderer | `0xf97237D19046e8F9dde54E0d01AE57CD91F1FD84` |
+| ProposalRenderer | `0x355EdB155cE76B34C2a379B594d3cBba9C84C76e` |
+| ReceiptRenderer | `0xdd8389B1176c94e80900d2d1008cFC0C597Bc14c` |
+| PermitRenderer | `0x1a561EdE77d34bA0bC87508Fd613f1e55d3Ba7f6` |
+| BadgeRenderer | `0x1C19B3b6417e56e2943eCBB4f0243506371048c2` |
+
+### Constructor Change
+```solidity
+// v1: no constructor arguments
+new Renderer();
+
+// v2: 5 immutable sub-renderer addresses
+new Renderer(covenant, proposal, receipt, permit, badge);
+```
+
+### Deployment
+All 6 contracts (5 sub-renderers + router) are deployed via CREATE2 with fixed salts for deterministic addresses across chains. See `script/DeployRenderer.s.sol`.
+
+---
+
+## Changed Behavior: ViewHelper Safe contractURI
+
+### v1 ViewHelper
+```solidity
+// v1: Direct call to contractURI() — reverts if renderer is invalid
+function _getMeta(...) internal view returns (DAOMeta memory meta) {
+    IMoloch M = IMoloch(dao);
+    meta.contractURI = M.contractURI(); // Calls Renderer externally — can revert
+    // ...
+}
+```
+
+**Problem:** `contractURI()` on Moloch delegates to `IMajeurRenderer(renderer).daoContractURI(this)`. If a DAO's renderer address is invalid (zero, EOA, or broken contract), the call reverts and poisons the entire batch query. One bad DAO in `getUserDAOsFullState()` kills the response for all DAOs.
+
+### v2 ViewHelper
+```solidity
+// v2: Safe wrapper returns "" on failure — batch queries never revert
+function _safeContractURI(address dao) internal view returns (string memory) {
+    (bool success, bytes memory data) =
+        dao.staticcall(abi.encodeWithSelector(IMoloch.contractURI.selector));
+    if (success && data.length >= 64) {
+        return abi.decode(data, (string));
+    }
+    return "";
+}
+```
+
+All 3 call sites (`getUserDAOs`, `_buildDAOFullState`, `_getMeta`) use `_safeContractURI()`. This follows the same pattern as the existing `_safeName()`, `_safeSymbol()`, `_safeLPConfig()` and other safe wrappers in the ViewHelper.
+
+**Why `contractURI` is uniquely dangerous:** All other ViewHelper calls (`name(0)`, `symbol(0)`, `shares()`, etc.) are direct storage reads on the Moloch contract itself — they cannot revert. But `contractURI()` delegates to an external Renderer contract that may not exist or may be broken.
+
+---
+
 ## Code Examples: Supporting Both Versions
 
 ### 1. Version Detection
@@ -508,11 +597,13 @@ function getDAOMessages(
 const CONTRACTS = {
   v1: {
     summoner: '0x0000000000330B8df9E3bc5E553074DA58eE9138',
-    viewHelper: '0x00000000006631040967E58e3430e4B77921a2db'
+    viewHelper: '0x00000000006631040967E58e3430e4B77921a2db',
+    renderer: '0x000000000011C799980827F52d3137b4abD6E654'
   },
   v2: {
     summoner: '0xadc33cbf7715219D9DC0d3958020835AaE36c338',
-    viewHelper: '0x791150F1a264951ddD9698462a111eB04838D1F6'
+    viewHelper: '0x791150F1a264951ddD9698462a111eB04838D1F6',
+    renderer: '0x635E5BB4916C4D9C0E120e13bab63Be3867155f6'
   }
 };
 
@@ -785,6 +876,7 @@ console.log('Loot impl:', impls.lootImpl);
 - Existing v1 DAOs continue to work normally
 - New DAOs created by v2 Summoner have ragequit timelock enabled by default (7 days)
 - DAOs can disable timelock by calling `setRagequitTimelock(0)` via governance
+- DAOs can upgrade to the v2 Renderer via `setRenderer(0x635E5BB4916C4D9C0E120e13bab63Be3867155f6)` governance proposal — no ABI change, SVG output is identical
 
 ### For Dapps
 1. **Check which ViewHelper to use** based on which Summoner created the DAO
@@ -793,10 +885,12 @@ console.log('Loot impl:', impls.lootImpl);
 4. **Display ragequit timelock info** for v2 DAOs
 5. **Use reverse pagination** for better UX when fetching recent proposals/messages
 6. **Use public impl getters** (v2) to discover implementation addresses programmatically
+7. **Renderer is transparent** — dapps call `contractURI()` / `tokenURI()` on the DAO, which delegates to the Renderer internally; no dapp changes needed for the Renderer upgrade
 
 ### Gas Considerations
 - v2 `chat()` costs ~20k more gas due to storing sender address
 - Token transfers track `lastAcquisitionTimestamp` (minimal gas impact)
+- v2 Renderer adds cross-contract call overhead (~2.6k gas per `CALL`) for routing to sub-renderers; negligible since these are view-only functions
 
 ---
 
@@ -838,6 +932,16 @@ executeByVotes(0, address(this), 0, abi.encodeCall(castVote, (targetId, 1)), non
 ```
 
 With v2, any `castVote()` call where `msg.sender == address(this)` reverts with `Unauthorized()`, closing this attack vector.
+
+### Batch Query Poisoning Prevention (v2)
+The `_safeContractURI()` wrapper prevents a single DAO with an invalid renderer from breaking batch queries:
+
+**Attack surface (v1):**
+- A DAO sets its renderer to `address(0)` or a broken contract via `setRenderer()`
+- Any `getUserDAOsFullState()` call that includes this DAO reverts entirely
+- All other DAOs in the batch become unreachable
+
+**Mitigation (v2):** `staticcall` + success check returns `""` on failure. The batch completes, and the bad DAO simply has an empty `contractURI`. This is the only external delegation in ViewHelper batch queries — all other calls are direct storage reads that cannot revert.
 
 ### Unanimous Consent Early Execution (v2)
 The unanimous consent feature allows 100% FOR votes to bypass both TTL and timelock:

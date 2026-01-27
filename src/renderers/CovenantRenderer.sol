@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.33;
 
 import {IMoloch, ICovenantRenderer} from "./RendererInterfaces.sol";
 import {Display} from "./Display.sol";

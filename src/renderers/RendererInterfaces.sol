@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.33;
 
 interface IMajeurRenderer {
     function daoContractURI(IMoloch dao) external view returns (string memory);

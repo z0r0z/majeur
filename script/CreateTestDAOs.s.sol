@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.33;
 
 import {Script, console} from "@forge/Script.sol";
 import {Summoner, Moloch, Call} from "../src/Moloch.sol";
@@ -17,7 +17,7 @@ contract CreateTestDAOs is Script {
     address constant V2_SUMMONER = 0xadc33cbf7715219D9DC0d3958020835AaE36c338;
     address constant V2_MOLOCH_IMPL = 0x30C0b2AE8A02c5cEaD946aBD823783c58343C7Be;
     address constant V2_VIEW_HELPER = 0x791150F1a264951ddD9698462a111eB04838D1F6;
-    address constant RENDERER = 0x000000000011C799980827F52d3137b4abD6E654;
+    address constant RENDERER = 0x635E5BB4916C4D9C0E120e13bab63Be3867155f6;
     // Token implementations (deployed by Moloch impl constructor)
     address constant V2_SHARES_IMPL = 0xb9f6C846783B8E33A1ab82916fDA52D412e16091;
     address constant V2_LOOT_IMPL = 0x7Ae035eBF4FBe4A6B1F01d905Ea397e376FBF7c0;

@@ -11068,13 +11068,15 @@
           summoner: '0x0000000000330B8df9E3bc5E553074DA58eE9138',
           viewHelper: '0x00000000006631040967E58e3430e4B77921a2db',
           tribute: '0x000000000066524fcf78Dc1E41E9D525d9ea73D0',
-          daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
+          daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC',
+          renderer: '0x000000000011C799980827F52d3137b4abD6E654'
         },
         v2: {
           summoner: '0xadc33cbf7715219D9DC0d3958020835AaE36c338',
           viewHelper: '0x791150F1a264951ddD9698462a111eB04838D1F6',
           tribute: '0x000000000066524fcf78Dc1E41E9D525d9ea73D0',
-          daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC'
+          daico: '0x000000000033e92DB97B4B3beCD2c255126C60aC',
+          renderer: '0x635E5BB4916C4D9C0E120e13bab63Be3867155f6'
         }
       };
 
@@ -32368,7 +32370,7 @@
             daoURI,
             quorumBps,
             ragequittable,
-            '0x000000000011C799980827F52d3137b4abD6E654', // default renderer
+            CONTRACT_VERSIONS[currentContractVersion].renderer, // default renderer
             salt,
             initHolders,
             initShares,

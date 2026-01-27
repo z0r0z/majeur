@@ -1,7 +1,7 @@
 # Majeur v2 DAO Framework
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Solidity](https://img.shields.io/badge/solidity-%5E0.8.30-black)](https://docs.soliditylang.org/en/v0.8.30/)
+[![Solidity](https://img.shields.io/badge/solidity-0.8.33-black)](https://docs.soliditylang.org/en/v0.8.33/)
 [![Foundry](https://img.shields.io/badge/Built%20with-Foundry-000000.svg)](https://getfoundry.sh/)
 
 [![IPFS Image](https://content.wrappr.wtf/ipfs/bafybeih2mxprvjigedatwn5tdgjx6mcpktfd75t736kkrpjfepcll2n3o4)](https://content.wrappr.wtf/ipfs/bafybeih2mxprvjigedatwn5tdgjx6mcpktfd75t736kkrpjfepcll2n3o4)
@@ -48,7 +48,7 @@ The codebase maintains **two contract versions in parallel**:
 | Version | Status | Networks | Description |
 |---------|--------|----------|-------------|
 | **v1** | Production | Mainnet, all chains | Original deployed contracts |
-| **v2** | Development | Local anvil only | Security fixes + optimizations |
+| **v2** | Development | Sepolia + localhost | Security fixes + optimizations |
 
 **Key v2 improvements:**
 - Ragequit timelock (7-day default) — prevents flash loan attacks

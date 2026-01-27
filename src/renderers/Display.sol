@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.33;
 
 /// @dev Display — Solady helpers for on-chain SVG / string rendering:
 library Display {

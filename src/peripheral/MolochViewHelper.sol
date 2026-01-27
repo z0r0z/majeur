@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.33;
 
 /* -------------------------------------------------------------------------- */
 /*                                   INTERFACES                               */
@@ -493,7 +493,7 @@ contract MolochViewHelper {
             DAOMeta memory meta;
             meta.name = M.name(0);
             meta.symbol = M.symbol(0);
-            meta.contractURI = M.contractURI();
+            meta.contractURI = _safeContractURI(dao);
             meta.sharesToken = sharesToken;
             meta.lootToken = lootToken;
             meta.badgesToken = badgesToken;
@@ -673,7 +673,7 @@ contract MolochViewHelper {
         DAOMeta memory meta;
         meta.name = M.name(0);
         meta.symbol = M.symbol(0);
-        meta.contractURI = M.contractURI();
+        meta.contractURI = _safeContractURI(dao);
         meta.sharesToken = M.shares();
         meta.lootToken = M.loot();
         meta.badgesToken = M.badges();
@@ -1239,7 +1239,7 @@ contract MolochViewHelper {
         IMoloch M = IMoloch(dao);
         meta.name = M.name(0);
         meta.symbol = M.symbol(0);
-        meta.contractURI = M.contractURI();
+        meta.contractURI = _safeContractURI(dao);
         meta.sharesToken = M.shares();
         meta.lootToken = M.loot();
         meta.badgesToken = M.badges();
@@ -1338,5 +1338,15 @@ contract MolochViewHelper {
             (lpBps, maxSlipBps, feeOrHook) = abi.decode(data, (uint16, uint16, uint256));
         }
         // Returns zeros if call fails
+    }
+
+    /// @dev Safe contractURI() call that returns "" on failure.
+    function _safeContractURI(address dao) internal view returns (string memory) {
+        (bool success, bytes memory data) =
+            dao.staticcall(abi.encodeWithSelector(IMoloch.contractURI.selector));
+        if (success && data.length >= 64) {
+            return abi.decode(data, (string));
+        }
+        return "";
     }
 }

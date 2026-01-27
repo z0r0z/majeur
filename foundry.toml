@@ -1,5 +1,5 @@
 [profile.default]
-solc_version = "0.8.30"
+solc_version = "0.8.33"
 evm_version = "cancun"
 
 optimizer = true
