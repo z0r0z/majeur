@@ -17,6 +17,7 @@ jobs:
 
       - run: forge build
       - run: forge test -vvv
+      - run: forge snapshot --check
 
   lint:
     runs-on: ubuntu-latest
