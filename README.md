@@ -343,6 +343,16 @@ dao.on("Voted", (id, voter, support, weight) => {
 dao.on("Executed", (id, executor, op, target, value) => {
     console.log(`Proposal ${id} executed by ${executor}`);
 });
+
+// Governance config changes (v2)
+dao.on("ConfigUpdated", (param, oldValue, newValue) => {
+    console.log(`${ethers.decodeBytes32String(param)}: ${oldValue} → ${newValue}`);
+});
+
+// Ragequit exits (v2)
+dao.on("Ragequit", (member, sharesBurned, lootBurned, tokens) => {
+    console.log(`${member} ragequit: ${sharesBurned} shares, ${lootBurned} loot`);
+});
 ```
 
 ## Features

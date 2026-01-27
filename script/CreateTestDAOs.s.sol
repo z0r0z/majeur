@@ -16,7 +16,7 @@ contract CreateTestDAOs is Script {
     // V2 addresses (deterministic via CREATE2)
     address constant V2_SUMMONER = 0x227a87bf254393c1559252C19050817ED5608777;
     address constant V2_MOLOCH_IMPL = 0x9a9da57b22DE850fFD0665dAcFfE42279406b333;
-    address constant V2_VIEW_HELPER = 0x6b0c0a9489cBF2FD6B6199f9BDA48b46c0939DCf;
+    address constant V2_VIEW_HELPER = 0x512C15620F3f4eD0A632B3cFc5dfd31Aad871655;
     address constant RENDERER = 0x635E5BB4916C4D9C0E120e13bab63Be3867155f6;
     // Token implementations (deployed by Moloch impl constructor)
     address constant V2_SHARES_IMPL = 0xC7581D1331023d4CfD011Cb2BfB54F5552818eBb;

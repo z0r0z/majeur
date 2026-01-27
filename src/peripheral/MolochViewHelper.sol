@@ -309,7 +309,7 @@ contract MolochViewHelper {
     /* ---------------------------- Core references --------------------------- */
 
     // V2 Summoner factory (deterministic CREATE2 address)
-    ISummoner public constant SUMMONER = ISummoner(0xadc33cbf7715219D9DC0d3958020835AaE36c338);
+    ISummoner public constant SUMMONER = ISummoner(0x227a87bf254393c1559252C19050817ED5608777);
 
     // DAICO contract (shared CREATE2 address between v1/v2)
     IDAICO public constant DAICO = IDAICO(0x000000000033e92DB97B4B3beCD2c255126C60aC);
