@@ -5,13 +5,13 @@ Scan of: `Moloch.sol` (2110 lines)
 
 Mode: Deep (4 vector scan agents + 1 adversarial reasoning agent)
 
-Findings found: 12 (deduplicated from 5 agents)
+Findings found: 13 (deduplicated from 5 agents)
 
 ## Review Summary
 
 > **Reviewed 2026-03-11. No production blockers identified.**
 >
-> - **Severity breakdown:** 12 deduplicated findings — 2 High-confidence (95+), 4 Medium-confidence (85-90), 4 Low-confidence (75-80), 1 False Positive, 1 Below Threshold.
+> - **Severity breakdown:** 13 deduplicated findings — 2 High-confidence (95+), 4 Medium-confidence (85-90), 4 Low-confidence (75-80), 1 False Positive, 1 Below Threshold.
 > - **1 false positive** identified: multicall msg.value reuse (Agent 1 missed that `multicall` is not `payable`).
 > - **2 novel findings** not seen in prior audits: vote receipt transferability breaking `cancelVote`, and futarchy pool locked when winning side has zero supply. Both are design tradeoffs, not production blockers.
 > - **Most findings are duplicates** of issues already reviewed in Zellic, Plainshift, and Octane audits. Cross-references noted per finding.
