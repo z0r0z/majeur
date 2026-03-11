@@ -1,4 +1,4 @@
-# [ChatGPT Pro (GPT-4.5 Pro)](https://chat.openai.com/) — Moloch.sol
+# [ChatGPT Pro (GPT 5.4 Pro)](https://chat.openai.com/) — Moloch.sol
 
 **Prompt:** [`SECURITY.md`](../SECURITY.md) (3-round methodology: systematic → economic → adversarial triager)
 **Type:** AI audit guided by accumulated methodology from 17 prior audit tools
