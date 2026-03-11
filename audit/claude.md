@@ -1,4 +1,4 @@
-# SECURITY.md Prompt Audit — Moloch.sol
+# [Claude (Opus 4.6)](https://claude.ai/) SECURITY.md Prompt Audit — Moloch.sol
 
 **Prompt:** [`SECURITY.md`](../SECURITY.md) (3-round methodology: systematic → economic → adversarial triager)
 **Type:** AI audit guided by accumulated methodology from 14 prior audit tools

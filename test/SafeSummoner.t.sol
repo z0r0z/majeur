@@ -40,14 +40,23 @@ contract SafeSummonerTest is Test {
         c.proposalTTL = 7 days;
     }
 
-    function _summon(
-        uint16 quorumBps,
-        SafeSummoner.SafeConfig memory config
-    ) internal returns (address dao) {
+    function _summon(uint16 quorumBps, SafeSummoner.SafeConfig memory config)
+        internal
+        returns (address dao)
+    {
         (address[] memory h, uint256[] memory s) = _holders1();
         dao = safe.safeSummon(
-            "Test DAO", "TEST", "", quorumBps, true, address(0),
-            bytes32(uint256(block.timestamp)), h, s, config, new Call[](0)
+            "Test DAO",
+            "TEST",
+            "",
+            quorumBps,
+            true,
+            address(0),
+            bytes32(uint256(block.timestamp)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
     }
 
@@ -111,8 +120,17 @@ contract SafeSummonerTest is Test {
 
         vm.prank(alice);
         address dao = safe.safeSummon{value: 1 ether}(
-            "Funded DAO", "FUND", "", 5000, true, address(0),
-            bytes32(uint256(1)), h, s, config, new Call[](0)
+            "Funded DAO",
+            "FUND",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(1)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
 
         assertEq(dao.balance, 1 ether);
@@ -128,8 +146,17 @@ contract SafeSummonerTest is Test {
         extra[0] = Call(predicted, 0, abi.encodeWithSignature("setQuorumBps(uint16)", uint16(2000)));
 
         address dao = safe.safeSummon(
-            "Extra DAO", "XTRA", "", 5000, true, address(0),
-            bytes32(uint256(42)), h, s, config, extra
+            "Extra DAO",
+            "XTRA",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(42)),
+            h,
+            s,
+            config,
+            extra
         );
 
         assertEq(Moloch(payable(dao)).quorumBps(), 2000);
@@ -140,8 +167,17 @@ contract SafeSummonerTest is Test {
         (address[] memory h, uint256[] memory s) = _holders2();
 
         address dao = safe.safeSummon(
-            "Duo DAO", "DUO", "", 5000, true, address(0),
-            bytes32(uint256(99)), h, s, config, new Call[](0)
+            "Duo DAO",
+            "DUO",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(99)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
 
         Shares shares = Moloch(payable(dao)).shares();
@@ -159,8 +195,17 @@ contract SafeSummonerTest is Test {
 
         address predicted = safe.predictDAO(bytes32(uint256(777)), h, s);
         address dao = safe.safeSummon(
-            "Predict DAO", "PRED", "", 5000, true, address(0),
-            bytes32(uint256(777)), h, s, config, new Call[](0)
+            "Predict DAO",
+            "PRED",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(777)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
 
         assertEq(predicted, dao);
@@ -367,8 +412,17 @@ contract SafeSummonerTest is Test {
 
         vm.expectRevert(SafeSummoner.NoInitialHolders.selector);
         safe.safeSummon(
-            "Empty DAO", "EMPTY", "", 5000, true, address(0),
-            bytes32(0), new address[](0), new uint256[](0), config, new Call[](0)
+            "Empty DAO",
+            "EMPTY",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(0),
+            new address[](0),
+            new uint256[](0),
+            config,
+            new Call[](0)
         );
     }
 
@@ -381,12 +435,30 @@ contract SafeSummonerTest is Test {
         (address[] memory h, uint256[] memory s) = _holders1();
 
         address dao1 = safe.safeSummon(
-            "DAO1", "D1", "", 5000, true, address(0),
-            bytes32(uint256(1)), h, s, config, new Call[](0)
+            "DAO1",
+            "D1",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(1)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
         address dao2 = safe.safeSummon(
-            "DAO2", "D2", "", 5000, true, address(0),
-            bytes32(uint256(2)), h, s, config, new Call[](0)
+            "DAO2",
+            "D2",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(2)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
 
         assertTrue(dao1 != dao2);
@@ -397,14 +469,32 @@ contract SafeSummonerTest is Test {
         (address[] memory h, uint256[] memory s) = _holders1();
 
         safe.safeSummon(
-            "DAO1", "D1", "", 5000, true, address(0),
-            bytes32(uint256(777777)), h, s, config, new Call[](0)
+            "DAO1",
+            "D1",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(777777)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
 
         vm.expectRevert();
         safe.safeSummon(
-            "DAO2", "D2", "", 5000, true, address(0),
-            bytes32(uint256(777777)), h, s, config, new Call[](0)
+            "DAO2",
+            "D2",
+            "",
+            5000,
+            true,
+            address(0),
+            bytes32(uint256(777777)),
+            h,
+            s,
+            config,
+            new Call[](0)
         );
     }
 }

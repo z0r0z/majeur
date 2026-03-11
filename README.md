@@ -637,7 +637,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 
 ## Audits
 
-Moloch.sol has been scanned by eighteen independent AI audit tools. Reports with per-finding review notes are in [`/audit`](./audit/).
+Moloch.sol has been scanned by twenty-one independent AI audit tools. Reports with per-finding review notes are in [`/audit`](./audit/).
 
 | Auditor | Type | Findings | Report |
 |---------|------|----------|--------|
@@ -655,31 +655,39 @@ Moloch.sol has been scanned by eighteen independent AI audit tools. Reports with
 | [Claudit (Solodit)](./audit/claudit.md) | [Prior art cross-reference (20k+ real findings)](https://github.com/marchev/claudit) | 12 patterns searched, 0 novel | Validates defenses against Nouns/Olympus/PartyDAO exploits |
 | [Auditmos](./audit/auditmos.md) | [Multi-skill checklist (6 of 14 skills applied)](https://github.com/auditmos/skills) | 2 Low, 1 Informational | All duplicates, no production blockers |
 | [EVM MCP Tools](./audit/evmtools.md) | [Regex heuristic scan (5 checks)](https://github.com/0xGval/evm-mcp-tools) | 0 confirmed (1 informational) | Tool too basic for governance contracts, no production blockers |
-| [SECURITY.md Prompt](./audit/claude.md) | [3-round AI audit (systematic → economic → triager)](./SECURITY.md) | 1 Medium, 1 Low, 1 Informational | 1 novel observation (post-queue voting — by design), no production blockers |
-| [Gemini](./audit/gemini.md) | [3-round AI audit (2 passes)](https://gemini.google.com/) | Pass 1: 1 Low (false positive), 1 Info; Pass 2: 5 items (all known/design) | No novel findings across either pass, no production blockers |
-| [ChatGPT](./audit/chatgpt.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low (duplicate) | 1 novel finding (public futarchy freeze), no production blockers |
-| [DeepSeek](./audit/deepseek.md) | [3-round AI audit (systematic → economic → triager)](https://chat.deepseek.com/) | 1 Low (duplicate) | Front-run cancel is KF#11, no production blockers |
+| [Claude (Opus 4.6)](./audit/claude.md) | [3-round AI audit (systematic → economic → triager)](./SECURITY.md) | 1 Medium, 1 Low, 1 Informational | 1 novel observation (post-queue voting — by design), no production blockers |
+| [Gemini (Gemini 3)](./audit/gemini.md) | [3-round AI audit (2 passes)](https://gemini.google.com/) | Pass 1: 1 Low (false positive), 1 Info; Pass 2: 5 items (all known/design) | No novel findings across either pass, no production blockers |
+| [ChatGPT (GPT 5.4)](./audit/chatgpt.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low (duplicate) | 1 novel finding (public futarchy freeze), no production blockers |
+| [DeepSeek (V3.2 Speciale)](./audit/deepseek.md) | [3-round AI audit (systematic → economic → triager)](https://chat.deepseek.com/) | 1 Low (duplicate) | Front-run cancel is KF#11, no production blockers |
+| [ZeroSkills Slot Sleuth](./audit/zeroskills.md) | [EVM storage-safety scan (5-phase)](https://github.com/zerocoolailabs/ZeroSkills) | 0 | No storage-safety vulnerabilities; no manual slot arithmetic, no upgradeable proxies, no lost writes |
+| [Qwen](./audit/qwen.md) | [3-round AI audit (Qwen3.5-Plus)](https://chat.qwen.ai/) | 1 Medium, 1 Low, 1 Info (all duplicates) | No novel findings, competent methodology compliance |
+| [ChatGPT Pro (GPT-4.5 Pro)](./audit/chatgptpro.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low, 1 Info (2 duplicates) | 1 novel finding (dead futarchy pools on executed IDs), no production blockers |
 
-**No production blockers were identified across any audit.** Four novel findings were surfaced across eighteen scans. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
+**No production blockers were identified across any audit.** Five novel findings were surfaced across twenty-one scans. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
 
-**Novel findings (4):**
+**Novel findings (5):**
 1. Vote receipt transferability breaks `cancelVote` (Pashov — Low, design tradeoff)
 2. Zero-winner futarchy pool lockup (Pashov — Low, funds remain in DAO treasury)
-3. Post-queue voting can flip timelocked proposals (Claude/SECURITY.md — by design, timelock is a last-objection window)
-4. Public `fundFutarchy` + zero-quorum `state()` enables permanent proposal freeze via premature NO-resolution (ChatGPT — Medium, configuration-dependent, enforced by SafeSummoner)
+3. Post-queue voting can flip timelocked proposals (Claude Opus 4.6/SECURITY.md — by design, timelock is a last-objection window)
+4. Public `fundFutarchy` + zero-quorum `state()` enables permanent proposal freeze via premature NO-resolution (ChatGPT GPT 5.4 — Medium, configuration-dependent, enforced by SafeSummoner)
+5. `fundFutarchy` accepts executed/cancelled proposal IDs, creating permanently stuck futarchy pools (ChatGPT Pro GPT-4.5 Pro — Medium, missing `executed[id]` check)
 
 **Tool ranking by signal quality:**
-- **ChatGPT** produced the single highest-impact finding (KF#17, Medium) with the best signal-to-noise ratio (1 novel from 2 total findings, 50%). Its architecture assessment — identifying the boundary between live governance state and prediction-market settlement — is the clearest articulation of the futarchy design tension.
+- **ChatGPT (GPT 5.4)** produced the single highest-impact finding (KF#17, Medium) with the best signal-to-noise ratio (1 novel from 2 total findings, 50%). Its architecture assessment — identifying the boundary between live governance state and prediction-market settlement — is the clearest articulation of the futarchy design tension.
+- **ChatGPT Pro (GPT-4.5 Pro)** surfaced the 5th novel finding (KF#18, Medium) — `fundFutarchy` missing `executed[id]` check creates permanently stuck pools on dead proposals. Signal-to-noise: 1 novel from 3 findings (33%). The reentrancy inventory in Category 1 is the most thorough across all 21 audits. LOW-2 (tombstoning) is KF#11 and INFORMATIONAL-3 (auto-futarchy overcommit) was found by 6 prior audits.
 - **Pashov Skills** surfaced the most novel findings (2) via 5 parallel agents with adversarial reasoning. Higher noise (12 findings, 17% novel rate) but broader coverage.
-- **Claude (SECURITY.md prompt)** identified a subtle design observation (post-queue voting) that no other tool found, plus the `spendPermit` missing `executed[id]` check (a sharper angle on KF#10, later catalogued as KF#16).
+- **Claude (Opus 4.6)** identified a subtle design observation (post-queue voting) that no other tool found, plus the `spendPermit` missing `executed[id]` check (a sharper angle on KF#10, later catalogued as KF#16).
 - **Trail of Bits** and **Cyfrin** provided unique non-vulnerability value: maturity scoring (2.67/4.0) and standards compliance (21/32 compliant), respectively.
 - **Claudit** validated defenses against real-world exploits (Nouns, Olympus, PartyDAO) — unique cross-reference approach.
 - **Octane** produced the most raw findings (49) with 4 valid observations. While none were first-ever novel, Octane provided the most detailed early articulation of the auto-futarchy minted-reward farming vector (vuln #4) — later confirmed by Pashov, Forefy, QuillShield, and ChatGPT. High volume, low signal-to-noise, but valuable for exhaustive surface coverage.
-- **Gemini** and **DeepSeek** used the same SECURITY.md prompt as ChatGPT but produced zero novel findings, demonstrating that prompt quality alone is insufficient — model capability is the dominant factor.
+- **Gemini (Gemini 3)** and **DeepSeek (V3.2 Speciale)** used the same SECURITY.md prompt as ChatGPT but produced zero novel findings, demonstrating that prompt quality alone is insufficient — model capability is the dominant factor.
 - **Archethect** correctly falsified all 6 suspicious spots — a clean bill of health is also signal.
+- **ZeroSkills Slot Sleuth** ran a 5-phase EVM storage-safety analysis (lost writes, attacker-influenced slots, upgrade collisions, storage semantics). Clean pass — Moloch.sol avoids the vulnerability patterns this detector targets (no assembly `SSTORE`, no manual slot arithmetic, no upgradeable proxies). Useful for confirming architectural hygiene.
 - **Forefy**, **QuillShield**, **SCV Scan**, and **Auditmos** each independently confirmed subsets of the known findings, adding cross-validation confidence without novel discoveries. **EVM MCP Tools** was too basic for governance contracts (regex heuristics only).
 
-Cross-referencing across all eighteen scans — four independent novel findings, seventeen catalogued known findings (KF#1–17), and consistent duplicate confirmation across tools — increases confidence that the known findings represent the full attack surface.
+- **Qwen (Qwen3.5-Plus)** used the same SECURITY.md prompt as ChatGPT, Gemini 3, and DeepSeek V3.2 Speciale. All 3 findings are duplicates (KF#5, auto-futarchy overcommit, KF#1), with an inflated self-assessment claiming 2 novel. Competent category sweep and methodology compliance, but zero novel findings — similar depth to DeepSeek V3.2 Speciale and Gemini 3.
+
+Cross-referencing across all twenty-one scans — five independent novel findings, eighteen catalogued known findings (KF#1–18), and consistent duplicate confirmation across tools — increases confidence that the known findings represent the full attack surface.
 
 ### SafeSummoner
 
@@ -694,7 +702,7 @@ Cross-referencing across all eighteen scans — four independent novel findings,
 | Non-zero quorum if futarchy enabled | KF#17 | Premature NO-resolution proposal freeze |
 | Block minting sale + dynamic-only quorum | KF#2 | Supply manipulation via buy → ragequit |
 
-DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the eighteen audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (DAICO, custom allowances, etc.).
+DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-one audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (DAICO, custom allowances, etc.).
 
 ### Configuration Guidance for Deployers
 
@@ -713,6 +721,7 @@ Several audit findings highlight configuration combinations that require care. D
 
 Identified through audit review for future contract versions:
 
+- Add `executed[id]` check to `fundFutarchy` — prevents dead futarchy pools on cancelled/executed proposals (KF#18)
 - Global aggregate cap on auto-futarchy earmarks (or restrict minted rewards to require `proposalThreshold > 0`)
 - Decouple futarchy resolution from voting freeze, or require `Expired` only (not `Defeated`) in `resolveFutarchyNo` — prevents premature NO-resolution on live proposals with zero quorum
 - Snapshot total supply at proposal creation for quorum calculation (or add cooldown between share purchase and ragequit)
@@ -807,7 +816,7 @@ dao.ragequit(tokens, myShares, 0);
 
 ## Disclaimer
 
-*These contracts have been reviewed by multiple AI auditors (see [Audits](#audits)) but have not undergone a formal manual audit. No production blockers were identified, but use at your own risk. No warranties or guarantees provided.*
+*These contracts have been reviewed by twenty-one AI auditors (see [Audits](#audits)) but have not undergone a formal manual audit. No production blockers were identified, but use at your own risk. No warranties or guarantees provided.*
 
 ## License
 

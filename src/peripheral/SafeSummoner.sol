@@ -20,8 +20,6 @@ interface ISummoner {
         uint256[] calldata initShares,
         Call[] calldata initCalls
     ) external payable returns (address);
-
-    function implementation() external view returns (address);
 }
 
 interface IMoloch {
@@ -59,7 +57,6 @@ address constant MOLOCH_IMPL = 0x643A45B599D81be3f3A68F37EB3De55fF10673C1;
 ///   Config — Requires proposalTTL > 0 (prevents proposals lingering indefinitely)
 ///   Config — Requires proposalTTL > timelockDelay (prevents proposals expiring in queue)
 contract SafeSummoner {
-
     error QuorumBpsOutOfRange();
     error ProposalThresholdRequired();
     error ProposalTTLRequired();
@@ -74,25 +71,25 @@ contract SafeSummoner {
     struct SafeConfig {
         // ── Governance (validated) ──
         uint96 proposalThreshold; // Must be > 0. Prevents KF#11 griefing.
-        uint64 proposalTTL;       // Must be > 0. Prevents indefinite proposals.
+        uint64 proposalTTL; // Must be > 0. Prevents indefinite proposals.
         // ── Governance (optional) ──
-        uint64 timelockDelay;     // 0 = no timelock
-        uint96 quorumAbsolute;    // 0 = rely on quorumBps from summon params
-        uint96 minYesVotes;       // 0 = no absolute YES floor
+        uint64 timelockDelay; // 0 = no timelock
+        uint96 quorumAbsolute; // 0 = rely on quorumBps from summon params
+        uint96 minYesVotes; // 0 = no absolute YES floor
         // ── Transfers ──
-        bool lockShares;          // true = shares non-transferable at launch
-        bool lockLoot;            // true = loot non-transferable at launch
+        bool lockShares; // true = shares non-transferable at launch
+        bool lockLoot; // true = loot non-transferable at launch
         // ── Futarchy ──
         uint256 autoFutarchyParam; // 0 = off. 1..10000 = BPS of supply; >10000 = absolute
-        uint256 autoFutarchyCap;   // Per-proposal cap. 0 = no cap
+        uint256 autoFutarchyCap; // Per-proposal cap. 0 = no cap
         address futarchyRewardToken; // Only checked if autoFutarchyParam > 0
         // ── Sale ──
         bool saleActive;
-        address salePayToken;      // address(0) = ETH
-        uint256 salePricePerShare;  // Required if saleActive
-        uint256 saleCap;            // 0 = unlimited (only valid with saleMinting)
-        bool saleMinting;           // true = mint new, false = transfer from DAO
-        bool saleIsLoot;            // true = sell loot instead of shares
+        address salePayToken; // address(0) = ETH
+        uint256 salePricePerShare; // Required if saleActive
+        uint256 saleCap; // 0 = unlimited (only valid with saleMinting)
+        bool saleMinting; // true = mint new, false = transfer from DAO
+        bool saleIsLoot; // true = sell loot instead of shares
     }
 
     constructor() payable {}
@@ -133,8 +130,16 @@ contract SafeSummoner {
 
         // ── Summon ────────────────────────────────────────────────
         dao = SUMMONER.summon{value: msg.value}(
-            orgName, orgSymbol, orgURI, quorumBps, ragequittable,
-            renderer, salt, initHolders, initShares, calls
+            orgName,
+            orgSymbol,
+            orgURI,
+            quorumBps,
+            ragequittable,
+            renderer,
+            salt,
+            initHolders,
+            initShares,
+            calls
         );
     }
 
@@ -146,11 +151,11 @@ contract SafeSummoner {
     }
 
     /// @notice Predict the DAO address that would be deployed with the given parameters.
-    function predictDAO(
-        bytes32 salt,
-        address[] calldata initHolders,
-        uint256[] calldata initShares
-    ) public pure returns (address) {
+    function predictDAO(bytes32 salt, address[] calldata initHolders, uint256[] calldata initShares)
+        public
+        pure
+        returns (address)
+    {
         return _predictDAO(salt, initHolders, initShares);
     }
 
@@ -203,7 +208,8 @@ contract SafeSummoner {
         uint256 i;
 
         // --- Required ---
-        calls[i++] = Call(dao, 0, abi.encodeCall(IMoloch.setProposalThreshold, (c.proposalThreshold)));
+        calls[i++] =
+            Call(dao, 0, abi.encodeCall(IMoloch.setProposalThreshold, (c.proposalThreshold)));
         calls[i++] = Call(dao, 0, abi.encodeCall(IMoloch.setProposalTTL, (c.proposalTTL)));
 
         // --- Optional governance ---
@@ -214,22 +220,28 @@ contract SafeSummoner {
             calls[i++] = Call(dao, 0, abi.encodeCall(IMoloch.setQuorumAbsolute, (c.quorumAbsolute)));
         }
         if (c.minYesVotes > 0) {
-            calls[i++] = Call(dao, 0, abi.encodeCall(IMoloch.setMinYesVotesAbsolute, (c.minYesVotes)));
+            calls[i++] =
+                Call(dao, 0, abi.encodeCall(IMoloch.setMinYesVotesAbsolute, (c.minYesVotes)));
         }
 
         // --- Transfers ---
         if (c.lockShares || c.lockLoot) {
-            calls[i++] = Call(dao, 0, abi.encodeCall(IMoloch.setTransfersLocked, (c.lockShares, c.lockLoot)));
+            calls[i++] = Call(
+                dao, 0, abi.encodeCall(IMoloch.setTransfersLocked, (c.lockShares, c.lockLoot))
+            );
         }
 
         // --- Futarchy ---
         if (c.autoFutarchyParam > 0) {
             calls[i++] = Call(
-                dao, 0, abi.encodeCall(IMoloch.setAutoFutarchy, (c.autoFutarchyParam, c.autoFutarchyCap))
+                dao,
+                0,
+                abi.encodeCall(IMoloch.setAutoFutarchy, (c.autoFutarchyParam, c.autoFutarchyCap))
             );
             if (c.futarchyRewardToken != address(0)) {
-                calls[i++] =
-                    Call(dao, 0, abi.encodeCall(IMoloch.setFutarchyRewardToken, (c.futarchyRewardToken)));
+                calls[i++] = Call(
+                    dao, 0, abi.encodeCall(IMoloch.setFutarchyRewardToken, (c.futarchyRewardToken))
+                );
             }
         }
 
@@ -240,7 +252,14 @@ contract SafeSummoner {
                 0,
                 abi.encodeCall(
                     IMoloch.setSale,
-                    (c.salePayToken, c.salePricePerShare, c.saleCap, c.saleMinting, true, c.saleIsLoot)
+                    (
+                        c.salePayToken,
+                        c.salePricePerShare,
+                        c.saleCap,
+                        c.saleMinting,
+                        true,
+                        c.saleIsLoot
+                    )
                 )
             );
         }
@@ -253,20 +272,24 @@ contract SafeSummoner {
 
     // ── Address Prediction ────────────────────────────────────────
 
-    function _predictDAO(bytes32 salt, address[] calldata initHolders, uint256[] calldata initShares)
-        internal
-        pure
-        returns (address)
-    {
+    function _predictDAO(
+        bytes32 salt,
+        address[] calldata initHolders,
+        uint256[] calldata initShares
+    ) internal pure returns (address) {
         bytes32 _salt = keccak256(abi.encode(initHolders, initShares, salt));
         bytes memory creationCode = abi.encodePacked(
-            hex"602d5f8160095f39f35f5f365f5f37365f73", MOLOCH_IMPL, hex"5af43d5f5f3e6029573d5ffd5b3d5ff3"
+            hex"602d5f8160095f39f35f5f365f5f37365f73",
+            MOLOCH_IMPL,
+            hex"5af43d5f5f3e6029573d5ffd5b3d5ff3"
         );
         return address(
             uint160(
                 uint256(
                     keccak256(
-                        abi.encodePacked(bytes1(0xff), address(SUMMONER), _salt, keccak256(creationCode))
+                        abi.encodePacked(
+                            bytes1(0xff), address(SUMMONER), _salt, keccak256(creationCode)
+                        )
                     )
                 )
             )

@@ -1,4 +1,4 @@
-# [Gemini](https://gemini.google.com/) — Moloch.sol
+# [Gemini (Gemini 3)](https://gemini.google.com/) — Moloch.sol
 
 **Prompt:** [`SECURITY.md`](../SECURITY.md) (3-round methodology: systematic → economic → adversarial triager)
 **Type:** AI audit guided by accumulated methodology from 15 prior audit tools

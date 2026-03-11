@@ -1,4 +1,4 @@
-# [DeepSeek](https://chat.deepseek.com/) — Moloch.sol
+# [DeepSeek (V3.2 Speciale)](https://chat.deepseek.com/) — Moloch.sol
 
 **Prompt:** [`SECURITY.md`](../SECURITY.md) (3-round methodology: systematic → economic → adversarial triager)
 **Type:** AI audit guided by accumulated methodology from 15 prior audit tools

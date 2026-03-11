@@ -2,7 +2,7 @@
 
 > **Purpose:** Structured prompt for an AI auditor to analyze `Moloch.sol` and produce a clean, analyzable security report. Paste this document along with a copy of `src/Moloch.sol` into your AI of choice.
 >
-> **Methodology encoded from:** 17 independent audit tools — Forefy multi-expert framework, Archethect Map-Hunt-Attack falsification, HackenProof bug bounty triage, Pashov deep-mode adversarial reasoning, Trail of Bits code maturity scoring, and 9 others. This prompt distills the techniques that produced the best signal-to-noise across all 17.
+> **Methodology encoded from:** 21 independent audit tools — Forefy multi-expert framework, Archethect Map-Hunt-Attack falsification, HackenProof bug bounty triage, Pashov deep-mode adversarial reasoning, Trail of Bits code maturity scoring, and 13 others. This prompt distills the techniques that produced the best signal-to-noise across all 21.
 
 ---
 
@@ -149,7 +149,7 @@ Evaluate each category systematically. **You must produce a conclusion for every
 
 ## False Positive Patterns (Do NOT Flag These)
 
-These patterns were repeatedly flagged by weaker auditors and confirmed as non-issues across 14 audits. If you find yourself writing a finding that matches one of these, reconsider:
+These patterns were repeatedly flagged by weaker auditors and confirmed as non-issues across 21 audits. If you find yourself writing a finding that matches one of these, reconsider:
 
 | Pattern | Why It's Not a Bug |
 |---------|-------------------|
@@ -168,7 +168,7 @@ These patterns were repeatedly flagged by weaker auditors and confirmed as non-i
 
 ## Known Findings (Do Not Re-Report)
 
-The following 17 findings have been identified and reviewed across prior audits. **Do not re-report these.** If your analysis surfaces one of these, note it as "confirmed duplicate of Known Finding #N" and move on.
+The following 18 findings have been identified and reviewed across prior audits. **Do not re-report these.** If your analysis surfaces one of these, note it as "confirmed duplicate of Known Finding #N" and move on.
 
 | # | Finding | Severity | Key Detail |
 |---|---------|----------|------------|
@@ -189,6 +189,7 @@ The following 17 findings have been identified and reviewed across prior audits.
 | 15 | Post-queue voting can flip timelocked proposals | Design | Intentional — timelock is a last-objection window. `castVote` has no `queuedAt` check; `state()` re-evaluates tallies after delay. `cancelVote` requires Active state (asymmetric). By design |
 | 16 | `spendPermit` doesn't check `executed` flag | Low | Allows double-execution if DAO creates both proposal and permit with identical params. Requires two governance votes. `_burn6909` is the actual replay guard |
 | 17 | Public futarchy attachment + zero-quorum premature NO-resolution | Medium | With `quorumAbsolute == 0 && quorumBps == 0`, `state()` returns `Defeated` at line 476 with zero votes. Attacker calls `fundFutarchy{value:1}` then `resolveFutarchyNo` → `castVote` permanently reverts. Configuration-dependent. Fix: require `Expired` only in `resolveFutarchyNo` |
+| 18 | `fundFutarchy` accepts executed/cancelled proposal IDs | Medium | `fundFutarchy` checks `F.resolved` but not `executed[id]`. After cancel/execute, pools can still be funded but never resolved — `resolveFutarchyNo` rejects `executed[id]`, and voting/execution paths are dead. Funds permanently stuck. Fix: add `if (executed[id]) revert AlreadyExecuted();` |
 
 ---
 
@@ -297,7 +298,7 @@ Before submitting your report, verify:
 - [ ] Every finding has a concrete attack path with specific function calls and line numbers
 - [ ] Every finding includes a disproof attempt explaining what you checked
 - [ ] Every finding has a confidence score (0-100)
-- [ ] No finding duplicates the 17 Known Findings
+- [ ] No finding duplicates the 18 Known Findings
 - [ ] No finding matches a False Positive Pattern
 - [ ] Severity ratings follow the adjustment rules (especially the privileged-role rule)
 - [ ] All 10 vulnerability categories have a conclusion (finding or "no issues found")
