@@ -1,0 +1,360 @@
+# SafeSummoner
+[Git Source](https://github.com/z0r0z/majeur/blob/d27ebad6d0eaf0dd2eddab2488ea43fd282fd832/src/peripheral/SafeSummoner.sol)
+
+**Title:**
+SafeSummoner
+
+Safe wrapper around the deployed Summoner that enforces audit-derived
+configuration guidance and builds initCalls from a typed struct.
+
+Audit findings addressed:
+KF#11  — Enforces proposalThreshold > 0 (prevents front-run cancel, proposal spam)
+KF#17  — Enforces non-zero quorum when futarchy is configured (prevents premature NO-resolution)
+KF#3   — Enforces autoFutarchyCap > 0 when futarchy enabled (bounds per-proposal earmarks,
+prevents unbounded minted-loot farming via NO-coalition repeated defeats)
+KF#2   — Blocks quorumBps + minting sale combo (supply manipulation via buy -> ragequit)
+KF#12  — Validates quorumBps range at summon time (init skips this check)
+Config — Requires proposalTTL > 0 (prevents proposals lingering indefinitely)
+Config — Requires proposalTTL > timelockDelay (prevents proposals expiring in queue)
+
+
+## Functions
+### constructor
+
+
+```solidity
+constructor() payable;
+```
+
+### safeSummon
+
+Deploy a new DAO with validated configuration.
+
+
+```solidity
+function safeSummon(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    uint16 quorumBps,
+    bool ragequittable,
+    address renderer,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    SafeConfig calldata config,
+    Call[] calldata extraCalls
+) public payable returns (address dao);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`orgName`|`string`|     DAO display name|
+|`orgSymbol`|`string`|   DAO token symbol|
+|`orgURI`|`string`|      DAO metadata URI (empty = default)|
+|`quorumBps`|`uint16`|   Quorum as basis points of snapshot supply (e.g. 2000 = 20%)|
+|`ragequittable`|`bool`|Whether members can ragequit|
+|`renderer`|`address`|    On-chain renderer address (address(0) = default)|
+|`salt`|`bytes32`|        CREATE2 salt for deterministic addresses|
+|`initHolders`|`address[]`| Initial share holders|
+|`initShares`|`uint256[]`|  Initial share amounts (must match initHolders length)|
+|`config`|`SafeConfig`|      Typed configuration struct|
+|`extraCalls`|`Call[]`|  Additional raw initCalls appended after config (advanced use)|
+
+
+### summonStandard
+
+Standard DAO: 7-day voting, 2-day timelock, 10% quorum, ragequittable.
+Suitable for treasuries, protocol governance, and grants committees.
+
+
+```solidity
+function summonStandard(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares
+) public payable returns (address);
+```
+
+### summonFast
+
+Fast DAO: 3-day voting, 1-day timelock, 10% quorum, ragequittable.
+Suitable for agile teams, working groups, and sub-DAOs.
+
+
+```solidity
+function summonFast(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares
+) public payable returns (address);
+```
+
+### summonMinimal
+
+Minimal DAO: 3-day voting, no timelock, 5% quorum, ragequittable.
+Suitable for small clubs, investment groups, and informal collectives.
+
+
+```solidity
+function summonMinimal(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares
+) public payable returns (address);
+```
+
+### summonLocked
+
+Standard non-ragequittable: 7-day voting, 2-day timelock, 10% quorum.
+Suitable for protocol treasuries and grant programs where exit liquidity
+should not drain the pool.
+
+
+```solidity
+function summonLocked(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares
+) public payable returns (address);
+```
+
+### _summonPreset
+
+
+```solidity
+function _summonPreset(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    uint16 quorumBps,
+    bool ragequittable,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    SafeConfig memory config
+) internal returns (address);
+```
+
+### previewCalls
+
+Preview the initCalls that safeSummon would generate for off-chain inspection.
+
+Uses address(0) as DAO placeholder since the address isn't known yet.
+
+
+```solidity
+function previewCalls(SafeConfig calldata config) public pure returns (Call[] memory);
+```
+
+### predictDAO
+
+Predict the DAO address that would be deployed with the given parameters.
+
+
+```solidity
+function predictDAO(bytes32 salt, address[] calldata initHolders, uint256[] calldata initShares)
+    public
+    pure
+    returns (address);
+```
+
+### predictShares
+
+Predict the Shares token address for a given DAO.
+
+
+```solidity
+function predictShares(address dao) public pure returns (address);
+```
+
+### predictLoot
+
+Predict the Loot token address for a given DAO.
+
+
+```solidity
+function predictLoot(address dao) public pure returns (address);
+```
+
+### _validate
+
+
+```solidity
+function _validate(uint16 quorumBps, SafeConfig memory c, uint256 holderCount) internal pure;
+```
+
+### _buildCalls
+
+
+```solidity
+function _buildCalls(address dao, SafeConfig memory c, Call[] memory extra)
+    internal
+    pure
+    returns (Call[] memory calls);
+```
+
+### burnPermitCall
+
+Generate the setPermit Call for ShareBurner inclusion in initCalls or proposals.
+
+Useful for DAOs that want to add burn-after-deadline outside of SafeSummoner presets.
+
+
+```solidity
+function burnPermitCall(
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    uint256 deadline
+) public pure returns (Call memory);
+```
+
+### _defaultThreshold
+
+1% of total initial shares, floored at 1. Ensures proposalThreshold
+scales with supply so any single holder of ≥1% can propose.
+
+
+```solidity
+function _defaultThreshold(uint256[] calldata initShares) internal pure returns (uint96);
+```
+
+### _predictDAO
+
+
+```solidity
+function _predictDAO(
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares
+) internal pure returns (address);
+```
+
+### _predictToken
+
+Predict a token proxy address deployed via CREATE2 from the DAO.
+All token proxies (shares, loot, badges) use salt = bytes32(bytes20(dao))
+and differ only by implementation address in the minimal proxy creation code.
+
+
+```solidity
+function _predictToken(address dao, address impl) internal pure returns (address);
+```
+
+### _predictShares
+
+
+```solidity
+function _predictShares(address dao) internal pure returns (address);
+```
+
+### _predictLoot
+
+
+```solidity
+function _predictLoot(address dao) internal pure returns (address);
+```
+
+## Errors
+### NoInitialHolders
+
+```solidity
+error NoInitialHolders();
+```
+
+### SalePriceRequired
+
+```solidity
+error SalePriceRequired();
+```
+
+### FutarchyCapRequired
+
+```solidity
+error FutarchyCapRequired();
+```
+
+### ProposalTTLRequired
+
+```solidity
+error ProposalTTLRequired();
+```
+
+### QuorumBpsOutOfRange
+
+```solidity
+error QuorumBpsOutOfRange();
+```
+
+### TimelockExceedsTTL
+
+```solidity
+error TimelockExceedsTTL();
+```
+
+### ProposalThresholdRequired
+
+```solidity
+error ProposalThresholdRequired();
+```
+
+### QuorumRequiredForFutarchy
+
+```solidity
+error QuorumRequiredForFutarchy();
+```
+
+### MintingSaleWithDynamicQuorum
+
+```solidity
+error MintingSaleWithDynamicQuorum();
+```
+
+## Structs
+### SafeConfig
+Typed configuration for safe DAO deployment.
+Zero values mean "skip" (use Moloch defaults) except where validation requires otherwise.
+
+
+```solidity
+struct SafeConfig {
+    // ── Governance (validated) ──
+    uint96 proposalThreshold; // Must be > 0. Prevents KF#11 griefing.
+    uint64 proposalTTL; // Must be > 0. Prevents indefinite proposals.
+    // ── Governance (optional) ──
+    uint64 timelockDelay; // 0 = no timelock
+    uint96 quorumAbsolute; // 0 = rely on quorumBps from summon params
+    uint96 minYesVotes; // 0 = no absolute YES floor
+    // ── Transfers ──
+    bool lockShares; // true = shares non-transferable at launch
+    bool lockLoot; // true = loot non-transferable at launch
+    // ── Futarchy ──
+    uint256 autoFutarchyParam; // 0 = off. 1..10000 = BPS of supply; >10000 = absolute
+    uint256 autoFutarchyCap; // Per-proposal cap. 0 = no cap
+    address futarchyRewardToken; // Only checked if autoFutarchyParam > 0
+    // ── Sale ──
+    bool saleActive;
+    address salePayToken; // address(0) = ETH
+    uint256 salePricePerShare; // Required if saleActive
+    uint256 saleCap; // 0 = unlimited (non-minting sales are naturally capped by DAO balance)
+    bool saleMinting; // true = mint new, false = transfer from DAO
+    bool saleIsLoot; // true = sell loot instead of shares
+    // ── ShareBurner ──
+    uint256 saleBurnDeadline; // 0 = no auto-burn. >0 = timestamp after which unsold shares are burnable
+}
+```
+

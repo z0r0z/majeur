@@ -32,8 +32,23 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 | MolochViewHelper | [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db) | Batch read helper for dApps |
 | Tribute | [`0x000000000066524fcf78Dc1E41E9D525d9ea73D0`](https://contractscan.xyz/contract/0x000000000066524fcf78Dc1E41E9D525d9ea73D0) | OTC escrow for tribute proposals |
 | DAICO | [`0x000000000033e92DB97B4B3beCD2c255126C60aC`](https://contractscan.xyz/contract/0x000000000033e92DB97B4B3beCD2c255126C60aC) | Token sale with tap mechanism |
+| ShareBurner | [`0x000000000040084694F7B6fb2846D067B4c3Aa9f`](https://contractscan.xyz/contract/0x000000000040084694F7B6fb2846D067B4c3Aa9f) | Burn unsold shares after sale deadline |
+| ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for DAICO LP integration |
+
+### Implementations
+
+Minimal proxy clones are deployed from these implementation contracts. Each DAO gets its own clone of Moloch, Shares, Loot, and Badges via CREATE2.
+
+| Contract | Address | Description |
+|----------|---------|-------------|
+| Moloch | [`0x643A45B599D81be3f3A68F37EB3De55fF10673C1`](https://contractscan.xyz/contract/0x643A45B599D81be3f3A68F37EB3De55fF10673C1) | DAO governance logic |
+| Shares | [`0x71E9b38d301b5A58cb998C1295045FE276Acf600`](https://contractscan.xyz/contract/0x71E9b38d301b5A58cb998C1295045FE276Acf600) | ERC-20 voting token |
+| Loot | [`0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5`](https://contractscan.xyz/contract/0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5) | ERC-20 non-voting token |
+| Badges | [`0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5`](https://contractscan.xyz/contract/0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5) | ERC-721 soulbound NFT |
 
 ## Dapps
+
+> [zfi.wei/dao](https://zfi.wei.is/dao/)
 
 > [majeurdao.eth](https://majeurdao.eth.limo/)
 
@@ -57,7 +72,7 @@ on-chain action     40% Bob            predictions       treasury share
 | **Receipts** | ERC-6909 | Vote receipts for futarchy payouts |
 | **Badges** | ERC-721 | Soulbound NFTs for top 256 shareholders |
 
-All tokens are deployed as separate contracts via minimal proxy clones. The DAO controls minting, burning, and transfer locks.
+Shares, Loot, and Badges are deployed as separate minimal proxy clones. Receipts (ERC-6909) are managed directly within the Moloch contract. The DAO controls minting, burning, and transfer locks.
 
 ## Architecture
 
@@ -161,7 +176,7 @@ Moloch dao = summoner.summon(
 // 1. Create proposal ID (anyone can compute this)
 uint256 proposalId = dao.proposalId(
     0,                    // op: 0=call, 1=delegatecall
-    target,               // contract to call
+    to,                   // contract to call
     value,                // ETH to send
     data,                 // calldata
     nonce                 // unique nonce
@@ -171,7 +186,7 @@ uint256 proposalId = dao.proposalId(
 dao.castVote(proposalId, 1);  // support: 0=AGAINST, 1=FOR, 2=ABSTAIN
 
 // 3. Execute when passed
-dao.executeByVotes(0, target, value, data, nonce);
+dao.executeByVotes(0, to, value, data, nonce);
 ```
 
 ### Weighted Delegation (Split Voting Power)
@@ -197,7 +212,7 @@ dao.fundFutarchy(
 );
 
 // After resolution, claim winnings
-uint256 receiptId = dao._receiptId(proposalId, 1); // 1=YES
+// Receipt IDs: keccak256("Moloch:receipt", proposalId, support)
 dao.cashOutFutarchy(proposalId, myReceiptBalance);
 ```
 
@@ -243,10 +258,10 @@ DAOs can issue permits allowing specific addresses to execute actions without vo
 
 ```solidity
 // DAO issues permit
-dao.setPermit(op, target, value, data, nonce, alice, 1);
+dao.setPermit(op, to, value, data, nonce, alice, 1);
 
 // Alice spends permit
-dao.spendPermit(op, target, value, data, nonce);
+dao.spendPermit(op, to, value, data, nonce);
 ```
 
 ### Timelock Configuration
@@ -475,6 +490,84 @@ DAICOView[] memory sales = helper.scanDAICOs(0, 100, tribTokens);
 - `SaleView` - Active DAICO sale terms, remaining supply, LP config
 - `TapView` - Tap config, claimable amount, treasury balance
 
+### ShareSale (Share/Loot Sales via Allowance)
+
+Singleton for selling DAO shares or loot via the allowance system. Uses Moloch's `_payout` sentinel addresses (`address(dao)` mints shares, `address(1007)` mints loot) and 1e18-scaled pricing for decimal friendliness.
+
+```solidity
+// Setup (in SafeSummoner extraCalls or initCalls):
+// 1. dao.setAllowance(shareSale, address(dao), cap)  // or address(1007) for loot
+// 2. shareSale.configure(address(dao), payToken, price)
+
+// Users buy shares
+shareSale.buy{value: cost}(dao, 10e18);  // 10 shares
+
+// Pricing: cost = amount * price / 1e18
+// e.g. price = 0.01e18 means 0.01 ETH per share
+```
+
+**Key functions:**
+- `configure()` - Set sale token, payment token, and price (called by DAO)
+- `buy()` - Purchase shares/loot (permissionless, refunds overpayment)
+- `saleInitCalls()` - Generate initCalls for setup
+
+### TapVest (Linear Vesting via Allowance)
+
+Singleton for linear vesting from a DAO treasury. Derives from the DAICO tap pattern but operates independently via the allowance system.
+
+```solidity
+// Setup (in SafeSummoner extraCalls or initCalls):
+// 1. dao.setAllowance(tap, token, totalBudget)
+// 2. tap.configure(token, beneficiary, ratePerSec)
+
+// Anyone can trigger claim — funds always go to beneficiary
+tap.claim(dao);
+
+// View functions
+tap.claimable(dao);  // min(owed, allowance, daoBalance)
+tap.pending(dao);    // total owed (ignoring caps)
+```
+
+**Vesting formula:** `owed = ratePerSec * elapsed`, capped by `min(owed, allowance, daoBalance)`.
+
+**DAO governance:**
+- `setBeneficiary()` - Change recipient (DAO-only)
+- `setRate()` - Change rate, non-retroactive: unclaimed accrual is forfeited (DAO-only). Set to 0 to freeze.
+
+### ShareBurner (Post-Sale Cleanup)
+
+Deployed singleton for burning unsold shares after a sale deadline. DAOs issue a permit during setup allowing ShareBurner to call `burnUnsold` after the deadline expires.
+
+```solidity
+// Setup via SafeSummoner (automatic when saleBurnDeadline > 0):
+// 1. dao.setPermit(op=1, target=burner, ..., spender=burner, count=1)
+
+// After deadline, anyone can trigger the burn
+shareBurner.burnUnsold(dao);
+```
+
+### SafeSummoner (Deployment Wrapper)
+
+Wrapper around the deployed Summoner that enforces audit-derived configuration guardrails. Validates `SafeConfig` structs and builds `initCalls` automatically.
+
+```solidity
+// Preset deployments (one-call with sane defaults)
+safe.summonStandard(name, symbol, uri, salt, holders, shares);  // 7d/2d/10%
+safe.summonFast(name, symbol, uri, salt, holders, shares);      // 3d/1d/10%
+safe.summonMinimal(name, symbol, uri, salt, holders, shares);   // 3d/none/5%
+safe.summonLocked(name, symbol, uri, salt, holders, shares);    // 7d/2d/10%/no ragequit
+
+// Full control
+safe.safeSummon(name, symbol, uri, quorum, ragequittable, renderer, salt,
+    holders, shares, config, extraCalls);
+
+// Utilities
+safe.predictDAO(salt, holders, shares);
+safe.predictShares(dao);
+safe.predictLoot(dao);
+safe.previewCalls(config, extraCalls);
+```
+
 ## Quick Reference
 
 ### Essential Functions
@@ -482,7 +575,7 @@ DAICOView[] memory sales = helper.scanDAICOs(0, 100, tribTokens);
 | Function | Purpose | Who Can Call |
 |----------|---------|--------------|
 | `summon()` | Deploy new DAO | Anyone |
-| `castVote()` | Vote on proposal | Share holders |
+| `castVote()` | Vote on proposal | Share holders / delegates |
 | `executeByVotes()` | Execute passed proposal | Anyone |
 | `ragequit()` | Exit with treasury share | Share/Loot holders |
 | `delegate()` | Delegate voting power | Share holders |
@@ -604,6 +697,9 @@ forge snapshot
 | `DAICO.t.sol` | Token sales, tap mechanism, LP config, summon helpers |
 | `Tribute.t.sol` | OTC escrow: propose, cancel, claim tributes |
 | `MolochViewHelper.t.sol` | Batch read functions for dApps |
+| `SafeSummoner.t.sol` | Preset deployments, config validation, ShareBurner integration, address prediction |
+| `ShareSale.t.sol` | Share/loot purchases, refunds, allowance caps, pricing |
+| `Tap.t.sol` | Linear vesting claims, rate changes, beneficiary updates, cap enforcement |
 | `ContractURI.t.sol` | On-chain metadata and DUNA covenant |
 | `URIVisualization.t.sol` | SVG rendering for cards |
 | `Bytecodesize.t.sol` | Contract size limits |
@@ -616,6 +712,9 @@ forge snapshot
 - Badge auto-updates on balance changes
 - DAICO tap claims and rate changes
 - Tribute propose/cancel/claim flows
+- SafeSummoner preset guardrails and ShareBurner permits
+- ShareSale buy/refund/cap flows with ETH
+- TapVest claim/rate/beneficiary governance
 
 ### Deploy
 
@@ -632,6 +731,125 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 | Majority tyranny | Ragequit — minorities can exit with their share |
 | Malicious proposals | Timelocks give time to ragequit; `bumpConfig()` invalidates all pending |
 | Token reentrancy | Ragequit requires sorted token arrays |
+
+## Audits
+
+Moloch.sol has been scanned by twenty-six independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
+
+| Auditor | Type | Findings | Report |
+|---------|------|----------|--------|
+| [Zellic V12](./audit/zellic.md) | [Vulnerability scan](https://v12.zellic.io/) | 24 (all false positive, design tradeoff, or low-confidence) | No production blockers |
+| [Plainshift AI](./audit/plainshift.md) | [Vulnerability scan](https://hackmd.io/@ileakalpha/SJn2083tWg) | 3 (2 High, 1 Medium — all design tradeoffs) | No production blockers |
+| [Octane](./audit/octane.md) | [Vulnerability scan](https://app.octane.security/) | 26 vulns + 23 warnings | 4 valid observations, no production blockers |
+| [Pashov Skills](./audit/pashov.md) | [Vulnerability scan (deep)](https://github.com/pashov/skills) | 13 (deduplicated from 5 agents) | 2 novel findings, 1 false positive, no production blockers |
+| [Trail of Bits Skills](./audit/trailofbits.md) | [Sharp edges + maturity](https://github.com/trailofbits/skills) | 20 footguns + 9-category scorecard (2.67/4.0) | Validates config guidance, no production blockers |
+| [Cyfrin Solskill](./audit/cyfrin.md) | [Development standards](https://github.com/Cyfrin/solskill) | 32 standards evaluated (21 compliant, 5 partial, 3 non-compliant by design, 3 N/A) | Strong adherence, 2 trivial actionable items |
+| [SCV Scan](./audit/scvscan.md) | [Vulnerability scan (36 classes)](https://github.com/kadenzipfel/scv-scan) | 3 confirmed (2 Low, 1 Informational) from 36 classes | All duplicates of prior findings, no production blockers |
+| [QuillShield](./audit/quillshield.md) | [Multi-layer audit (8 plugins)](https://github.com/quillai-network/qs_skills) | 8 findings (3 Medium, 3 Low, 2 Info) | All duplicates or design tradeoffs, no production blockers |
+| [Archethect SC-Auditor](./audit/archethect.md) | [Map-Hunt-Attack + MCP tools (Slither, Aderyn, Solodit, Cyfrin checklist)](https://github.com/Archethect/sc-auditor) | 0 novel (8 spots falsified, 397 Slither + 21 Aderyn findings triaged, 1 KF#8 duplicate via Solodit) | V2 re-run with full MCP integration validates V1 manual results, no production blockers |
+| [HackenProof Triage](./audit/hackenproof.md) | [Bug bounty triage (severity re-classification)](https://github.com/hackenproof-public/skills) | 14 triaged: 0 Critical, 0 High, 2 Medium, 5 Low, 5 OOS | No Critical/High under bounty standards |
+| [Forefy](./audit/forefy.md) | [Multi-expert audit (10 fv-sol categories + governance context)](https://github.com/forefy/.context) | 8 Low (1 valid, 2 questionable, 5 dismissed) | All duplicates, no novel findings, no production blockers |
+| [Claudit (Solodit)](./audit/claudit.md) | [Prior art cross-reference (20k+ real findings)](https://github.com/marchev/claudit) | 12 patterns searched, 0 novel | Validates defenses against Nouns/Olympus/PartyDAO exploits |
+| [Auditmos](./audit/auditmos.md) | [Multi-skill checklist (6 of 14 skills applied)](https://github.com/auditmos/skills) | 2 Low, 1 Informational | All duplicates, no production blockers |
+| [EVM MCP Tools](./audit/evmtools.md) | [Regex heuristic scan (5 checks)](https://github.com/0xGval/evm-mcp-tools) | 0 confirmed (1 informational) | Tool too basic for governance contracts, no production blockers |
+| [Claude (Opus 4.6)](./audit/claude.md) | [3-round AI audit (systematic → economic → triager)](./SECURITY.md) | 1 Medium, 1 Low, 1 Informational | 1 novel observation (post-queue voting — by design), no production blockers |
+| [Gemini (Gemini 3)](./audit/gemini.md) | [3-round AI audit (2 passes)](https://gemini.google.com/) | Pass 1: 1 Low (false positive), 1 Info; Pass 2: 5 items (all known/design) | No novel findings across either pass, no production blockers |
+| [ChatGPT (GPT 5.4)](./audit/chatgpt.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low (duplicate) | 1 novel finding (public futarchy freeze), no production blockers |
+| [DeepSeek (V3.2 Speciale)](./audit/deepseek.md) | [3-round AI audit (systematic → economic → triager)](https://chat.deepseek.com/) | 1 Low (duplicate) | Front-run cancel is KF#11, no production blockers |
+| [ZeroSkills Slot Sleuth](./audit/zeroskills.md) | [EVM storage-safety scan (5-phase)](https://github.com/zerocoolailabs/ZeroSkills) | 0 | No storage-safety vulnerabilities; no manual slot arithmetic, no upgradeable proxies, no lost writes |
+| [Qwen](./audit/qwen.md) | [3-round AI audit (Qwen3.5-Plus)](https://chat.qwen.ai/) | 1 Medium, 1 Low, 1 Info (all duplicates) | No novel findings, competent methodology compliance |
+| [ChatGPT Pro (GPT 5.4 Pro)](./audit/chatgptpro.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low, 1 Info (2 duplicates) | 1 novel finding (dead futarchy pools on executed IDs), no production blockers |
+| [Certora FV](./audit/certora.md) | [Formal verification (142 properties, 7 contracts)](./certora/) | 1 Low, 2 Informational (all acknowledged, by design) | 126 invariants verified; L-01 tap forfeiture is intentional Moloch exit-rights design |
+| [Grimoire](./audit/grimoire.md) | [Agentic audit (4 sigils + 3 familiars)](https://github.com/JoranHonig/grimoire) | 10 confirmed (1 High, 4 Medium, 5 Low, 2 Info — all duplicates) | 0 novel; adversarial triage dismissed 3 false positives, reentrancy surface fully clean |
+| [Cantina Apex](./audit/cantina.md) | [Quick scan (smart contracts + frontend)](https://cantina.xyz/) | 4 High, 20 Medium (5 novel SC findings + ~18 novel frontend findings) | First to cover frontend and peripherals; most novel findings of any single audit; no production blockers |
+| [Solarizer](./audit/solarizer.md) | [AI multi-phase security engine (static + semantic + cross-contract)](https://solarizer.io/) | 1 High, 3 Medium, 15 Low, 5 Info, 5 Gas (0 novel) | All duplicates, false positives, or design observations; "D" security grade is misleading (HIGH-1 is intentional post-queue voting); 3 false positives (multicall access control, checkpoint asymmetry, proposerOf hijack); no production blockers |
+| [Almanax](./audit/almanax.md) | [Vulnerability scan](https://almanax.ai/) | 1 High, 2 Medium, 2 Low (0 novel) | All duplicates of known findings (KF#3, KF#8, KF#11, KF#18); no production blockers |
+
+**No production blockers were identified across any audit.** Ten novel smart contract findings were surfaced across twenty-six scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues). Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
+
+**Novel smart contract findings (10):**
+1. Vote receipt transferability breaks `cancelVote` (Pashov — Low, design tradeoff)
+2. Zero-winner futarchy pool lockup (Pashov — Low, funds remain in DAO treasury)
+3. Post-queue voting can flip timelocked proposals (Claude Opus 4.6/SECURITY.md — by design, timelock is a last-objection window)
+4. Public `fundFutarchy` + zero-quorum `state()` enables permanent proposal freeze via premature NO-resolution (ChatGPT (GPT 5.4) — Medium, configuration-dependent, enforced by SafeSummoner)
+5. `fundFutarchy` accepts executed/cancelled proposal IDs, creating permanently stuck futarchy pools (ChatGPT Pro (GPT 5.4 Pro) — Medium, missing `executed[id]` check)
+6. `bumpConfig` emergency brake bypass — lifecycle functions accept raw IDs without config validation (Cantina — Medium, extends KF#10)
+7. Tribute bait-and-switch — escrow settlement terms not bound to claim key (Cantina — Medium, Tribute.sol)
+8. Permit IDs enter proposal/futarchy lifecycle — missing `isPermitReceipt` guards enable futarchy pool drain (Cantina — Medium, extends KF#10)
+9. DAICO LP drift cap uses wrong variable (`tribForLP` vs `totalTrib`) — shifts tokens from LP to buyer when pool spot > OTC. Buyer pays full price; drift is self-correcting via arb; UIs hide pool until sale completion. Impact is reduced LP depth, not theft (Cantina — Low, DAICO.sol, V2 hardening candidate)
+10. Counterfactual Tribute theft via summon frontrun — `initCalls` excluded from salt + Tribute accepts undeployed DAOs (Cantina — Low-Medium, extends KF#9)
+
+**Tool ranking by signal quality:**
+- **Cantina Apex** produced the most novel smart contract findings (5) of any single audit, plus ~18 novel frontend findings — the first tool to systematically cover the dapp and peripheral contracts (Tribute, DAICO). The bumpConfig bypass (MAJEUR-15), Tribute bait-and-switch (MAJEUR-10), permit futarchy drain (MAJEUR-21), and DAICO LP math bug (MAJEUR-7) are all code-verified. The frontend XSS findings share a single root cause (`innerHTML` without escaping) but are individually valid. Signal-to-noise: 5 novel SC findings from 24 total (21%).
+- **ChatGPT (GPT 5.4)** produced the single highest-impact finding (KF#17, Medium) with the best signal-to-noise ratio (1 novel from 2 total findings, 50%). Its architecture assessment — identifying the boundary between live governance state and prediction-market settlement — is the clearest articulation of the futarchy design tension.
+- **ChatGPT Pro (GPT 5.4 Pro)** surfaced the 5th novel finding (KF#18, Medium) — `fundFutarchy` missing `executed[id]` check creates permanently stuck pools on dead proposals. Signal-to-noise: 1 novel from 3 findings (33%). The reentrancy inventory in Category 1 is the most thorough across all 26 audits. LOW-2 (tombstoning) is KF#11 and INFORMATIONAL-3 (auto-futarchy overcommit) was found by 6 prior audits.
+- **Pashov Skills** surfaced 2 novel findings via 5 parallel agents with adversarial reasoning. Higher noise (12 findings, 17% novel rate) but broader coverage.
+- **Claude (Opus 4.6)** identified a subtle design observation (post-queue voting) that no other tool found, plus the `spendPermit` missing `executed[id]` check (a sharper angle on KF#10, later catalogued as KF#16).
+- **Trail of Bits** and **Cyfrin** provided unique non-vulnerability value: maturity scoring (2.67/4.0) and standards compliance (21/32 compliant), respectively.
+- **Claudit** validated defenses against real-world exploits (Nouns, Olympus, PartyDAO) — unique cross-reference approach.
+- **Octane** produced the most raw findings (49) with 4 valid observations. While none were first-ever novel, Octane provided the most detailed early articulation of the auto-futarchy minted-reward farming vector (vuln #4) — later confirmed by Pashov, Forefy, QuillShield, ChatGPT, ChatGPT Pro, and Qwen. High volume with broad surface coverage — useful for exhaustive first-pass scanning.
+- **Gemini (Gemini 3)** and **DeepSeek (V3.2 Speciale)** used the same SECURITY.md prompt as ChatGPT (GPT 5.4) and ChatGPT Pro (GPT 5.4 Pro) but produced zero novel findings, demonstrating that prompt quality alone is insufficient — model capability is the dominant factor.
+- **Archethect** ran the full Map-Hunt-Attack methodology with MCP tool integration (Slither v0.11.5, Aderyn v0.1.9, Solodit search, Cyfrin checklist). Triaged 397 Slither + 21 Aderyn findings (0 true positives), ran 11 Solodit cross-reference queries, and evaluated 8 suspicious spots. All falsified. The Solodit cross-reference confirmed KF#8 (fee-on-transfer) as the only surviving finding — a duplicate. Zero novel findings, zero false positives escaped the devil's advocate protocol.
+- **ZeroSkills Slot Sleuth** ran a 5-phase EVM storage-safety analysis (lost writes, attacker-influenced slots, upgrade collisions, storage semantics). Clean pass — Moloch.sol avoids the vulnerability patterns this detector targets (no assembly `SSTORE`, no manual slot arithmetic, no upgradeable proxies). Useful for confirming architectural hygiene.
+- **Forefy**, **QuillShield**, **SCV Scan**, and **Auditmos** each independently confirmed subsets of the known findings, adding cross-validation confidence without novel discoveries. **EVM MCP Tools** was too basic for governance contracts (regex heuristics only).
+- **Solarizer** produced the highest volume of findings (29) but zero novel discoveries. Notable for 3 clear false positives: LOW-4 (claims `multicall` bypasses `onlyDAO` — incorrect, `delegatecall` to `address(this)` preserves caller's `msg.sender`), LOW-9 (claims burn/mint checkpoint asymmetry — code is actually symmetric), and MED-1 (claims `proposerOf` hijack enables cancel DOS — blocked by auto-futarchy and re-submittable with different nonce). The "D" security grade and "HIGH" risk rating are driven by HIGH-1, which is the documented intentional post-queue voting design (KF#15). Signal-to-noise: 0 novel from 29 total (0%).
+- **Almanax** produced 5 findings (1 High, 2 Medium, 2 Low) — all duplicates of known findings (KF#3, KF#8, KF#11, KF#18). Clean report with no false positives, but zero novel discoveries. The HIGH-1 (auto-futarchy farming) has been found by 9+ prior audits. Signal-to-noise: 0 novel from 5 total (0%).
+
+- **Qwen (Qwen3.5-Plus)** used the same SECURITY.md prompt as ChatGPT, Gemini 3, and DeepSeek V3.2 Speciale. All 3 findings are duplicates (KF#5, auto-futarchy overcommit, KF#1), with an inflated self-assessment claiming 2 novel. Competent category sweep and methodology compliance, but zero novel findings — similar depth to DeepSeek V3.2 Speciale and Gemini 3.
+
+- **Grimoire** uses a two-pass agentic workflow — 4 parallel Sigil agents (hypothesis-driven hunters) followed by 3 parallel Familiar agents (adversarial verifiers that try to disprove each finding). Similar to Pashov Skills' multi-agent approach but with an explicit adversarial triage pass. Covered 10 of 18 known findings (56%) with zero false positives after triage. The reentrancy surface was thoroughly cleared. The Familiar pass correctly dismissed 3 false positives and adjusted severity on 2 findings. No novel findings, but the highest false-positive rejection rate of any tool.
+
+- **Certora FV** is the only formal verification engagement. 142 properties across 7 contracts provide mathematical proofs for critical invariants (sum-of-balances, state machine monotonicity, write-once fields, access control, split delegation constraints, ragequit payout bounds). The L-01 tap forfeiture finding is confirmed via intentional violation (D-L1a) and reachability witness (D-L1b) — a novel angle on ragequit interaction with DAICO, but acknowledged as intentional Moloch exit-rights design. The two informational findings (unbounded Tribute arrays, `mulDiv` phantom overflow) are both known tradeoffs.
+
+Cross-referencing across all twenty-six scans — ten independent novel smart contract findings (plus ~18 novel frontend findings from Cantina), twenty-three catalogued known findings (KF#1–23), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full smart contract attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited.
+
+### SafeSummoner
+
+[`SafeSummoner.sol`](./src/peripheral/SafeSummoner.sol) is a wrapper around the deployed [Summoner](https://contractscan.xyz/contract/0x0000000000330B8df9E3bc5E553074DA58eE9138) that enforces audit-derived configuration guardrails at deployment time. Instead of hand-encoding raw `initCalls` calldata, deployers fill in a typed `SafeConfig` struct and the contract validates + builds the calls automatically.
+
+| Guard | Finding | What it prevents |
+|-------|---------|------------------|
+| `proposalThreshold > 0` required | KF#11 | Front-run cancel, proposal spam, minted futarchy farming |
+| `proposalTTL > 0` required | Config | Proposals lingering indefinitely |
+| `proposalTTL > timelockDelay` | Config | Proposals expiring while queued |
+| `quorumBps ≤ 10000` | KF#12 | `init()` skips this range check |
+| Non-zero quorum if futarchy enabled | KF#17 | Premature NO-resolution proposal freeze |
+| `autoFutarchyCap > 0` if futarchy enabled | KF#3 | Unbounded per-proposal earmarks; default minted-loot reward path has no natural balance cap, enabling NO-coalition treasury farming |
+| Block minting sale + dynamic-only quorum | KF#2 | Supply manipulation via buy → ragequit |
+
+DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-six audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (DAICO, custom allowances, etc.).
+
+### Configuration Guidance for Deployers
+
+Several audit findings highlight configuration combinations that require care. DAOs deploying through [`SafeSummoner`](./src/peripheral/SafeSummoner.sol) get these enforced automatically. For direct Summoner users:
+
+- **Set `proposalThreshold > 0`** — A non-zero threshold gates proposal creation behind real stake, preventing permissionless griefing (front-run cancel, mass proposal opening for minted futarchy rewards).
+- **Be thoughtful with minted futarchy rewards** — When `autoFutarchyParam` is set with minted reward tokens (`rewardToken = 0` → minted Loot), the per-proposal `autoFutarchyCap` limits individual proposals but not aggregate exposure across many proposals. Prefer non-minted reward tokens (ETH, or shares/loot held by the DAO) which have natural balance caps.
+- **Set a non-zero quorum if futarchy is enabled** — When both `quorumAbsolute` and `quorumBps` are zero, `state()` returns `Defeated` immediately with zero votes. Since `fundFutarchy` is public, an attacker can attach a 1-wei futarchy pool and call `resolveFutarchyNo` to permanently freeze any proposal before voting begins. Any non-zero quorum prevents this because `state()` returns `Active` until quorum is met.
+- **Avoid futarchy in concentrated DAOs** — Futarchy is designed to energize broad participation. In DAOs where a small coalition can reach quorum quickly, early NO voters can resolve futarchy and freeze voting before a FOR comeback. Futarchy adds little value in these cases and should not be enabled. Additionally, a majority NO coalition can repeatedly defeat proposals and collect auto-funded futarchy pools — this is by design (NO voters are rewarded for correct governance predictions), but in concentrated DAOs it becomes extractive. The `autoFutarchyCap` bounds per-proposal exposure, and `proposalThreshold > 0` limits who can trigger the earmark cycle.
+- **Ragequit is the nuclear exit** — Ragequit gives pro-rata of all DAO-held assets by design, including ETH earmarked for futarchy pools. Futarchy pools are incentive mechanisms subordinate to governance, not restrictive escrows. This is intentional — if excluded from ragequit, a hostile majority could shield treasury via futarchy funding.
+- **Sale cap is a soft guardrail** — The `cap` in `setSale` correctly blocks buys exceeding the remaining cap and decrements on each purchase, but uses `0` as the sentinel for both "unlimited" and "exhausted." After exact sell-out (`shareAmount == cap`), the cap resets to 0 and the sale becomes unlimited. This only matters for minting sales where the cap is the sole supply constraint — for non-minting sales, the DAO's held share balance is the real hard cap regardless. Buyers always pay `pricePerShare` so there are no free tokens. The DAO can deactivate the sale at any time via `setSale(..., active: false)`, and `SaleUpdated` events enable off-chain monitoring. V2 hardening candidate: use `type(uint256).max` as the "unlimited" sentinel instead of `0`.
+- **Dynamic quorum + minting sale + ragequit** — When all three are enabled, an attacker can inflate supply via `buyShares`, then ragequit after the snapshot, manipulating the quorum denominator. This is economically constrained but worth noting. Consider using absolute quorum (`quorumAbsolute`) instead of percentage-based (`quorumBps`) if minting sales are active.
+- **Post-queue voting is intentional** — When `timelockDelay > 0`, voting remains open during the timelock period. This is by design: the timelock serves as a last-objection window where holders who didn't vote during the Active period can register late opposition. A late AGAINST vote with sufficient weight can flip a Succeeded proposal to Defeated after the delay elapses. This is asymmetric — `cancelVote` requires Active state, so existing voters cannot undo votes post-queue. DAOs that prefer Compound-style frozen timelocks should note this behavior.
+
+### v2 Hardening Candidates
+
+Identified through audit review for future contract versions:
+
+- Add `executed[id]` check to `fundFutarchy` — prevents dead futarchy pools on cancelled/executed proposals (KF#18)
+- Global aggregate cap on auto-futarchy earmarks (or restrict minted rewards to require `proposalThreshold > 0`)
+- Decouple futarchy resolution from voting freeze, or require `Expired` only (not `Defeated`) in `resolveFutarchyNo` — prevents premature NO-resolution on live proposals with zero quorum
+- Snapshot total supply at proposal creation for quorum calculation (or add cooldown between share purchase and ragequit)
+- Bind CREATE2 salt to `msg.sender` in Summoner
+- Snapshot loot supply for futarchy earmark basis
+- Namespace separation for permit and proposal IDs
+- Optional `freezeOnQueue` flag to disable post-queue voting for DAOs that prefer Compound-style frozen timelocks
+- Store originating `config` on proposal open; reject lifecycle actions on stale-config proposals (Cantina MAJEUR-15)
+- Add `if (isPermitReceipt[id]) revert` guards to `openProposal`, `castVote`, `fundFutarchy`, `resolveFutarchyNo` (Cantina MAJEUR-21)
+- Bind `claimTribute` to expected settlement terms via nonce/hash (Cantina MAJEUR-10)
+- Fix DAICO drift cap: replace `tribForLP` with total tribute in `_initLP` and `_quoteLPUsed` (Cantina MAJEUR-7)
+- Include `initCalls` in Summoner `summon` salt (Cantina MAJEUR-17)
+- Systematic `innerHTML` → `textContent`/DOM API pass in dapp for all untrusted data sinks (Cantina XSS class)
 
 ## Complete Workflow Example
 
@@ -672,12 +890,12 @@ dao.ragequit(tokens, myShares, 0);
 | Clone pattern | ~80% deployment | Minimal proxy clones for Shares, Loot, Badges |
 | Transient storage | ~5k/call | EIP-1153 for reentrancy guards |
 | Badge bitmap | ~20k/update | 256 holders in single storage slot |
-| Packed structs | ~20k/write | Tallies fit in one slot (3 × uint96) |
+| Packed structs | ~20k/write | Tallies use 3 × uint96 for compact storage |
 
 ## FAQ
 
 ### Q: Can I change my vote after voting?
-**A:** Yes! Use `cancelVote(proposalId)` before the proposal is executed. You'll get your vote receipt back and can vote again.
+**A:** Yes! Use `cancelVote(proposalId)` while the proposal is still Active. You'll get your vote receipt back and can vote again. Once the proposal transitions to Succeeded, Queued, or any other state, `cancelVote` is no longer available.
 
 ### Q: What happens to badges when someone's balance changes?
 **A:** Badges automatically update. If you fall out of top 256, you lose the badge. If you enter top 256, you get one instantly.
@@ -694,7 +912,7 @@ dao.ragequit(tokens, myShares, 0);
 **A:** Yes! Specify how many shares/loot to burn. You don't have to exit completely.
 
 ### Q: How are proposal IDs generated?
-**A:** Deterministically from: `keccak256(dao, op, to, value, data, nonce, config)`. Anyone can compute it.
+**A:** Deterministically from: `keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))`. Anyone can compute it.
 
 ### Q: What prevents vote buying?
 **A:** Snapshots at block N-1. You can't buy tokens after seeing a proposal and vote.
@@ -719,7 +937,7 @@ dao.ragequit(tokens, myShares, 0);
 
 ## Disclaimer
 
-*These contracts are unaudited. Use at your own risk. No warranties or guarantees provided.*
+*These contracts have been reviewed by twenty-six auditing tools (see [Audits](#audits)) but have not undergone a formal manual audit. No production blockers were identified, but use at your own risk. No warranties or guarantees provided.*
 
 ## License
 

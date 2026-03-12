@@ -237,10 +237,11 @@
 - Include `initCalls` in `summon` salt, or require `proposeTribute` to verify DAO exists (MAJEUR-17)
 
 **Frontend fixes:**
-- Systematic `innerHTML` → `textContent`/DOM API pass for all untrusted data sinks (all XSS findings)
-- Hard-block transactional flows on chain mismatch (MAJEUR-24, -16)
-- Require Summoner provenance for deep-link DAOs (MAJEUR-8, -22)
-- Fix `fetchAndOpenDAO` ABI to `shares()`/`loot()` (MAJEUR-12)
-- Three-way token classification: shares / loot / unverified (MAJEUR-11)
-- Resolve token decimals from contract, not chat tags (MAJEUR-14, -9)
-- Route dapp summon through `SafeSummoner.safeSummon()` (MAJEUR-18)
+- ~~Systematic `innerHTML` → `textContent`/DOM API pass for all untrusted data sinks (all XSS findings)~~ **Patched** — `showPurchaseStatus`, `showWizardStatus`, `showStatus` converted to `textContent`/DOM APIs; `summaryStatus` links via safe helper; image URLs sanitized via `sanitizeImageUrl()` + `escapeHtml()`; token symbols/names escaped at creation; error messages rendered via `textContent`
+- ~~Hard-block transactional flows on chain mismatch (MAJEUR-24, -16)~~ **Patched** — `ensureSignerChainMatch()` guard on all transactional flows; `promptNetworkSwitch` only updates app network after wallet switch succeeds
+- ~~Require Summoner provenance for deep-link DAOs (MAJEUR-8, -22)~~ **Patched** — code-existence check + warning banner for deep-link-loaded DAOs
+- ~~Fix `fetchAndOpenDAO` ABI to `shares()`/`loot()` (MAJEUR-12)~~ **Patched** — ABI and decode calls updated
+- ~~Three-way token classification: shares / loot / unverified (MAJEUR-11)~~ **Patched** — `isShares` check added; unrecognized `forTkn` labeled "Unverified ERC20"
+- ~~Resolve token decimals from contract, not chat tags (MAJEUR-14, -9)~~ **Patched** — `<<<SALE` tag decimals verified against on-chain `decimals()` call; mismatches logged and overridden
+- ~~Validate 18-decimal requirement for custom token wrapping (MAJEUR-20)~~ **Patched** — `decimals() == 18` check at submit time
+- Route dapp summon through `SafeSummoner.safeSummon()` (MAJEUR-18) — pending SafeSummoner deployment

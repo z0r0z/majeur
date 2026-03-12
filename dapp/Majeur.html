@@ -8958,6 +8958,18 @@
         return trimmed;
       }
 
+      // Sanitize image URLs: allow https, http, ipfs gateway, and data:image/* only
+      function sanitizeImageUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim();
+        // Allow data:image/* URIs (SVGs, PNGs, etc.)
+        if (/^data:image\//i.test(trimmed)) return trimmed;
+        // Allow https/http
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        // Everything else is blocked (javascript:, data:text/html, etc.)
+        return '';
+      }
+
       // Production-safe logger - set DEBUG to false for production
       const DEBUG = false;
       const logger = {
@@ -14577,7 +14589,7 @@
 
               const saleMatch = textToSearch.match(/<<<SALE\s+token="([^"]+)"\s+price="([^"]+)"\s+decimals="(\d+)"\s+symbol="([^"]+)"\s+SALE>>>/);
               if (saleMatch) {
-                const [, tokenAddress, price, decimals, symbol] = saleMatch;
+                const [, tokenAddress, price, tagDecimals, symbol] = saleMatch;
 
                 // Normalize address for comparison
                 const normalizedAddress = tokenAddress.toLowerCase();
@@ -14586,19 +14598,34 @@
                 if (!tokens.find(t => t.address.toLowerCase() === normalizedAddress) &&
                     !customTokens.find(t => t.address.toLowerCase() === normalizedAddress)) {
 
+                  // Resolve decimals from the contract (not chat tag) to prevent decimal poisoning (MAJEUR-14/9)
+                  let resolvedDecimals = parseInt(tagDecimals);
+                  try {
+                    const decimalsResult = await withRpcFallback(async (activeProvider) => {
+                      const tokenContract = new ethers.Contract(tokenAddress, ['function decimals() view returns (uint8)'], activeProvider);
+                      return Number(await tokenContract.decimals());
+                    });
+                    if (decimalsResult !== resolvedDecimals) {
+                      logger.warn(`SALE tag decimals mismatch for ${symbol}: tag=${resolvedDecimals}, contract=${decimalsResult}. Using contract value.`);
+                      resolvedDecimals = decimalsResult;
+                    }
+                  } catch (e) {
+                    logger.warn(`Could not verify decimals for ${tokenAddress}, using tag value:`, e.message);
+                  }
+
                   customTokens.push({
-                    symbol,
+                    symbol: escapeHtml(symbol),
                     address: tokenAddress,
-                    decimals: parseInt(decimals),
+                    decimals: resolvedDecimals,
                     isCustom: true
                   });
 
                   // Cache for other functions that might need it
                   if (!customTokenCache[normalizedAddress]) {
                     customTokenCache[normalizedAddress] = {
-                      symbol,
-                      decimals: parseInt(decimals),
-                      name: symbol
+                      symbol: escapeHtml(symbol),
+                      decimals: resolvedDecimals,
+                      name: escapeHtml(symbol)
                     };
                   }
                 }
@@ -15597,9 +15624,9 @@
 
           infoDiv.innerHTML = `
             <div style="padding: 0.5rem; background: rgba(157, 123, 255, 0.1); border-left: 3px solid #9d7bff; border-radius: 2px;">
-              <div><strong>${name}</strong> (${symbol})</div>
+              <div><strong>${escapeHtml(name)}</strong> (${escapeHtml(symbol)})</div>
               <div style="font-size: 0.7rem; opacity: 0.8; margin-top: 0.25rem;">${decimals} decimals • DAO Balance: ${balanceFormatted}</div>
-              <div style="font-size: 0.65rem; opacity: 0.6; margin-top: 0.25rem; font-family: monospace;">${checksummedAddress}</div>
+              <div style="font-size: 0.65rem; opacity: 0.6; margin-top: 0.25rem; font-family: monospace;">${escapeHtml(checksummedAddress)}</div>
             </div>
           `;
 
@@ -15657,7 +15684,11 @@
           }
 
           if (infoDiv) {
-            infoDiv.innerHTML = `<span style="color: #ff6b6b;">${errorMsg}</span>`;
+            const errSpan = document.createElement('span');
+            errSpan.style.color = '#ff6b6b';
+            errSpan.textContent = errorMsg;
+            infoDiv.textContent = '';
+            infoDiv.appendChild(errSpan);
           }
           if (actionsDiv) {
             actionsDiv.style.display = 'none';
@@ -18513,9 +18544,9 @@
           ]);
 
           if (decimals !== 18n) {
-            infoDiv.innerHTML = `<span style="color: #ff6b6b;">${symbol} has ${decimals} decimals (must be 18)</span>`;
+            infoDiv.innerHTML = `<span style="color: #ff6b6b;">${escapeHtml(symbol)} has ${decimals} decimals (must be 18)</span>`;
           } else {
-            infoDiv.innerHTML = `<span style="color: #64c896;">✓ ${symbol} (18 decimals)</span>`;
+            infoDiv.innerHTML = `<span style="color: #64c896;">✓ ${escapeHtml(symbol)} (18 decimals)</span>`;
             // Update preview
             const previewDiv = document.getElementById('internalSalePreview');
             const tokenType = document.getElementById('internalSaleTokenType')?.value || 'shares';
@@ -20322,17 +20353,15 @@
           return false;
         }
 
-        // Switch the app's network setting
-        currentNetwork = networkKey;
-        updateNetworkUI();
-
-        // If wallet is connected, prompt to switch wallet network too
+        // If wallet is connected, prompt to switch wallet network first
         if (window.ethereum && connectedAddress) {
+          let walletSwitched = false;
           try {
             await window.ethereum.request({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: targetNetwork.chainIdHex }]
             });
+            walletSwitched = true;
           } catch (switchError) {
             // Chain not added - try to add it
             if (switchError.code === 4902) {
@@ -20347,12 +20376,26 @@
                     blockExplorerUrls: [targetNetwork.explorer]
                   }]
                 });
+                walletSwitched = true;
               } catch (addError) {
                 logger.error('Failed to add network:', addError);
               }
             }
           }
+
+          // Only switch app network if wallet actually switched (prevents chain mismatch - MAJEUR-16)
+          if (!walletSwitched) {
+            alert('Wallet network switch failed. Please switch your wallet manually before proceeding.');
+            if (window.location.hash) {
+              history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+            return false;
+          }
         }
+
+        // Switch the app's network setting (only after wallet switch succeeds or no wallet connected)
+        currentNetwork = networkKey;
+        updateNetworkUI();
 
         // Re-fetch DAOs on the new network
         allDAOs = [];
@@ -20653,7 +20696,7 @@
           // Render badge (convert IPFS URLs to gateway URLs)
           let imageHTML = '';
           if (metadata.image) {
-            const imageUrl = toGatewayUrl(metadata.image);
+            const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
             imageHTML = `<img src="${imageUrl}" class="badge-image" alt="Badge #${seatId}" />`;
           }
 
@@ -20824,7 +20867,7 @@
 
             if (receipt.metadata) {
               if (receipt.metadata.image) {
-                const imageUrl = toGatewayUrl(receipt.metadata.image);
+                const imageUrl = sanitizeImageUrl(toGatewayUrl(receipt.metadata.image));
                 imageHTML = `<img src="${imageUrl}" class="receipt-image" alt="Receipt" />`;
               }
               if (receipt.metadata.name) {
@@ -20959,7 +21002,7 @@
             // Build image HTML from metadata if available (convert IPFS URLs to gateway URLs)
             let imageHTML = '';
             if (permitMetadata?.image) {
-              const imageUrl = toGatewayUrl(permitMetadata.image);
+              const imageUrl = sanitizeImageUrl(toGatewayUrl(permitMetadata.image));
               imageHTML = `<img src="${imageUrl}" class="receipt-image" alt="Emergency Permit" style="width: 100%; border-radius: 4px; margin-bottom: 0.75rem;" />`;
             }
 
@@ -21030,7 +21073,7 @@
         // Build image HTML if metadata available (convert IPFS URLs to gateway URLs)
         let imageHTML = '';
         if (metadata?.image) {
-          const imageUrl = toGatewayUrl(metadata.image);
+          const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
           imageHTML = `
             <div style="text-align: center; margin-bottom: 1.5rem;">
               <img src="${imageUrl}" alt="Emergency Permit" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid rgba(255, 123, 157, 0.3);" />
@@ -21864,8 +21907,8 @@
 
           // If it's a direct image URL, use it directly
           if (isDirectImageURL) {
-            const imageUrl = toGatewayUrl(contractURI);
-            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
+            const imageUrl = sanitizeImageUrl(toGatewayUrl(contractURI));
+            emblem.innerHTML = `<img src="${escapeHtml(imageUrl)}" alt="DAO Emblem" />`;
             emblem.classList.add('url-image');
             emblem.style.display = 'block';
             emblem.onclick = () => openNFTModal({ image: imageUrl }, 'DAO Contract');
@@ -21884,7 +21927,7 @@
             metadata = JSON.parse(decodeURIComponent(contractURI.slice(22)));
           } else if (contractURI.startsWith('data:image/')) {
             // Direct data URI image (e.g., data:image/svg+xml,...)
-            emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+            emblem.innerHTML = `<img src="${escapeHtml(sanitizeImageUrl(contractURI))}" alt="DAO Emblem" />`;
             emblem.style.display = 'block';
             emblem.onclick = () => openNFTModal({ image: contractURI }, 'DAO Contract');
             return;
@@ -21903,7 +21946,7 @@
 
             // Check if response is an image
             if (contentType && contentType.startsWith('image/')) {
-              emblem.innerHTML = `<img src="${fetchUrl}" alt="DAO Emblem" />`;
+              emblem.innerHTML = `<img src="${escapeHtml(sanitizeImageUrl(fetchUrl))}" alt="DAO Emblem" />`;
               emblem.classList.add('url-image');
               emblem.style.display = 'block';
               emblem.onclick = () => openNFTModal({ image: fetchUrl }, 'DAO Contract');
@@ -21921,8 +21964,8 @@
           }
 
           if (metadata && metadata.image) {
-            const imageUrl = toGatewayUrl(metadata.image);
-            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
+            const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
+            emblem.innerHTML = `<img src="${escapeHtml(imageUrl)}" alt="DAO Emblem" />`;
             // Check if image URL is external (not data URI)
             if (!metadata.image.startsWith('data:')) {
               emblem.classList.add('url-image');
@@ -21957,7 +22000,7 @@
         let imageHTML = '';
         if (metadata.image) {
           // Convert IPFS URLs to gateway URLs and add url-image class for external URLs
-          const imageUrl = toGatewayUrl(metadata.image);
+          const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
           const urlImageClass = imageUrl.startsWith('data:') ? '' : ' url-image';
           imageHTML = `<img src="${imageUrl}" class="nft-modal-image${urlImageClass}" alt="${title}" />`;
         }
@@ -22057,8 +22100,8 @@
 
           // If it's a direct image URL, use it directly
           if (isDirectImageURL) {
-            const imageUrl = toGatewayUrl(contractURI);
-            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
+            const imageUrl = sanitizeImageUrl(toGatewayUrl(contractURI));
+            emblem.innerHTML = `<img src="${escapeHtml(imageUrl)}" alt="DAO Emblem" />`;
             emblem.classList.add('url-image');
             return;
           }
@@ -22075,7 +22118,7 @@
             metadata = JSON.parse(decodeURIComponent(contractURI.slice(22)));
           } else if (contractURI.startsWith('data:image/')) {
             // Direct data URI image (e.g., data:image/svg+xml,...)
-            emblem.innerHTML = `<img src="${contractURI}" alt="DAO Emblem" />`;
+            emblem.innerHTML = `<img src="${escapeHtml(sanitizeImageUrl(contractURI))}" alt="DAO Emblem" />`;
             return;
           } else {
             // Try to fetch as JSON (convert IPFS URLs to gateway URLs)
@@ -22092,7 +22135,7 @@
 
             // Check if response is an image
             if (contentType && contentType.startsWith('image/')) {
-              emblem.innerHTML = `<img src="${fetchUrl}" alt="DAO Emblem" />`;
+              emblem.innerHTML = `<img src="${escapeHtml(sanitizeImageUrl(fetchUrl))}" alt="DAO Emblem" />`;
               emblem.classList.add('url-image');
               return;
             }
@@ -22108,8 +22151,8 @@
           }
 
           if (metadata && metadata.image) {
-            const imageUrl = toGatewayUrl(metadata.image);
-            emblem.innerHTML = `<img src="${imageUrl}" alt="DAO Emblem" />`;
+            const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
+            emblem.innerHTML = `<img src="${escapeHtml(imageUrl)}" alt="DAO Emblem" />`;
             // Check if image URL is external (not data URI)
             if (!metadata.image.startsWith('data:')) {
               emblem.classList.add('url-image');
@@ -22347,7 +22390,7 @@
 
                 let imageHTML = '';
                 if (metadata.image) {
-                  const imageUrl = toGatewayUrl(metadata.image);
+                  const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
                   imageHTML = `<img src="${imageUrl}" style="width: 100%; border-radius: 8px; margin-bottom: 1rem;" alt="Receipt" />`;
                 }
 
@@ -22392,7 +22435,7 @@
 
                 let imageHTML = '';
                 if (metadata?.image) {
-                  const imageUrl = toGatewayUrl(metadata.image);
+                  const imageUrl = sanitizeImageUrl(toGatewayUrl(metadata.image));
                   imageHTML = `<img src="${imageUrl}" style="width: 100%; border-radius: 8px; margin-bottom: 1rem;" alt="Emergency Permit" />`;
                 }
 
@@ -24443,12 +24486,31 @@
           statusClass += ' warning';
         }
 
-        // Add spinner for loading states
-        const spinner = message.includes('...') && !message.includes('✨') && !message.includes('href=')
-          ? '<span class="spinner"></span>'
-          : '';
+        // Build status DOM safely (no innerHTML with untrusted data)
+        const div = document.createElement('div');
+        div.className = statusClass;
 
-        statusEl.innerHTML = `<div class="${statusClass}">${spinner}${message}</div>`;
+        // Add spinner for loading states
+        const hasSpinner = message.includes('...') && !message.includes('✨') && !message.includes('href=');
+        if (hasSpinner) {
+          const spinnerEl = document.createElement('span');
+          spinnerEl.className = 'spinner';
+          div.appendChild(spinnerEl);
+        }
+
+        // If message contains href (trusted internal HTML), use innerHTML with escaping
+        // Otherwise use textContent for safety
+        if (message.includes('href=')) {
+          // Trusted caller is providing a link - allow it (internal use only)
+          const msgSpan = document.createElement('span');
+          msgSpan.innerHTML = message;
+          div.appendChild(msgSpan);
+        } else {
+          div.appendChild(document.createTextNode(message));
+        }
+
+        statusEl.textContent = '';
+        statusEl.appendChild(div);
 
         // Auto-dismiss success messages after delay
         if (autoDismiss && !isError) {
@@ -24458,7 +24520,7 @@
             if (msgEl) {
               msgEl.style.animation = 'fadeOut 0.3s ease-out forwards';
               setTimeout(() => {
-                statusEl.innerHTML = '';
+                statusEl.textContent = '';
               }, 300);
             }
           }, delay);
@@ -24824,7 +24886,7 @@
               decimalsInput.value = decimals;
             }
 
-            infoDiv.innerHTML = `<span style="color: #9d7bff;">✓ ${name} (${symbol})</span> <span style="opacity: 0.6;">• ${decimals} decimals</span>`;
+            infoDiv.innerHTML = `<span style="color: #9d7bff;">✓ ${escapeHtml(name)} (${escapeHtml(symbol)})</span> <span style="opacity: 0.6;">• ${decimals} decimals</span>`;
           } catch (err) {
             logger.error('Token validation error:', err);
             infoDiv.innerHTML = '<span style="color: #ff6b6b;">Failed to validate token. Ensure it\'s a valid ERC20.</span>';
@@ -24939,7 +25001,11 @@
           }
 
           if (infoDiv) {
-            infoDiv.innerHTML = `<span style="color: #ff6b6b;">${errorMsg}</span>`;
+            const errSpan = document.createElement('span');
+            errSpan.style.color = '#ff6b6b';
+            errSpan.textContent = errorMsg;
+            infoDiv.textContent = '';
+            infoDiv.appendChild(errSpan);
           }
         }
       }
@@ -25609,6 +25675,19 @@
               if (!customTokenAddress || !ethers.isAddress(customTokenAddress)) {
                 showStatus('Please enter a valid custom token address for wrapping', true);
                 throw new Error('Invalid custom token address');
+              }
+              // Validate token has 18 decimals (required for 1:1 wrapping) - MAJEUR-20
+              try {
+                const tokenContract = new ethers.Contract(customTokenAddress, ['function decimals() view returns (uint8)'], signer);
+                const tokenDecimals = Number(await tokenContract.decimals());
+                if (tokenDecimals !== 18) {
+                  showStatus(`Custom token has ${tokenDecimals} decimals (must be 18 for 1:1 wrapping)`, true);
+                  throw new Error(`Token has ${tokenDecimals} decimals, not 18`);
+                }
+              } catch (e) {
+                if (e.message.includes('decimals')) throw e;
+                showStatus('Could not verify token decimals. Ensure it is a valid ERC20 with 18 decimals.', true);
+                throw e;
               }
               payToken = customTokenAddress;
             } else if (paymentToken === 'dai') {

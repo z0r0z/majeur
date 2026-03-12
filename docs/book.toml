@@ -7,7 +7,7 @@ no-section-label = true
 additional-js = ["solidity.min.js"]
 additional-css = ["book.css"]
 mathjax-support = true
-git-repository-url = "https://github.com/z0r0z/SAW"
+git-repository-url = "https://github.com/z0r0z/majeur"
 
 [output.html.fold]
 enable = true

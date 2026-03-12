@@ -5871,18 +5871,15 @@
                 return;
             }
 
-            // Switch the app's network setting
-            currentNetwork = networkKey;
-            localStorage.setItem('daico_network', networkKey);
-            updateNetworkUI();
-
-            // If wallet is connected, prompt to switch wallet network too
+            // If wallet is connected, prompt to switch wallet network first
             if (connectedWalletProvider && connectedAddress) {
+                let walletSwitched = false;
                 try {
                     await connectedWalletProvider.request({
                         method: 'wallet_switchEthereumChain',
                         params: [{ chainId: targetNetwork.chainIdHex }]
                     });
+                    walletSwitched = true;
                 } catch (switchError) {
                     // Chain not added - try to add it (not supported by WalletConnect, but works for injected)
                     if (switchError.code === 4902 && connectedWalletProvider.request) {
@@ -5897,12 +5894,25 @@
                                     blockExplorerUrls: [targetNetwork.explorer]
                                 }]
                             });
+                            walletSwitched = true;
                         } catch (addError) {
                             console.error('Failed to add network:', addError);
                         }
                     }
                 }
+
+                // Only switch app network if wallet actually switched (prevents chain mismatch)
+                if (!walletSwitched) {
+                    alert('Wallet network switch failed. Please switch your wallet manually before proceeding.');
+                    clearUrlHash();
+                    return;
+                }
             }
+
+            // Switch the app's network setting (only after wallet switch succeeds or no wallet connected)
+            currentNetwork = networkKey;
+            localStorage.setItem('daico_network', networkKey);
+            updateNetworkUI();
 
             // Re-scan DAICOs on the new network
             activeDAICOs = [];
@@ -6142,7 +6152,8 @@
             // If we have a safe image URL (from JSON, SVG data URI, or direct image)
             if (metadata.image && isSafeImageUrl(metadata.image)) {
                 return `<div class="daico-image">
-                    <img src="${metadata.image}" alt="${safeName}" onerror="this.parentElement.innerHTML='<span class=\\'daico-image-initial\\'>${initial}</span>'" />
+                    <img src="${escapeHtml(metadata.image)}" alt="${safeName}" onerror="this.style.display='none'; this.parentElement.querySelector('.daico-image-fallback').style.display='flex';" />
+                    <span class="daico-image-initial daico-image-fallback" style="display:none;">${initial}</span>
                 </div>`;
             }
 
@@ -7269,7 +7280,7 @@
         function showWizardStatus(message, type = 'info') {
             const el = document.getElementById('wizardStatus');
             el.className = 'status-message show ' + type;
-            el.innerHTML = message;
+            el.textContent = message;
         }
 
         function hideWizardStatus() {
@@ -7280,6 +7291,11 @@
             if (!signer) {
                 showWizardStatus('Please connect your wallet first', 'error');
                 showWalletModal();
+                return;
+            }
+
+            if (!await ensureSignerChainMatch()) {
+                showWizardStatus('Wallet network does not match selected network', 'error');
                 return;
             }
 
@@ -7786,7 +7802,14 @@
                 priceStr = pricePerMillion.toExponential(2);
             }
             const icon = getTokenIcon(tributeToken.address);
-            document.getElementById('summaryPricePreview').innerHTML = `${priceStr} ${tributeToken.symbol} <span class="summary-token-icon">${icon}</span> per 1M tokens`;
+            const pricePreviewEl = document.getElementById('summaryPricePreview');
+            pricePreviewEl.textContent = '';
+            pricePreviewEl.appendChild(document.createTextNode(`${priceStr} ${tributeToken.symbol} `));
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'summary-token-icon';
+            iconSpan.textContent = icon;
+            pricePreviewEl.appendChild(iconSpan);
+            pricePreviewEl.appendChild(document.createTextNode(' per 1M tokens'));
         }
 
         function editSummaryField(field) {
@@ -7997,9 +8020,20 @@
 
         async function launchFromSummary() {
             if (!signer || !connectedWalletProvider) {
-                document.getElementById('summaryStatus').innerHTML = 'Please <a href="#" onclick="connectWallet(); return false;" style="color: var(--cyan);">connect wallet</a> first';
+                const statusEl = document.getElementById('summaryStatus');
+                statusEl.textContent = '';
+                statusEl.appendChild(document.createTextNode('Please '));
+                const connectLink = document.createElement('a');
+                connectLink.href = '#';
+                connectLink.onclick = (e) => { e.preventDefault(); connectWallet(); };
+                connectLink.style.color = 'var(--cyan)';
+                connectLink.textContent = 'connect wallet';
+                statusEl.appendChild(connectLink);
+                statusEl.appendChild(document.createTextNode(' first'));
                 return;
             }
+
+            if (!await ensureSignerChainMatch()) return;
 
             // Get chainId directly from wallet provider to avoid ethers NETWORK_ERROR
             const walletChainIdHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
@@ -8139,7 +8173,7 @@
                     ]);
 
                     const verifyUrl = buildSwissKnifeUrl(calldata);
-                    document.getElementById('summaryStatus').innerHTML = `Confirm in wallet... <a href="${verifyUrl}" target="_blank" rel="noopener" style="color: var(--cyan); opacity: 0.7; font-size: 0.85em;">verify calldata</a>`;
+                    setSummaryStatusWithLink('Confirm in wallet...', 'verify calldata', verifyUrl, 'var(--cyan)', 'opacity: 0.7; font-size: 0.85em;');
 
                     tx = await daicoContract.summonDAICOWithTapCustom(
                         summonConfig,
@@ -8167,7 +8201,7 @@
                     ]);
 
                     const verifyUrl = buildSwissKnifeUrl(calldata);
-                    document.getElementById('summaryStatus').innerHTML = `Confirm in wallet... <a href="${verifyUrl}" target="_blank" rel="noopener" style="color: var(--cyan); opacity: 0.7; font-size: 0.85em;">verify calldata</a>`;
+                    setSummaryStatusWithLink('Confirm in wallet...', 'verify calldata', verifyUrl, 'var(--cyan)', 'opacity: 0.7; font-size: 0.85em;');
 
                     tx = await daicoContract.summonDAICOCustom(
                         summonConfig,
@@ -8188,11 +8222,11 @@
                     );
                 }
 
-                document.getElementById('summaryStatus').innerHTML = `Submitted! <a href="${getNetwork().explorer}/tx/${tx.hash}" target="_blank" rel="noopener" style="color: var(--cyan);">View tx</a>`;
+                setSummaryStatusWithLink('Submitted!', 'View tx', `${getNetwork().explorer}/tx/${tx.hash}`);
 
                 await tx.wait();
 
-                document.getElementById('summaryStatus').innerHTML = `Launched! <a href="https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}" target="_blank" rel="noopener" style="color: var(--green);">View your DAO</a>`;
+                setSummaryStatusWithLink('Launched!', 'View your DAO', `https://majeurdao.eth.limo/#/dao/${getNetwork().chainId}/${predictedDao}`, 'var(--green)');
 
                 // Refresh DAICO list to show the new sale
                 daicoScanTriggered = false;
@@ -8345,8 +8379,8 @@
         const MOLOCH_SCANNER_ABI = [
             'function name(uint256) view returns (string)',
             'function symbol(uint256) view returns (string)',
-            'function sharesToken() view returns (address)',
-            'function lootToken() view returns (address)'
+            'function shares() view returns (address)',
+            'function loot() view returns (address)'
         ];
 
         const ERC20_ABI = [
@@ -8361,6 +8395,24 @@
         let activeDAICOs = [];
         let completedDAICOs = [];
         let currentSaleTab = 'active';
+
+        // Guard: block transactional flows when signer chain != app's selected network
+        // Prevents MAJEUR-24/MAJEUR-16 chain mismatch attacks
+        async function ensureSignerChainMatch() {
+            if (!connectedWalletProvider) return true;
+            try {
+                const walletChainHex = await connectedWalletProvider.request({ method: 'eth_chainId' });
+                const walletChainId = parseInt(walletChainHex, 16);
+                const expectedChainId = Number(getNetwork().chainId);
+                if (walletChainId !== expectedChainId) {
+                    showPurchaseStatus(`Chain mismatch: wallet is on chain ${walletChainId}, but app expects ${getNetwork().name}. Please switch your wallet network.`, 'error');
+                    return false;
+                }
+            } catch (e) {
+                console.warn('Could not verify signer chain:', e);
+            }
+            return true;
+        }
 
         // Helper to add gas limit override for WalletConnect transactions
         // WalletConnect's RPC can fail gas estimation, so we provide a fixed limit
@@ -8583,16 +8635,17 @@
                     timeRemaining = 'No deadline';
                 }
 
-                // Determine if selling shares or loot
+                // Determine token type: shares, loot, or unverified ERC20
                 const isLoot = sale.forTkn.toLowerCase() === daoData.lootToken?.toLowerCase();
-                const tokenType = isLoot ? 'Loot' : 'Shares';
+                const isShares = sale.forTkn.toLowerCase() === daoData.sharesToken?.toLowerCase();
+                const tokenType = isLoot ? 'Loot' : isShares ? 'Shares' : 'Unverified ERC20';
 
                 // Tap info (could be ETH or ERC20)
                 let tapHtml = '';
                 if (daoData.tap && daoData.claimableTap > 0n) {
                     const tapTribInfo = COMMON_TRIB_TOKENS[daoData.tap.tribTkn] || { symbol: 'ETH', decimals: 18 };
                     const claimableAmt = Number(ethers.formatUnits(daoData.claimableTap, tapTribInfo.decimals)).toFixed(4);
-                    tapHtml = `<div class="daico-tap">TAP: ${claimableAmt} ${tapTribInfo.symbol} claimable</div>`;
+                    tapHtml = `<div class="daico-tap">TAP: ${claimableAmt} ${escapeHtml(tapTribInfo.symbol)} claimable</div>`;
                 }
 
                 // Render DAO image/logo from contractURI metadata
@@ -8770,6 +8823,22 @@
             // Update modal UI
             document.getElementById('purchaseDaoName').textContent = daoData.name || 'Buy Tokens';
 
+            // Show warning for deep-link loaded DAOs (not verified from Summoner scan)
+            let deepLinkWarning = document.getElementById('deepLinkWarning');
+            if (!deepLinkWarning) {
+                deepLinkWarning = document.createElement('div');
+                deepLinkWarning.id = 'deepLinkWarning';
+                deepLinkWarning.style.cssText = 'padding: 0.5em 0.8em; background: rgba(255, 71, 87, 0.15); border: 1px solid var(--red); color: var(--red); font-size: 0.85rem; margin-bottom: 0.75rem; display: none;';
+                const modalBody = document.querySelector('.purchase-modal-body');
+                if (modalBody) modalBody.prepend(deepLinkWarning);
+            }
+            if (daoData.isDeepLink) {
+                deepLinkWarning.textContent = '⚠ This DAO was loaded via deep link and is not verified from the Summoner registry. Proceed with caution.';
+                deepLinkWarning.style.display = 'block';
+            } else {
+                deepLinkWarning.style.display = 'none';
+            }
+
             // Show description from contractURI metadata if present
             const descEl = document.getElementById('purchaseDescription');
             if (daoData.metadata && daoData.metadata.description) {
@@ -8782,6 +8851,7 @@
             // Sale info
             const tribInfo = COMMON_TRIB_TOKENS[tribTkn] || { symbol: '???', decimals: 18 };
             const isLoot = sale.forTkn.toLowerCase() === daoData.lootToken?.toLowerCase();
+            const isShares = sale.forTkn.toLowerCase() === daoData.sharesToken?.toLowerCase();
 
             // Show template badge if detected
             const hasTap = daoData.tap && daoData.tap.ratePerSec > 0n;
@@ -8797,7 +8867,7 @@
             } else {
                 templateBadgeEl.style.display = 'none';
             }
-            const tokenType = isLoot ? 'Loot' : 'Shares';
+            const tokenType = isLoot ? 'Loot' : isShares ? 'Shares' : 'Unverified ERC20';
 
             const remainingNum = Number(ethers.formatEther(sale.remainingSupply || 0n));
             document.getElementById('purchaseRemaining').textContent = remainingNum.toLocaleString() + ' ' + tokenType;
@@ -9166,12 +9236,13 @@
                 }
             } finally {
                 approveBtn.disabled = false;
-                approveBtn.innerHTML = `Approve <span id="approveTokenName">${tribInfo.symbol}</span>`;
+                approveBtn.textContent = `Approve ${tribInfo.symbol}`;
             }
         }
 
         async function executePurchase() {
             if (!signer || !currentPurchase.dao) return;
+            if (!await ensureSignerChainMatch()) return;
 
             const payStr = document.getElementById('payAmountInput').value.trim();
             const receiveStr = document.getElementById('receiveAmountInput').value.trim();
@@ -9296,6 +9367,7 @@
 
         async function claimTap() {
             if (!signer || !currentPurchase.dao || !currentPurchase.daoData?.tap) return;
+            if (!await ensureSignerChainMatch()) return;
 
             const claimBtn = document.getElementById('claimTapBtn');
 
@@ -9343,7 +9415,7 @@
 
         function showPurchaseStatus(message, type) {
             const status = document.getElementById('purchaseStatus');
-            status.innerHTML = message;
+            status.textContent = message;
             status.className = 'status-message';
             if (type === 'error') status.classList.add('error');
             else if (type === 'success') status.classList.add('success');
@@ -9473,8 +9545,8 @@
                 const calls = [
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('name(uint256)', [0]) },
                     { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('symbol(uint256)', [0]) },
-                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('sharesToken', []) },
-                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('lootToken', []) },
+                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('shares', []) },
+                    { target: daoAddr, allowFailure: true, callData: molochIface.encodeFunctionData('loot', []) },
                     { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('sales', [daoAddr, tribTkn]) },
                     { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('taps', [daoAddr]) },
                     { target: DAICO_ADDRESS, allowFailure: true, callData: daicoIface.encodeFunctionData('claimableTap', [daoAddr]) }
@@ -9487,8 +9559,8 @@
 
                 if (results[0].success) daoData.name = molochIface.decodeFunctionResult('name(uint256)', results[0].returnData)[0];
                 if (results[1].success) daoData.symbol = molochIface.decodeFunctionResult('symbol(uint256)', results[1].returnData)[0];
-                if (results[2].success) daoData.sharesToken = molochIface.decodeFunctionResult('sharesToken', results[2].returnData)[0];
-                if (results[3].success) daoData.lootToken = molochIface.decodeFunctionResult('lootToken', results[3].returnData)[0];
+                if (results[2].success) daoData.sharesToken = molochIface.decodeFunctionResult('shares', results[2].returnData)[0];
+                if (results[3].success) daoData.lootToken = molochIface.decodeFunctionResult('loot', results[3].returnData)[0];
 
                 if (results[4].success) {
                     const [saleTribAmt, saleForAmt, saleForTkn, saleDeadline] = daicoIface.decodeFunctionResult('sales', results[4].returnData);
@@ -9521,6 +9593,16 @@
 
                 // Open modal if we found an active sale
                 if (daoData.sales.length > 0) {
+                    // Verify the DAO has code (basic provenance check)
+                    const code = await rpcProvider.getCode(daoAddr);
+                    if (!code || code === '0x') {
+                        console.warn('Deep link DAO has no code:', daoAddr);
+                        return;
+                    }
+
+                    // Mark as deep-link loaded (not from Summoner scan) for UI warning
+                    daoData.isDeepLink = true;
+
                     // Add to activeDAICOs for modal to work
                     activeDAICOs.push(daoData);
                     openPurchaseModal(daoAddr, daoData.sales[0].tribTkn);
@@ -9624,7 +9706,36 @@
         function showStatus(message, type = 'info') {
             const el = document.getElementById('statusMessage');
             el.className = 'status-message show ' + type;
-            el.innerHTML = message;
+            el.textContent = message;
+        }
+
+        // Show status with a safe link (for tx/explorer URLs)
+        function showStatusWithLink(text, linkText, linkUrl, type = 'info') {
+            const el = document.getElementById('statusMessage');
+            el.className = 'status-message show ' + type;
+            el.textContent = '';
+            el.appendChild(document.createTextNode(text + ' '));
+            const a = document.createElement('a');
+            a.href = linkUrl;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.style.cssText = 'color: var(--cyan);';
+            a.textContent = linkText;
+            el.appendChild(a);
+        }
+
+        // Safe innerHTML-free helper for summaryStatus with link
+        function setSummaryStatusWithLink(text, linkText, linkUrl, linkColor = 'var(--cyan)', linkStyle = '') {
+            const el = document.getElementById('summaryStatus');
+            el.textContent = '';
+            el.appendChild(document.createTextNode(text + ' '));
+            const a = document.createElement('a');
+            a.href = linkUrl;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.style.cssText = `color: ${linkColor}; ${linkStyle}`;
+            a.textContent = linkText;
+            el.appendChild(a);
         }
 
         function hideStatus() {

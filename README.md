@@ -32,6 +32,19 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 | MolochViewHelper | [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db) | Batch read helper for dApps |
 | Tribute | [`0x000000000066524fcf78Dc1E41E9D525d9ea73D0`](https://contractscan.xyz/contract/0x000000000066524fcf78Dc1E41E9D525d9ea73D0) | OTC escrow for tribute proposals |
 | DAICO | [`0x000000000033e92DB97B4B3beCD2c255126C60aC`](https://contractscan.xyz/contract/0x000000000033e92DB97B4B3beCD2c255126C60aC) | Token sale with tap mechanism |
+| ShareBurner | [`0x000000000040084694F7B6fb2846D067B4c3Aa9f`](https://contractscan.xyz/contract/0x000000000040084694F7B6fb2846D067B4c3Aa9f) | Burn unsold shares after sale deadline |
+| ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for DAICO LP integration |
+
+### Implementations
+
+Minimal proxy clones are deployed from these implementation contracts. Each DAO gets its own clone of Moloch, Shares, Loot, and Badges via CREATE2.
+
+| Contract | Address | Description |
+|----------|---------|-------------|
+| Moloch | [`0x643A45B599D81be3f3A68F37EB3De55fF10673C1`](https://contractscan.xyz/contract/0x643A45B599D81be3f3A68F37EB3De55fF10673C1) | DAO governance logic |
+| Shares | [`0x71E9b38d301b5A58cb998C1295045FE276Acf600`](https://contractscan.xyz/contract/0x71E9b38d301b5A58cb998C1295045FE276Acf600) | ERC-20 voting token |
+| Loot | [`0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5`](https://contractscan.xyz/contract/0x6f1f2aF76a3aDD953277e9F369242697C87bc6A5) | ERC-20 non-voting token |
+| Badges | [`0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5`](https://contractscan.xyz/contract/0x47C175Ce83B6B931ccBedD5ce95e701984eD96d5) | ERC-721 soulbound NFT |
 
 ## Dapps
 
@@ -59,7 +72,7 @@ on-chain action     40% Bob            predictions       treasury share
 | **Receipts** | ERC-6909 | Vote receipts for futarchy payouts |
 | **Badges** | ERC-721 | Soulbound NFTs for top 256 shareholders |
 
-All tokens are deployed as separate contracts via minimal proxy clones. The DAO controls minting, burning, and transfer locks.
+Shares, Loot, and Badges are deployed as separate minimal proxy clones. Receipts (ERC-6909) are managed directly within the Moloch contract. The DAO controls minting, burning, and transfer locks.
 
 ## Architecture
 
@@ -163,7 +176,7 @@ Moloch dao = summoner.summon(
 // 1. Create proposal ID (anyone can compute this)
 uint256 proposalId = dao.proposalId(
     0,                    // op: 0=call, 1=delegatecall
-    target,               // contract to call
+    to,                   // contract to call
     value,                // ETH to send
     data,                 // calldata
     nonce                 // unique nonce
@@ -173,7 +186,7 @@ uint256 proposalId = dao.proposalId(
 dao.castVote(proposalId, 1);  // support: 0=AGAINST, 1=FOR, 2=ABSTAIN
 
 // 3. Execute when passed
-dao.executeByVotes(0, target, value, data, nonce);
+dao.executeByVotes(0, to, value, data, nonce);
 ```
 
 ### Weighted Delegation (Split Voting Power)
@@ -199,7 +212,7 @@ dao.fundFutarchy(
 );
 
 // After resolution, claim winnings
-uint256 receiptId = dao._receiptId(proposalId, 1); // 1=YES
+// Receipt IDs: keccak256("Moloch:receipt", proposalId, support)
 dao.cashOutFutarchy(proposalId, myReceiptBalance);
 ```
 
@@ -245,10 +258,10 @@ DAOs can issue permits allowing specific addresses to execute actions without vo
 
 ```solidity
 // DAO issues permit
-dao.setPermit(op, target, value, data, nonce, alice, 1);
+dao.setPermit(op, to, value, data, nonce, alice, 1);
 
 // Alice spends permit
-dao.spendPermit(op, target, value, data, nonce);
+dao.spendPermit(op, to, value, data, nonce);
 ```
 
 ### Timelock Configuration
@@ -477,6 +490,84 @@ DAICOView[] memory sales = helper.scanDAICOs(0, 100, tribTokens);
 - `SaleView` - Active DAICO sale terms, remaining supply, LP config
 - `TapView` - Tap config, claimable amount, treasury balance
 
+### ShareSale (Share/Loot Sales via Allowance)
+
+Singleton for selling DAO shares or loot via the allowance system. Uses Moloch's `_payout` sentinel addresses (`address(dao)` mints shares, `address(1007)` mints loot) and 1e18-scaled pricing for decimal friendliness.
+
+```solidity
+// Setup (in SafeSummoner extraCalls or initCalls):
+// 1. dao.setAllowance(shareSale, address(dao), cap)  // or address(1007) for loot
+// 2. shareSale.configure(address(dao), payToken, price)
+
+// Users buy shares
+shareSale.buy{value: cost}(dao, 10e18);  // 10 shares
+
+// Pricing: cost = amount * price / 1e18
+// e.g. price = 0.01e18 means 0.01 ETH per share
+```
+
+**Key functions:**
+- `configure()` - Set sale token, payment token, and price (called by DAO)
+- `buy()` - Purchase shares/loot (permissionless, refunds overpayment)
+- `saleInitCalls()` - Generate initCalls for setup
+
+### TapVest (Linear Vesting via Allowance)
+
+Singleton for linear vesting from a DAO treasury. Derives from the DAICO tap pattern but operates independently via the allowance system.
+
+```solidity
+// Setup (in SafeSummoner extraCalls or initCalls):
+// 1. dao.setAllowance(tap, token, totalBudget)
+// 2. tap.configure(token, beneficiary, ratePerSec)
+
+// Anyone can trigger claim — funds always go to beneficiary
+tap.claim(dao);
+
+// View functions
+tap.claimable(dao);  // min(owed, allowance, daoBalance)
+tap.pending(dao);    // total owed (ignoring caps)
+```
+
+**Vesting formula:** `owed = ratePerSec * elapsed`, capped by `min(owed, allowance, daoBalance)`.
+
+**DAO governance:**
+- `setBeneficiary()` - Change recipient (DAO-only)
+- `setRate()` - Change rate, non-retroactive: unclaimed accrual is forfeited (DAO-only). Set to 0 to freeze.
+
+### ShareBurner (Post-Sale Cleanup)
+
+Deployed singleton for burning unsold shares after a sale deadline. DAOs issue a one-shot permit during setup allowing ShareBurner to delegatecall `burnUnsold` via the DAO.
+
+```solidity
+// Setup via SafeSummoner (automatic when saleBurnDeadline > 0):
+// 1. dao.setPermit(op=1, target=burner, ..., spender=burner, count=1)
+
+// After deadline, anyone can trigger the burn
+shareBurner.closeSale(dao, sharesAddr, deadline, nonce);
+```
+
+### SafeSummoner (Deployment Wrapper)
+
+Wrapper around the deployed Summoner that enforces audit-derived configuration guardrails. Validates `SafeConfig` structs and builds `initCalls` automatically.
+
+```solidity
+// Preset deployments (one-call with sane defaults)
+safe.summonStandard(name, symbol, uri, salt, holders, shares);  // 7d/2d/10%
+safe.summonFast(name, symbol, uri, salt, holders, shares);      // 3d/1d/10%
+safe.summonMinimal(name, symbol, uri, salt, holders, shares);   // 3d/none/5%
+safe.summonLocked(name, symbol, uri, salt, holders, shares);    // 7d/2d/10%/no ragequit
+
+// Full control
+safe.safeSummon(name, symbol, uri, quorum, ragequittable, renderer, salt,
+    holders, shares, config, extraCalls);
+
+// Utilities
+safe.predictDAO(salt, holders, shares);
+safe.predictShares(dao);
+safe.predictLoot(dao);
+safe.previewCalls(config);
+```
+
 ## Quick Reference
 
 ### Essential Functions
@@ -484,7 +575,7 @@ DAICOView[] memory sales = helper.scanDAICOs(0, 100, tribTokens);
 | Function | Purpose | Who Can Call |
 |----------|---------|--------------|
 | `summon()` | Deploy new DAO | Anyone |
-| `castVote()` | Vote on proposal | Share holders |
+| `castVote()` | Vote on proposal | Share holders / delegates |
 | `executeByVotes()` | Execute passed proposal | Anyone |
 | `ragequit()` | Exit with treasury share | Share/Loot holders |
 | `delegate()` | Delegate voting power | Share holders |
@@ -606,6 +697,9 @@ forge snapshot
 | `DAICO.t.sol` | Token sales, tap mechanism, LP config, summon helpers |
 | `Tribute.t.sol` | OTC escrow: propose, cancel, claim tributes |
 | `MolochViewHelper.t.sol` | Batch read functions for dApps |
+| `SafeSummoner.t.sol` | Preset deployments, config validation, ShareBurner integration, address prediction |
+| `ShareSale.t.sol` | Share/loot purchases, refunds, allowance caps, pricing |
+| `Tap.t.sol` | Linear vesting claims, rate changes, beneficiary updates, cap enforcement |
 | `ContractURI.t.sol` | On-chain metadata and DUNA covenant |
 | `URIVisualization.t.sol` | SVG rendering for cards |
 | `Bytecodesize.t.sol` | Contract size limits |
@@ -618,6 +712,9 @@ forge snapshot
 - Badge auto-updates on balance changes
 - DAICO tap claims and rate changes
 - Tribute propose/cancel/claim flows
+- SafeSummoner preset guardrails and ShareBurner permits
+- ShareSale buy/refund/cap flows with ETH
+- TapVest claim/rate/beneficiary governance
 
 ### Deploy
 
@@ -664,7 +761,7 @@ Moloch.sol has been scanned by twenty-six independent audit tools. Reports with 
 | [ChatGPT Pro (GPT 5.4 Pro)](./audit/chatgptpro.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low, 1 Info (2 duplicates) | 1 novel finding (dead futarchy pools on executed IDs), no production blockers |
 | [Certora FV](./audit/certora.md) | [Formal verification (142 properties, 7 contracts)](./certora/) | 1 Low, 2 Informational (all acknowledged, by design) | 126 invariants verified; L-01 tap forfeiture is intentional Moloch exit-rights design |
 | [Grimoire](./audit/grimoire.md) | [Agentic audit (4 sigils + 3 familiars)](https://github.com/JoranHonig/grimoire) | 10 confirmed (1 High, 4 Medium, 5 Low, 2 Info — all duplicates) | 0 novel; adversarial triage dismissed 3 false positives, reentrancy surface fully clean |
-| [Cantina Apex](./audit/cantina.md) | [Quick scan (smart contracts + frontend)](https://cantina.xyz/) | 4 High, 20 Medium (5 novel SC findings + ~18 novel frontend findings) | First to cover frontend and peripherals; most novel findings of any single audit; no production blockers |
+| [Cantina Apex](./audit/cantina.md) | [Quick scan (smart contracts + frontend)](https://cantina.xyz/) | 4 High, 20 Medium (5 novel SC findings + ~18 novel frontend findings) | First to cover frontend and peripherals; most novel findings of any single audit; no production blockers. **Frontend findings patched in demo dapp** (XSS class, chain mismatch, ABI fix, token classification, decimal validation, deep-link provenance) |
 | [Solarizer](./audit/solarizer.md) | [AI multi-phase security engine (static + semantic + cross-contract)](https://solarizer.io/) | 1 High, 3 Medium, 15 Low, 5 Info, 5 Gas (0 novel) | All duplicates, false positives, or design observations; "D" security grade is misleading (HIGH-1 is intentional post-queue voting); 3 false positives (multicall access control, checkpoint asymmetry, proposerOf hijack); no production blockers |
 | [Almanax](./audit/almanax.md) | [Vulnerability scan](https://almanax.ai/) | 1 High, 2 Medium, 2 Low (0 novel) | All duplicates of known findings (KF#3, KF#8, KF#11, KF#18); no production blockers |
 
@@ -752,7 +849,14 @@ Identified through audit review for future contract versions:
 - Bind `claimTribute` to expected settlement terms via nonce/hash (Cantina MAJEUR-10)
 - Fix DAICO drift cap: replace `tribForLP` with total tribute in `_initLP` and `_quoteLPUsed` (Cantina MAJEUR-7)
 - Include `initCalls` in Summoner `summon` salt (Cantina MAJEUR-17)
-- Systematic `innerHTML` → `textContent`/DOM API pass in dapp for all untrusted data sinks (Cantina XSS class)
+- ~~Systematic `innerHTML` → `textContent`/DOM API pass in dapp for all untrusted data sinks (Cantina XSS class)~~ **Patched** in demo dapp
+- ~~Hard-block transactional flows on signer chain ≠ app network (Cantina MAJEUR-24, MAJEUR-16)~~ **Patched** in demo dapp
+- ~~Fix `fetchAndOpenDAO` ABI to `shares()`/`loot()` (Cantina MAJEUR-12)~~ **Patched** in demo dapp
+- ~~Three-way token classification: shares / loot / unverified ERC20 (Cantina MAJEUR-11)~~ **Patched** in demo dapp
+- ~~Resolve token decimals from contract, not chat tags (Cantina MAJEUR-14, MAJEUR-9)~~ **Patched** in demo dapp
+- ~~Validate 18-decimal requirement for custom token wrapping at submit time (Cantina MAJEUR-20)~~ **Patched** in demo dapp
+- ~~Require Summoner provenance for deep-link DAOs (Cantina MAJEUR-8)~~ **Patched** in demo dapp (warning label + code check)
+- Route dapp summon through `SafeSummoner.safeSummon()` (Cantina MAJEUR-18) — pending SafeSummoner deployment
 
 ## Complete Workflow Example
 
@@ -793,12 +897,12 @@ dao.ragequit(tokens, myShares, 0);
 | Clone pattern | ~80% deployment | Minimal proxy clones for Shares, Loot, Badges |
 | Transient storage | ~5k/call | EIP-1153 for reentrancy guards |
 | Badge bitmap | ~20k/update | 256 holders in single storage slot |
-| Packed structs | ~20k/write | Tallies fit in one slot (3 × uint96) |
+| Packed structs | ~20k/write | Tallies use 3 × uint96 for compact storage |
 
 ## FAQ
 
 ### Q: Can I change my vote after voting?
-**A:** Yes! Use `cancelVote(proposalId)` before the proposal is executed. You'll get your vote receipt back and can vote again.
+**A:** Yes! Use `cancelVote(proposalId)` while the proposal is still Active. You'll get your vote receipt back and can vote again. Once the proposal transitions to Succeeded, Queued, or any other state, `cancelVote` is no longer available.
 
 ### Q: What happens to badges when someone's balance changes?
 **A:** Badges automatically update. If you fall out of top 256, you lose the badge. If you enter top 256, you get one instantly.
@@ -815,7 +919,7 @@ dao.ragequit(tokens, myShares, 0);
 **A:** Yes! Specify how many shares/loot to burn. You don't have to exit completely.
 
 ### Q: How are proposal IDs generated?
-**A:** Deterministically from: `keccak256(dao, op, to, value, data, nonce, config)`. Anyone can compute it.
+**A:** Deterministically from: `keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))`. Anyone can compute it.
 
 ### Q: What prevents vote buying?
 **A:** Snapshots at block N-1. You can't buy tokens after seeing a proposal and vote.
