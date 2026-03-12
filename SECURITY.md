@@ -172,7 +172,7 @@ The following 23 findings have been identified and reviewed across prior audits.
 
 | # | Finding | Severity | Key Detail |
 |---|---------|----------|------------|
-| 1 | Sale cap sentinel collision (`0` = unlimited = exhausted) | Low | After exact sell-out, cap resets to 0 which also means "unlimited" |
+| 1 | Sale cap sentinel collision (`0` = unlimited = exhausted) | Low | After exact sell-out, `s.cap` reaches 0 which is indistinguishable from "unlimited." Only triggers on exact exhaustion (`shareAmount == cap`). Buyer still pays `pricePerShare` — no free tokens. For non-minting sales (`minting = false`), the DAO's held share balance is the real hard cap regardless of the sentinel. For minting sales, the cap is the only supply constraint, so this is a soft guardrail — the DAO can deactivate the sale via `setSale(..., active: false)` and `SaleUpdated` events enable off-chain monitoring. V2 hardening candidate: use `type(uint256).max` as the "unlimited" sentinel |
 | 2 | Dynamic quorum + minting sale + ragequit | Low | Supply inflation via `buyShares` → ragequit after snapshot → quorum denominator manipulation. Economically constrained |
 | 3 | Futarchy pool drainable via ragequit | Design | Intentional — pools are incentives subordinate to exit rights. Note: a majority NO coalition can also collect auto-funded pools by repeatedly defeating proposals — this is by design (NO voters are rewarded for correct predictions), but becomes extractive in concentrated DAOs. Mitigated by `autoFutarchyCap` (per-proposal bound) and `proposalThreshold > 0` (limits earmark triggers) |
 | 4 | Futarchy resolution timing | Low | Early NO voters can resolve futarchy when quorum met by losing side, freezing voting incentives |
