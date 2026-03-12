@@ -536,14 +536,14 @@ tap.pending(dao);    // total owed (ignoring caps)
 
 ### ShareBurner (Post-Sale Cleanup)
 
-Deployed singleton for burning unsold shares after a sale deadline. DAOs issue a permit during setup allowing ShareBurner to call `burnUnsold` after the deadline expires.
+Deployed singleton for burning unsold shares after a sale deadline. DAOs issue a one-shot permit during setup allowing ShareBurner to delegatecall `burnUnsold` via the DAO.
 
 ```solidity
 // Setup via SafeSummoner (automatic when saleBurnDeadline > 0):
 // 1. dao.setPermit(op=1, target=burner, ..., spender=burner, count=1)
 
 // After deadline, anyone can trigger the burn
-shareBurner.burnUnsold(dao);
+shareBurner.closeSale(dao, sharesAddr, deadline, nonce);
 ```
 
 ### SafeSummoner (Deployment Wrapper)
@@ -565,7 +565,7 @@ safe.safeSummon(name, symbol, uri, quorum, ragequittable, renderer, salt,
 safe.predictDAO(salt, holders, shares);
 safe.predictShares(dao);
 safe.predictLoot(dao);
-safe.previewCalls(config, extraCalls);
+safe.previewCalls(config);
 ```
 
 ## Quick Reference
@@ -761,7 +761,7 @@ Moloch.sol has been scanned by twenty-six independent audit tools. Reports with 
 | [ChatGPT Pro (GPT 5.4 Pro)](./audit/chatgptpro.md) | [3-round AI audit (systematic → economic → triager)](https://chat.openai.com/) | 1 Medium (novel), 1 Low, 1 Info (2 duplicates) | 1 novel finding (dead futarchy pools on executed IDs), no production blockers |
 | [Certora FV](./audit/certora.md) | [Formal verification (142 properties, 7 contracts)](./certora/) | 1 Low, 2 Informational (all acknowledged, by design) | 126 invariants verified; L-01 tap forfeiture is intentional Moloch exit-rights design |
 | [Grimoire](./audit/grimoire.md) | [Agentic audit (4 sigils + 3 familiars)](https://github.com/JoranHonig/grimoire) | 10 confirmed (1 High, 4 Medium, 5 Low, 2 Info — all duplicates) | 0 novel; adversarial triage dismissed 3 false positives, reentrancy surface fully clean |
-| [Cantina Apex](./audit/cantina.md) | [Quick scan (smart contracts + frontend)](https://cantina.xyz/) | 4 High, 20 Medium (5 novel SC findings + ~18 novel frontend findings) | First to cover frontend and peripherals; most novel findings of any single audit; no production blockers |
+| [Cantina Apex](./audit/cantina.md) | [Quick scan (smart contracts + frontend)](https://cantina.xyz/) | 4 High, 20 Medium (5 novel SC findings + ~18 novel frontend findings) | First to cover frontend and peripherals; most novel findings of any single audit; no production blockers. **Frontend findings patched in demo dapp** (XSS class, chain mismatch, ABI fix, token classification, decimal validation, deep-link provenance) |
 | [Solarizer](./audit/solarizer.md) | [AI multi-phase security engine (static + semantic + cross-contract)](https://solarizer.io/) | 1 High, 3 Medium, 15 Low, 5 Info, 5 Gas (0 novel) | All duplicates, false positives, or design observations; "D" security grade is misleading (HIGH-1 is intentional post-queue voting); 3 false positives (multicall access control, checkpoint asymmetry, proposerOf hijack); no production blockers |
 | [Almanax](./audit/almanax.md) | [Vulnerability scan](https://almanax.ai/) | 1 High, 2 Medium, 2 Low (0 novel) | All duplicates of known findings (KF#3, KF#8, KF#11, KF#18); no production blockers |
 
@@ -849,7 +849,14 @@ Identified through audit review for future contract versions:
 - Bind `claimTribute` to expected settlement terms via nonce/hash (Cantina MAJEUR-10)
 - Fix DAICO drift cap: replace `tribForLP` with total tribute in `_initLP` and `_quoteLPUsed` (Cantina MAJEUR-7)
 - Include `initCalls` in Summoner `summon` salt (Cantina MAJEUR-17)
-- Systematic `innerHTML` → `textContent`/DOM API pass in dapp for all untrusted data sinks (Cantina XSS class)
+- ~~Systematic `innerHTML` → `textContent`/DOM API pass in dapp for all untrusted data sinks (Cantina XSS class)~~ **Patched** in demo dapp
+- ~~Hard-block transactional flows on signer chain ≠ app network (Cantina MAJEUR-24, MAJEUR-16)~~ **Patched** in demo dapp
+- ~~Fix `fetchAndOpenDAO` ABI to `shares()`/`loot()` (Cantina MAJEUR-12)~~ **Patched** in demo dapp
+- ~~Three-way token classification: shares / loot / unverified ERC20 (Cantina MAJEUR-11)~~ **Patched** in demo dapp
+- ~~Resolve token decimals from contract, not chat tags (Cantina MAJEUR-14, MAJEUR-9)~~ **Patched** in demo dapp
+- ~~Validate 18-decimal requirement for custom token wrapping at submit time (Cantina MAJEUR-20)~~ **Patched** in demo dapp
+- ~~Require Summoner provenance for deep-link DAOs (Cantina MAJEUR-8)~~ **Patched** in demo dapp (warning label + code check)
+- Route dapp summon through `SafeSummoner.safeSummon()` (Cantina MAJEUR-18) — pending SafeSummoner deployment
 
 ## Complete Workflow Example
 

@@ -82,8 +82,8 @@ IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
 ///   DAO governance:
 ///     lpSeed.cancel()               // cancel seeding, DAO reclaims allowances
 contract LPSeed {
-    error NotConfigured();
     error NotReady();
+    error NotConfigured();
     error AlreadySeeded();
     error InvalidParams();
 
@@ -175,13 +175,8 @@ contract LPSeed {
         address tokenA = cfg.tokenA;
         address tokenB = cfg.tokenB;
 
-        // Pull tokens from DAO via allowance
-        if (tokenA != address(0)) {
-            IMoloch(dao).spendAllowance(tokenA, amtA);
-        } else {
-            // ETH: DAO sends via spendAllowance (ETH allowance path)
-            IMoloch(dao).spendAllowance(tokenA, amtA);
-        }
+        // Pull tokens from DAO via allowance (ETH uses address(0) allowance path)
+        IMoloch(dao).spendAllowance(tokenA, amtA);
         IMoloch(dao).spendAllowance(tokenB, amtB);
 
         // Build canonical pool key (token0 < token1)
