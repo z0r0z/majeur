@@ -55,7 +55,7 @@ interface IShareSale {
 /// @dev ZAMM singleton address.
 IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
 
-/// @title SeedLP
+/// @title LPSeed
 /// @notice Singleton for seeding ZAMM liquidity from DAO treasury tokens.
 ///         DAOs configure a seed by calling `configure()` in an initCall and granting
 ///         this contract allowances for both tokens via `setAllowance()`.
