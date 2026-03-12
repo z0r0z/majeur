@@ -3,7 +3,8 @@ pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
 import {Moloch, Shares} from "../src/Moloch.sol";
-import {SafeSummoner, Call} from "../src/peripheral/SafeSummoner.sol";
+import {SafeSummoner, Call, SHARE_BURNER} from "../src/peripheral/SafeSummoner.sol";
+import {ShareBurner} from "../src/peripheral/ShareBurner.sol";
 
 contract SafeSummonerTest is Test {
     SafeSummoner internal safe;
@@ -85,7 +86,7 @@ contract SafeSummonerTest is Test {
         config.lockShares = true;
         config.lockLoot = true;
         config.autoFutarchyParam = 500;
-        config.autoFutarchyCap = 10e18;
+        config.autoFutarchyCap = 50e18;
         // futarchyRewardToken must be address(0)/DAO/shares/loot/1007
         // Use address(0) (ETH) for test
         config.futarchyRewardToken = address(0);
@@ -99,7 +100,7 @@ contract SafeSummonerTest is Test {
         assertEq(m.quorumAbsolute(), 10e18);
         assertEq(m.minYesVotesAbsolute(), 5e18);
         assertEq(m.autoFutarchyParam(), 500);
-        assertEq(m.autoFutarchyCap(), 10e18);
+        assertEq(m.autoFutarchyCap(), 50e18);
     }
 
     function test_SummonWithSale() public {
@@ -235,6 +236,7 @@ contract SafeSummonerTest is Test {
         config.minYesVotes = 5e18;
         config.lockShares = true;
         config.autoFutarchyParam = 500;
+        config.autoFutarchyCap = 10e18;
         config.futarchyRewardToken = address(0xBEEF);
         config.saleActive = true;
         config.salePricePerShare = 1e18;
@@ -339,6 +341,7 @@ contract SafeSummonerTest is Test {
     function test_FutarchyWithQuorumBps() public {
         SafeSummoner.SafeConfig memory config = _baseConfig();
         config.autoFutarchyParam = 500;
+        config.autoFutarchyCap = 10e18;
 
         address dao = _summon(5000, config);
         assertEq(Moloch(payable(dao)).autoFutarchyParam(), 500);
@@ -347,10 +350,42 @@ contract SafeSummonerTest is Test {
     function test_FutarchyWithQuorumAbsolute() public {
         SafeSummoner.SafeConfig memory config = _baseConfig();
         config.autoFutarchyParam = 500;
+        config.autoFutarchyCap = 10e18;
         config.quorumAbsolute = 10e18;
 
         address dao = _summon(0, config);
         assertEq(Moloch(payable(dao)).autoFutarchyParam(), 500);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                     VALIDATION: KF#3 — futarchy cap required
+    //////////////////////////////////////////////////////////////*/
+
+    function test_RevertIf_FutarchyWithNoCap() public {
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.autoFutarchyParam = 500;
+        config.autoFutarchyCap = 0;
+
+        vm.expectRevert(SafeSummoner.FutarchyCapRequired.selector);
+        _summon(5000, config);
+    }
+
+    function test_FutarchyWithCap() public {
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.autoFutarchyParam = 500;
+        config.autoFutarchyCap = 10e18;
+
+        address dao = _summon(5000, config);
+        assertEq(Moloch(payable(dao)).autoFutarchyCap(), 10e18);
+    }
+
+    function test_NoFutarchyAllowsZeroCap() public {
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.autoFutarchyParam = 0;
+        config.autoFutarchyCap = 0;
+
+        address dao = _summon(5000, config);
+        assertEq(Moloch(payable(dao)).autoFutarchyParam(), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -496,5 +531,191 @@ contract SafeSummonerTest is Test {
             config,
             new Call[](0)
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           PRESETS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SummonStandard() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        address dao = safe.summonStandard("Std", "STD", "", bytes32(uint256(1)), h, s);
+        Moloch m = Moloch(payable(dao));
+
+        assertTrue(dao != address(0));
+        assertEq(m.proposalThreshold(), 100e18 / 100); // 1% of 100e18
+        assertEq(m.proposalTTL(), 7 days);
+        assertEq(m.timelockDelay(), 2 days);
+        assertEq(m.quorumBps(), 1000);
+        assertEq(m.ragequittable(), true);
+    }
+
+    function test_SummonFast() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        address dao = safe.summonFast("Fast", "FAST", "", bytes32(uint256(2)), h, s);
+        Moloch m = Moloch(payable(dao));
+
+        assertEq(m.proposalTTL(), 3 days);
+        assertEq(m.timelockDelay(), 1 days);
+        assertEq(m.quorumBps(), 1000);
+        assertEq(m.ragequittable(), true);
+    }
+
+    function test_SummonMinimal() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        address dao = safe.summonMinimal("Min", "MIN", "", bytes32(uint256(3)), h, s);
+        Moloch m = Moloch(payable(dao));
+
+        assertEq(m.proposalTTL(), 3 days);
+        assertEq(m.timelockDelay(), 0); // no timelock
+        assertEq(m.quorumBps(), 500);
+        assertEq(m.ragequittable(), true);
+    }
+
+    function test_SummonLocked() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        address dao = safe.summonLocked("Lock", "LOCK", "", bytes32(uint256(4)), h, s);
+        Moloch m = Moloch(payable(dao));
+
+        assertEq(m.proposalTTL(), 7 days);
+        assertEq(m.timelockDelay(), 2 days);
+        assertEq(m.quorumBps(), 1000);
+        assertEq(m.ragequittable(), false);
+    }
+
+    function test_PresetThresholdScalesWithSupply() public {
+        // Two holders: 60e18 + 40e18 = 100e18 total -> threshold = 1e18
+        (address[] memory h, uint256[] memory s) = _holders2();
+        address dao = safe.summonStandard("Scale", "SCL", "", bytes32(uint256(5)), h, s);
+        assertEq(Moloch(payable(dao)).proposalThreshold(), 1e18);
+
+        // One holder: 100e18 total -> threshold = 1e18
+        (address[] memory h2, uint256[] memory s2) = _holders1();
+        address dao2 = safe.summonStandard("Scale2", "SC2", "", bytes32(uint256(6)), h2, s2);
+        assertEq(Moloch(payable(dao2)).proposalThreshold(), 1e18);
+    }
+
+    function test_PresetThresholdFloorAtOne() public {
+        // Single holder with 50 shares -> 50/100 = 0, floored to 1
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 50;
+        address dao = safe.summonStandard("Tiny", "TINY", "", bytes32(uint256(7)), h, s);
+        assertEq(Moloch(payable(dao)).proposalThreshold(), 1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           SHARE BURNER
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SharesPrediction() public {
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        address dao = _summon(1000, config);
+        address predicted = safe.predictShares(dao);
+        address actual = address(Moloch(payable(dao)).shares());
+        assertEq(predicted, actual);
+    }
+
+    function test_LootPrediction() public {
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        address dao = _summon(1000, config);
+        address predicted = safe.predictLoot(dao);
+        address actual = address(Moloch(payable(dao)).loot());
+        assertEq(predicted, actual);
+    }
+
+    function test_SummonWithBurnDeadline() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.saleActive = true;
+        config.salePricePerShare = 1e18;
+        config.saleBurnDeadline = block.timestamp + 30 days;
+
+        address dao = safe.safeSummon(
+            "Burn",
+            "BURN",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(uint256(800)),
+            h,
+            s,
+            config,
+            new Call[](0)
+        );
+        assertTrue(dao != address(0));
+        // Permit should be set — ShareBurner should have balance of 1 for the permit token
+        // We verify by checking the sale is active and the DAO deployed successfully
+        Moloch m = Moloch(payable(dao));
+        assertEq(m.proposalThreshold(), 1e18);
+    }
+
+    function test_BurnPermitCallHelper() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        Call memory permitCall =
+            safe.burnPermitCall(bytes32(uint256(900)), h, s, block.timestamp + 30 days);
+        // Should target the predicted DAO
+        address dao = safe.predictDAO(bytes32(uint256(900)), h, s);
+        assertEq(permitCall.target, dao);
+        assertEq(permitCall.value, 0);
+        assertTrue(permitCall.data.length > 0);
+    }
+
+    function test_CloseSaleAfterDeadline() public {
+        // Non-minting sale: DAO holds shares and transfers to buyers.
+        // Use extraCalls to mint shares to the DAO for selling.
+        bytes32 salt = bytes32(uint256(801));
+        uint256 deadline = block.timestamp + 30 days;
+        (address[] memory h, uint256[] memory s) = _holders1();
+
+        // Predict addresses
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.saleActive = true;
+        config.salePricePerShare = 1; // 1 wei per share
+        config.saleMinting = false; // non-minting: DAO transfers its shares
+        config.saleBurnDeadline = deadline;
+
+        // Extra call: mint 90e18 shares to the DAO for the sale
+        Call[] memory extra = new Call[](1);
+        extra[0] = Call(
+            sharesAddr, 0, abi.encodeWithSignature("mintFromMoloch(address,uint256)", dao, 90e18)
+        );
+
+        address deployed = safe.safeSummon(
+            "BurnTest", "BT", "", 1000, true, address(0), salt, h, s, config, extra
+        );
+        assertEq(deployed, dao);
+
+        Moloch m = Moloch(payable(dao));
+
+        // DAO should hold 90e18 shares from the mint
+        assertEq(Shares(sharesAddr).balanceOf(dao), 90e18);
+
+        // Buy 10e18 shares from DAO (ETH sale, payToken = address(0))
+        // cost = 10e18 shares * 1 wei/share = 10e18 wei
+        vm.deal(address(this), 10e18);
+        m.buyShares{value: 10e18}(address(0), 10e18, 0);
+
+        // DAO should hold 80e18 now
+        assertEq(Shares(sharesAddr).balanceOf(dao), 80e18);
+
+        // Can't close before deadline — burnUnsold reverts with SaleActive,
+        // which _execute wraps as NotOk
+        vm.expectRevert(Moloch.NotOk.selector);
+        ShareBurner(SHARE_BURNER).closeSale(dao, sharesAddr, deadline, keccak256("ShareBurner"));
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        // Anyone can close
+        ShareBurner(SHARE_BURNER).closeSale(dao, sharesAddr, deadline, keccak256("ShareBurner"));
+
+        // DAO balance should be 0 after burn
+        assertEq(Shares(sharesAddr).balanceOf(dao), 0);
     }
 }

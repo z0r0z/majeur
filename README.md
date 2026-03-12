@@ -637,7 +637,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 
 ## Audits
 
-Moloch.sol has been scanned by twenty-four independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
+Moloch.sol has been scanned by twenty-six independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
 
 | Auditor | Type | Findings | Report |
 |---------|------|----------|--------|
@@ -666,8 +666,9 @@ Moloch.sol has been scanned by twenty-four independent audit tools. Reports with
 | [Grimoire](./audit/grimoire.md) | [Agentic audit (4 sigils + 3 familiars)](https://github.com/JoranHonig/grimoire) | 10 confirmed (1 High, 4 Medium, 5 Low, 2 Info — all duplicates) | 0 novel; adversarial triage dismissed 3 false positives, reentrancy surface fully clean |
 | [Cantina Apex](./audit/cantina.md) | [Quick scan (smart contracts + frontend)](https://cantina.xyz/) | 4 High, 20 Medium (5 novel SC findings + ~18 novel frontend findings) | First to cover frontend and peripherals; most novel findings of any single audit; no production blockers |
 | [Solarizer](./audit/solarizer.md) | [AI multi-phase security engine (static + semantic + cross-contract)](https://solarizer.io/) | 1 High, 3 Medium, 15 Low, 5 Info, 5 Gas (0 novel) | All duplicates, false positives, or design observations; "D" security grade is misleading (HIGH-1 is intentional post-queue voting); 3 false positives (multicall access control, checkpoint asymmetry, proposerOf hijack); no production blockers |
+| [Almanax](./audit/almanax.md) | [Vulnerability scan](https://almanax.ai/) | 1 High, 2 Medium, 2 Low (0 novel) | All duplicates of known findings (KF#3, KF#8, KF#11, KF#18); no production blockers |
 
-**No production blockers were identified across any audit.** Ten novel smart contract findings were surfaced across twenty-five scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues). Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
+**No production blockers were identified across any audit.** Ten novel smart contract findings were surfaced across twenty-six scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues). Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
 
 **Novel smart contract findings (10):**
 1. Vote receipt transferability breaks `cancelVote` (Pashov — Low, design tradeoff)
@@ -684,7 +685,7 @@ Moloch.sol has been scanned by twenty-four independent audit tools. Reports with
 **Tool ranking by signal quality:**
 - **Cantina Apex** produced the most novel smart contract findings (5) of any single audit, plus ~18 novel frontend findings — the first tool to systematically cover the dapp and peripheral contracts (Tribute, DAICO). The bumpConfig bypass (MAJEUR-15), Tribute bait-and-switch (MAJEUR-10), permit futarchy drain (MAJEUR-21), and DAICO LP math bug (MAJEUR-7) are all code-verified. The frontend XSS findings share a single root cause (`innerHTML` without escaping) but are individually valid. Signal-to-noise: 5 novel SC findings from 24 total (21%).
 - **ChatGPT (GPT 5.4)** produced the single highest-impact finding (KF#17, Medium) with the best signal-to-noise ratio (1 novel from 2 total findings, 50%). Its architecture assessment — identifying the boundary between live governance state and prediction-market settlement — is the clearest articulation of the futarchy design tension.
-- **ChatGPT Pro (GPT 5.4 Pro)** surfaced the 5th novel finding (KF#18, Medium) — `fundFutarchy` missing `executed[id]` check creates permanently stuck pools on dead proposals. Signal-to-noise: 1 novel from 3 findings (33%). The reentrancy inventory in Category 1 is the most thorough across all 24 audits. LOW-2 (tombstoning) is KF#11 and INFORMATIONAL-3 (auto-futarchy overcommit) was found by 6 prior audits.
+- **ChatGPT Pro (GPT 5.4 Pro)** surfaced the 5th novel finding (KF#18, Medium) — `fundFutarchy` missing `executed[id]` check creates permanently stuck pools on dead proposals. Signal-to-noise: 1 novel from 3 findings (33%). The reentrancy inventory in Category 1 is the most thorough across all 26 audits. LOW-2 (tombstoning) is KF#11 and INFORMATIONAL-3 (auto-futarchy overcommit) was found by 6 prior audits.
 - **Pashov Skills** surfaced 2 novel findings via 5 parallel agents with adversarial reasoning. Higher noise (12 findings, 17% novel rate) but broader coverage.
 - **Claude (Opus 4.6)** identified a subtle design observation (post-queue voting) that no other tool found, plus the `spendPermit` missing `executed[id]` check (a sharper angle on KF#10, later catalogued as KF#16).
 - **Trail of Bits** and **Cyfrin** provided unique non-vulnerability value: maturity scoring (2.67/4.0) and standards compliance (21/32 compliant), respectively.
@@ -695,6 +696,7 @@ Moloch.sol has been scanned by twenty-four independent audit tools. Reports with
 - **ZeroSkills Slot Sleuth** ran a 5-phase EVM storage-safety analysis (lost writes, attacker-influenced slots, upgrade collisions, storage semantics). Clean pass — Moloch.sol avoids the vulnerability patterns this detector targets (no assembly `SSTORE`, no manual slot arithmetic, no upgradeable proxies). Useful for confirming architectural hygiene.
 - **Forefy**, **QuillShield**, **SCV Scan**, and **Auditmos** each independently confirmed subsets of the known findings, adding cross-validation confidence without novel discoveries. **EVM MCP Tools** was too basic for governance contracts (regex heuristics only).
 - **Solarizer** produced the highest volume of findings (29) but zero novel discoveries. Notable for 3 clear false positives: LOW-4 (claims `multicall` bypasses `onlyDAO` — incorrect, `delegatecall` to `address(this)` preserves caller's `msg.sender`), LOW-9 (claims burn/mint checkpoint asymmetry — code is actually symmetric), and MED-1 (claims `proposerOf` hijack enables cancel DOS — blocked by auto-futarchy and re-submittable with different nonce). The "D" security grade and "HIGH" risk rating are driven by HIGH-1, which is the documented intentional post-queue voting design (KF#15). Signal-to-noise: 0 novel from 29 total (0%).
+- **Almanax** produced 5 findings (1 High, 2 Medium, 2 Low) — all duplicates of known findings (KF#3, KF#8, KF#11, KF#18). Clean report with no false positives, but zero novel discoveries. The HIGH-1 (auto-futarchy farming) has been found by 9+ prior audits. Signal-to-noise: 0 novel from 5 total (0%).
 
 - **Qwen (Qwen3.5-Plus)** used the same SECURITY.md prompt as ChatGPT, Gemini 3, and DeepSeek V3.2 Speciale. All 3 findings are duplicates (KF#5, auto-futarchy overcommit, KF#1), with an inflated self-assessment claiming 2 novel. Competent category sweep and methodology compliance, but zero novel findings — similar depth to DeepSeek V3.2 Speciale and Gemini 3.
 
@@ -702,7 +704,7 @@ Moloch.sol has been scanned by twenty-four independent audit tools. Reports with
 
 - **Certora FV** is the only formal verification engagement. 142 properties across 7 contracts provide mathematical proofs for critical invariants (sum-of-balances, state machine monotonicity, write-once fields, access control, split delegation constraints, ragequit payout bounds). The L-01 tap forfeiture finding is confirmed via intentional violation (D-L1a) and reachability witness (D-L1b) — a novel angle on ragequit interaction with DAICO, but acknowledged as intentional Moloch exit-rights design. The two informational findings (unbounded Tribute arrays, `mulDiv` phantom overflow) are both known tradeoffs.
 
-Cross-referencing across all twenty-four scans — ten independent novel smart contract findings (plus ~18 novel frontend findings from Cantina), twenty-three catalogued known findings (KF#1–23), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full smart contract attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited.
+Cross-referencing across all twenty-six scans — ten independent novel smart contract findings (plus ~18 novel frontend findings from Cantina), twenty-three catalogued known findings (KF#1–23), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full smart contract attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited.
 
 ### SafeSummoner
 
@@ -715,9 +717,10 @@ Cross-referencing across all twenty-four scans — ten independent novel smart c
 | `proposalTTL > timelockDelay` | Config | Proposals expiring while queued |
 | `quorumBps ≤ 10000` | KF#12 | `init()` skips this range check |
 | Non-zero quorum if futarchy enabled | KF#17 | Premature NO-resolution proposal freeze |
+| `autoFutarchyCap > 0` if futarchy enabled | KF#3 | Unbounded per-proposal earmarks; default minted-loot reward path has no natural balance cap, enabling NO-coalition treasury farming |
 | Block minting sale + dynamic-only quorum | KF#2 | Supply manipulation via buy → ragequit |
 
-DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-four audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (DAICO, custom allowances, etc.).
+DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-six audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (DAICO, custom allowances, etc.).
 
 ### Configuration Guidance for Deployers
 
@@ -837,7 +840,7 @@ dao.ragequit(tokens, myShares, 0);
 
 ## Disclaimer
 
-*These contracts have been reviewed by twenty-four auditors (see [Audits](#audits)) but have not undergone a formal manual audit. No production blockers were identified, but use at your own risk. No warranties or guarantees provided.*
+*These contracts have been reviewed by twenty-six auditing tools (see [Audits](#audits)) but have not undergone a formal manual audit. No production blockers were identified, but use at your own risk. No warranties or guarantees provided.*
 
 ## License
 
