@@ -1,5 +1,5 @@
 // Moloch.spec — Formal verification of Moloch core DAO contract
-// Invariants 1-55 from certora/invariants.md
+// Invariants 3-8, 11, 13-15, 30-40, 43-49, 94 from certora/invariants.md
 
 methods {
     // ERC-6909

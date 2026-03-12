@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-/// @dev Minimal Moloch interface for tap mechanism.
-interface IMoloch {
-    function spendAllowance(address token, uint256 amount) external;
-    function setAllowance(address spender, address token, uint256 amount) external;
-    function allowance(address token, address spender) external view returns (uint256);
-}
-
-error Unauthorized();
-
 /// @dev Simplified DAICO harness for Certora verification of invariants 106-118.
 /// Strips summon wrappers, CREATE2 prediction, LP initialization, and assembly helpers.
 /// Preserves: setSale, buy (simplified), buyExactOut (simplified), claimTap, setLPConfig,
