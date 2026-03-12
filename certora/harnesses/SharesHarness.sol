@@ -225,6 +225,29 @@ contract SharesHarness {
         }
     }
 
+    // ──── targetAlloc harness (Invariant 64) ────
+    // Mirrors _targetAlloc: for each split, compute mulDiv(bal, bps, BPS_DENOM),
+    // remainder assigned to last. Returns sum of allocations.
+    function targetAllocSum(uint256 bal, address account) external view returns (uint256) {
+        Split[] storage splits = _splits[account];
+        uint256 n = splits.length;
+        if (n == 0) return bal; // no splits means full balance to self
+
+        uint256 sum;
+        uint256 remainder = bal;
+        for (uint256 i; i < n; ++i) {
+            uint256 alloc;
+            if (i == n - 1) {
+                alloc = remainder;
+            } else {
+                alloc = (bal * splits[i].bps) / BPS_DENOM;
+                remainder -= alloc;
+            }
+            sum += alloc;
+        }
+        return sum;
+    }
+
     // ───── Harness getters for internal state ─────
 
     function getPrimaryDelegate(address delegator) external view returns (address) {

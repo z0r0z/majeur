@@ -18,9 +18,9 @@
   - [Tribute (11 properties)](#tribute-11-properties)
   - [Loot (14 properties)](#loot-14-properties)
   - [Badges (16 properties)](#badges-16-properties)
-  - [Shares (18 properties)](#shares-18-properties)
+  - [Shares (20 properties)](#shares-20-properties)
   - [DAICO (19 properties)](#daico-19-properties)
-  - [Moloch (40 properties)](#moloch-40-properties)
+  - [Moloch (53 properties)](#moloch-53-properties)
 - [Assumptions](#assumptions)
 - [Setup and Execution](#setup-and-execution)
 - [Resources](#resources)
@@ -63,6 +63,9 @@ The process involves crafting properties in CVL (Certora Verification Language) 
 - **Write-once property coupling**: `Moloch` write-once properties (invariants 5-8) require coupling constraints between related fields that are always set together in `openProposal` (e.g., `supplySnapshot` is only set when `snapshotBlock` is already set)
 - **Partial claim modeling for L-01**: The `DAICOHarness` includes a `daoTapBalance` mapping that models the `min(owed, allowance, daoBalance)` constraint from the real contract. The harness intentionally reproduces the L-01 bug where `lastClaim` advances by full elapsed time even on partial claims
 - **External call summarization**: All external token transfers (`transfer`, `transferFrom`), Moloch callbacks (`onSharesChanged`, `getPastVotes`), and Summoner calls are summarized as `NONDET` to focus verification on the contract's own state transitions
+- **Futarchy harness simplification**: The `MolochHarness` includes a simplified futarchy module that strips token validation/pull logic and the full `state()` function, preserving core state transitions (`fundFutarchy`, `resolveFutarchyNo`, `cashOutFutarchy`, `_finalizeFutarchy`) and their revert conditions. The `_receiptId` function replaces `keccak256(abi.encodePacked(...))` with a deterministic injective function (`id * 3 + support`) that the prover can reason about
+- **mulDiv bound lemma**: A standalone integrity rule proves `mulDiv(pool, amt, total) <= pool` when `amt <= total`, with `max_uint128` bounds on `pool` and `amt` to prevent overflow. This lemma underpins ragequit and futarchy payout safety
+- **Target allocation sum harness**: The `SharesHarness` includes a `targetAllocSum` function that mirrors `_targetAlloc`'s allocation logic (proportional BPS division with remainder-to-last) as an external view, enabling CVL to verify that allocations sum exactly to the input balance
 
 ---
 
@@ -82,15 +85,15 @@ certora/
 │   ├── BadgesHarness.sol       # Struct-in-mapping getters for seats, bitmap, min tracking
 │   ├── DAICOHarness.sol        # Simplified sale/buy/tap logic + daoTapBalance for L-01
 │   ├── LootHarness.sol         # ERC-20 with transfersLocked, DAO-gated mint/burn
-│   ├── MolochHarness.sol       # ERC-6909, proposals, voting, settings, sale, allowance
-│   └── SharesHarness.sol       # ERC-20 + delegation checkpoints, split delegation getters
+│   ├── MolochHarness.sol       # ERC-6909, proposals, voting, settings, sale, allowance, futarchy, ragequit
+│   └── SharesHarness.sol       # ERC-20 + delegation checkpoints, split delegation getters, targetAlloc
 ├── specs/
 │   ├── Badges.spec             # 16 properties: bidirectional mapping, soulbound, seats
 │   ├── DAICO.spec              # 19 properties: sale, buy, tap, LP config, L-01 finding
 │   ├── Loot.spec               # 14 properties: ERC-20 accounting, transfer lock, DAO auth
-│   ├── Moloch.spec             # 40 properties: ERC-6909, proposals, voting, settings, sale, allowance
+│   ├── Moloch.spec             # 53 properties: ERC-6909, proposals, voting, settings, sale, allowance, futarchy, ragequit, execution
 │   ├── SafeSummoner.spec       #  9 properties: deployment validation revert conditions
-│   ├── Shares.spec             # 18 properties: ERC-20, delegation, checkpoints, DAO auth
+│   ├── Shares.spec             # 20 properties: ERC-20, delegation, checkpoints, targetAlloc, DAO auth
 │   └── Tribute.spec            # 11 properties: escrow integrity, monotonicity, isolation
 └── invariants.md               # 126 protocol invariants (source of truth)
 ```
@@ -99,7 +102,7 @@ certora/
 
 ## Verification Properties
 
-127 properties across 7 contracts: 8 Invariants, 32 Parametric rules, 9 Access Control rules, 44 Revert Condition rules, 14 Integrity rules, 20 Sanity rules.
+142 properties across 7 contracts: 8 Invariants, 35 Parametric rules, 9 Access Control rules, 49 Revert Condition rules, 18 Integrity rules, 23 Sanity rules.
 
 ### `SafeSummoner` (9 properties)
 
@@ -179,30 +182,32 @@ ERC-721 soulbound: bidirectional mapping consistency (`seatOf` ↔ `_ownerOf`) v
 | [B-SAN2](./specs/Badges.spec#L275-L278) | `burnSeatSanity` | Sanity | `burnSeat` is reachable | ✓ |
 | [B-SAN3](./specs/Badges.spec#L280-L283) | `initSanity` | Sanity | `init` is reachable | ✓ |
 
-### `Shares` (18 properties)
+### `Shares` (20 properties)
 
-ERC-20 with voting: sum-of-balances invariant via ghost + Sload hook, transfer lock, split delegation constraints (BPS sum, max splits, no zero/duplicate delegates), checkpoint temporal ordering, and DAO authorization (invariants 56-73).
+ERC-20 with voting: sum-of-balances invariant via ghost + Sload hook, transfer lock, split delegation constraints (BPS sum, max splits, no zero/duplicate delegates), target allocation sum conservation, checkpoint temporal ordering, and DAO authorization (invariants 56-68, 71-73).
 
 | ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Name | Type | Description | Status |
 |:------|:----------------------------------------|:----------|:-------------------------------------------------------|:------:|
 | [S-56](./specs/Shares.spec#L63-L88) | `totalSupplyIsSumOfBalances` | Invariant | `totalSupply` equals the sum of all `balanceOf` values | ✓ |
-| [S-57](./specs/Shares.spec#L95-L115) | `transferIntegrity` | Integrity | `transfer` moves exact amounts between sender and receiver | ✓ |
-| [S-58a](./specs/Shares.spec#L122-L135) | `transferRevertsWhenLocked` | Revert Condition | `transfer` reverts when locked and neither party is DAO | ✓ |
-| [S-58b](./specs/Shares.spec#L137-L149) | `transferFromRevertsWhenLocked` | Revert Condition | `transferFrom` reverts when locked and neither party is DAO | ✓ |
-| [S-59](./specs/Shares.spec#L156-L168) | `onlyMintBurnChangeTotalSupply` | Parametric | Only `mintFromMoloch`, `burnFromMoloch`, and `init` change `totalSupply` | ✓ |
-| [S-60](./specs/Shares.spec#L177-L200) | `splitBpsSumInvariant` | Parametric | Split delegation BPS values sum to exactly 10000 | ✓ |
-| [S-61](./specs/Shares.spec#L206-L215) | `maxSplitsEnforced` | Parametric | Split delegation count never exceeds `MAX_SPLITS` (4) | ✓ |
-| [S-62](./specs/Shares.spec#L221-L245) | `noZeroSplitDelegate` | Parametric | No split delegation entry has `address(0)` as delegate | ✓ |
-| [S-63](./specs/Shares.spec#L251-L284) | `noDuplicateSplitDelegates` | Parametric | No split delegation config has duplicate delegates | ✓ |
-| [S-67](./specs/Shares.spec#L290-L297) | `getPastVotesRevertsOnFutureBlock` | Revert Condition | `getPastVotes` reverts for `blockNumber >= block.number` | ✓ |
-| [S-68](./specs/Shares.spec#L303-L310) | `getPastTotalSupplyRevertsOnFutureBlock` | Revert Condition | `getPastTotalSupply` reverts for `blockNumber >= block.number` | ✓ |
-| [S-71](./specs/Shares.spec#L317-L326) | `daoWriteOnce` | Parametric | `DAO` address cannot change once set | ✓ |
-| [S-72](./specs/Shares.spec#L332-L339) | `initRevertsIfDaoSet` | Revert Condition | `init` reverts when `DAO` is already set | ✓ |
-| [S-73a](./specs/Shares.spec#L347-L353) | `mintRequiresDAO` | Access Control | Only `DAO` can call `mintFromMoloch` | ✓ |
-| [S-73b](./specs/Shares.spec#L356-L362) | `burnRequiresDAO` | Access Control | Only `DAO` can call `burnFromMoloch` | ✓ |
-| [S-SAN1](./specs/Shares.spec#L369-L373) | `transferSanity` | Sanity | `transfer` is reachable | ✓ |
-| [S-SAN2](./specs/Shares.spec#L375-L378) | `mintSanity` | Sanity | `mintFromMoloch` is reachable | ✓ |
-| [S-SAN3](./specs/Shares.spec#L380-L384) | `delegateSanity` | Sanity | `delegate` is reachable | ✓ |
+| [S-57](./specs/Shares.spec#L96-L115) | `transferIntegrity` | Integrity | `transfer` moves exact amounts between sender and receiver | ✓ |
+| [S-58a](./specs/Shares.spec#L123-L135) | `transferRevertsWhenLocked` | Revert Condition | `transfer` reverts when locked and neither party is DAO | ✓ |
+| [S-58b](./specs/Shares.spec#L138-L149) | `transferFromRevertsWhenLocked` | Revert Condition | `transferFrom` reverts when locked and neither party is DAO | ✓ |
+| [S-59](./specs/Shares.spec#L157-L168) | `onlyMintBurnChangeTotalSupply` | Parametric | Only `mintFromMoloch`, `burnFromMoloch`, and `init` change `totalSupply` | ✓ |
+| [S-60](./specs/Shares.spec#L178-L200) | `splitBpsSumInvariant` | Parametric | Split delegation BPS values sum to exactly 10000 | ✓ |
+| [S-61](./specs/Shares.spec#L207-L215) | `maxSplitsEnforced` | Parametric | Split delegation count never exceeds `MAX_SPLITS` (4) | ✓ |
+| [S-62](./specs/Shares.spec#L222-L245) | `noZeroSplitDelegate` | Parametric | No split delegation entry has `address(0)` as delegate | ✓ |
+| [S-63](./specs/Shares.spec#L252-L284) | `noDuplicateSplitDelegates` | Parametric | No split delegation config has duplicate delegates | ✓ |
+| [S-64](./specs/Shares.spec#L370-L386) | `targetAllocSumsToBalance` | Integrity | `_targetAlloc` allocations sum to exactly the input balance | ✓ |
+| [S-66](./specs/Shares.spec#L393-L410) | `checkpointFromBlockNonDecreasing` | Parametric | New checkpoint `fromBlock` values are >= previous (temporal ordering) | ✓ |
+| [S-67](./specs/Shares.spec#L291-L297) | `getPastVotesRevertsOnFutureBlock` | Revert Condition | `getPastVotes` reverts for `blockNumber >= block.number` | ✓ |
+| [S-68](./specs/Shares.spec#L304-L310) | `getPastTotalSupplyRevertsOnFutureBlock` | Revert Condition | `getPastTotalSupply` reverts for `blockNumber >= block.number` | ✓ |
+| [S-71](./specs/Shares.spec#L318-L326) | `daoWriteOnce` | Parametric | `DAO` address cannot change once set | ✓ |
+| [S-72](./specs/Shares.spec#L333-L339) | `initRevertsIfDaoSet` | Revert Condition | `init` reverts when `DAO` is already set | ✓ |
+| [S-73a](./specs/Shares.spec#L348-L353) | `mintRequiresDAO` | Access Control | Only `DAO` can call `mintFromMoloch` | ✓ |
+| [S-73b](./specs/Shares.spec#L357-L362) | `burnRequiresDAO` | Access Control | Only `DAO` can call `burnFromMoloch` | ✓ |
+| [S-SAN1](./specs/Shares.spec#L416-L420) | `transferSanity` | Sanity | `transfer` is reachable | ✓ |
+| [S-SAN2](./specs/Shares.spec#L422-L425) | `mintSanity` | Sanity | `mintFromMoloch` is reachable | ✓ |
+| [S-SAN3](./specs/Shares.spec#L427-L431) | `delegateSanity` | Sanity | `delegate` is reachable | ✓ |
 
 ### `DAICO` (19 properties)
 
@@ -230,52 +235,65 @@ Sale and tap mechanism: sale configuration authorization, buy revert conditions 
 | [D-SAN2](./specs/DAICO.spec#L369-L372) | `buySanity` | Sanity | `buy` is reachable | ✓ |
 | [D-SAN3](./specs/DAICO.spec#L374-L378) | `claimTapSanity` | Sanity | `claimTap` is reachable | ✓ |
 
-### `Moloch` (40 properties)
+### `Moloch` (53 properties)
 
-Core DAO: ERC-6909 sum-of-balances invariant (ghost + Sstore/Sload hooks), permit receipt transfer blocking, proposal state immutability (executed latch, terminal state, write-once fields), config monotonicity, voting revert conditions and post-condition integrity (tally isolation, hasVoted/voteWeight correctness), governance setter authorization (`onlyDAO` enforcement across 14 setters), state variable modification authorization (10 governance parameters), sale/allowance integrity, and token address immutability (invariants 1, 3-8, 10-11, 13-17, 30-41, 43-49, 94).
+Core DAO: ERC-6909 sum-of-balances invariant (ghost + Sstore/Sload hooks), permit receipt transfer blocking, proposal state immutability (executed latch, terminal state, write-once fields), config monotonicity, voting revert conditions and post-condition integrity (tally isolation, hasVoted/voteWeight correctness), futarchy state machine (resolved latch, payoutPerUnit write-once, cashOut/fund revert conditions, finalization integrity), ragequit revert conditions and mulDiv bound lemma, execution state checks (Unopened rejection, timelock auto-queue), governance setter authorization (`onlyDAO` enforcement across 14 setters), state variable modification authorization (10 governance parameters), sale/allowance integrity, and token address immutability (invariants 1, 3-8, 10-11, 13-17, 19-24, 27-28, 30-41, 43-49, 51-52, 94).
 
 | ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Name | Type | Description | Status |
 |:------|:----------------------------------------|:----------|:-------------------------------------------------------|:------:|
-| [M-1](./specs/Moloch.spec#L91-L105) | `totalSupplyIsSumOfBalances6909` | Invariant | ERC-6909 `totalSupply[id]` equals sum of all `balanceOf[*][id]` (ghost + Sstore/Sload hooks) | ✓ |
-| [M-3a](./specs/Moloch.spec#L112-L119) | `transferRevertsForPermitReceipt` | Revert Condition | `transfer` reverts for permit receipt tokens | ✓ |
-| [M-3b](./specs/Moloch.spec#L121-L129) | `transferFromRevertsForPermitReceipt` | Revert Condition | `transferFrom` reverts for permit receipt tokens | ✓ |
-| [M-4](./specs/Moloch.spec#L135-L144) | `executedIsOneWayLatch` | Parametric | `executed[id]` never reverts from `true` to `false` | ✓ |
-| [M-5](./specs/Moloch.spec#L150-L159) | `createdAtWriteOnce` | Parametric | `createdAt[id]` cannot change once set to non-zero | ✓ |
-| [M-6](./specs/Moloch.spec#L165-L174) | `snapshotBlockWriteOnce` | Parametric | `snapshotBlock[id]` cannot change once set to non-zero | ✓ |
-| [M-7](./specs/Moloch.spec#L180-L194) | `supplySnapshotWriteOnce` | Parametric | `supplySnapshot[id]` cannot change once set to non-zero | ✓ |
-| [M-8](./specs/Moloch.spec#L200-L209) | `queuedAtWriteOnce` | Parametric | `queuedAt[id]` cannot change once set to non-zero | ✓ |
-| [M-10](./specs/Moloch.spec#L597-L604) | `executedStateIsTerminal` | Parametric | Executed state cannot transition to any other state | ✓ |
-| [M-11](./specs/Moloch.spec#L215-L226) | `configMonotonic` | Parametric | `config` is monotonically non-decreasing | ✓ |
-| [M-13](./specs/Moloch.spec#L232-L239) | `castVoteRevertsIfExecuted` | Revert Condition | `castVote` reverts if proposal is executed | ✓ |
-| [M-14](./specs/Moloch.spec#L245-L255) | `castVoteRevertsIfAlreadyVoted` | Revert Condition | `castVote` reverts if caller already voted | ✓ |
-| [M-15](./specs/Moloch.spec#L261-L269) | `castVoteRevertsOnInvalidSupport` | Revert Condition | `castVote` reverts for `support > 2` | ✓ |
-| [M-16](./specs/Moloch.spec#L611-L624) | `castVotePostConditions` | Integrity | After successful vote: `hasVoted == support + 1` and `voteWeight > 0` | ✓ |
-| [M-17](./specs/Moloch.spec#L631-L647) | `castVoteTallyIntegrity` | Integrity | Only the relevant tally component changes; others remain unchanged | ✓ |
-| [M-30](./specs/Moloch.spec#L275-L285) | `proposalThresholdOnlyViaSet` | Parametric | `proposalThreshold` only changes via `setProposalThreshold` | ✓ |
-| [M-31](./specs/Moloch.spec#L291-L301) | `proposalTTLOnlyViaSet` | Parametric | `proposalTTL` only changes via `setProposalTTL` | ✓ |
-| [M-32](./specs/Moloch.spec#L307-L317) | `timelockDelayOnlyViaSet` | Parametric | `timelockDelay` only changes via `setTimelockDelay` | ✓ |
-| [M-33](./specs/Moloch.spec#L323-L333) | `quorumAbsoluteOnlyViaSet` | Parametric | `quorumAbsolute` only changes via `setQuorumAbsolute` | ✓ |
-| [M-34](./specs/Moloch.spec#L339-L349) | `minYesVotesAbsoluteOnlyViaSet` | Parametric | `minYesVotesAbsolute` only changes via `setMinYesVotesAbsolute` | ✓ |
-| [M-35](./specs/Moloch.spec#L355-L365) | `quorumBpsOnlyViaSet` | Parametric | `quorumBps` only changes via `setQuorumBps` | ✓ |
-| [M-36](./specs/Moloch.spec#L371-L381) | `ragequittableOnlyViaSet` | Parametric | `ragequittable` only changes via `setRagequittable` | ✓ |
-| [M-37](./specs/Moloch.spec#L387-L397) | `rendererOnlyViaSet` | Parametric | `renderer` only changes via `setRenderer` | ✓ |
-| [M-38](./specs/Moloch.spec#L403-L415) | `autoFutarchyOnlyViaSet` | Parametric | `autoFutarchyParam` and `autoFutarchyCap` only change via `setAutoFutarchy` | ✓ |
-| [M-39](./specs/Moloch.spec#L421-L431) | `rewardTokenOnlyViaSet` | Parametric | `rewardToken` only changes via `setFutarchyRewardToken` | ✓ |
-| [M-40](./specs/Moloch.spec#L529-L539) | `isPermitReceiptOnlyViaSet` | Parametric | `isPermitReceipt[id]` only changes via `setPermitReceipt` | ✓ |
-| [M-41](./specs/Moloch.spec#L654-L676) | `governanceSettersRevertIfNotDAO` | Access Control | All 14 governance setters revert when `msg.sender != address(this)` | ✓ |
-| [M-43](./specs/Moloch.spec#L437-L444) | `buySharesRevertsIfNotActive` | Revert Condition | `buyShares` reverts when sale is not active | ✓ |
-| [M-44](./specs/Moloch.spec#L450-L454) | `buySharesRevertsOnZeroAmount` | Revert Condition | `buyShares` reverts when `shareAmount == 0` | ✓ |
-| [M-45](./specs/Moloch.spec#L545-L552) | `setSaleRevertsOnZeroPrice` | Revert Condition | `setSale` reverts when `pricePerShare == 0` | ✓ |
-| [M-46](./specs/Moloch.spec#L460-L471) | `buySharesDecreasesCap` | Integrity | `buyShares` decreases cap by exactly `shareAmount` | ✓ |
-| [M-47](./specs/Moloch.spec#L477-L492) | `buySharesRevertsOnSlippage` | Revert Condition | `buyShares` reverts on slippage violation | ✓ |
-| [M-48](./specs/Moloch.spec#L498-L509) | `spendAllowanceDecreases` | Integrity | `spendAllowance` decreases allowance by exactly `amount` | ✓ |
-| [M-49](./specs/Moloch.spec#L515-L523) | `spendAllowanceRevertsIfInsufficient` | Revert Condition | `spendAllowance` reverts when allowance is insufficient | ✓ |
-| [M-94a](./specs/Moloch.spec#L559-L568) | `sharesAddressImmutable` | Parametric | `shares` address never changes | ✓ |
-| [M-94b](./specs/Moloch.spec#L570-L579) | `lootAddressImmutable` | Parametric | `loot` address never changes | ✓ |
-| [M-94c](./specs/Moloch.spec#L581-L590) | `badgesAddressImmutable` | Parametric | `badges` address never changes | ✓ |
-| [M-SAN1](./specs/Moloch.spec#L682-L686) | `castVoteSanity` | Sanity | `castVote` is reachable | ✓ |
-| [M-SAN2](./specs/Moloch.spec#L688-L691) | `buySharesSanity` | Sanity | `buyShares` is reachable | ✓ |
-| [M-SAN3](./specs/Moloch.spec#L693-L697) | `spendAllowanceSanity` | Sanity | `spendAllowance` is reachable | ✓ |
+| [M-1](./specs/Moloch.spec#L107-L124) | `totalSupplyIsSumOfBalances6909` | Invariant | ERC-6909 `totalSupply[id]` equals sum of all `balanceOf[*][id]` (ghost + Sstore/Sload hooks) | ✓ |
+| [M-3a](./specs/Moloch.spec#L131-L138) | `transferRevertsForPermitReceipt` | Revert Condition | `transfer` reverts for permit receipt tokens | ✓ |
+| [M-3b](./specs/Moloch.spec#L140-L148) | `transferFromRevertsForPermitReceipt` | Revert Condition | `transferFrom` reverts for permit receipt tokens | ✓ |
+| [M-4](./specs/Moloch.spec#L154-L163) | `executedIsOneWayLatch` | Parametric | `executed[id]` never reverts from `true` to `false` | ✓ |
+| [M-5](./specs/Moloch.spec#L169-L178) | `createdAtWriteOnce` | Parametric | `createdAt[id]` cannot change once set to non-zero | ✓ |
+| [M-6](./specs/Moloch.spec#L184-L193) | `snapshotBlockWriteOnce` | Parametric | `snapshotBlock[id]` cannot change once set to non-zero | ✓ |
+| [M-7](./specs/Moloch.spec#L199-L213) | `supplySnapshotWriteOnce` | Parametric | `supplySnapshot[id]` cannot change once set to non-zero | ✓ |
+| [M-8](./specs/Moloch.spec#L219-L228) | `queuedAtWriteOnce` | Parametric | `queuedAt[id]` cannot change once set to non-zero | ✓ |
+| [M-10](./specs/Moloch.spec#L616-L623) | `executedStateIsTerminal` | Parametric | Executed state cannot transition to any other state | ✓ |
+| [M-11](./specs/Moloch.spec#L234-L245) | `configMonotonic` | Parametric | `config` is monotonically non-decreasing | ✓ |
+| [M-13](./specs/Moloch.spec#L251-L258) | `castVoteRevertsIfExecuted` | Revert Condition | `castVote` reverts if proposal is executed | ✓ |
+| [M-14](./specs/Moloch.spec#L264-L274) | `castVoteRevertsIfAlreadyVoted` | Revert Condition | `castVote` reverts if caller already voted | ✓ |
+| [M-15](./specs/Moloch.spec#L280-L288) | `castVoteRevertsOnInvalidSupport` | Revert Condition | `castVote` reverts for `support > 2` | ✓ |
+| [M-16](./specs/Moloch.spec#L630-L643) | `castVotePostConditions` | Integrity | After successful vote: `hasVoted == support + 1` and `voteWeight > 0` | ✓ |
+| [M-17](./specs/Moloch.spec#L650-L666) | `castVoteTallyIntegrity` | Integrity | Only the relevant tally component changes; others remain unchanged | ✓ |
+| [M-19](./specs/Moloch.spec#L701-L710) | `futarchyResolvedIsOneWayLatch` | Parametric | `futarchy[id].resolved` never reverts from `true` to `false` | ✓ |
+| [M-20](./specs/Moloch.spec#L716-L729) | `payoutPerUnitWriteOnce` | Parametric | `futarchy[id].payoutPerUnit` cannot change once set to non-zero | ✓ |
+| [M-21](./specs/Moloch.spec#L735-L742) | `cashOutRevertsIfNotResolved` | Revert Condition | `cashOutFutarchy` reverts when not resolved | ✓ |
+| [M-22](./specs/Moloch.spec#L748-L756) | `fundFutarchyRevertsIfResolved` | Revert Condition | `fundFutarchy` reverts when already resolved | ✓ |
+| [M-23](./specs/Moloch.spec#L763-L778) | `finalWinningSupplyMatchesReceipt` | Integrity | After finalization, `finalWinningSupply` equals receipt token `totalSupply` | ✓ |
+| [M-24](./specs/Moloch.spec#L785-L797) | `mulDivBoundLemma` | Integrity | `mulDiv(pool, amt, total) <= pool` when `amt <= total` (ragequit payout bound) | ✓ |
+| [M-27](./specs/Moloch.spec#L803-L809) | `ragequitRevertsOnZeroBurn` | Revert Condition | `ragequit` reverts when both burn amounts are zero | ✓ |
+| [M-28](./specs/Moloch.spec#L815-L822) | `ragequitRevertsIfNotRagequittable` | Revert Condition | `ragequit` reverts when `ragequittable` is false | ✓ |
+| [M-30](./specs/Moloch.spec#L294-L304) | `proposalThresholdOnlyViaSet` | Parametric | `proposalThreshold` only changes via `setProposalThreshold` | ✓ |
+| [M-31](./specs/Moloch.spec#L310-L320) | `proposalTTLOnlyViaSet` | Parametric | `proposalTTL` only changes via `setProposalTTL` | ✓ |
+| [M-32](./specs/Moloch.spec#L326-L336) | `timelockDelayOnlyViaSet` | Parametric | `timelockDelay` only changes via `setTimelockDelay` | ✓ |
+| [M-33](./specs/Moloch.spec#L342-L352) | `quorumAbsoluteOnlyViaSet` | Parametric | `quorumAbsolute` only changes via `setQuorumAbsolute` | ✓ |
+| [M-34](./specs/Moloch.spec#L358-L368) | `minYesVotesAbsoluteOnlyViaSet` | Parametric | `minYesVotesAbsolute` only changes via `setMinYesVotesAbsolute` | ✓ |
+| [M-35](./specs/Moloch.spec#L374-L384) | `quorumBpsOnlyViaSet` | Parametric | `quorumBps` only changes via `setQuorumBps` | ✓ |
+| [M-36](./specs/Moloch.spec#L390-L400) | `ragequittableOnlyViaSet` | Parametric | `ragequittable` only changes via `setRagequittable` | ✓ |
+| [M-37](./specs/Moloch.spec#L406-L416) | `rendererOnlyViaSet` | Parametric | `renderer` only changes via `setRenderer` | ✓ |
+| [M-38](./specs/Moloch.spec#L422-L434) | `autoFutarchyOnlyViaSet` | Parametric | `autoFutarchyParam` and `autoFutarchyCap` only change via `setAutoFutarchy` | ✓ |
+| [M-39](./specs/Moloch.spec#L440-L450) | `rewardTokenOnlyViaSet` | Parametric | `rewardToken` only changes via `setFutarchyRewardToken` | ✓ |
+| [M-40](./specs/Moloch.spec#L548-L558) | `isPermitReceiptOnlyViaSet` | Parametric | `isPermitReceipt[id]` only changes via `setPermitReceipt` | ✓ |
+| [M-41](./specs/Moloch.spec#L673-L695) | `governanceSettersRevertIfNotDAO` | Access Control | All 14 governance setters revert when `msg.sender != address(this)` | ✓ |
+| [M-43](./specs/Moloch.spec#L456-L463) | `buySharesRevertsIfNotActive` | Revert Condition | `buyShares` reverts when sale is not active | ✓ |
+| [M-44](./specs/Moloch.spec#L469-L473) | `buySharesRevertsOnZeroAmount` | Revert Condition | `buyShares` reverts when `shareAmount == 0` | ✓ |
+| [M-45](./specs/Moloch.spec#L564-L571) | `setSaleRevertsOnZeroPrice` | Revert Condition | `setSale` reverts when `pricePerShare == 0` | ✓ |
+| [M-46](./specs/Moloch.spec#L479-L490) | `buySharesDecreasesCap` | Integrity | `buyShares` decreases cap by exactly `shareAmount` | ✓ |
+| [M-47](./specs/Moloch.spec#L496-L511) | `buySharesRevertsOnSlippage` | Revert Condition | `buyShares` reverts on slippage violation | ✓ |
+| [M-48](./specs/Moloch.spec#L517-L528) | `spendAllowanceDecreases` | Integrity | `spendAllowance` decreases allowance by exactly `amount` | ✓ |
+| [M-49](./specs/Moloch.spec#L534-L542) | `spendAllowanceRevertsIfInsufficient` | Revert Condition | `spendAllowance` reverts when allowance is insufficient | ✓ |
+| [M-51](./specs/Moloch.spec#L829-L837) | `executeRevertsIfUnopened` | Revert Condition | `executeByVotes` reverts for Unopened proposals (`snapshotBlock == 0`) | ✓ |
+| [M-52](./specs/Moloch.spec#L844-L858) | `executeTimelockAutoQueue` | Integrity | With timelock, first `executeByVotes` call sets `queuedAt` without executing | ✓ |
+| [M-94a](./specs/Moloch.spec#L578-L587) | `sharesAddressImmutable` | Parametric | `shares` address never changes | ✓ |
+| [M-94b](./specs/Moloch.spec#L589-L598) | `lootAddressImmutable` | Parametric | `loot` address never changes | ✓ |
+| [M-94c](./specs/Moloch.spec#L600-L609) | `badgesAddressImmutable` | Parametric | `badges` address never changes | ✓ |
+| [M-SAN1](./specs/Moloch.spec#L864-L868) | `castVoteSanity` | Sanity | `castVote` is reachable | ✓ |
+| [M-SAN2](./specs/Moloch.spec#L870-L873) | `buySharesSanity` | Sanity | `buyShares` is reachable | ✓ |
+| [M-SAN3](./specs/Moloch.spec#L875-L879) | `spendAllowanceSanity` | Sanity | `spendAllowance` is reachable | ✓ |
+| [M-SAN4](./specs/Moloch.spec#L881-L885) | `fundFutarchySanity` | Sanity | `fundFutarchy` is reachable | ✓ |
+| [M-SAN5](./specs/Moloch.spec#L887-L891) | `cashOutFutarchySanity` | Sanity | `cashOutFutarchy` is reachable | ✓ |
+| [M-SAN6](./specs/Moloch.spec#L893-L897) | `ragequitSanity` | Sanity | `ragequit` is reachable | ✓ |
 
 ---
 
@@ -288,7 +306,8 @@ All `require` statements annotated with `"SAFE: ..."` in the specs represent rea
 - **Environment constraints**: `e.msg.value == 0` for non-payable functions (prevents Solidity ABI revert false positives); `e.block.timestamp <= max_uint64` (year ~584 billion)
 - **Conservation bounds**: Individual `balanceOf` values bounded by `totalSupply` or ghost sum (follows from the proven sum-of-balances invariant)
 - **Write-once coupling**: `supplySnapshot[id] != 0 => snapshotBlock[id] != 0` (these fields are always set together in `openProposal`)
-- **Overflow guard**: `config < max_uint64` (18.4 quintillion — unreachable in practice since each DAO settings call increments by one)
+- **Futarchy synchronization**: `payoutPerUnit != 0 => resolved` (both fields are set atomically in `_finalizeFutarchy`)
+- **Overflow guards**: `config < max_uint64` (18.4 quintillion — unreachable in practice since each DAO settings call increments by one); `pool <= max_uint128` and `amt <= max_uint128` for `mulDiv` bound lemma (prevents overflow in intermediate multiplication)
 - **Address separation**: `from != to` for transfer integrity (self-transfer verified separately); `otherProposer != msg.sender` for isolation rules
 - **Inductive hypotheses**: Pre-state `require` statements in parametric rules for split delegation properties (BPS sum, max count, no zero delegates, no duplicates) — these mirror the invariant being proved
 

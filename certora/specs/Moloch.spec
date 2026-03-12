@@ -1,5 +1,5 @@
 // Moloch.spec — Formal verification of Moloch core DAO contract
-// Invariants 1, 3-8, 10-11, 13-17, 30-41, 43-49, 94 from certora/invariants.md
+// Invariants 1, 3-8, 10-11, 13-17, 19-24, 27-28, 30-41, 43-49, 51-52, 94 from certora/invariants.md
 
 methods {
     // ERC-6909
@@ -37,6 +37,25 @@ methods {
     // Allowance
     function setAllowance(address, address, uint256) external;
     function spendAllowance(address, uint256) external;
+
+    // Ragequit
+    function ragequit(uint256, uint256) external;
+
+    // Futarchy
+    function fundFutarchy(uint256, uint256) external;
+    function resolveFutarchyNo(uint256) external;
+    function cashOutFutarchy(uint256, uint256) external;
+    function finalizeFutarchyHarness(uint256, uint8) external;
+    function getFutarchyEnabled(uint256) external returns (bool) envfree;
+    function getFutarchyResolved(uint256) external returns (bool) envfree;
+    function getFutarchyPool(uint256) external returns (uint256) envfree;
+    function getFutarchyPayoutPerUnit(uint256) external returns (uint256) envfree;
+    function getFutarchyFinalWinningSupply(uint256) external returns (uint256) envfree;
+    function getFutarchyWinner(uint256) external returns (uint8) envfree;
+    function getReceiptId(uint256, uint8) external returns (uint256) envfree;
+
+    // Math
+    function mulDiv(uint256, uint256, uint256) external returns (uint256) envfree;
 
     // Harness getters
     function getExecuted(uint256) external returns (bool) envfree;
@@ -676,6 +695,169 @@ filtered {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Invariant 19: futarchy[id].resolved is a one-way latch
+// ──────────────────────────────────────────────────────────────────
+
+rule futarchyResolvedIsOneWayLatch(env e, method f, calldataarg args, uint256 id) {
+    bool resolvedBefore = getFutarchyResolved(id);
+
+    f(e, args);
+
+    bool resolvedAfter = getFutarchyResolved(id);
+
+    assert resolvedBefore => resolvedAfter,
+        "Invariant 19: futarchy resolved cannot revert from true to false";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 20: futarchy[id].payoutPerUnit is write-once
+// ──────────────────────────────────────────────────────────────────
+
+rule payoutPerUnitWriteOnce(env e, method f, calldataarg args, uint256 id) {
+    uint256 ppuBefore = getFutarchyPayoutPerUnit(id);
+
+    // SAFE: payoutPerUnit and resolved are set atomically in _finalizeFutarchy
+    require ppuBefore != 0 => getFutarchyResolved(id),
+        "SAFE: payoutPerUnit is only set when resolved is set";
+
+    f(e, args);
+
+    uint256 ppuAfter = getFutarchyPayoutPerUnit(id);
+
+    assert ppuBefore != 0 => ppuAfter == ppuBefore,
+        "Invariant 20: payoutPerUnit cannot change once set";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 21: cashOutFutarchy reverts if not resolved
+// ──────────────────────────────────────────────────────────────────
+
+rule cashOutRevertsIfNotResolved(env e, uint256 id, uint256 amount) {
+    require !getFutarchyResolved(id);
+    require e.msg.value == 0, "SAFE: not payable";
+
+    cashOutFutarchy@withrevert(e, id, amount);
+
+    assert lastReverted, "Invariant 21: cashOutFutarchy must revert when not resolved";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 22: fundFutarchy reverts if resolved
+// ──────────────────────────────────────────────────────────────────
+
+rule fundFutarchyRevertsIfResolved(env e, uint256 id, uint256 amount) {
+    require getFutarchyResolved(id);
+    require amount > 0;
+    require e.msg.value == 0, "SAFE: not payable";
+
+    fundFutarchy@withrevert(e, id, amount);
+
+    assert lastReverted, "Invariant 22: fundFutarchy must revert when already resolved";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 23: After finalization, finalWinningSupply equals
+// totalSupply of the winning receipt token at that moment
+// ──────────────────────────────────────────────────────────────────
+
+rule finalWinningSupplyMatchesReceipt(env e, uint256 id, uint8 winner) {
+    require winner <= 2, "SAFE: winner is a support value (0, 1, or 2)";
+    require getFutarchyEnabled(id);
+    require !getFutarchyResolved(id);
+    require e.msg.value == 0, "SAFE: not payable";
+
+    uint256 rid = getReceiptId(id, winner);
+    uint256 receiptSupply = totalSupply(rid);
+
+    finalizeFutarchyHarness(e, id, winner);
+
+    // Only check if pool and winSupply were both non-zero (otherwise field stays 0)
+    assert getFutarchyPool(id) != 0 && receiptSupply != 0 =>
+        getFutarchyFinalWinningSupply(id) == receiptSupply,
+        "Invariant 23: finalWinningSupply must equal receipt totalSupply at resolution";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 24: mulDiv(pool, amt, total) <= pool when amt <= total
+// (ragequit payout can never exceed pool)
+// ──────────────────────────────────────────────────────────────────
+
+rule mulDivBoundLemma(uint256 pool, uint256 amt, uint256 total) {
+    require total > 0, "SAFE: denominator must be positive";
+    require amt <= total, "SAFE: ragequit burn amount cannot exceed total supply";
+
+    // Avoid overflow in pool * amt
+    require pool <= max_uint128, "SAFE: bound pool to prevent overflow in mulDiv";
+    require amt <= max_uint128, "SAFE: bound amt to prevent overflow in mulDiv";
+
+    uint256 result = mulDiv(pool, amt, total);
+
+    assert to_mathint(result) <= to_mathint(pool),
+        "Invariant 24: payout must not exceed pool";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 27: ragequit reverts if sharesToBurn == 0 && lootToBurn == 0
+// ──────────────────────────────────────────────────────────────────
+
+rule ragequitRevertsOnZeroBurn(env e) {
+    require e.msg.value == 0, "SAFE: not payable";
+
+    ragequit@withrevert(e, 0, 0);
+
+    assert lastReverted, "Invariant 27: ragequit must revert when both burn amounts are zero";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 28: ragequit reverts if ragequittable is false
+// ──────────────────────────────────────────────────────────────────
+
+rule ragequitRevertsIfNotRagequittable(env e, uint256 sharesToBurn, uint256 lootToBurn) {
+    require !ragequittable();
+    require e.msg.value == 0, "SAFE: not payable";
+
+    ragequit@withrevert(e, sharesToBurn, lootToBurn);
+
+    assert lastReverted, "Invariant 28: ragequit must revert when ragequittable is false";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 51: executeByVotes reverts if proposal is Unopened
+// (snapshotBlock[id] == 0)
+// ──────────────────────────────────────────────────────────────────
+
+rule executeRevertsIfUnopened(env e, uint256 id) {
+    require getSnapshotBlock(id) == 0;
+    require !getExecuted(id);
+    require e.msg.value == 0, "SAFE: not payable";
+
+    executeByVotes@withrevert(e, id);
+
+    assert lastReverted, "Invariant 51: executeByVotes must revert for Unopened proposals";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 52: executeByVotes auto-queue — when timelockDelay != 0
+// and queuedAt[id] == 0, sets queuedAt and does not execute
+// ──────────────────────────────────────────────────────────────────
+
+rule executeTimelockAutoQueue(env e, uint256 id) {
+    require timelockDelay() != 0;
+    require getQueuedAt(id) == 0;
+    require !getExecuted(id);
+    require getSnapshotBlock(id) != 0;
+    require e.msg.value == 0, "SAFE: not payable";
+    require e.block.timestamp <= max_uint64, "SAFE: timestamp fits in uint64";
+
+    executeByVotes(e, id);
+
+    assert getQueuedAt(id) == assert_uint64(e.block.timestamp),
+        "Invariant 52: auto-queue must set queuedAt to block.timestamp";
+    assert !getExecuted(id),
+        "Invariant 52: auto-queue must not set executed to true";
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Satisfy rules (sanity)
 // ──────────────────────────────────────────────────────────────────
 
@@ -693,5 +875,23 @@ rule buySharesSanity(env e, address payToken, uint256 shareAmount, uint256 maxPa
 rule spendAllowanceSanity(env e, address token, uint256 amount) {
     require e.msg.value == 0, "SAFE: not payable";
     spendAllowance(e, token, amount);
+    satisfy true;
+}
+
+rule fundFutarchySanity(env e, uint256 id, uint256 amount) {
+    require e.msg.value == 0, "SAFE: not payable";
+    fundFutarchy(e, id, amount);
+    satisfy true;
+}
+
+rule cashOutFutarchySanity(env e, uint256 id, uint256 amount) {
+    require e.msg.value == 0, "SAFE: not payable";
+    cashOutFutarchy(e, id, amount);
+    satisfy true;
+}
+
+rule ragequitSanity(env e, uint256 sharesToBurn, uint256 lootToBurn) {
+    require e.msg.value == 0, "SAFE: not payable";
+    ragequit(e, sharesToBurn, lootToBurn);
     satisfy true;
 }

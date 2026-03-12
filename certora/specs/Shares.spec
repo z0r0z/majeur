@@ -1,5 +1,5 @@
 // Shares.spec — Formal verification of Shares (ERC-20 + Voting) contract
-// Invariants 56-73 from certora/invariants.md
+// Invariants 56-68, 71-73 from certora/invariants.md
 
 methods {
     function totalSupply() external returns (uint256) envfree;
@@ -33,6 +33,7 @@ methods {
     function getSplitCount(address) external returns (uint256) envfree;
     function getSplitDelegate(address, uint256) external returns (address) envfree;
     function getSplitBps(address, uint256) external returns (uint32) envfree;
+    function targetAllocSum(uint256, address) external returns (uint256) envfree;
 
     // Summarize external calls to Moloch
     function _.name(uint256) external => NONDET;
@@ -360,6 +361,52 @@ rule burnRequiresDAO(env e, address from, uint256 amount) {
 
     assert !lastReverted => e.msg.sender == dao,
         "Invariant 73: only DAO can burn";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 64: _targetAlloc returns values that sum to input balance
+// ──────────────────────────────────────────────────────────────────
+
+rule targetAllocSumsToBalance(uint256 bal, address account) {
+    // Inductive hypothesis: splits are valid (BPS sum to 10000, count <= 4)
+    mathint count = getSplitCount(account);
+    require count <= 4, "SAFE: MAX_SPLITS is 4";
+    require count == 0 || (
+        to_mathint(getSplitBps(account, 0))
+        + (count >= 2 ? to_mathint(getSplitBps(account, 1)) : 0)
+        + (count >= 3 ? to_mathint(getSplitBps(account, 2)) : 0)
+        + (count >= 4 ? to_mathint(getSplitBps(account, 3)) : 0)
+        == 10000
+    ), "SAFE: BPS sum must be 10000 (from invariant 60)";
+
+    uint256 result = targetAllocSum(bal, account);
+
+    assert result == bal,
+        "Invariant 64: targetAlloc allocations must sum to input balance";
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Invariant 66: Checkpoint fromBlock values are non-decreasing;
+// same-block updates overwrite rather than append
+// ──────────────────────────────────────────────────────────────────
+
+rule checkpointFromBlockNonDecreasing(env e, method f, calldataarg args, address account) {
+    // Pre-state: if checkpoints exist, last two are non-decreasing
+    uint256 countBefore = getCheckpointCount(account);
+    require countBefore >= 2 =>
+        getCheckpointFromBlock(account, assert_uint256(countBefore - 2))
+        <= getCheckpointFromBlock(account, assert_uint256(countBefore - 1)),
+        "SAFE: inductive hypothesis — checkpoints are ordered in pre-state";
+
+    f(e, args);
+
+    uint256 countAfter = getCheckpointCount(account);
+
+    // If a new checkpoint was appended, its fromBlock >= previous
+    assert (countAfter > countBefore && countBefore > 0) =>
+        getCheckpointFromBlock(account, assert_uint256(countBefore - 1))
+        <= getCheckpointFromBlock(account, assert_uint256(countAfter - 1)),
+        "Invariant 66: new checkpoint fromBlock must be >= previous";
 }
 
 // ──────────────────────────────────────────────────────────────────

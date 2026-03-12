@@ -111,6 +111,17 @@ contract MolochHarness {
     uint256 public autoFutarchyCap;
     address public rewardToken;
 
+    struct FutarchyConfig {
+        bool enabled;
+        address rewardToken;
+        uint256 pool;
+        bool resolved;
+        uint8 winner;
+        uint256 finalWinningSupply;
+        uint256 payoutPerUnit;
+    }
+    mapping(uint256 id => FutarchyConfig) public futarchy;
+
     /* ERC6909 STATE */
     mapping(address owner => mapping(uint256 id => uint256)) public balanceOf;
     mapping(uint256 id => uint256) public totalSupply;
@@ -204,9 +215,11 @@ contract MolochHarness {
         executed[id] = true;
     }
 
-    // Simplified execute
+    // Simplified execute (Invariants 51-52)
+    // Adds Unopened state rejection matching real code's state(id) != Succeeded/Queued
     function executeByVotes(uint256 id) public {
         if (executed[id]) revert AlreadyExecuted();
+        if (snapshotBlock[id] == 0) revert NotOk(); // Unopened proposals cannot execute
 
         if (timelockDelay != 0) {
             if (queuedAt[id] == 0) {
@@ -393,6 +406,111 @@ contract MolochHarness {
         if (snapshotBlock[id] == 0) return uint8(ProposalState.Unopened);
         if (queuedAt[id] != 0) return uint8(ProposalState.Queued);
         return uint8(ProposalState.Active);
+    }
+
+    // ──── Futarchy (Invariants 19-23) ────
+    // Simplified: strips token validation, ETH/ERC20 pull logic, state machine checks.
+    // Preserves core state transitions and revert conditions.
+
+    // Deterministic receipt ID (replaces keccak256 which is opaque to prover)
+    function _receiptId(uint256 id, uint8 support) internal pure returns (uint256) {
+        return id * 3 + support;
+    }
+
+    function fundFutarchy(uint256 id, uint256 amount) public {
+        if (amount == 0) revert NotOk();
+        FutarchyConfig storage F = futarchy[id];
+        if (F.resolved) revert NotOk();
+
+        if (!F.enabled) {
+            F.enabled = true;
+        }
+        F.pool += amount;
+    }
+
+    function resolveFutarchyNo(uint256 id) public {
+        FutarchyConfig storage F = futarchy[id];
+        if (!F.enabled || F.resolved || executed[id]) revert NotOk();
+        _finalizeFutarchy(id, F, 0);
+    }
+
+    function cashOutFutarchy(uint256 id, uint256 amount) public {
+        FutarchyConfig storage F = futarchy[id];
+        if (!F.enabled || !F.resolved) revert NotOk();
+
+        uint8 winner = F.winner;
+        uint256 rid = _receiptId(id, winner);
+        _burn6909(msg.sender, rid, amount);
+        // payout transfer stripped — not relevant to state invariants
+    }
+
+    function _finalizeFutarchy(uint256 id, FutarchyConfig storage F, uint8 winner) internal {
+        unchecked {
+            uint256 rid = _receiptId(id, winner);
+            uint256 winSupply = totalSupply[rid];
+            uint256 pool = F.pool;
+            if (winSupply != 0 && pool != 0) {
+                F.finalWinningSupply = winSupply;
+                F.payoutPerUnit = mulDiv(pool, 1e18, winSupply);
+            }
+            F.resolved = true;
+            F.winner = winner;
+        }
+    }
+
+    // Harness: expose _finalizeFutarchy for CVL rule testing
+    function finalizeFutarchyHarness(uint256 id, uint8 winner) public {
+        FutarchyConfig storage F = futarchy[id];
+        if (!F.enabled || F.resolved) revert NotOk();
+        _finalizeFutarchy(id, F, winner);
+    }
+
+    // ──── Futarchy harness getters ────
+
+    function getFutarchyEnabled(uint256 id) external view returns (bool) {
+        return futarchy[id].enabled;
+    }
+
+    function getFutarchyResolved(uint256 id) external view returns (bool) {
+        return futarchy[id].resolved;
+    }
+
+    function getFutarchyPool(uint256 id) external view returns (uint256) {
+        return futarchy[id].pool;
+    }
+
+    function getFutarchyPayoutPerUnit(uint256 id) external view returns (uint256) {
+        return futarchy[id].payoutPerUnit;
+    }
+
+    function getFutarchyFinalWinningSupply(uint256 id) external view returns (uint256) {
+        return futarchy[id].finalWinningSupply;
+    }
+
+    function getFutarchyWinner(uint256 id) external view returns (uint8) {
+        return futarchy[id].winner;
+    }
+
+    function getReceiptId(uint256 id, uint8 support) external pure returns (uint256) {
+        return _receiptId(id, support);
+    }
+
+    // ──── Ragequit (Invariants 27-28) ────
+    // Simplified: strips token array loop, external transfers, ascending order check,
+    // banned address checks. Preserves core revert conditions.
+
+    function ragequit(uint256 sharesToBurn, uint256 lootToBurn) public {
+        if (!ragequittable) revert NotOk();
+        if (sharesToBurn == 0 && lootToBurn == 0) revert NotOk();
+    }
+
+    // ──── Math (Invariant 24) ────
+
+    function mulDiv(uint256 x, uint256 y, uint256 denominator) public pure returns (uint256 result) {
+        require(denominator != 0);
+        uint256 prod0 = x * y;
+        require(prod0 / x == y || x == 0); // overflow check
+        result = prod0 / denominator;
     }
 
     receive() external payable {}
