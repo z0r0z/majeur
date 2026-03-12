@@ -1,5 +1,72 @@
 # Solarizer Security Audit Report
 
+> **Reviewed 2026-03-12. No production blockers identified. Zero novel findings — all 29 findings are duplicates of known issues, false positives, or design observations.**
+>
+> - **29 findings total:** 1 High, 3 Medium, 15 Low, 5 Informational, 5 Gas. Covers Moloch.sol only (no peripheral contracts, no frontend).
+> - **No novel findings.** Every finding maps to a known issue or is incorrect.
+> - **Security Grade "D" is misleading.** The report assigns "Overall Risk: HIGH" based on HIGH-1 (post-queue voting), which is a documented intentional design choice (KF#15), not a vulnerability. The grading methodology does not account for the access control model or known-finding context.
+>
+> ### Finding-by-Finding Evaluation
+>
+> **HIGH-1 — Post-queue voting flips outcomes / futarchy manipulation:**
+> **Duplicate of KF#15 (Design).** Post-queue voting is intentional — the timelock is a last-objection window. This is explicitly documented in SECURITY.md and README.md. The futarchy angle (split voting power across accounts) requires a single entity controlling multiple accounts with majority voting power — if they have that, they can do far worse. The recommended fix (restrict voting to Active state) would remove an intentional governance feature.
+>
+> **MED-1 — Front-run `openProposal` to hijack `proposerOf` and cancel:**
+> **False positive.** The attack requires the attacker to have `proposalThreshold` voting power. With that power, they can already create their own proposals. More importantly, `cancelProposal` (L419-431) requires `msg.sender == proposerOf[id]` AND zero votes AND zero futarchy pool. If auto-futarchy is enabled, the pool is funded during `openProposal` itself, making immediate cancellation revert at L428. Without auto-futarchy, the attacker can only cancel proposals before any votes are cast — the legitimate proposer can simply resubmit. This is a nuisance at best, not a governance DOS.
+>
+> **MED-2 — Auto-futarchy over-commits across concurrent proposals:**
+> **Duplicate (found by 6+ prior audits).** The earmark is intentionally accounting-only (L336: `F.pool += amt` with comment "earmark only"). The code reads live balance (L329-333) and caps to actual holdings — concurrent proposals reading the same balance is by design. Futarchy pools are incentive mechanisms subordinate to ragequit; over-commitment is a feature, not a bug. If the DAO's balance is drained by ragequit or a prior cashout, later cashouts fail gracefully — there is no invariant violation because the DAO's treasury backing is never guaranteed against exit rights.
+>
+> **MED-3 — `fundFutarchy` missing `executed[id]` check:**
+> **Duplicate of KF#18.** Already catalogued. As noted in our review: funds are not permanently lost — they remain in the DAO contract and can be recovered via governance vote. Impact is limited to futarchy bookkeeping.
+>
+> **LOW-1, LOW-3, LOW-5, LOW-7 — Missing events (bumpConfig, setRenderer, setAllowance, spendAllowance):**
+> **Valid observations, Info-tier.** Missing events are a transparency concern, not a security issue. All four functions are `onlyDAO` (governance-only) except `spendAllowance` (allowance-gated). The on-chain state is always queryable. Worth noting but not actionable for V1.
+>
+> **LOW-2 — Missing input validation in `setMetadata`:**
+> **Design choice.** `setMetadata` is `onlyDAO` — governance can intentionally clear metadata. Adding `require(bytes(n).length > 0)` would prevent a DAO from resetting its name, which may be desired.
+>
+> **LOW-4 — `multicall` uses `delegatecall` without access control:**
+> **False positive / misunderstanding of `delegatecall` to `address(this)`.** `multicall` does `address(this).delegatecall(data[i])` — this calls back into the same contract with `msg.sender` preserved as the external caller. The `onlyDAO` modifier checks `msg.sender == address(this)`, which is only true when the DAO itself calls multicall (i.e., during proposal execution). An external user calling `multicall` cannot bypass `onlyDAO` — the `delegatecall` preserves their `msg.sender`, not the contract's address. The finding's claim that multicall "bypasses intended access control" is incorrect.
+>
+> **LOW-6, LOW-13 — Missing zero-value/zero-address validation in init:**
+> **Info-tier.** `init` is called once during deployment via the Summoner. The deployer controls the inputs. Minting to `address(0)` or minting 0 shares wastes gas but causes no protocol harm. SafeSummoner already validates deployment parameters.
+>
+> **LOW-8, LOW-10 — No upper bound on `timelockDelay` / `proposalTTL`:**
+> **Design choice.** Both are `onlyDAO` — governance intentionally sets these. Adding arbitrary caps (e.g., 365 days) limits future governance flexibility without preventing the "accidental" scenario, since governance must vote on the value anyway. If governance votes to set `timelockDelay = type(uint64).max`, they've made a conscious governance decision.
+>
+> **LOW-9 — `burnFromMoloch` checkpoint ordering asymmetry:**
+> **False positive.** Both `_mint` (L1175-1182) and `burnFromMoloch` (L1163-1173) call `_writeTotalSupplyCheckpoint()` after modifying both `balanceOf` and `totalSupply`, and before `_autoSelfDelegate` / `_afterVotingBalanceChange`. The balance/supply mutation order is swapped between the two (`_mint` does supply then balance; `burnFromMoloch` does balance then supply), but this is irrelevant — `_writeTotalSupplyCheckpoint` depends only on `totalSupply`, which is fully mutated before the checkpoint write in both paths. The finding claims the checkpoint is "written at different points in the state-mutation sequence" but the checkpoint-to-voting-update ordering is identical.
+>
+> **LOW-11 — `fundFutarchy` allows funding after Succeeded:**
+> **By design.** Futarchy pools should be fundable as long as the proposal hasn't been resolved. Late funding increases the reward for the winning side. Restricting funding after Succeeded would prevent the YES-side reward from growing during the timelock window.
+>
+> **LOW-12 — Missing zero-address check for `setRenderer`:**
+> **Design choice.** `renderer = address(0)` is intentional — it disables on-chain rendering and returns empty strings, falling back to off-chain metadata. The code explicitly handles this: `if (_r == address(0)) return ""`.
+>
+> **LOW-14 — Zero BPS in `setSplitDelegation`:**
+> **Info-tier.** A delegate with 0 BPS wastes a storage slot but has no effect on voting power distribution. The sum check (`sum == 10000`) ensures total allocation is correct regardless.
+>
+> **LOW-15 — Changing `proposalTTL` revives expired proposals:**
+> **Design territory.** Global parameters applying retroactively to existing proposals is a known pattern throughout Moloch (TTL, quorum, timelock all use current values). The README already recommends `bumpConfig` alongside parameter changes to invalidate stale proposals. Storing per-proposal TTL would add ~20k gas per proposal open for a marginal governance hygiene benefit.
+>
+> **INFO-1 through INFO-5 — Floating pragma, queue no-op, badge eviction event, cancel-after-vote restriction, empty chat:**
+> **All cosmetic or design choices.** Floating pragma is standard for libraries. Queue no-op when timelockDelay=0 is correct behavior. Cancel requiring zero votes is intentional (prevents withdrawing proposals that others have committed votes to). Empty chat messages cost gas and are self-punishing.
+>
+> **GAS-1 through GAS-5 — Badge recomputation, redundant zero-check, unbounded arrays, bitmap iteration:**
+> **Acknowledged, non-actionable for V1.** The badge system is bounded at 256 seats (constant-size iteration). The redundant zero-check in `_payout` is defensive programming. `proposalIds` and `daos` arrays are append-only registries — pruning would break indexing. These are not gas regressions, they are known design tradeoffs for simplicity.
+>
+> ### Summary
+>
+> | Category | Count | Assessment |
+> |----------|-------|------------|
+> | False positives | 3 | LOW-4 (multicall), LOW-9 (checkpoint), MED-1 (proposerOf hijack) |
+> | Duplicates of known findings | 3 | HIGH-1 (KF#15), MED-2 (auto-futarchy overcommit), MED-3 (KF#18) |
+> | Design choices correctly flagged | 9 | LOW-2, LOW-8, LOW-10, LOW-11, LOW-12, LOW-15, INFO-2, INFO-4, INFO-5 |
+> | Valid Info-tier observations | 9 | LOW-1, LOW-3, LOW-5, LOW-6, LOW-7, LOW-13, LOW-14, INFO-1, INFO-3 |
+> | Gas observations | 5 | All acknowledged, non-actionable for V1 |
+> | Novel findings | 0 | — |
+
 **Project:** Majeur
 **Report ID:** SOL-20260312-095729
 **Generated:** March 12, 2026 at 09:57 UTC
