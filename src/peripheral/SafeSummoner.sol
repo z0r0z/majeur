@@ -48,6 +48,31 @@ interface IMoloch {
         address spender,
         uint256 count
     ) external;
+    function setAllowance(address spender, address token, uint256 amount) external;
+}
+
+interface IShareSale {
+    function configure(address token, address payToken, uint256 price, uint40 deadline) external;
+}
+
+interface ITapVest {
+    function configure(address token, address beneficiary, uint128 ratePerSec) external;
+}
+
+interface ILPSeedSwapHook {
+    function configure(
+        address tokenA,
+        uint128 amountA,
+        address tokenB,
+        uint128 amountB,
+        uint40 deadline,
+        address shareSale,
+        uint128 minSupply
+    ) external;
+}
+
+interface ISharesLoot {
+    function mintFromMoloch(address to, uint256 amount) external;
 }
 
 interface IShareBurner {
@@ -78,10 +103,12 @@ address constant RENDERER = 0x000000000011C799980827F52d3137b4abD6E654;
 contract SafeSummoner {
     error NoInitialHolders();
     error SalePriceRequired();
+    error ModuleSaleConflict();
+    error SeedGateWithoutSale();
+    error TimelockExceedsTTL();
     error FutarchyCapRequired();
     error ProposalTTLRequired();
     error QuorumBpsOutOfRange();
-    error TimelockExceedsTTL();
     error ProposalThresholdRequired();
     error QuorumRequiredForFutarchy();
     error MintingSaleWithDynamicQuorum();
@@ -112,6 +139,44 @@ contract SafeSummoner {
         bool saleIsLoot; // true = sell loot instead of shares
         // ── ShareBurner ──
         uint256 saleBurnDeadline; // 0 = no auto-burn. >0 = timestamp after which unsold shares are burnable
+    }
+
+    /// @dev ShareSale module config. singleton = address(0) to skip.
+    ///      Uses Moloch allowance sentinels: address(dao) = mint shares, address(1007) = mint loot.
+    struct SaleModule {
+        address singleton; // ShareSale contract address (0 = skip)
+        address payToken; // address(0) = ETH
+        uint40 deadline; // unix timestamp after which buys revert (0 = no deadline)
+        uint256 price; // per-token price (1e18 scaled)
+        uint256 cap; // sale cap (allowance amount)
+        bool sellLoot; // true = sell loot, false = sell shares
+        bool minting; // true = mint on buy (sentinel), false = transfer from DAO balance
+    }
+
+    /// @dev TapVest module config. singleton = address(0) to skip.
+    struct TapModule {
+        address singleton; // TapVest contract address (0 = skip)
+        address token; // vested token (address(0) = ETH)
+        uint256 budget; // total budget (allowance)
+        address beneficiary; // tap recipient
+        uint128 ratePerSec; // vesting rate in smallest-unit/sec
+    }
+
+    /// @dev LPSeedSwapHook module config. singleton = address(0) to skip.
+    ///      Token sentinels: address(1) = DAO shares, address(2) = DAO loot.
+    ///      When a sentinel is used, the wrapper mints that amount to the DAO
+    ///      and resolves it to the predicted shares/loot ERC20 address.
+    ///      LPSeedSwapHook acts as a ZAMM hook — the pool's feeOrHook is always derived
+    ///      from the LPSeedSwapHook singleton address, preventing frontrun pool creation.
+    struct SeedModule {
+        address singleton; // LPSeedSwapHook contract address (0 = skip)
+        address tokenA; // first token (address(0)=ETH, address(1)=shares, address(2)=loot)
+        uint128 amountA; // amount of tokenA to seed
+        address tokenB; // second token (address(1)=shares, address(2)=loot, or ERC20)
+        uint128 amountB; // amount of tokenB to seed
+        uint40 deadline; // time gate (0 = none)
+        bool gateBySale; // if true, gate LP seeding on SaleModule completion
+        uint128 minSupply; // balance gate (0 = none)
     }
 
     constructor() payable {}
@@ -242,6 +307,164 @@ contract SafeSummoner {
             _summonPreset(orgName, orgSymbol, orgURI, 1000, false, salt, initHolders, initShares, c);
     }
 
+    // ── Modular DAICO ─────────────────────────────────────────
+    // Compose ShareSale + TapVest + LPSeedSwapHook singletons as pluggable modules
+    // to achieve DAICO-like functionality without coupling to a single contract.
+    // Set module.singleton = address(0) to skip any module.
+
+    /// @notice Deploy a DAO with full config + modular sale/tap/seed.
+    /// @dev Combines SafeConfig governance with standalone peripheral singletons.
+    ///      Cannot use SafeConfig.saleActive simultaneously with SaleModule.
+    function safeSummonDAICO(
+        string calldata orgName,
+        string calldata orgSymbol,
+        string calldata orgURI,
+        uint16 quorumBps,
+        bool ragequittable,
+        address renderer,
+        bytes32 salt,
+        address[] calldata initHolders,
+        uint256[] calldata initShares,
+        SafeConfig calldata config,
+        SaleModule calldata sale,
+        TapModule calldata tap,
+        SeedModule calldata seed,
+        Call[] calldata extraCalls
+    ) public payable returns (address dao) {
+        if (config.saleActive && sale.singleton != address(0)) {
+            revert ModuleSaleConflict();
+        }
+        _validate(quorumBps, config, initHolders.length);
+        _validateModules(quorumBps, config.quorumAbsolute, sale, seed);
+
+        address daoAddr = _predictDAO(salt, initHolders, initShares);
+        Call[] memory modCalls = _buildModuleCalls(daoAddr, sale, tap, seed);
+
+        // Merge: modules + extraCalls
+        Call[] memory allExtra = new Call[](modCalls.length + extraCalls.length);
+        uint256 idx;
+        for (uint256 j; j < modCalls.length; j++) {
+            allExtra[idx++] = modCalls[j];
+        }
+        for (uint256 j; j < extraCalls.length; j++) {
+            allExtra[idx++] = extraCalls[j];
+        }
+
+        Call[] memory calls = _buildCalls(daoAddr, config, allExtra);
+
+        dao = SUMMONER.summon{value: msg.value}(
+            orgName,
+            orgSymbol,
+            orgURI,
+            quorumBps,
+            ragequittable,
+            renderer,
+            salt,
+            initHolders,
+            initShares,
+            calls
+        );
+    }
+
+    /// @notice Standard DAO (7d voting, 2d timelock, 10% quorum) + modular DAICO.
+    function summonStandardDAICO(
+        string calldata orgName,
+        string calldata orgSymbol,
+        string calldata orgURI,
+        bytes32 salt,
+        address[] calldata initHolders,
+        uint256[] calldata initShares,
+        SaleModule calldata sale,
+        TapModule calldata tap,
+        SeedModule calldata seed
+    ) public payable returns (address) {
+        SafeConfig memory c;
+        c.proposalThreshold = _defaultThreshold(initShares);
+        c.proposalTTL = 7 days;
+        c.timelockDelay = 2 days;
+        return _summonDAICOPreset(
+            orgName,
+            orgSymbol,
+            orgURI,
+            1000,
+            true,
+            salt,
+            initHolders,
+            initShares,
+            c,
+            sale,
+            tap,
+            seed
+        );
+    }
+
+    /// @notice Fast DAO (3d voting, 1d timelock, 10% quorum) + modular DAICO.
+    function summonFastDAICO(
+        string calldata orgName,
+        string calldata orgSymbol,
+        string calldata orgURI,
+        bytes32 salt,
+        address[] calldata initHolders,
+        uint256[] calldata initShares,
+        SaleModule calldata sale,
+        TapModule calldata tap,
+        SeedModule calldata seed
+    ) public payable returns (address) {
+        SafeConfig memory c;
+        c.proposalThreshold = _defaultThreshold(initShares);
+        c.proposalTTL = 3 days;
+        c.timelockDelay = 1 days;
+        return _summonDAICOPreset(
+            orgName,
+            orgSymbol,
+            orgURI,
+            1000,
+            true,
+            salt,
+            initHolders,
+            initShares,
+            c,
+            sale,
+            tap,
+            seed
+        );
+    }
+
+    function _summonDAICOPreset(
+        string calldata orgName,
+        string calldata orgSymbol,
+        string calldata orgURI,
+        uint16 quorumBps,
+        bool ragequittable,
+        bytes32 salt,
+        address[] calldata initHolders,
+        uint256[] calldata initShares,
+        SafeConfig memory config,
+        SaleModule calldata sale,
+        TapModule calldata tap,
+        SeedModule calldata seed
+    ) internal returns (address) {
+        _validate(quorumBps, config, initHolders.length);
+        _validateModules(quorumBps, config.quorumAbsolute, sale, seed);
+
+        address daoAddr = _predictDAO(salt, initHolders, initShares);
+        Call[] memory modCalls = _buildModuleCalls(daoAddr, sale, tap, seed);
+        Call[] memory calls = _buildCalls(daoAddr, config, modCalls);
+
+        return SUMMONER.summon{value: msg.value}(
+            orgName,
+            orgSymbol,
+            orgURI,
+            quorumBps,
+            ragequittable,
+            RENDERER,
+            salt,
+            initHolders,
+            initShares,
+            calls
+        );
+    }
+
     function _summonPreset(
         string calldata orgName,
         string calldata orgSymbol,
@@ -278,6 +501,16 @@ contract SafeSummoner {
     function previewCalls(SafeConfig calldata config) public pure returns (Call[] memory) {
         Call[] memory empty = new Call[](0);
         return _buildCalls(address(0), config, empty);
+    }
+
+    /// @notice Preview the module initCalls that safeSummonDAICO would generate.
+    /// @dev Uses address(0) as DAO placeholder. Sentinel tokens resolve to predicted addresses.
+    function previewModuleCalls(
+        SaleModule calldata sale,
+        TapModule calldata tap,
+        SeedModule calldata seed
+    ) public pure returns (Call[] memory) {
+        return _buildModuleCalls(address(0), sale, tap, seed);
     }
 
     /// @notice Predict the DAO address that would be deployed with the given parameters.
@@ -330,6 +563,26 @@ contract SafeSummoner {
         }
 
         if (c.saleActive && c.salePricePerShare == 0) revert SalePriceRequired();
+    }
+
+    /// @dev Validate module-specific constraints.
+    function _validateModules(
+        uint16 quorumBps,
+        uint96 quorumAbsolute,
+        SaleModule memory sale,
+        SeedModule memory seed
+    ) internal pure {
+        if (sale.singleton != address(0)) {
+            if (sale.price == 0) revert SalePriceRequired();
+            // KF#2: minting sale + dynamic-only quorum = supply manipulation
+            if (sale.minting && quorumBps > 0 && quorumAbsolute == 0) {
+                revert MintingSaleWithDynamicQuorum();
+            }
+        }
+        // SeedModule gate-by-sale requires a SaleModule to gate on
+        if (seed.singleton != address(0) && seed.gateBySale && sale.singleton == address(0)) {
+            revert SeedGateWithoutSale();
+        }
     }
 
     // ── Call Builder ──────────────────────────────────────────────
@@ -470,6 +723,142 @@ contract SafeSummoner {
                 )
             )
         );
+    }
+
+    // ── Module Call Builder ────────────────────────────────────────
+
+    /// @dev Build initCalls for ShareSale, TapVest, and LPSeedSwapHook modules.
+    ///      Order: SaleModule → TapModule → SeedModule (mints → allowances → configure).
+    function _buildModuleCalls(
+        address dao,
+        SaleModule memory sale,
+        TapModule memory tap,
+        SeedModule memory seed
+    ) internal pure returns (Call[] memory calls) {
+        // Count calls
+        uint256 n;
+        if (sale.singleton != address(0)) n += 2; // setAllowance + configure
+        if (tap.singleton != address(0)) n += 2; // setAllowance + configure
+        if (seed.singleton != address(0)) {
+            n += 3; // 2x setAllowance + configure
+            if (_isSeedSentinel(seed.tokenA)) n++; // mint
+            if (_isSeedSentinel(seed.tokenB)) n++; // mint
+        }
+
+        calls = new Call[](n);
+        uint256 i;
+
+        // ── SaleModule ──────────────────────────────────────────
+        if (sale.singleton != address(0)) {
+            address saleToken = _resolveSaleToken(dao, sale);
+            calls[i++] = Call(
+                dao, 0, abi.encodeCall(IMoloch.setAllowance, (sale.singleton, saleToken, sale.cap))
+            );
+            calls[i++] = Call(
+                sale.singleton,
+                0,
+                abi.encodeCall(
+                    IShareSale.configure, (saleToken, sale.payToken, sale.price, sale.deadline)
+                )
+            );
+        }
+
+        // ── TapModule ───────────────────────────────────────────
+        if (tap.singleton != address(0)) {
+            calls[i++] = Call(
+                dao, 0, abi.encodeCall(IMoloch.setAllowance, (tap.singleton, tap.token, tap.budget))
+            );
+            calls[i++] = Call(
+                tap.singleton,
+                0,
+                abi.encodeCall(ITapVest.configure, (tap.token, tap.beneficiary, tap.ratePerSec))
+            );
+        }
+
+        // ── SeedModule ──────────────────────────────────────────
+        if (seed.singleton != address(0)) {
+            address tokenA = _resolveSeedToken(dao, seed.tokenA);
+            address tokenB = _resolveSeedToken(dao, seed.tokenB);
+            address shareSale = seed.gateBySale ? sale.singleton : address(0);
+
+            // Mint sentinel tokens to DAO (must precede allowance)
+            if (_isSeedSentinel(seed.tokenA)) {
+                calls[i++] = Call(
+                    tokenA,
+                    0,
+                    abi.encodeCall(ISharesLoot.mintFromMoloch, (dao, uint256(seed.amountA)))
+                );
+            }
+            if (_isSeedSentinel(seed.tokenB)) {
+                calls[i++] = Call(
+                    tokenB,
+                    0,
+                    abi.encodeCall(ISharesLoot.mintFromMoloch, (dao, uint256(seed.amountB)))
+                );
+            }
+
+            // Set allowances
+            calls[i++] = Call(
+                dao,
+                0,
+                abi.encodeCall(
+                    IMoloch.setAllowance, (seed.singleton, tokenA, uint256(seed.amountA))
+                )
+            );
+            calls[i++] = Call(
+                dao,
+                0,
+                abi.encodeCall(
+                    IMoloch.setAllowance, (seed.singleton, tokenB, uint256(seed.amountB))
+                )
+            );
+
+            // Configure LPSeedSwapHook
+            calls[i++] = Call(
+                seed.singleton,
+                0,
+                abi.encodeCall(
+                    ILPSeedSwapHook.configure,
+                    (
+                        tokenA,
+                        seed.amountA,
+                        tokenB,
+                        seed.amountB,
+                        seed.deadline,
+                        shareSale,
+                        seed.minSupply
+                    )
+                )
+            );
+        }
+    }
+
+    /// @dev Returns true for LPSeedSwapHook sentinel tokens that require minting.
+    ///      address(1) = DAO shares, address(2) = DAO loot.
+    function _isSeedSentinel(address token) internal pure returns (bool) {
+        return token == address(1) || token == address(2);
+    }
+
+    /// @dev Resolve SaleModule token to Moloch allowance sentinel or predicted ERC20 address.
+    ///      Minting path: address(dao) for shares, address(1007) for loot.
+    ///      Transfer path: predicted shares/loot ERC20 address.
+    function _resolveSaleToken(address dao, SaleModule memory sale)
+        internal
+        pure
+        returns (address)
+    {
+        if (sale.minting) {
+            return sale.sellLoot ? address(1007) : dao;
+        }
+        return sale.sellLoot ? _predictLoot(dao) : _predictShares(dao);
+    }
+
+    /// @dev Resolve SeedModule token sentinel to predicted ERC20 address.
+    ///      address(1) → shares, address(2) → loot, otherwise pass-through.
+    function _resolveSeedToken(address dao, address token) internal pure returns (address) {
+        if (token == address(1)) return _predictShares(dao);
+        if (token == address(2)) return _predictLoot(dao);
+        return token;
     }
 
     // ── Defaults ──────────────────────────────────────────────────

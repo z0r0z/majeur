@@ -1,5 +1,5 @@
 # DAICO
-[Git Source](https://github.com/z0r0z/majeur/blob/e68de9077c329150fa27252eafcfb094e7170075/src/peripheral/DAICO.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/ae954c8dacf035c306a2f543ff58bff38b7c1bef/src/peripheral/DAICO.sol)
 
 DAO-driven OTC sale contract with optional LP initialization:
 - DAO calls setSale() to define a fixed price.

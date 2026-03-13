@@ -1,5 +1,5 @@
 # SafeSummoner
-[Git Source](https://github.com/z0r0z/majeur/blob/e68de9077c329150fa27252eafcfb094e7170075/src/peripheral/SafeSummoner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/ae954c8dacf035c306a2f543ff58bff38b7c1bef/src/peripheral/SafeSummoner.sol)
 
 **Title:**
 SafeSummoner
@@ -132,6 +132,91 @@ function summonLocked(
 ) public payable returns (address);
 ```
 
+### safeSummonDAICO
+
+Deploy a DAO with full config + modular sale/tap/seed.
+
+Combines SafeConfig governance with standalone peripheral singletons.
+Cannot use SafeConfig.saleActive simultaneously with SaleModule.
+
+
+```solidity
+function safeSummonDAICO(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    uint16 quorumBps,
+    bool ragequittable,
+    address renderer,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    SafeConfig calldata config,
+    SaleModule calldata sale,
+    TapModule calldata tap,
+    SeedModule calldata seed,
+    Call[] calldata extraCalls
+) public payable returns (address dao);
+```
+
+### summonStandardDAICO
+
+Standard DAO (7d voting, 2d timelock, 10% quorum) + modular DAICO.
+
+
+```solidity
+function summonStandardDAICO(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    SaleModule calldata sale,
+    TapModule calldata tap,
+    SeedModule calldata seed
+) public payable returns (address);
+```
+
+### summonFastDAICO
+
+Fast DAO (3d voting, 1d timelock, 10% quorum) + modular DAICO.
+
+
+```solidity
+function summonFastDAICO(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    SaleModule calldata sale,
+    TapModule calldata tap,
+    SeedModule calldata seed
+) public payable returns (address);
+```
+
+### _summonDAICOPreset
+
+
+```solidity
+function _summonDAICOPreset(
+    string calldata orgName,
+    string calldata orgSymbol,
+    string calldata orgURI,
+    uint16 quorumBps,
+    bool ragequittable,
+    bytes32 salt,
+    address[] calldata initHolders,
+    uint256[] calldata initShares,
+    SafeConfig memory config,
+    SaleModule calldata sale,
+    TapModule calldata tap,
+    SeedModule calldata seed
+) internal returns (address);
+```
+
 ### _summonPreset
 
 
@@ -158,6 +243,21 @@ Uses address(0) as DAO placeholder since the address isn't known yet.
 
 ```solidity
 function previewCalls(SafeConfig calldata config) public pure returns (Call[] memory);
+```
+
+### previewModuleCalls
+
+Preview the module initCalls that safeSummonDAICO would generate.
+
+Uses address(0) as DAO placeholder. Sentinel tokens resolve to predicted addresses.
+
+
+```solidity
+function previewModuleCalls(
+    SaleModule calldata sale,
+    TapModule calldata tap,
+    SeedModule calldata seed
+) public pure returns (Call[] memory);
 ```
 
 ### predictDAO
@@ -197,6 +297,20 @@ function predictLoot(address dao) public pure returns (address);
 function _validate(uint16 quorumBps, SafeConfig memory c, uint256 holderCount) internal pure;
 ```
 
+### _validateModules
+
+Validate module-specific constraints.
+
+
+```solidity
+function _validateModules(
+    uint16 quorumBps,
+    uint96 quorumAbsolute,
+    SaleModule memory sale,
+    SeedModule memory seed
+) internal pure;
+```
+
 ### _buildCalls
 
 
@@ -221,6 +335,55 @@ function burnPermitCall(
     uint256[] calldata initShares,
     uint256 deadline
 ) public pure returns (Call memory);
+```
+
+### _buildModuleCalls
+
+Build initCalls for ShareSale, TapVest, and LPSeedSwapHook modules.
+Order: SaleModule → TapModule → SeedModule (mints → allowances → configure).
+
+
+```solidity
+function _buildModuleCalls(
+    address dao,
+    SaleModule memory sale,
+    TapModule memory tap,
+    SeedModule memory seed
+) internal pure returns (Call[] memory calls);
+```
+
+### _isSeedSentinel
+
+Returns true for LPSeedSwapHook sentinel tokens that require minting.
+address(1) = DAO shares, address(2) = DAO loot.
+
+
+```solidity
+function _isSeedSentinel(address token) internal pure returns (bool);
+```
+
+### _resolveSaleToken
+
+Resolve SaleModule token to Moloch allowance sentinel or predicted ERC20 address.
+Minting path: address(dao) for shares, address(1007) for loot.
+Transfer path: predicted shares/loot ERC20 address.
+
+
+```solidity
+function _resolveSaleToken(address dao, SaleModule memory sale)
+    internal
+    pure
+    returns (address);
+```
+
+### _resolveSeedToken
+
+Resolve SeedModule token sentinel to predicted ERC20 address.
+address(1) → shares, address(2) → loot, otherwise pass-through.
+
+
+```solidity
+function _resolveSeedToken(address dao, address token) internal pure returns (address);
 ```
 
 ### _defaultThreshold
@@ -282,6 +445,24 @@ error NoInitialHolders();
 error SalePriceRequired();
 ```
 
+### ModuleSaleConflict
+
+```solidity
+error ModuleSaleConflict();
+```
+
+### SeedGateWithoutSale
+
+```solidity
+error SeedGateWithoutSale();
+```
+
+### TimelockExceedsTTL
+
+```solidity
+error TimelockExceedsTTL();
+```
+
 ### FutarchyCapRequired
 
 ```solidity
@@ -298,12 +479,6 @@ error ProposalTTLRequired();
 
 ```solidity
 error QuorumBpsOutOfRange();
-```
-
-### TimelockExceedsTTL
-
-```solidity
-error TimelockExceedsTTL();
 ```
 
 ### ProposalThresholdRequired
@@ -355,6 +530,59 @@ struct SafeConfig {
     bool saleIsLoot; // true = sell loot instead of shares
     // ── ShareBurner ──
     uint256 saleBurnDeadline; // 0 = no auto-burn. >0 = timestamp after which unsold shares are burnable
+}
+```
+
+### SaleModule
+ShareSale module config. singleton = address(0) to skip.
+Uses Moloch allowance sentinels: address(dao) = mint shares, address(1007) = mint loot.
+
+
+```solidity
+struct SaleModule {
+    address singleton; // ShareSale contract address (0 = skip)
+    address payToken; // address(0) = ETH
+    uint40 deadline; // unix timestamp after which buys revert (0 = no deadline)
+    uint256 price; // per-token price (1e18 scaled)
+    uint256 cap; // sale cap (allowance amount)
+    bool sellLoot; // true = sell loot, false = sell shares
+    bool minting; // true = mint on buy (sentinel), false = transfer from DAO balance
+}
+```
+
+### TapModule
+TapVest module config. singleton = address(0) to skip.
+
+
+```solidity
+struct TapModule {
+    address singleton; // TapVest contract address (0 = skip)
+    address token; // vested token (address(0) = ETH)
+    uint256 budget; // total budget (allowance)
+    address beneficiary; // tap recipient
+    uint128 ratePerSec; // vesting rate in smallest-unit/sec
+}
+```
+
+### SeedModule
+LPSeedSwapHook module config. singleton = address(0) to skip.
+Token sentinels: address(1) = DAO shares, address(2) = DAO loot.
+When a sentinel is used, the wrapper mints that amount to the DAO
+and resolves it to the predicted shares/loot ERC20 address.
+LPSeedSwapHook acts as a ZAMM hook — the pool's feeOrHook is always derived
+from the LPSeedSwapHook singleton address, preventing frontrun pool creation.
+
+
+```solidity
+struct SeedModule {
+    address singleton; // LPSeedSwapHook contract address (0 = skip)
+    address tokenA; // first token (address(0)=ETH, address(1)=shares, address(2)=loot)
+    uint128 amountA; // amount of tokenA to seed
+    address tokenB; // second token (address(1)=shares, address(2)=loot, or ERC20)
+    uint128 amountB; // amount of tokenB to seed
+    uint40 deadline; // time gate (0 = none)
+    bool gateBySale; // if true, gate LP seeding on SaleModule completion
+    uint128 minSupply; // balance gate (0 = none)
 }
 ```
 

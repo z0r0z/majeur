@@ -1,5 +1,5 @@
 # ShareSale
-[Git Source](https://github.com/z0r0z/majeur/blob/e68de9077c329150fa27252eafcfb094e7170075/src/peripheral/ShareSale.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/ae954c8dacf035c306a2f543ff58bff38b7c1bef/src/peripheral/ShareSale.sol)
 
 **Title:**
 ShareSale
@@ -37,7 +37,7 @@ Configure sale parameters. Must be called by the DAO (e.g. in initCalls).
 
 
 ```solidity
-function configure(address token, address payToken, uint256 price) public;
+function configure(address token, address payToken, uint256 price, uint40 deadline) public;
 ```
 **Parameters**
 
@@ -46,6 +46,7 @@ function configure(address token, address payToken, uint256 price) public;
 |`token`|`address`|   Allowance token: use address(dao) for shares, address(1007) for loot|
 |`payToken`|`address`|Payment token (address(0) = ETH)|
 |`price`|`uint256`|   Price per whole token (1e18 units), e.g. 0.01e18 = 0.01 ETH/share|
+|`deadline`|`uint40`|Unix timestamp after which buys revert (0 = no deadline)|
 
 
 ### buy
@@ -70,11 +71,18 @@ Generate initCalls for setting up a ShareSale.
 
 Returns (target, value, data) tuples for use in initCalls or extraCalls.
 Call 1: dao.setAllowance(shareSale, token, cap)
-Call 2: shareSale.configure(token, payToken, price)  (target = this contract)
+Call 2: shareSale.configure(token, payToken, price, deadline)  (target = this contract)
 
 
 ```solidity
-function saleInitCalls(address dao, address token, uint256 cap, address payToken, uint256 price)
+function saleInitCalls(
+    address dao,
+    address token,
+    uint256 cap,
+    address payToken,
+    uint256 price,
+    uint40 deadline
+)
     public
     view
     returns (address target1, bytes memory data1, address target2, bytes memory data2);
@@ -84,7 +92,9 @@ function saleInitCalls(address dao, address token, uint256 cap, address payToken
 ### Configured
 
 ```solidity
-event Configured(address indexed dao, address token, address payToken, uint256 price);
+event Configured(
+    address indexed dao, address token, address payToken, uint256 price, uint40 deadline
+);
 ```
 
 ### Purchase
@@ -94,6 +104,12 @@ event Purchase(address indexed dao, address indexed buyer, uint256 amount, uint2
 ```
 
 ## Errors
+### Expired
+
+```solidity
+error Expired();
+```
+
 ### InsufficientPayment
 
 ```solidity
@@ -125,6 +141,7 @@ error ZeroPrice();
 struct Sale {
     address token; // allowance token: address(dao) for shares, address(1007) for loot
     address payToken; // address(0) = ETH
+    uint40 deadline; // unix timestamp after which buys revert (0 = no deadline)
     uint256 price; // cost per whole token (1e18 units), scaled by 1e18
     // e.g. 0.01 ETH per share = 0.01e18 = 1e16
     // cost = amount * price / 1e18

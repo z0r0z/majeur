@@ -33,6 +33,32 @@ interface IZAMM {
         address to,
         uint256 deadline
     ) external payable returns (uint256 amount0, uint256 amount1, uint256 liquidity);
+
+    function swapExactIn(
+        PoolKey calldata poolKey,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        bool zeroForOne,
+        address to,
+        uint256 deadline
+    ) external payable returns (uint256 amountOut);
+
+    function swapExactOut(
+        PoolKey calldata poolKey,
+        uint256 amountOut,
+        uint256 amountInMax,
+        bool zeroForOne,
+        address to,
+        uint256 deadline
+    ) external payable returns (uint256 amountIn);
+
+    function swap(
+        PoolKey calldata poolKey,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address to,
+        bytes calldata data
+    ) external;
 }
 
 /// @dev Minimal Moloch interface.
@@ -49,23 +75,49 @@ interface IShareSale {
     function sales(address dao)
         external
         view
-        returns (address token, address payToken, uint256 price);
+        returns (address token, address payToken, uint40 deadline, uint256 price);
+}
+
+/// @dev ZAMM hook interface.
+interface IZAMMHook {
+    function beforeAction(bytes4 sig, uint256 poolId, address sender, bytes calldata data)
+        external
+        payable
+        returns (uint256 feeBps);
+
+    function afterAction(
+        bytes4 sig,
+        uint256 poolId,
+        address sender,
+        int256 d0,
+        int256 d1,
+        int256 dLiq,
+        bytes calldata data
+    ) external payable;
 }
 
 /// @dev ZAMM singleton address.
 IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
 
-/// @title LPSeed
-/// @notice Singleton for seeding ZAMM liquidity from DAO treasury tokens.
-///         DAOs configure a seed by calling `configure()` in an initCall and granting
-///         this contract allowances for both tokens via `setAllowance()`.
+/// @dev Hook encoding flags.
+uint256 constant FLAG_BEFORE = 1 << 255;
+uint256 constant FLAG_AFTER = 1 << 254;
+
+/// @dev Default swap fee when none configured (30 bps = 0.30%).
+uint16 constant DEFAULT_FEE_BPS = 30;
+
+/// @title LPSeedSwapHook
+/// @notice Singleton hook for seeding ZAMM liquidity from DAO treasury tokens.
+///         Acts as a ZAMM hook to give DAOs exclusive control over pool initialization:
+///         - Pre-seed: blocks all addLiquidity (prevents frontrun pool creation)
+///         - Post-seed: returns DAO-configured fee on swaps, open LP for all
 ///
-///   The contract holds paired token amounts and seeds them as LP on ZAMM when
-///   `seed()` is called. Seeding is gated by optional conditions:
+///   DAOs configure a seed by calling `configure()` in an initCall and granting
+///   this contract allowances for both tokens via `setAllowance()`.
+///   Seeding is gated by optional conditions:
 ///     - deadline:    seed only after a timestamp (e.g. after a sale ends)
 ///     - shareSale:   seed only after a ShareSale allowance is fully spent (sale sold out)
 ///     - minSupply:   seed only after DAO's forTkn balance drops to this threshold
-///                    (e.g. all sale supply distributed)
 ///
 ///   Uses the Moloch allowance system for both tokens. The DAO retains custody
 ///   until seed() pulls via spendAllowance.
@@ -73,7 +125,7 @@ IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
 ///   Setup (include in Summoner initCalls or SafeSummoner extraCalls):
 ///     1. dao.setAllowance(lpSeed, tokenA, amountA)
 ///     2. dao.setAllowance(lpSeed, tokenB, amountB)
-///     3. lpSeed.configure(tokenA, amountA, tokenB, amountB, feeOrHook, maxSlipBps, deadline, shareSale, minSupply)
+///     3. lpSeed.configure(tokenA, amountA, tokenB, amountB, deadline, shareSale, minSupply)
 ///
 ///   Usage:
 ///     lpSeed.seed(dao)              // permissionless once conditions met
@@ -81,30 +133,27 @@ IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
 ///
 ///   DAO governance:
 ///     lpSeed.cancel()               // cancel seeding, DAO reclaims allowances
-contract LPSeed {
+///     lpSeed.setFee(feeBps)         // update swap fee for the pool
+contract LPSeedSwapHook is IZAMMHook {
     error NotReady();
     error NotConfigured();
     error AlreadySeeded();
     error InvalidParams();
+    error Unauthorized();
 
     event Configured(
-        address indexed dao,
-        address tokenA,
-        uint256 amountA,
-        address tokenB,
-        uint256 amountB,
-        uint256 feeOrHook
+        address indexed dao, address tokenA, uint256 amountA, address tokenB, uint256 amountB
     );
     event Seeded(address indexed dao, uint256 amount0, uint256 amount1, uint256 liquidity);
     event Cancelled(address indexed dao);
+    event FeeUpdated(address indexed dao, uint16 oldFee, uint16 newFee);
 
     struct SeedConfig {
         address tokenA; // first token (ERC20, or address(0) for ETH)
         address tokenB; // second token (ERC20, must be nonzero)
         uint128 amountA; // amount of tokenA to seed
         uint128 amountB; // amount of tokenB to seed
-        uint256 feeOrHook; // ZAMM pool fee in bps or hook address
-        uint16 maxSlipBps; // max slippage for LP add (default 100 = 1%)
+        uint16 feeBps; // swap fee (0 = DEFAULT_FEE_BPS)
         uint40 deadline; // seed only after this timestamp (0 = no time gate)
         address shareSale; // if set, seed only after this ShareSale's allowance is spent
         uint128 minSupply; // if set, seed only after DAO's tokenB balance <= minSupply
@@ -114,23 +163,26 @@ contract LPSeed {
     /// @dev Keyed by DAO address. Set via configure() called by the DAO itself.
     mapping(address dao => SeedConfig) public seeds;
 
+    /// @dev Reverse mapping: poolId → DAO address. Set during seed().
+    mapping(uint256 poolId => address dao) public poolDAO;
+
+    /// @dev Transient storage slot for reentrancy guard during seed().
+    ///      Signals to beforeAction that addLiquidity is from seed(), not external.
+    uint256 constant SEEDING_SLOT = 0x4c505365656453696e676c65746f6e;
+
     /// @notice Configure LP seed parameters. Must be called by the DAO (e.g. in initCalls).
-    /// @param tokenA      First token (address(0) = ETH)
-    /// @param amountA     Amount of tokenA to seed
-    /// @param tokenB      Second token (must be nonzero ERC20)
-    /// @param amountB     Amount of tokenB to seed
-    /// @param feeOrHook   ZAMM pool fee in bps or hook address
-    /// @param maxSlipBps  Max slippage (0 defaults to 100 = 1%)
-    /// @param deadline    Seed only after this timestamp (0 = no time gate)
-    /// @param shareSale   ShareSale address to check for sale completion (address(0) = no check)
-    /// @param minSupply   Seed only after DAO's tokenB balance <= this (0 = no check)
+    /// @param tokenA     First token (address(0) = ETH)
+    /// @param amountA    Amount of tokenA to seed
+    /// @param tokenB     Second token (must be nonzero ERC20)
+    /// @param amountB    Amount of tokenB to seed
+    /// @param deadline   Seed only after this timestamp (0 = no time gate)
+    /// @param shareSale  ShareSale address to check for sale completion (address(0) = no check)
+    /// @param minSupply  Seed only after DAO's tokenB balance <= this (0 = no check)
     function configure(
         address tokenA,
         uint128 amountA,
         address tokenB,
         uint128 amountB,
-        uint256 feeOrHook,
-        uint16 maxSlipBps,
         uint40 deadline,
         address shareSale,
         uint128 minSupply
@@ -145,21 +197,20 @@ contract LPSeed {
             tokenB: tokenB,
             amountA: amountA,
             amountB: amountB,
-            feeOrHook: feeOrHook,
-            maxSlipBps: maxSlipBps == 0 ? 100 : maxSlipBps,
+            feeBps: 0,
             deadline: deadline,
             shareSale: shareSale,
             minSupply: minSupply,
             seeded: false
         });
 
-        emit Configured(msg.sender, tokenA, amountA, tokenB, amountB, feeOrHook);
+        emit Configured(msg.sender, tokenA, amountA, tokenB, amountB);
     }
 
     /// @notice Seed ZAMM liquidity. Permissionless — anyone can trigger once conditions are met.
     ///         LP shares go to the DAO. One-shot: reverts if already seeded.
     /// @param dao The DAO to seed liquidity for
-    function seed(address dao) public payable returns (uint256 liquidity) {
+    function seed(address dao) public returns (uint256 liquidity) {
         SeedConfig storage cfg = seeds[dao];
         if (cfg.amountA == 0) revert NotConfigured();
         if (cfg.seeded) revert AlreadySeeded();
@@ -190,21 +241,31 @@ contract LPSeed {
             (amt0, amt1) = (amt1, amt0);
         }
 
+        uint256 feeOrHook = hookFeeOrHook();
+
         IZAMM.PoolKey memory key =
-            IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: cfg.feeOrHook});
+            IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: feeOrHook});
+
+        // Register poolId → dao for hook callbacks
+        uint256 poolId = uint256(keccak256(abi.encode(key)));
+        poolDAO[poolId] = dao;
 
         // Approve ZAMM to spend tokens
         if (tokenA != address(0)) ensureApproval(tokenA, address(ZAMM));
         ensureApproval(tokenB, address(ZAMM));
 
-        // Slippage bounds
-        uint256 min0 = amt0 - (amt0 * cfg.maxSlipBps) / 10_000;
-        uint256 min1 = amt1 - (amt1 * cfg.maxSlipBps) / 10_000;
-
         // Add liquidity — LP shares go to DAO
+        // First LP always gets exact amounts, so min = 0
+        // Transient flag signals beforeAction to allow this addLiquidity
         uint256 ethValue = tokenA == address(0) ? amtA : 0;
+        assembly ("memory-safe") {
+            tstore(SEEDING_SLOT, address())
+        }
         (uint256 used0, uint256 used1, uint256 liq) =
-            ZAMM.addLiquidity{value: ethValue}(key, amt0, amt1, min0, min1, dao, block.timestamp);
+            ZAMM.addLiquidity{value: ethValue}(key, amt0, amt1, 0, 0, dao, block.timestamp);
+        assembly ("memory-safe") {
+            tstore(SEEDING_SLOT, 0)
+        }
         liquidity = liq;
 
         // Refund unused tokens to DAO
@@ -226,26 +287,7 @@ contract LPSeed {
     function seedable(address dao) public view returns (bool) {
         SeedConfig memory cfg = seeds[dao];
         if (cfg.amountA == 0 || cfg.seeded) return false;
-
-        // Time gate
-        if (cfg.deadline != 0 && block.timestamp <= cfg.deadline) return false;
-
-        // ShareSale completion gate: sale allowance must be fully spent (== 0)
-        if (cfg.shareSale != address(0)) {
-            (address saleToken,,) = IShareSale(cfg.shareSale).sales(dao);
-            if (saleToken != address(0)) {
-                uint256 remaining = IMoloch(dao).allowance(saleToken, cfg.shareSale);
-                if (remaining != 0) return false;
-            }
-        }
-
-        // Supply gate: DAO's tokenB balance must be at or below threshold
-        if (cfg.minSupply != 0) {
-            uint256 daoBal = balanceOf(cfg.tokenB, dao);
-            if (daoBal > cfg.minSupply) return false;
-        }
-
-        return true;
+        return _isReady(dao, cfg);
     }
 
     /// @notice Cancel the seed config. Only callable by the DAO.
@@ -257,26 +299,99 @@ contract LPSeed {
         emit Cancelled(msg.sender);
     }
 
+    // ── DAO Governance ──────────────────────────────────────────
+
+    /// @notice Update swap fee for the pool. Only callable by the DAO.
+    /// @param newFeeBps New fee in basis points (0 = use DEFAULT_FEE_BPS).
+    function setFee(uint16 newFeeBps) public {
+        if (newFeeBps > 10_000) revert InvalidParams();
+        SeedConfig storage cfg = seeds[msg.sender];
+        if (cfg.amountA == 0) revert NotConfigured();
+        uint16 old = cfg.feeBps;
+        cfg.feeBps = newFeeBps;
+        emit FeeUpdated(msg.sender, old, newFeeBps);
+    }
+
+    // ── ZAMM Hook ─────────────────────────────────────────────
+
+    /// @notice Get the encoded feeOrHook value for pool keys using LPSeed as hook.
+    function hookFeeOrHook() public view returns (uint256) {
+        return uint256(uint160(address(this))) | FLAG_BEFORE;
+    }
+
+    /// @notice ZAMM hook: gate addLiquidity pre-seed, return fee on swaps.
+    /// @dev Pre-seed: only seed() can addLiquidity (blocks frontrun pool creation).
+    ///      Post-seed: all LP operations allowed, swaps charged DAO-configured fee.
+    ///      Unregistered pools (poolDAO not set): LP allowed, swaps revert.
+    function beforeAction(bytes4 sig, uint256 poolId, address, bytes calldata)
+        external
+        payable
+        override
+        returns (uint256 feeBps)
+    {
+        if (msg.sender != address(ZAMM)) revert Unauthorized();
+
+        address dao = poolDAO[poolId];
+
+        // addLiquidity / removeLiquidity
+        if (
+            sig != IZAMM.swapExactIn.selector && sig != IZAMM.swapExactOut.selector
+                && sig != IZAMM.swap.selector
+        ) {
+            // Pre-seed: only allow addLiquidity from seed() (transient flag set)
+            if (dao != address(0) && !seeds[dao].seeded) {
+                bool seeding;
+                assembly ("memory-safe") {
+                    seeding := tload(SEEDING_SLOT)
+                }
+                if (!seeding) revert NotReady();
+            }
+            return 0; // no fee on LP operations
+        }
+
+        // Swaps: require registered + seeded pool
+        if (dao == address(0)) revert NotConfigured();
+        if (!seeds[dao].seeded) revert NotReady();
+
+        // Return DAO-configured fee (0 → default 30 bps)
+        uint16 fee = seeds[dao].feeBps;
+        return fee == 0 ? DEFAULT_FEE_BPS : fee;
+    }
+
+    /// @notice ZAMM hook: no-op after action.
+    function afterAction(bytes4, uint256, address, int256, int256, int256, bytes calldata)
+        external
+        payable
+        override
+    {
+        if (msg.sender != address(ZAMM)) revert Unauthorized();
+    }
+
     // ── Internal ─────────────────────────────────────────────────
 
-    function _checkReady(address dao, SeedConfig memory cfg) internal view {
+    function _isReady(address dao, SeedConfig memory cfg) internal view returns (bool) {
         // Time gate
-        if (cfg.deadline != 0 && block.timestamp <= cfg.deadline) revert NotReady();
+        if (cfg.deadline != 0 && block.timestamp <= cfg.deadline) return false;
 
-        // ShareSale completion gate
+        // ShareSale completion gate: sale allowance must be fully spent (== 0)
         if (cfg.shareSale != address(0)) {
-            (address saleToken,,) = IShareSale(cfg.shareSale).sales(dao);
-            if (saleToken != address(0)) {
-                uint256 remaining = IMoloch(dao).allowance(saleToken, cfg.shareSale);
-                if (remaining != 0) revert NotReady();
-            }
+            (address saleToken,,,) = IShareSale(cfg.shareSale).sales(dao);
+            if (saleToken == address(0)) return false; // sale not configured yet
+            uint256 remaining = IMoloch(dao).allowance(saleToken, cfg.shareSale);
+            if (remaining != 0) return false;
         }
 
-        // Supply gate
+        // Supply gate: DAO's tokenB balance must be at or below threshold
         if (cfg.minSupply != 0) {
             uint256 daoBal = balanceOf(cfg.tokenB, dao);
-            if (daoBal > cfg.minSupply) revert NotReady();
+            if (daoBal > cfg.minSupply) return false;
         }
+
+        return true;
+    }
+
+    function _checkReady(address dao, SeedConfig memory cfg) internal view {
+        if (!_isReady(dao, cfg)) revert NotReady();
     }
 
     /// @dev Accept ETH from DAO via spendAllowance.
@@ -288,16 +403,12 @@ contract LPSeed {
 
     /// @notice Generate initCalls for setting up an LP seed.
     /// @dev Returns 3 calls: setAllowance(tokenA), setAllowance(tokenB), configure().
-    ///      If tokenA is address(0) (ETH), the DAO must hold sufficient ETH balance
-    ///      and the first call sets the ETH allowance on the DAO.
     function seedInitCalls(
         address dao,
         address tokenA,
         uint128 amountA,
         address tokenB,
         uint128 amountB,
-        uint256 feeOrHook,
-        uint16 maxSlipBps,
         uint40 deadline,
         address shareSale,
         uint128 minSupply
@@ -324,18 +435,7 @@ contract LPSeed {
         // 3. lpSeed.configure(...)
         target3 = address(this);
         data3 = abi.encodeCall(
-            this.configure,
-            (
-                tokenA,
-                amountA,
-                tokenB,
-                amountB,
-                feeOrHook,
-                maxSlipBps,
-                deadline,
-                shareSale,
-                minSupply
-            )
+            this.configure, (tokenA, amountA, tokenB, amountB, deadline, shareSale, minSupply)
         );
     }
 }
@@ -377,7 +477,8 @@ function safeTransfer(address token, address to, uint256 amount) {
 }
 
 /// @dev Ensures approval to spender is sufficient (>= type(uint128).max threshold).
-///      Compatible with USDT-style tokens that require allowance to be 0 before setting non-zero.
+///      Works with USDT-style tokens because the first approval starts from 0,
+///      and subsequent calls skip the branch since allowance stays above threshold.
 function ensureApproval(address token, address spender) {
     assembly ("memory-safe") {
         mstore(0x00, 0xdd62ed3e000000000000000000000000)

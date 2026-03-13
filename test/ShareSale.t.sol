@@ -47,7 +47,8 @@ contract ShareSaleTest is Test {
             address(sale),
             0,
             abi.encodeCall(
-                sale.configure, (address(uint160(uint256(uint160(dao)))), address(0), 1e18)
+                sale.configure,
+                (address(uint160(uint256(uint160(dao)))), address(0), 1e18, uint40(0))
             )
         );
 
@@ -135,7 +136,9 @@ contract ShareSaleTest is Test {
             dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), address(1007), 500e18))
         );
         extra[1] = Call(
-            address(sale), 0, abi.encodeCall(sale.configure, (address(1007), address(0), 1e18))
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (address(1007), address(0), 1e18, uint40(0)))
         );
 
         SafeSummoner.SafeConfig memory c;
@@ -169,7 +172,9 @@ contract ShareSaleTest is Test {
         // Small cap: only 5e18 shares
         Call[] memory extra = new Call[](2);
         extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 5e18)));
-        extra[1] = Call(address(sale), 0, abi.encodeCall(sale.configure, (dao, address(0), 1e18)));
+        extra[1] = Call(
+            address(sale), 0, abi.encodeCall(sale.configure, (dao, address(0), 1e18, uint40(0)))
+        );
 
         SafeSummoner.SafeConfig memory c;
         c.proposalThreshold = 1e18;
@@ -187,10 +192,57 @@ contract ShareSaleTest is Test {
         sale.buy{value: 1e18}(dao, 1e18);
     }
 
+    function test_RevertIf_Expired() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(7));
+        address dao = safe.predictDAO(salt, h, s);
+
+        uint40 deadline = uint40(block.timestamp + 1 days);
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 100e18)));
+        extra[1] = Call(
+            address(sale), 0, abi.encodeCall(sale.configure, (dao, address(0), 1e18, deadline))
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon("DeadlineDAO", "DL", "", 1000, true, address(0), salt, h, s, c, extra);
+
+        // Buy before deadline — should work
+        vm.prank(bob);
+        sale.buy{value: 1e18}(dao, 1e18);
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        // Buy after deadline — should revert
+        vm.prank(bob);
+        vm.expectRevert(ShareSale.Expired.selector);
+        sale.buy{value: 1e18}(dao, 1e18);
+    }
+
+    function test_DeadlineZero_NeverExpires() public {
+        address dao = _deployDAO(bytes32(uint256(8))); // uses deadline=0
+
+        // Warp far into the future
+        vm.warp(block.timestamp + 365 days);
+
+        // Should still work
+        vm.prank(bob);
+        sale.buy{value: 1e18}(dao, 1e18);
+    }
+
     function test_SaleInitCallsHelper() public {
         address dao = address(0xDA0);
         (address t1, bytes memory d1, address t2, bytes memory d2) =
-            sale.saleInitCalls(dao, dao, 100e18, address(0), 1e15);
+            sale.saleInitCalls(dao, dao, 100e18, address(0), 1e15, 0);
 
         assertEq(t1, dao);
         assertEq(t2, address(sale));

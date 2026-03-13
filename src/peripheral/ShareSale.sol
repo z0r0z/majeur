@@ -21,17 +21,21 @@ pragma solidity ^0.8.30;
 ///   Usage:
 ///     shareSale.buy{value: cost}(dao, amount)
 contract ShareSale {
+    error Expired();
     error InsufficientPayment();
     error NotConfigured();
     error ZeroAmount();
     error ZeroPrice();
 
-    event Configured(address indexed dao, address token, address payToken, uint256 price);
+    event Configured(
+        address indexed dao, address token, address payToken, uint256 price, uint40 deadline
+    );
     event Purchase(address indexed dao, address indexed buyer, uint256 amount, uint256 cost);
 
     struct Sale {
         address token; // allowance token: address(dao) for shares, address(1007) for loot
         address payToken; // address(0) = ETH
+        uint40 deadline; // unix timestamp after which buys revert (0 = no deadline)
         uint256 price; // cost per whole token (1e18 units), scaled by 1e18
         // e.g. 0.01 ETH per share = 0.01e18 = 1e16
         // cost = amount * price / 1e18
@@ -44,10 +48,11 @@ contract ShareSale {
     /// @param token    Allowance token: use address(dao) for shares, address(1007) for loot
     /// @param payToken Payment token (address(0) = ETH)
     /// @param price    Price per whole token (1e18 units), e.g. 0.01e18 = 0.01 ETH/share
-    function configure(address token, address payToken, uint256 price) public {
+    /// @param deadline Unix timestamp after which buys revert (0 = no deadline)
+    function configure(address token, address payToken, uint256 price, uint40 deadline) public {
         if (price == 0) revert ZeroPrice();
-        sales[msg.sender] = Sale(token, payToken, price);
-        emit Configured(msg.sender, token, payToken, price);
+        sales[msg.sender] = Sale(token, payToken, deadline, price);
+        emit Configured(msg.sender, token, payToken, price, deadline);
     }
 
     /// @notice Buy shares or loot from a DAO.
@@ -57,6 +62,7 @@ contract ShareSale {
         if (amount == 0) revert ZeroAmount();
         Sale memory s = sales[dao];
         if (s.price == 0) revert NotConfigured();
+        if (s.deadline != 0 && block.timestamp > s.deadline) revert Expired();
 
         uint256 cost;
         unchecked {
@@ -96,8 +102,15 @@ contract ShareSale {
     /// @notice Generate initCalls for setting up a ShareSale.
     /// @dev Returns (target, value, data) tuples for use in initCalls or extraCalls.
     ///      Call 1: dao.setAllowance(shareSale, token, cap)
-    ///      Call 2: shareSale.configure(token, payToken, price)  (target = this contract)
-    function saleInitCalls(address dao, address token, uint256 cap, address payToken, uint256 price)
+    ///      Call 2: shareSale.configure(token, payToken, price, deadline)  (target = this contract)
+    function saleInitCalls(
+        address dao,
+        address token,
+        uint256 cap,
+        address payToken,
+        uint256 price,
+        uint40 deadline
+    )
         public
         view
         returns (address target1, bytes memory data1, address target2, bytes memory data2)
@@ -105,7 +118,7 @@ contract ShareSale {
         target1 = dao;
         data1 = abi.encodeCall(IMoloch.setAllowance, (address(this), token, cap));
         target2 = address(this);
-        data2 = abi.encodeCall(this.configure, (token, payToken, price));
+        data2 = abi.encodeCall(this.configure, (token, payToken, price, deadline));
     }
 }
 

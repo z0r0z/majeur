@@ -5,6 +5,9 @@ import {Test} from "../lib/forge-std/src/Test.sol";
 import {Moloch, Shares} from "../src/Moloch.sol";
 import {SafeSummoner, Call, SHARE_BURNER} from "../src/peripheral/SafeSummoner.sol";
 import {ShareBurner} from "../src/peripheral/ShareBurner.sol";
+import {ShareSale} from "../src/peripheral/ShareSale.sol";
+import {TapVest} from "../src/peripheral/TapVest.sol";
+import {LPSeedSwapHook} from "../src/peripheral/LPSeedSwapHook.sol";
 
 contract SafeSummonerTest is Test {
     SafeSummoner internal safe;
@@ -661,6 +664,434 @@ contract SafeSummonerTest is Test {
         assertEq(permitCall.target, dao);
         assertEq(permitCall.value, 0);
         assertTrue(permitCall.data.length > 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        MODULAR DAICO
+    //////////////////////////////////////////////////////////////*/
+
+    function _emptySale() internal pure returns (SafeSummoner.SaleModule memory) {}
+    function _emptyTap() internal pure returns (SafeSummoner.TapModule memory) {}
+    function _emptySeed() internal pure returns (SafeSummoner.SeedModule memory) {}
+
+    function test_SafeSummonDAICO_SaleOnly() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(2000));
+
+        ShareSale shareSale = new ShareSale();
+        address dao = safe.predictDAO(salt, h, s);
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0); // ETH
+        sale.price = 0.01e18; // 0.01 ETH per share
+        sale.cap = 50e18;
+        sale.sellLoot = false;
+        sale.minting = true;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18; // required for minting sale
+
+        address deployed = safe.safeSummonDAICO(
+            "SaleDAO",
+            "SALE",
+            "",
+            0,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            config,
+            sale,
+            _emptyTap(),
+            _emptySeed(),
+            new Call[](0)
+        );
+        assertEq(deployed, dao);
+
+        // Verify ShareSale is configured
+        (address token, address payToken,, uint256 price) = shareSale.sales(dao);
+        assertEq(token, dao); // minting sentinel = address(dao)
+        assertEq(payToken, address(0));
+        assertEq(price, 0.01e18);
+
+        // Verify allowance is set
+        assertEq(Moloch(payable(dao)).allowance(dao, address(shareSale)), 50e18);
+
+        // Buy shares
+        vm.deal(bob, 1 ether);
+        vm.prank(bob);
+        shareSale.buy{value: 0.1 ether}(dao, 10e18);
+        address sharesAddr = safe.predictShares(dao);
+        assertEq(Shares(sharesAddr).balanceOf(bob), 10e18);
+    }
+
+    function test_SafeSummonDAICO_SaleAndTap() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(2001));
+
+        ShareSale shareSale = new ShareSale();
+        TapVest tapVest = new TapVest();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 100e18;
+        sale.minting = true;
+
+        SafeSummoner.TapModule memory tap;
+        tap.singleton = address(tapVest);
+        tap.token = address(0); // ETH tap
+        tap.budget = 10 ether;
+        tap.beneficiary = bob;
+        tap.ratePerSec = 0.001e18; // 0.001 ETH/sec
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18;
+
+        address dao = safe.safeSummonDAICO{value: 10 ether}(
+            "TapDAO",
+            "TAP",
+            "",
+            0,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            config,
+            sale,
+            tap,
+            _emptySeed(),
+            new Call[](0)
+        );
+
+        // Verify tap is configured
+        (address tToken, address tBen, uint128 tRate,) = tapVest.taps(dao);
+        assertEq(tToken, address(0));
+        assertEq(tBen, bob);
+        assertEq(tRate, 0.001e18);
+
+        // Verify ETH allowance for tap
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 10 ether);
+
+        // Advance time, claim tap
+        vm.warp(block.timestamp + 100);
+        uint256 bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 0.1e18); // 100s * 0.001 ETH/s
+    }
+
+    function test_SafeSummonDAICO_FullStack() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(2002));
+
+        ShareSale shareSale = new ShareSale();
+        TapVest tapVest = new TapVest();
+        LPSeedSwapHook lpSeed = new LPSeedSwapHook();
+
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 50e18;
+        sale.minting = true;
+
+        SafeSummoner.TapModule memory tap;
+        tap.singleton = address(tapVest);
+        tap.token = address(0);
+        tap.budget = 5 ether;
+        tap.beneficiary = bob;
+        tap.ratePerSec = 0.001e18;
+
+        SafeSummoner.SeedModule memory seed;
+        seed.singleton = address(lpSeed);
+        seed.tokenA = address(0); // ETH
+        seed.amountA = 5e18;
+        seed.tokenB = address(1); // shares sentinel → mints + resolves
+        seed.amountB = 5e18;
+        seed.gateBySale = true;
+        seed.deadline = 0;
+        seed.minSupply = 0;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18;
+
+        address deployed = safe.safeSummonDAICO{value: 50 ether}(
+            "FullDAO",
+            "FULL",
+            "",
+            0,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            config,
+            sale,
+            tap,
+            seed,
+            new Call[](0)
+        );
+        assertEq(deployed, dao);
+
+        // Verify all modules configured
+        (address sToken,,,) = shareSale.sales(dao);
+        assertEq(sToken, dao);
+
+        (address tToken, address tBen,,) = tapVest.taps(dao);
+        assertEq(tToken, address(0));
+        assertEq(tBen, bob);
+
+        (address seedA, address seedB,,,,,,,) = lpSeed.seeds(dao);
+        assertEq(seedA, address(0)); // ETH
+        assertEq(seedB, sharesAddr); // resolved shares address
+
+        // Shares were minted to DAO for LP seeding
+        assertEq(Shares(sharesAddr).balanceOf(dao), 5e18);
+
+        // Allowances set correctly
+        assertEq(Moloch(payable(dao)).allowance(dao, address(shareSale)), 50e18);
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 5 ether);
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(lpSeed)), 5e18);
+        assertEq(Moloch(payable(dao)).allowance(sharesAddr, address(lpSeed)), 5e18);
+
+        // LP not seedable yet (sale gate active, sale not complete)
+        assertFalse(lpSeed.seedable(dao));
+
+        // Buy all shares to complete sale
+        vm.deal(alice, 100 ether);
+        vm.prank(alice);
+        shareSale.buy{value: 50 ether}(dao, 50e18);
+        assertEq(Moloch(payable(dao)).allowance(dao, address(shareSale)), 0);
+
+        // Now LP is seedable
+        assertTrue(lpSeed.seedable(dao));
+
+        // Seed LP
+        lpSeed.seed(dao);
+        (,,,,,,,, bool seeded) = lpSeed.seeds(dao);
+        assertTrue(seeded);
+    }
+
+    function test_SummonStandardDAICO() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(2003));
+
+        ShareSale shareSale = new ShareSale();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 10e18;
+
+        address dao = safe.summonStandardDAICO(
+            "StdDAICO", "SDAO", "", salt, h, s, sale, _emptyTap(), _emptySeed()
+        );
+
+        Moloch m = Moloch(payable(dao));
+        assertEq(m.proposalTTL(), 7 days);
+        assertEq(m.timelockDelay(), 2 days);
+        assertEq(m.quorumBps(), 1000);
+
+        (,,, uint256 price) = shareSale.sales(dao);
+        assertEq(price, 1e18);
+    }
+
+    function test_SummonFastDAICO() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(2004));
+
+        ShareSale shareSale = new ShareSale();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 10e18;
+
+        address dao = safe.summonFastDAICO(
+            "FastDAICO", "FDAO", "", salt, h, s, sale, _emptyTap(), _emptySeed()
+        );
+
+        Moloch m = Moloch(payable(dao));
+        assertEq(m.proposalTTL(), 3 days);
+        assertEq(m.timelockDelay(), 1 days);
+
+        (,,, uint256 price) = shareSale.sales(dao);
+        assertEq(price, 1e18);
+    }
+
+    function test_RevertIf_ModuleSaleConflict() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.saleActive = true;
+        config.salePricePerShare = 1e18;
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(1); // non-zero = active
+
+        vm.expectRevert(SafeSummoner.ModuleSaleConflict.selector);
+        safe.safeSummonDAICO(
+            "X",
+            "X",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(0),
+            h,
+            s,
+            config,
+            sale,
+            _emptyTap(),
+            _emptySeed(),
+            new Call[](0)
+        );
+    }
+
+    function test_RevertIf_SeedGateWithoutSale() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        SafeSummoner.SeedModule memory seed;
+        seed.singleton = address(1);
+        seed.gateBySale = true; // gate set but no SaleModule
+
+        vm.expectRevert(SafeSummoner.SeedGateWithoutSale.selector);
+        safe.safeSummonDAICO(
+            "X",
+            "X",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(0),
+            h,
+            s,
+            config,
+            _emptySale(),
+            _emptyTap(),
+            seed,
+            new Call[](0)
+        );
+    }
+
+    function test_RevertIf_ModuleSaleMintingDynamicQuorum() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(1);
+        sale.price = 1e18;
+        sale.minting = true; // minting + dynamic quorum = bad
+
+        vm.expectRevert(SafeSummoner.MintingSaleWithDynamicQuorum.selector);
+        safe.safeSummonDAICO(
+            "X",
+            "X",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(0),
+            h,
+            s,
+            config,
+            sale,
+            _emptyTap(),
+            _emptySeed(),
+            new Call[](0)
+        );
+    }
+
+    function test_RevertIf_ModuleSaleZeroPrice() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(1);
+        sale.price = 0; // no price
+
+        vm.expectRevert(SafeSummoner.SalePriceRequired.selector);
+        safe.safeSummonDAICO(
+            "X",
+            "X",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(0),
+            h,
+            s,
+            config,
+            sale,
+            _emptyTap(),
+            _emptySeed(),
+            new Call[](0)
+        );
+    }
+
+    function test_PreviewModuleCalls() public {
+        ShareSale shareSale = new ShareSale();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 10e18;
+        sale.minting = true;
+
+        Call[] memory calls = safe.previewModuleCalls(sale, _emptyTap(), _emptySeed());
+        assertEq(calls.length, 2); // setAllowance + configure
+    }
+
+    function test_SafeSummonDAICO_LootSale() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(2005));
+
+        ShareSale shareSale = new ShareSale();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 0.5e18;
+        sale.cap = 20e18;
+        sale.sellLoot = true;
+        sale.minting = true;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18;
+
+        address dao = safe.safeSummonDAICO(
+            "LootDAO",
+            "LOOT",
+            "",
+            0,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            config,
+            sale,
+            _emptyTap(),
+            _emptySeed(),
+            new Call[](0)
+        );
+
+        (address token,,,) = shareSale.sales(dao);
+        assertEq(token, address(1007)); // loot minting sentinel
     }
 
     function test_CloseSaleAfterDeadline() public {

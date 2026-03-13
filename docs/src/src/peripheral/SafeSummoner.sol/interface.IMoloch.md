@@ -1,5 +1,5 @@
 # IMoloch
-[Git Source](https://github.com/z0r0z/majeur/blob/e68de9077c329150fa27252eafcfb094e7170075/src/peripheral/SafeSummoner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/ae954c8dacf035c306a2f543ff58bff38b7c1bef/src/peripheral/SafeSummoner.sol)
 
 
 ## Functions
@@ -86,5 +86,12 @@ function setPermit(
     address spender,
     uint256 count
 ) external;
+```
+
+### setAllowance
+
+
+```solidity
+function setAllowance(address spender, address token, uint256 amount) external;
 ```
 
