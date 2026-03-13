@@ -1,0 +1,23 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="200" fill="white"/>
+
+  <!-- Two orbital rings -->
+  <circle cx="100" cy="100" r="60" fill="none" stroke="black" stroke-width="0.5" opacity="0.4"/>
+  <circle cx="100" cy="100" r="35" fill="none" stroke="black" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- Three strings from hero: spread wide at edges, converge tight at center -->
+  <!-- Each string = top half + bottom half, matching the original hero geometry -->
+
+  <!-- Left string -->
+  <line x1="75" y1="0" x2="90" y2="100" stroke="black" stroke-width="0.6" opacity="0.5"/>
+  <line x1="75" y1="200" x2="90" y2="100" stroke="black" stroke-width="0.6" opacity="0.5"/>
+
+  <!-- Center string -->
+  <line x1="100" y1="0" x2="100" y2="100" stroke="black" stroke-width="1" opacity="0.7"/>
+  <line x1="100" y1="200" x2="100" y2="100" stroke="black" stroke-width="1" opacity="0.7"/>
+
+  <!-- Right string -->
+  <line x1="125" y1="0" x2="110" y2="100" stroke="black" stroke-width="0.6" opacity="0.5"/>
+  <line x1="125" y1="200" x2="110" y2="100" stroke="black" stroke-width="0.6" opacity="0.5"/>
+</svg>

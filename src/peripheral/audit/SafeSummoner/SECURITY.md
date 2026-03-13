@@ -29,8 +29,10 @@
 | 4 | 2026-03-13 | Archethect SC-Auditor | Map-Hunt-Attack + Devil's Advocate | 0 novel (2 DT, 1 C) | [`archethect-20260313.md`](archethect-20260313.md) |
 | 5 | 2026-03-13 | Forefy Multi-Expert | 3-round (systematic + economic + triager) + fv-sol KB | 0 novel (3 Info, all dismissed) | [`forefy-20260313.md`](forefy-20260313.md) |
 | 6 | 2026-03-13 | Grimoire Agentic | 4 Sigils + 3 Familiars (adversarial triage) | 0 novel (2 Info, 2 DC) | [`grimoire-20260313.md`](grimoire-20260313.md) |
+| 7 | 2026-03-13 | Pashov AI Auditor v1 | DEEP (4 vector scan + 1 adversarial reasoning) | 0 novel (2 duplicates) | [`pashov-ai-deep-20260313.md`](pashov-ai-deep-20260313.md) |
+| 8 | 2026-03-13 | ChatGPT o3 (5.4) | Single-pass review | 1 novel (LOW-02), 3 accepted | [`chatgpt-20260313.md`](chatgpt-20260313.md) |
 
-**Aggregate: 6 audits, 6 methodologies, 3 unique findings (all addressed). 0 Critical, 0 High, 0 Medium.**
+**Aggregate: 8 audits, 8 methodologies, 4 unique findings (all addressed). 0 Critical, 0 High, 0 Medium.**
 
 ---
 
@@ -42,8 +44,9 @@ has been addressed.
 | # | Finding | Severity | Status | First Found | Also Confirmed By |
 |---|---------|----------|--------|-------------|-------------------|
 | 1 | Silent `uint96` truncation in `_defaultThreshold` — extreme share totals (>7.9e30) silently produce near-zero proposal threshold, bypassing KF#11 | Low | Patched | Audit #1 (conf 85) | #4 C-01, #5 Finding 3 |
-| 2 | `create2Deploy` salt not bound to `msg.sender` — front-running DoS on deterministic deployments | Info | Accepted | Audit #1 (conf 80) | #4 DT-01, #5 Finding 2, #6 I-01 |
-| 3 | `multicall` delegatecall shares `msg.value` across sub-calls — caller could double-spend own ETH | Info | Accepted | Audit #2 | #4 DT-02, #5 Finding 1, #6 I-02 |
+| 2 | `create2Deploy` salt not bound to `msg.sender` — front-running DoS on deterministic deployments | Info | Accepted | Audit #1 (conf 80) | #4 DT-01, #5 Finding 2, #6 I-01, #7 F1 |
+| 3 | `multicall` delegatecall shares `msg.value` across sub-calls — caller could double-spend own ETH | Info | Accepted | Audit #2 | #4 DT-02, #5 Finding 1, #6 I-02, #7 F2 |
+| 4 | `saleBurnDeadline` burn permit targets shares even when `saleIsLoot = true` — unsold loot not burnable | Low | Patched | Audit #8 (LOW-02) | — |
 
 ### Finding 1 — Assessment & Patch
 
@@ -88,6 +91,25 @@ all calls — callers sending ETH must ensure only one sub-call consumes it." Th
 self-contained — only the caller's own ETH is at stake, and the caller controls the data array.
 No external attacker can exploit this. No code change warranted.
 
+### Finding 4 — Assessment & Patch
+
+**Severity: Low (patched).**
+
+When `saleIsLoot = true` and `saleBurnDeadline > 0`, the burn permit in `_buildCalls` always
+targeted `_predictShares(dao)` instead of `_predictLoot(dao)`. This meant the generated
+one-shot `ShareBurner.burnUnsold` permit would target the wrong token — unsold loot would
+remain unburnable via the automated burn path.
+
+**Patch applied:** branch on `saleIsLoot` when computing the burn target:
+```solidity
+address saleToken = c.saleIsLoot ? _predictLoot(dao) : _predictShares(dao);
+bytes memory burnData = abi.encodeCall(IShareBurner.burnUnsold, (saleToken, c.saleBurnDeadline));
+```
+
+First novel finding across 8 audits — only ChatGPT o3 caught this because it required
+reasoning about the interaction between two independent config fields (`saleIsLoot` and
+`saleBurnDeadline`) that no prior audit methodology tested in combination.
+
 ---
 
 ## Design Choices (Documented, Not Findings)
@@ -109,6 +131,7 @@ Defensive patches applied in response to audit findings:
 |-------|---------|-------------|
 | `_defaultThreshold` saturating cap | KF#1 | `if (t > type(uint96).max) t = type(uint96).max` — prevents silent uint96 truncation |
 | `_validate` rollback singleton check | Archethect MH-013 | `if (rollbackGuardian != 0 && rollbackSingleton == 0) revert RollbackSingletonRequired()` — prevents silent misconfiguration |
+| `_buildCalls` loot burn target | KF#4 | `c.saleIsLoot ? _predictLoot(dao) : _predictShares(dao)` — burn permit targets correct sale token |
 
 ---
 
@@ -149,20 +172,20 @@ Properties that should hold for any DAO deployed through SafeSummoner:
 
 Shows which vulnerability classes each audit methodology covered for SafeSummoner:
 
-| Vulnerability Class | #1 Pashov | #2 SCV | #3 ZeroSkills | #4 Archethect | #5 Forefy | #6 Grimoire |
-|---|---|---|---|---|---|---|
-| Reentrancy | Eliminated | V18 DROP | N/A (no storage) | MH-002 DISCARD | fv-sol-1 N/A | Sigil 1: 0 findings |
-| Integer overflow | **F1 (85)** | V15 DROP (patched) | — | **C-01** (patched) | fv-sol-3 clean | — |
-| Access control | Eliminated | V10 DROP | — | MH-009 DISCARD | fv-sol-4 clean | S4-3 DISMISSED |
-| Frontrunning/MEV | **F2 (80)** | V13 DROP | — | **DT-01** | fv-sol-4-c9 | **I-01** |
-| msg.value reuse | Eliminated | **V12 CONFIRM** | — | **DT-02** | fv-sol-5-c7 | **I-02** |
-| Storage safety | — | — | **5-phase: 0** | MH-004 DISCARD | — | Sigil 1: 0 |
-| Delegatecall | Eliminated | V4 DROP | — | MH-002 DISCARD | fv-sol-1 N/A | S4-4 DISMISSED |
-| DoS / gas | Eliminated | V5,V6 DROP | — | MH-006,014 DISCARD | fv-sol-9 clean | S4-5 DISMISSED |
-| Hash collision | — | V7 DROP | — | — | — | — |
-| Validation bypass | — | — | — | MH-008,011,012 DISCARD | Expert 2 §3 | S2-1 DISMISSED |
-| Module wiring | — | — | Phase 5.1-5.3 | MH-007 DISCARD | Expert 2 §1-§2 | S3-1,S3-2 DISMISSED |
-| Governance context | — | — | — | — | 10/10 classes | — |
+| Vulnerability Class | #1 Pashov | #2 SCV | #3 ZeroSkills | #4 Archethect | #5 Forefy | #6 Grimoire | #7 Pashov DEEP | #8 ChatGPT |
+|---|---|---|---|---|---|---|---|---|
+| Reentrancy | Eliminated | V18 DROP | N/A (no storage) | MH-002 DISCARD | fv-sol-1 N/A | Sigil 1: 0 findings | Eliminated | — |
+| Integer overflow | **F1 (85)** | V15 DROP (patched) | — | **C-01** (patched) | fv-sol-3 clean | — | Eliminated | — |
+| Access control | Eliminated | V10 DROP | — | MH-009 DISCARD | fv-sol-4 clean | S4-3 DISMISSED | Eliminated | — |
+| Frontrunning/MEV | **F2 (80)** | V13 DROP | — | **DT-01** | fv-sol-4-c9 | **I-01** | **F1 [80]** | DS-01 (dup) |
+| msg.value reuse | Eliminated | **V12 CONFIRM** | — | **DT-02** | fv-sol-5-c7 | **I-02** | **F2 [65]** | DS-02 (dup) |
+| Storage safety | — | — | **5-phase: 0** | MH-004 DISCARD | — | Sigil 1: 0 | N/A (no storage) | — |
+| Delegatecall | Eliminated | V4 DROP | — | MH-002 DISCARD | fv-sol-1 N/A | S4-4 DISMISSED | Eliminated | — |
+| DoS / gas | Eliminated | V5,V6 DROP | — | MH-006,014 DISCARD | fv-sol-9 clean | S4-5 DISMISSED | Eliminated | — |
+| Hash collision | — | V7 DROP | — | — | — | — | — | — |
+| Validation bypass | — | — | — | MH-008,011,012 DISCARD | Expert 2 §3 | S2-1 DISMISSED | Hyp B: Rejected | LOW-01, LOW-03 |
+| Module wiring | — | — | Phase 5.1-5.3 | MH-007 DISCARD | Expert 2 §1-§2 | S3-1,S3-2 DISMISSED | — | **LOW-02 (patched)** |
+| Governance context | — | — | — | — | 10/10 classes | — | Hyp A,B: Rejected | — |
 
 ---
 
@@ -177,7 +200,7 @@ To add new audit results to this folder:
 5. Update finding statuses as fixes are applied
 
 Recommended next scans:
-- [ ] Pashov AI Auditor — DEEP mode (adds adversarial reasoning agent)
+- [x] Pashov AI Auditor — DEEP mode (adds adversarial reasoning agent) → Audit #7
 - [ ] Cross-module scan: SafeSummoner + ShareSale + TapVest + LPSeedSwapHook together
 - [ ] Fuzz testing of `_defaultThreshold` with extreme inputs
 - [ ] Formal verification of call array count/fill invariants

@@ -356,7 +356,7 @@ contract SafeSummoner {
             _summonPreset(orgName, orgSymbol, orgURI, 500, true, salt, initHolders, initShares, c);
     }
 
-    /// @notice Founder-mode DAO: single owner with 10M shares, 1-day voting, no timelock, 1% quorum.
+    /// @notice Founder-mode DAO: single owner with 10M shares, 1-day voting, no timelock, 10% quorum.
     ///         Designed for solo founders who want fast unilateral control with ragequit enabled.
     function summonFounder(
         string calldata orgName,
@@ -400,7 +400,7 @@ contract SafeSummoner {
         Call[] memory calls = _buildCalls(daoAddr, c, extra);
 
         return SUMMONER.summon{value: msg.value}(
-            orgName, orgSymbol, orgURI, 100, true, RENDERER, salt, h, s, calls
+            orgName, orgSymbol, orgURI, 1000, true, RENDERER, salt, h, s, calls
         );
     }
 
@@ -772,9 +772,9 @@ contract SafeSummoner {
         // --- ShareBurner permit ---
         if (c.saleBurnDeadline > 0) {
             address burner = c.burnSingleton == address(0) ? SHARE_BURNER : c.burnSingleton;
-            address sharesAddr = _predictShares(dao);
+            address saleToken = c.saleIsLoot ? _predictLoot(dao) : _predictShares(dao);
             bytes memory burnData =
-                abi.encodeCall(IShareBurner.burnUnsold, (sharesAddr, c.saleBurnDeadline));
+                abi.encodeCall(IShareBurner.burnUnsold, (saleToken, c.saleBurnDeadline));
             calls[i++] = Call(
                 dao,
                 0,
