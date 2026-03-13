@@ -180,7 +180,7 @@ The following 23 findings have been identified and reviewed across prior audits.
 | 6 | Zero-winner futarchy lockup | Low | If no one votes for winning side, pool tokens are permanently inaccessible via `cashOutFutarchy`. Funds remain in DAO treasury |
 | 7 | Blacklistable token ragequit DoS | Low | If treasury token blacklists DAO, ragequit reverts for that token. Caller can omit it |
 | 8 | Fee-on-transfer token accounting | Info | Ragequit assumes full delivery. Fee tokens short-change recipients |
-| 9 | CREATE2 salt not bound to `msg.sender` | Info | Anyone can front-run deployment to claim a vanity address. No fund loss (see KF#23 for Tribute escalation) |
+| 9 | CREATE2 salt not bound to `msg.sender` | Info | Anyone can front-run deployment to claim a vanity address. No fund loss — `initHolders`/`initShares` are in the salt, so the original owners control the DAO regardless. See V1.5 assessment |
 | 10 | Permit/proposal ID namespace overlap | Info | Same `keccak256` scheme — collision astronomically unlikely (2^256 space). See KF#19, KF#21 for practical exploitation angles |
 | 11 | `proposalThreshold == 0` griefing | Low | Permissionless proposal opening enables spam and minted futarchy reward farming |
 | 12 | `init()` missing `quorumBps` range validation | Info | `setQuorumBps` validates, but `init()` does not. Privileged-only initialization |
@@ -191,10 +191,135 @@ The following 23 findings have been identified and reviewed across prior audits.
 | 17 | Public futarchy attachment + zero-quorum premature NO-resolution | Medium | With `quorumAbsolute == 0 && quorumBps == 0`, `state()` returns `Defeated` at line 476 with zero votes. Attacker calls `fundFutarchy{value:1}` then `resolveFutarchyNo` → `castVote` permanently reverts. Configuration-dependent. Fix: require `Expired` only in `resolveFutarchyNo` |
 | 18 | `fundFutarchy` accepts executed/cancelled proposal IDs | Medium | `fundFutarchy` checks `F.resolved` but not `executed[id]`. After cancel/execute, pools can still be funded but never resolved — `resolveFutarchyNo` rejects `executed[id]`, and voting/execution paths are dead. Funds are not permanently lost: they remain in the DAO contract and can be recovered via a governance vote. Impact is limited to futarchy bookkeeping (inflated pool counter, no resolution/cashout path). Fix: add `if (executed[id]) revert AlreadyExecuted();` |
 | 19 | `bumpConfig` emergency brake bypass via raw proposal IDs | Medium | `openProposal`, `castVote`, `state`, `queue` accept raw IDs without config validation. A coalition can pre-stage a future-config proposal and carry it across a bump. Extends KF#10. Fix: store originating config on open, reject stale-config lifecycle actions |
-| 20 | Tribute bait-and-switch — escrow terms not bound to claim key | Medium | `tributes` keyed by `(proposer, dao, tribTkn)` only. Proposer can cancel and repost with smaller `tribAmt` between approval and execution. `claimTribute` reads current stored values. Fix: bind claim to expected terms via nonce/hash |
+| 20 | Tribute bait-and-switch — escrow terms not bound to claim key | Medium | **Fixed in V1.5.** `claimTribute` now requires `(tribAmt, forTkn, forAmt)` as explicit parameters and reverts `TermsMismatch` if they differ from stored values. The DAO's proposal commits to exact terms at approval time, preventing cancel+re-propose manipulation |
 | 21 | Permit IDs enter proposal/futarchy lifecycle | Medium | `openProposal`, `castVote`, `fundFutarchy`, `resolveFutarchyNo` never check `isPermitReceipt[id]`. Shareholder can open permit as proposal, fund futarchy, resolve NO, and cash out. Extends KF#10. Fix: add `if (isPermitReceipt[id]) revert` guards |
-| 22 | DAICO LP drift cap uses `tribForLP` instead of `totalTrib` | Low | Comment says `totalTrib * spot / (2*spot - rate)` but code uses `tribForLP`. Underestimates LP leg when pool spot > OTC rate, shifting tokens from LP to buyer. Severity mitigated: (1) buyer still pays full price — no free tokens, DAO treasury receives full payment either way; (2) the drift condition (spot > OTC) is self-correcting via arbitrage, making the buggy code path transient; (3) UIs typically hide the pool until sale completion, further limiting the window. Impact is reduced LP depth, not theft. V2 hardening candidate. Fix: replace `tribForLP` with total tribute in `_initLP` and `_quoteLPUsed` |
-| 23 | Counterfactual Tribute theft via summon frontrun | Low-Medium | `proposeTribute` accepts undeployed DAO addresses. `summon` salt excludes `initCalls`. Attacker frontruns with same salt + malicious initCalls to claim pre-deposited tribute escrows. Extends KF#9. Fix: include `initCalls` in salt, or require deployed DAO |
+| 22 | DAICO LP drift cap uses `tribForLP` instead of `totalTrib` | Low | **Obsolete — DAICO.sol removed.** Replaced by modular SafeSummoner + ShareSale + TapVest + LPSeedSwapHook peripherals which do not share this code path |
+| 23 | Counterfactual Tribute theft via summon frontrun | Low-Medium | `proposeTribute` accepts undeployed DAO addresses. `summon` salt excludes `initCalls`. Attacker frontruns with same salt + malicious initCalls to claim pre-deposited tribute escrows. Extends KF#9. **Accepted — impractical.** Attacker must pay full `forAmt`, holders are fixed in salt, and KF#20 fix requires exact term knowledge. See V1.5 assessment |
+
+---
+
+## V1.5 Mitigation Assessment
+
+The following analysis covers findings that cannot be patched in the deployed Moloch.sol
+contract and evaluates their real-world blast radius. Findings addressed at deployment time
+by SafeSummoner validation (KF#2, KF#3, KF#11, KF#17) are not discussed here — those
+are fully mitigated for any DAO deployed through SafeSummoner.
+
+### KF#21: Permit IDs enter proposal/futarchy lifecycle — Contained
+
+**Attack path:** A shareholder calls `openProposal(permitId)` on a pending permit's
+token ID. If auto-futarchy is enabled, the DAO auto-earmarks `autoFutarchyCap` worth
+of reward tokens. The proposal has no real votes, so it expires. The attacker votes NO
+via `castVote(permitId, 0)`, waits for expiry, calls `resolveFutarchyNo(permitId)`,
+then `cashOutFutarchy(permitId, weight)` to claim pro-rata of the earmarked pool.
+
+**Why this is contained:**
+
+1. **Requires governance shares.** The attacker must hold at least `proposalThreshold`
+   worth of shares to call `openProposal`, and needs voting weight at the snapshot block
+   to claim any payout. This is not an external attacker — it is a DAO member griefing
+   their own organization.
+
+2. **Bounded by `autoFutarchyCap`.** SafeSummoner enforces `autoFutarchyCap > 0` (KF#3),
+   so the maximum loss per exploit is the cap value — typically a small fraction of total
+   supply. The attacker's payout is further reduced by their pro-rata share of NO votes.
+
+3. **One-shot per permit ID.** `_finalizeFutarchy` sets `F.resolved = true`, preventing
+   repeat exploitation of the same permit ID. Each permit can only be exploited once
+   regardless of its `count`.
+
+4. **Only affects futarchy-enabled DAOs with pending permits.** DAOs without
+   `autoFutarchyParam` set have no earmark mechanism — the attack has no fund-loss vector.
+
+5. **Permit spend tombstones the ID.** Calling `spendPermit` sets `executed[tokenId] = true`,
+   which blocks `openProposal` (returns early since `state()` returns `Executed`),
+   `castVote` (reverts `AlreadyExecuted`), and `resolveFutarchyNo` (reverts). Spending
+   permits promptly eliminates the attack window entirely.
+
+**Guidance for DAOs using futarchy + permits:**
+- Permits are designed to linger (ShareBurner, RollbackGuardian). The futarchy exploit risk
+  per lingering permit is bounded by `autoFutarchyCap` — typically a small fraction of supply.
+- DAOs that enable auto-futarchy should set a conservative `autoFutarchyCap` to limit
+  exposure from any permit ID being opened as a proposal.
+- RollbackGuardian permits are inherently one-shot (config bump invalidates the permit ID),
+  so the exploit window closes automatically after the guardian acts.
+- For existing DAOs with permits that are no longer needed: spend or revoke them to
+  tombstone the IDs and eliminate the window entirely.
+
+### KF#19: bumpConfig emergency brake bypass — Low impact
+
+**Attack path:** A coalition pre-opens a proposal (via `openProposal` or `castVote`)
+using a raw ID computed for the current config. After `bumpConfig()` increments `config`,
+the pre-opened proposal retains its votes and lifecycle state.
+
+**Why this is low impact:**
+
+1. **Pre-bump proposals cannot be executed post-bump.** `executeByVotes` recomputes the
+   ID via `_intentHashId(op, to, value, data, nonce)` which includes the current `config`.
+   The recomputed ID will not match the pre-opened proposal's stored votes/state. The
+   proposal is effectively orphaned — it has votes but can never execute.
+
+2. **No fund loss.** Orphaned futarchy pools remain in the DAO treasury. They cannot be
+   resolved via the YES path (execution is blocked) and `resolveFutarchyNo` only works
+   if the proposal reaches Defeated/Expired state — which it will, but the earmarked
+   funds were already in the DAO contract and any cashout is bounded by `autoFutarchyCap`.
+
+3. **bumpConfig still prevents new execution.** The emergency brake's core guarantee —
+   that no pending proposal can be *executed* after the bump — holds. The limitation is
+   that lifecycle actions (voting, futarchy funding) on pre-opened proposals are not
+   blocked, but these cannot lead to execution.
+
+**Guidance:** Treat `bumpConfig` as an execution brake, not a full proposal invalidation.
+For complete invalidation, the DAO should also ensure no proposals are in Active state
+before bumping (e.g. wait for expiry or cancel them first).
+
+### KF#20: Tribute bait-and-switch — Fixed
+
+**Original issue:** `claimTribute(proposer, tribTkn)` read stored terms at execution time.
+A proposer could cancel and re-propose with worse terms between DAO approval and execution.
+
+**Fix:** `claimTribute` now requires all offer terms as explicit parameters:
+`claimTribute(proposer, tribTkn, tribAmt, forTkn, forAmt)`. The function verifies each
+parameter matches the stored offer, reverting `TermsMismatch` on any discrepancy. Since the
+DAO's governance proposal encodes these values at approval time, a cancel+re-propose attack
+causes the claim to revert — the DAO sends nothing and loses nothing.
+
+### KF#9: CREATE2 salt not bound to `msg.sender` — Non-issue
+
+**Claimed attack:** Anyone can frontrun a `summon()` call and deploy to the same CREATE2
+address, "stealing" a vanity address.
+
+**Why this is a non-issue:** The salt is `keccak256(abi.encode(initHolders, initShares, salt))`.
+The initial share holders and their allocations are baked into the deployed address. An attacker
+fronting the deployment produces a DAO where the **original holders still own all shares** —
+the attacker spent gas to deploy someone else's DAO. The `initCalls` are not in the salt, so
+the attacker could alter governance parameters, but the legitimate deployer would see the
+misconfigured DAO and simply redeploy with a different salt. No funds are at risk since the
+DAO is empty at deployment time.
+
+### KF#23: Counterfactual Tribute theft via summon frontrun — Accepted, impractical
+
+**Claimed attack:** Propose tribute to a predicted (undeployed) DAO address, then an attacker
+frontruns `summon()` with malicious `initCalls` that include `claimTribute` to steal the
+escrowed tokens.
+
+**Why this is impractical:**
+
+1. **Attacker must pay `forAmt`.** `claimTribute` is an OTC swap — the DAO must send `forAmt`
+   to the proposer. If the terms are fair, there is zero profit. The attacker would need to
+   fund the summon with enough value to cover the forTkn side of the swap.
+
+2. **Holders are fixed.** `initHolders` and `initShares` are in the CREATE2 salt. The attacker
+   cannot substitute themselves as share holders — the original owners still control the DAO.
+
+3. **Unusual usage pattern.** Tributes are proposed to existing DAOs in normal operation.
+   Proposing to an undeployed address requires knowing the exact CREATE2 params in advance,
+   which implies coordination — the deployer would summon atomically or use a different salt
+   if fronted.
+
+4. **Harder post-KF#20 fix.** The attacker must encode exact `(tribAmt, forTkn, forAmt)` in
+   the `initCalls` claim — requiring full knowledge of the offer terms, which further narrows
+   the attack window.
 
 ---
 

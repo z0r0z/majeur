@@ -59,6 +59,7 @@ contract Tribute {
 
     error NoTribute();
     error InvalidParams();
+    error TermsMismatch();
 
     /// @notice Propose an OTC tribute:
     ///  - proposer locks up tribTkn (ERC20 or ETH)
@@ -129,11 +130,23 @@ contract Tribute {
     ///  - DAO must `approve` this contract for at least forAmt before calling.
     /// For ETH forTkn:
     ///  - DAO must send exactly forAmt as msg.value.
-    function claimTribute(address proposer, address tribTkn) public payable nonReentrant {
+    /// @dev All offer terms are passed explicitly and verified against stored values,
+    ///      preventing bait-and-switch (proposer cancel + re-propose with worse terms
+    ///      between DAO approval and execution).
+    function claimTribute(
+        address proposer,
+        address tribTkn,
+        uint256 tribAmt,
+        address forTkn,
+        uint256 forAmt
+    ) public payable nonReentrant {
         address dao = msg.sender;
 
         TributeOffer memory offer = tributes[proposer][dao][tribTkn];
         if (offer.tribAmt == 0) revert NoTribute();
+        if (offer.tribAmt != tribAmt || offer.forTkn != forTkn || offer.forAmt != forAmt) {
+            revert TermsMismatch();
+        }
 
         delete tributes[proposer][dao][tribTkn];
 

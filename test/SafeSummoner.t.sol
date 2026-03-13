@@ -8,6 +8,7 @@ import {ShareBurner} from "../src/peripheral/ShareBurner.sol";
 import {ShareSale} from "../src/peripheral/ShareSale.sol";
 import {TapVest} from "../src/peripheral/TapVest.sol";
 import {LPSeedSwapHook} from "../src/peripheral/LPSeedSwapHook.sol";
+import {RollbackGuardian} from "../src/peripheral/RollbackGuardian.sol";
 
 contract SafeSummonerTest is Test {
     SafeSummoner internal safe;
@@ -1092,6 +1093,34 @@ contract SafeSummonerTest is Test {
 
         (address token,,,) = shareSale.sales(dao);
         assertEq(token, address(1007)); // loot minting sentinel
+    }
+
+    function test_SummonWithRollbackGuardian() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(900));
+
+        RollbackGuardian guardian = new RollbackGuardian();
+        address guardianEOA = address(0x600D);
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.rollbackGuardian = guardianEOA;
+        config.rollbackSingleton = address(guardian);
+        config.rollbackExpiry = 0; // no expiry
+
+        address dao = safe.safeSummon(
+            "GuardDAO", "GUARD", "", 1000, true, address(0), salt, h, s, config, new Call[](0)
+        );
+
+        // Verify guardian is configured
+        (address g, uint40 exp) = guardian.configs(dao);
+        assertEq(g, guardianEOA);
+        assertEq(exp, 0);
+
+        // Verify rollback works
+        uint64 configBefore = Moloch(payable(dao)).config();
+        vm.prank(guardianEOA);
+        guardian.rollback(dao);
+        assertEq(Moloch(payable(dao)).config(), configBefore + 1);
     }
 
     function test_CloseSaleAfterDeadline() public {

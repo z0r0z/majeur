@@ -1,5 +1,5 @@
 # Tribute
-[Git Source](https://github.com/z0r0z/majeur/blob/ae954c8dacf035c306a2f543ff58bff38b7c1bef/src/peripheral/Tribute.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/26195c42ab2bc92f824f7691eb427e6f0f067100/src/peripheral/Tribute.sol)
 
 Simple tribute OTC escrow maker for DAO proposals.
 
@@ -85,9 +85,19 @@ For ERC20 forTkn:
 For ETH forTkn:
 - DAO must send exactly forAmt as msg.value.
 
+All offer terms are passed explicitly and verified against stored values,
+preventing bait-and-switch (proposer cancel + re-propose with worse terms
+between DAO approval and execution).
+
 
 ```solidity
-function claimTribute(address proposer, address tribTkn) public payable nonReentrant;
+function claimTribute(
+    address proposer,
+    address tribTkn,
+    uint256 tribAmt,
+    address forTkn,
+    uint256 forAmt
+) public payable nonReentrant;
 ```
 
 ### getDaoTributeCount
@@ -172,6 +182,12 @@ error NoTribute();
 
 ```solidity
 error InvalidParams();
+```
+
+### TermsMismatch
+
+```solidity
+error TermsMismatch();
 ```
 
 ## Structs

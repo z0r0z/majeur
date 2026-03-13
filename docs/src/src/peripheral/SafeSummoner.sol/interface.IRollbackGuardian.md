@@ -1,4 +1,4 @@
-# IShareSale
+# IRollbackGuardian
 [Git Source](https://github.com/z0r0z/majeur/blob/26195c42ab2bc92f824f7691eb427e6f0f067100/src/peripheral/SafeSummoner.sol)
 
 
@@ -7,6 +7,13 @@
 
 
 ```solidity
-function configure(address token, address payToken, uint256 price, uint40 deadline) external;
+function configure(address guardian, uint40 expiry) external;
+```
+
+### NONCE
+
+
+```solidity
+function NONCE() external view returns (bytes32);
 ```
 

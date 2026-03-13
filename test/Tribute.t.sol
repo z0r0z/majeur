@@ -307,7 +307,7 @@ contract TributeTest is Test {
 
         vm.expectEmit(true, true, false, true);
         emit TributeClaimed(proposer, dao, address(0), tribAmt, address(tokenB), forAmt);
-        tribute.claimTribute(proposer, address(0));
+        tribute.claimTribute(proposer, address(0), tribAmt, address(tokenB), forAmt);
         vm.stopPrank();
 
         // Check tribute was deleted
@@ -338,7 +338,7 @@ contract TributeTest is Test {
         vm.prank(dao);
         vm.expectEmit(true, true, false, true);
         emit TributeClaimed(proposer, dao, address(tokenA), tribAmt, address(0), forAmt);
-        tribute.claimTribute{value: forAmt}(proposer, address(tokenA));
+        tribute.claimTribute{value: forAmt}(proposer, address(tokenA), tribAmt, address(0), forAmt);
 
         // Check tribute was deleted
         (uint256 storedTribAmt,,) = tribute.tributes(proposer, dao, address(tokenA));
@@ -367,7 +367,7 @@ contract TributeTest is Test {
         // DAO approves and claims
         vm.startPrank(dao);
         tokenB.approve(address(tribute), forAmt);
-        tribute.claimTribute(proposer, address(tokenA));
+        tribute.claimTribute(proposer, address(tokenA), tribAmt, address(tokenB), forAmt);
         vm.stopPrank();
 
         // Check DAO received tokenA
@@ -390,7 +390,7 @@ contract TributeTest is Test {
 
         // DAO claims with ETH
         vm.prank(dao);
-        tribute.claimTribute{value: forAmt}(proposer, address(0));
+        tribute.claimTribute{value: forAmt}(proposer, address(0), tribAmt, address(0), forAmt);
 
         // Check DAO received ETH tribute (net: tribAmt - forAmt)
         assertEq(dao.balance, daoEthBefore - forAmt + tribAmt);
@@ -402,7 +402,7 @@ contract TributeTest is Test {
     function test_claimTribute_revert_noTribute() public {
         vm.prank(dao);
         vm.expectRevert(Tribute.NoTribute.selector);
-        tribute.claimTribute(proposer, address(0));
+        tribute.claimTribute(proposer, address(0), 1 ether, address(tokenB), 100 ether);
     }
 
     function test_claimTribute_revert_wrongETHAmount() public {
@@ -412,7 +412,7 @@ contract TributeTest is Test {
         // Wrong ETH amount
         vm.prank(dao);
         vm.expectRevert(Tribute.InvalidParams.selector);
-        tribute.claimTribute{value: 1 ether}(proposer, address(0));
+        tribute.claimTribute{value: 1 ether}(proposer, address(0), 1 ether, address(0), 2 ether);
     }
 
     function test_claimTribute_revert_unexpectedETH() public {
@@ -424,7 +424,70 @@ contract TributeTest is Test {
         // Sending ETH when forTkn is ERC20
         vm.prank(dao);
         vm.expectRevert(Tribute.InvalidParams.selector);
-        tribute.claimTribute{value: 1 ether}(proposer, address(tokenA));
+        tribute.claimTribute{value: 1 ether}(
+            proposer, address(tokenA), 50 ether, address(tokenB), 100 ether
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        BAIT AND SWITCH PREVENTION
+    //////////////////////////////////////////////////////////////*/
+
+    function test_claimTribute_revert_baitAndSwitch() public {
+        uint256 tribAmt = 100 ether;
+        uint256 forAmt = 50 ether;
+
+        // Proposer creates generous tribute
+        vm.startPrank(proposer);
+        tokenA.approve(address(tribute), tribAmt);
+        tribute.proposeTribute(dao, address(tokenA), tribAmt, address(tokenB), forAmt);
+        vm.stopPrank();
+
+        // Proposer cancels and re-proposes with worse terms
+        vm.startPrank(proposer);
+        tribute.cancelTribute(dao, address(tokenA));
+        tokenA.approve(address(tribute), 1 ether);
+        tribute.proposeTribute(dao, address(tokenA), 1 ether, address(tokenB), forAmt);
+        vm.stopPrank();
+
+        // DAO tries to claim with original terms — reverts
+        vm.startPrank(dao);
+        tokenB.approve(address(tribute), forAmt);
+        vm.expectRevert(Tribute.TermsMismatch.selector);
+        tribute.claimTribute(proposer, address(tokenA), tribAmt, address(tokenB), forAmt);
+        vm.stopPrank();
+    }
+
+    function test_claimTribute_revert_termsMismatch_tribAmt() public {
+        vm.prank(proposer);
+        tribute.proposeTribute{value: 1 ether}(dao, address(0), 0, address(tokenB), 100 ether);
+
+        vm.startPrank(dao);
+        tokenB.approve(address(tribute), 100 ether);
+        vm.expectRevert(Tribute.TermsMismatch.selector);
+        tribute.claimTribute(proposer, address(0), 999 ether, address(tokenB), 100 ether);
+        vm.stopPrank();
+    }
+
+    function test_claimTribute_revert_termsMismatch_forTkn() public {
+        vm.prank(proposer);
+        tribute.proposeTribute{value: 1 ether}(dao, address(0), 0, address(tokenB), 100 ether);
+
+        vm.startPrank(dao);
+        vm.expectRevert(Tribute.TermsMismatch.selector);
+        tribute.claimTribute(proposer, address(0), 1 ether, address(tokenA), 100 ether);
+        vm.stopPrank();
+    }
+
+    function test_claimTribute_revert_termsMismatch_forAmt() public {
+        vm.prank(proposer);
+        tribute.proposeTribute{value: 1 ether}(dao, address(0), 0, address(tokenB), 100 ether);
+
+        vm.startPrank(dao);
+        tokenB.approve(address(tribute), 200 ether);
+        vm.expectRevert(Tribute.TermsMismatch.selector);
+        tribute.claimTribute(proposer, address(0), 1 ether, address(tokenB), 200 ether);
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////

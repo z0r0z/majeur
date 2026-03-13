@@ -1,5 +1,5 @@
 # SafeSummoner
-[Git Source](https://github.com/z0r0z/majeur/blob/ae954c8dacf035c306a2f543ff58bff38b7c1bef/src/peripheral/SafeSummoner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/26195c42ab2bc92f824f7691eb427e6f0f067100/src/peripheral/SafeSummoner.sol)
 
 **Title:**
 SafeSummoner
@@ -530,6 +530,10 @@ struct SafeConfig {
     bool saleIsLoot; // true = sell loot instead of shares
     // ── ShareBurner ──
     uint256 saleBurnDeadline; // 0 = no auto-burn. >0 = timestamp after which unsold shares are burnable
+    // ── RollbackGuardian ──
+    address rollbackGuardian; // address(0) = skip. EOA or multisig that can emergency-bump config
+    address rollbackSingleton; // RollbackGuardian singleton address (required if rollbackGuardian set)
+    uint40 rollbackExpiry; // 0 = no expiry. Unix timestamp after which rollback is disabled
 }
 ```
 

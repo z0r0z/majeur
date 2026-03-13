@@ -79,6 +79,16 @@ interface IShareBurner {
     function burnUnsold(address shares, uint256 deadline) external payable;
 }
 
+interface IRollbackGuardian {
+    function configure(address guardian, uint40 expiry) external;
+    function NONCE() external view returns (bytes32);
+}
+
+interface IMolochBumpConfig {
+    function bumpConfig() external;
+    function setAutoFutarchy(uint256 param, uint256 cap) external;
+}
+
 /// @dev Deployed singletons (same CREATE2/3 addresses on all supported chains).
 ISummoner constant SUMMONER = ISummoner(0x0000000000330B8df9E3bc5E553074DA58eE9138);
 address constant MOLOCH_IMPL = 0x643A45B599D81be3f3A68F37EB3De55fF10673C1;
@@ -139,6 +149,10 @@ contract SafeSummoner {
         bool saleIsLoot; // true = sell loot instead of shares
         // ── ShareBurner ──
         uint256 saleBurnDeadline; // 0 = no auto-burn. >0 = timestamp after which unsold shares are burnable
+        // ── RollbackGuardian ──
+        address rollbackGuardian; // address(0) = skip. EOA or multisig that can emergency-bump config
+        address rollbackSingleton; // RollbackGuardian singleton address (required if rollbackGuardian set)
+        uint40 rollbackExpiry; // 0 = no expiry. Unix timestamp after which rollback is disabled
     }
 
     /// @dev ShareSale module config. singleton = address(0) to skip.
@@ -604,6 +618,7 @@ contract SafeSummoner {
         }
         if (c.saleActive) n++;
         if (c.saleBurnDeadline > 0) n++;
+        if (c.rollbackGuardian != address(0)) n += 3; // configure + rollback permit + futarchy permit
 
         calls = new Call[](n + extra.length);
         uint256 i;
@@ -683,6 +698,50 @@ contract SafeSummoner {
                         keccak256("ShareBurner"), // nonce
                         SHARE_BURNER, // spender
                         uint256(1) // count = 1 (one-shot)
+                    )
+                )
+            );
+        }
+
+        // --- RollbackGuardian ---
+        if (c.rollbackGuardian != address(0)) {
+            // 1. Configure guardian on the singleton (called by DAO during init)
+            calls[i++] = Call(
+                c.rollbackSingleton,
+                0,
+                abi.encodeCall(IRollbackGuardian.configure, (c.rollbackGuardian, c.rollbackExpiry))
+            );
+            // 2. Authorize the singleton to spend a bumpConfig permit
+            calls[i++] = Call(
+                dao,
+                0,
+                abi.encodeCall(
+                    IMoloch.setPermit,
+                    (
+                        uint8(0), // op = call
+                        dao, // target = DAO itself
+                        uint256(0), // value
+                        abi.encodeCall(IMolochBumpConfig.bumpConfig, ()), // bumpConfig calldata
+                        keccak256("RollbackGuardian"), // nonce
+                        c.rollbackSingleton, // spender = singleton
+                        uint256(1) // count = 1 (one-shot)
+                    )
+                )
+            );
+            // 3. Authorize the singleton to disable auto-futarchy
+            calls[i++] = Call(
+                dao,
+                0,
+                abi.encodeCall(
+                    IMoloch.setPermit,
+                    (
+                        uint8(0),
+                        dao,
+                        uint256(0),
+                        abi.encodeCall(IMolochBumpConfig.setAutoFutarchy, (0, 0)),
+                        keccak256("RollbackGuardian.killFutarchy"),
+                        c.rollbackSingleton,
+                        uint256(1)
                     )
                 )
             );
