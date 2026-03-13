@@ -45,6 +45,10 @@ contract SafeSummonerTest is Test {
         c.proposalTTL = 7 days;
     }
 
+    function _noLoot() internal pure returns (uint256[] memory) {
+        return new uint256[](0);
+    }
+
     function _summon(uint16 quorumBps, SafeSummoner.SafeConfig memory config)
         internal
         returns (address dao)
@@ -60,6 +64,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(block.timestamp)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -134,6 +139,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(1)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -160,6 +166,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(42)),
             h,
             s,
+            _noLoot(),
             config,
             extra
         );
@@ -181,6 +188,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(99)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -209,6 +217,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(777)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -460,6 +469,7 @@ contract SafeSummonerTest is Test {
             bytes32(0),
             new address[](0),
             new uint256[](0),
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -483,6 +493,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(1)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -496,6 +507,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(2)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -517,6 +529,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(777777)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -532,6 +545,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(777777)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -543,7 +557,7 @@ contract SafeSummonerTest is Test {
 
     function test_SummonStandard() public {
         (address[] memory h, uint256[] memory s) = _holders1();
-        address dao = safe.summonStandard("Std", "STD", "", bytes32(uint256(1)), h, s);
+        address dao = safe.summonStandard("Std", "STD", "", bytes32(uint256(1)), h, s, false);
         Moloch m = Moloch(payable(dao));
 
         assertTrue(dao != address(0));
@@ -554,48 +568,57 @@ contract SafeSummonerTest is Test {
         assertEq(m.ragequittable(), true);
     }
 
-    function test_SummonFast() public {
+    function test_SummonStandard_LockedShares() public {
         (address[] memory h, uint256[] memory s) = _holders1();
-        address dao = safe.summonFast("Fast", "FAST", "", bytes32(uint256(2)), h, s);
-        Moloch m = Moloch(payable(dao));
-
-        assertEq(m.proposalTTL(), 3 days);
-        assertEq(m.timelockDelay(), 1 days);
-        assertEq(m.quorumBps(), 1000);
-        assertEq(m.ragequittable(), true);
-    }
-
-    function test_SummonMinimal() public {
-        (address[] memory h, uint256[] memory s) = _holders1();
-        address dao = safe.summonMinimal("Min", "MIN", "", bytes32(uint256(3)), h, s);
-        Moloch m = Moloch(payable(dao));
-
-        assertEq(m.proposalTTL(), 3 days);
-        assertEq(m.timelockDelay(), 0); // no timelock
-        assertEq(m.quorumBps(), 500);
-        assertEq(m.ragequittable(), true);
-    }
-
-    function test_SummonLocked() public {
-        (address[] memory h, uint256[] memory s) = _holders1();
-        address dao = safe.summonLocked("Lock", "LOCK", "", bytes32(uint256(4)), h, s);
+        address dao = safe.summonStandard("Locked", "LOCK", "", bytes32(uint256(1001)), h, s, true);
         Moloch m = Moloch(payable(dao));
 
         assertEq(m.proposalTTL(), 7 days);
         assertEq(m.timelockDelay(), 2 days);
-        assertEq(m.quorumBps(), 1000);
-        assertEq(m.ragequittable(), false);
+        // Shares should be non-transferable
+        address sharesAddr = safe.predictShares(dao);
+        vm.prank(alice);
+        vm.expectRevert();
+        Shares(sharesAddr).transfer(bob, 1e18);
+    }
+
+    function test_SummonFast() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        address dao = safe.summonFast("Fast", "FAST", "", bytes32(uint256(2)), h, s, false);
+        Moloch m = Moloch(payable(dao));
+
+        assertEq(m.proposalTTL(), 3 days);
+        assertEq(m.timelockDelay(), 1 days);
+        assertEq(m.quorumBps(), 500);
+        assertEq(m.ragequittable(), true);
+    }
+
+    function test_SummonFounder() public {
+        vm.prank(alice);
+        address dao = safe.summonFounder("Founder", "FND", "", bytes32(uint256(100)));
+        Moloch m = Moloch(payable(dao));
+
+        assertTrue(dao != address(0));
+        assertEq(m.proposalTTL(), 1 days);
+        assertEq(m.timelockDelay(), 0);
+        assertEq(m.quorumBps(), 100);
+        assertEq(m.ragequittable(), true);
+        assertEq(m.proposalThreshold(), 100_000e18); // 1% of 10M
+
+        // Alice should have 10M shares
+        address sharesAddr = safe.predictShares(dao);
+        assertEq(Shares(sharesAddr).balanceOf(alice), 10_000_000e18);
     }
 
     function test_PresetThresholdScalesWithSupply() public {
         // Two holders: 60e18 + 40e18 = 100e18 total -> threshold = 1e18
         (address[] memory h, uint256[] memory s) = _holders2();
-        address dao = safe.summonStandard("Scale", "SCL", "", bytes32(uint256(5)), h, s);
+        address dao = safe.summonStandard("Scale", "SCL", "", bytes32(uint256(5)), h, s, false);
         assertEq(Moloch(payable(dao)).proposalThreshold(), 1e18);
 
         // One holder: 100e18 total -> threshold = 1e18
         (address[] memory h2, uint256[] memory s2) = _holders1();
-        address dao2 = safe.summonStandard("Scale2", "SC2", "", bytes32(uint256(6)), h2, s2);
+        address dao2 = safe.summonStandard("Scale2", "SC2", "", bytes32(uint256(6)), h2, s2, false);
         assertEq(Moloch(payable(dao2)).proposalThreshold(), 1e18);
     }
 
@@ -605,7 +628,7 @@ contract SafeSummonerTest is Test {
         h[0] = alice;
         uint256[] memory s = new uint256[](1);
         s[0] = 50;
-        address dao = safe.summonStandard("Tiny", "TINY", "", bytes32(uint256(7)), h, s);
+        address dao = safe.summonStandard("Tiny", "TINY", "", bytes32(uint256(7)), h, s, false);
         assertEq(Moloch(payable(dao)).proposalThreshold(), 1);
     }
 
@@ -646,6 +669,7 @@ contract SafeSummonerTest is Test {
             bytes32(uint256(800)),
             h,
             s,
+            _noLoot(),
             config,
             new Call[](0)
         );
@@ -656,10 +680,10 @@ contract SafeSummonerTest is Test {
         assertEq(m.proposalThreshold(), 1e18);
     }
 
-    function test_BurnPermitCallHelper() public {
+    function test_BurnPermitCallHelper() public view {
         (address[] memory h, uint256[] memory s) = _holders1();
         Call memory permitCall =
-            safe.burnPermitCall(bytes32(uint256(900)), h, s, block.timestamp + 30 days);
+            safe.burnPermitCall(bytes32(uint256(900)), h, s, block.timestamp + 30 days, address(0));
         // Should target the predicted DAO
         address dao = safe.predictDAO(bytes32(uint256(900)), h, s);
         assertEq(permitCall.target, dao);
@@ -703,6 +727,7 @@ contract SafeSummonerTest is Test {
             salt,
             h,
             s,
+            _noLoot(),
             config,
             sale,
             _emptyTap(),
@@ -762,6 +787,7 @@ contract SafeSummonerTest is Test {
             salt,
             h,
             s,
+            _noLoot(),
             config,
             sale,
             tap,
@@ -833,6 +859,7 @@ contract SafeSummonerTest is Test {
             salt,
             h,
             s,
+            _noLoot(),
             config,
             sale,
             tap,
@@ -893,7 +920,7 @@ contract SafeSummonerTest is Test {
         sale.cap = 10e18;
 
         address dao = safe.summonStandardDAICO(
-            "StdDAICO", "SDAO", "", salt, h, s, sale, _emptyTap(), _emptySeed()
+            "StdDAICO", "SDAO", "", salt, h, s, false, sale, _emptyTap(), _emptySeed()
         );
 
         Moloch m = Moloch(payable(dao));
@@ -918,12 +945,13 @@ contract SafeSummonerTest is Test {
         sale.cap = 10e18;
 
         address dao = safe.summonFastDAICO(
-            "FastDAICO", "FDAO", "", salt, h, s, sale, _emptyTap(), _emptySeed()
+            "FastDAICO", "FDAO", "", salt, h, s, false, sale, _emptyTap(), _emptySeed()
         );
 
         Moloch m = Moloch(payable(dao));
         assertEq(m.proposalTTL(), 3 days);
         assertEq(m.timelockDelay(), 1 days);
+        assertEq(m.quorumBps(), 500);
 
         (,,, uint256 price) = shareSale.sales(dao);
         assertEq(price, 1e18);
@@ -950,6 +978,7 @@ contract SafeSummonerTest is Test {
             bytes32(0),
             h,
             s,
+            _noLoot(),
             config,
             sale,
             _emptyTap(),
@@ -978,6 +1007,7 @@ contract SafeSummonerTest is Test {
             bytes32(0),
             h,
             s,
+            _noLoot(),
             config,
             _emptySale(),
             _emptyTap(),
@@ -1007,6 +1037,7 @@ contract SafeSummonerTest is Test {
             bytes32(0),
             h,
             s,
+            _noLoot(),
             config,
             sale,
             _emptyTap(),
@@ -1035,6 +1066,7 @@ contract SafeSummonerTest is Test {
             bytes32(0),
             h,
             s,
+            _noLoot(),
             config,
             sale,
             _emptyTap(),
@@ -1084,6 +1116,7 @@ contract SafeSummonerTest is Test {
             salt,
             h,
             s,
+            _noLoot(),
             config,
             sale,
             _emptyTap(),
@@ -1108,7 +1141,18 @@ contract SafeSummonerTest is Test {
         config.rollbackExpiry = 0; // no expiry
 
         address dao = safe.safeSummon(
-            "GuardDAO", "GUARD", "", 1000, true, address(0), salt, h, s, config, new Call[](0)
+            "GuardDAO",
+            "GUARD",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            _noLoot(),
+            config,
+            new Call[](0)
         );
 
         // Verify guardian is configured
@@ -1122,6 +1166,382 @@ contract SafeSummonerTest is Test {
         guardian.rollback(dao);
         assertEq(Moloch(payable(dao)).config(), configBefore + 1);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                           INIT LOOT
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SummonWithInitLoot() public {
+        (address[] memory h, uint256[] memory s) = _holders2();
+        uint256[] memory loot = new uint256[](2);
+        loot[0] = 30e18;
+        loot[1] = 20e18;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        address dao = safe.safeSummon(
+            "Loot DAO",
+            "LOOT",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(uint256(5000)),
+            h,
+            s,
+            loot,
+            config,
+            new Call[](0)
+        );
+
+        address lootAddr = safe.predictLoot(dao);
+        assertEq(Shares(lootAddr).balanceOf(alice), 30e18);
+        assertEq(Shares(lootAddr).balanceOf(bob), 20e18);
+    }
+
+    function test_SummonWithInitLoot_SkipsZeroAmounts() public {
+        (address[] memory h, uint256[] memory s) = _holders2();
+        uint256[] memory loot = new uint256[](2);
+        loot[0] = 10e18;
+        loot[1] = 0; // bob gets no loot
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        address dao = safe.safeSummon(
+            "Partial Loot",
+            "PLOOT",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(uint256(5001)),
+            h,
+            s,
+            loot,
+            config,
+            new Call[](0)
+        );
+
+        address lootAddr = safe.predictLoot(dao);
+        assertEq(Shares(lootAddr).balanceOf(alice), 10e18);
+        assertEq(Shares(lootAddr).balanceOf(bob), 0);
+    }
+
+    function test_SummonWithEmptyInitLoot() public {
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        // Empty initLoot = skip (same as before)
+        address dao = _summon(1000, config);
+        address lootAddr = safe.predictLoot(dao);
+        assertEq(Shares(lootAddr).balanceOf(alice), 0);
+    }
+
+    function test_RevertIf_InitLootLengthMismatch() public {
+        (address[] memory h, uint256[] memory s) = _holders2();
+        uint256[] memory loot = new uint256[](1); // wrong length
+        loot[0] = 10e18;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        vm.expectRevert(SafeSummoner.InitLootLengthMismatch.selector);
+        safe.safeSummon(
+            "Bad",
+            "BAD",
+            "",
+            1000,
+            true,
+            address(0),
+            bytes32(uint256(5002)),
+            h,
+            s,
+            loot,
+            config,
+            new Call[](0)
+        );
+    }
+
+    function test_SafeSummonDAICO_WithInitLoot() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        uint256[] memory loot = new uint256[](1);
+        loot[0] = 50e18;
+        bytes32 salt = bytes32(uint256(5003));
+
+        ShareSale shareSale = new ShareSale();
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 10e18;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        address dao = safe.safeSummonDAICO(
+            "LootDAICO",
+            "LDAO",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            loot,
+            config,
+            sale,
+            _emptyTap(),
+            _emptySeed(),
+            new Call[](0)
+        );
+
+        address lootAddr = safe.predictLoot(dao);
+        assertEq(Shares(lootAddr).balanceOf(alice), 50e18);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           MULTICALL
+    //////////////////////////////////////////////////////////////*/
+
+    function test_Multicall_BatchTwoDAOs() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeCall(
+            safe.safeSummon,
+            (
+                "DAO A",
+                "A",
+                "",
+                1000,
+                true,
+                address(0),
+                bytes32(uint256(3000)),
+                h,
+                s,
+                _noLoot(),
+                config,
+                new Call[](0)
+            )
+        );
+        data[1] = abi.encodeCall(
+            safe.safeSummon,
+            (
+                "DAO B",
+                "B",
+                "",
+                1000,
+                true,
+                address(0),
+                bytes32(uint256(3001)),
+                h,
+                s,
+                _noLoot(),
+                config,
+                new Call[](0)
+            )
+        );
+
+        bytes[] memory results = safe.multicall(data);
+        address daoA = abi.decode(results[0], (address));
+        address daoB = abi.decode(results[1], (address));
+
+        assertTrue(daoA != address(0));
+        assertTrue(daoB != address(0));
+        assertTrue(daoA != daoB);
+        assertEq(Moloch(payable(daoA)).name(0), "DAO A");
+        assertEq(Moloch(payable(daoB)).name(0), "DAO B");
+    }
+
+    function test_Multicall_PreservesMsgSender() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeCall(
+            safe.safeSummon,
+            (
+                "Sender DAO",
+                "SND",
+                "",
+                1000,
+                true,
+                address(0),
+                bytes32(uint256(3002)),
+                h,
+                s,
+                _noLoot(),
+                config,
+                new Call[](0)
+            )
+        );
+
+        vm.prank(alice);
+        bytes[] memory results = safe.multicall(data);
+        address dao = abi.decode(results[0], (address));
+        assertTrue(dao != address(0));
+    }
+
+    function test_Multicall_WithETH() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeCall(
+            safe.safeSummon,
+            (
+                "ETH DAO",
+                "ETH",
+                "",
+                1000,
+                true,
+                address(0),
+                bytes32(uint256(3003)),
+                h,
+                s,
+                _noLoot(),
+                config,
+                new Call[](0)
+            )
+        );
+
+        vm.prank(alice);
+        bytes[] memory results = safe.multicall{value: 1 ether}(data);
+        address dao = abi.decode(results[0], (address));
+        assertEq(dao.balance, 1 ether);
+    }
+
+    function test_Multicall_BubblesRevert() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.proposalThreshold = 0; // will fail validation
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeCall(
+            safe.safeSummon,
+            (
+                "Bad DAO",
+                "BAD",
+                "",
+                1000,
+                true,
+                address(0),
+                bytes32(uint256(3004)),
+                h,
+                s,
+                _noLoot(),
+                config,
+                new Call[](0)
+            )
+        );
+
+        vm.expectRevert(SafeSummoner.ProposalThresholdRequired.selector);
+        safe.multicall(data);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           CREATE2 DEPLOY
+    //////////////////////////////////////////////////////////////*/
+
+    function test_Create2Deploy() public {
+        // Deploy a ShareSale singleton via create2Deploy
+        bytes memory creationCode = type(ShareSale).creationCode;
+        bytes32 salt = bytes32(uint256(4000));
+
+        address predicted = safe.predictCreate2(creationCode, salt);
+        address deployed = safe.create2Deploy(creationCode, salt);
+
+        assertEq(deployed, predicted);
+        assertTrue(deployed != address(0));
+        assertTrue(deployed.code.length > 0);
+    }
+
+    function test_Create2Deploy_DifferentSalts() public {
+        bytes memory creationCode = type(ShareSale).creationCode;
+
+        address a = safe.create2Deploy(creationCode, bytes32(uint256(4001)));
+        address b = safe.create2Deploy(creationCode, bytes32(uint256(4002)));
+
+        assertTrue(a != b);
+    }
+
+    function test_Create2Deploy_RevertOnDuplicate() public {
+        bytes memory creationCode = type(ShareSale).creationCode;
+        bytes32 salt = bytes32(uint256(4003));
+
+        safe.create2Deploy(creationCode, salt);
+
+        vm.expectRevert(SafeSummoner.Create2Failed.selector);
+        safe.create2Deploy(creationCode, salt);
+    }
+
+    function test_Create2Deploy_InMulticall() public {
+        // Deploy a ShareSale + summon a DAO using it in one multicall
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 deploySalt = bytes32(uint256(4004));
+        bytes32 daoSalt = bytes32(uint256(4005));
+
+        bytes memory creationCode = type(ShareSale).creationCode;
+        address predictedSale = safe.predictCreate2(creationCode, deploySalt);
+        address predictedDAO = safe.predictDAO(daoSalt, h, s);
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18;
+
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = predictedSale;
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 10e18;
+        sale.minting = true;
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeCall(safe.create2Deploy, (creationCode, deploySalt));
+        data[1] = abi.encodeCall(
+            safe.safeSummonDAICO,
+            (
+                "C2 DAO",
+                "C2",
+                "",
+                0,
+                true,
+                address(0),
+                daoSalt,
+                h,
+                s,
+                _noLoot(),
+                config,
+                sale,
+                _emptyTap(),
+                _emptySeed(),
+                new Call[](0)
+            )
+        );
+
+        bytes[] memory results = safe.multicall(data);
+        address deployedSale = abi.decode(results[0], (address));
+        address deployedDAO = abi.decode(results[1], (address));
+
+        assertEq(deployedSale, predictedSale);
+        assertEq(deployedDAO, predictedDAO);
+
+        // Verify the sale is configured with the create2-deployed singleton
+        (address token,,, uint256 price) = ShareSale(deployedSale).sales(deployedDAO);
+        assertEq(token, deployedDAO); // minting sentinel
+        assertEq(price, 1e18);
+    }
+
+    function test_PredictCreate2() public view {
+        bytes memory creationCode = type(ShareSale).creationCode;
+        bytes32 salt = bytes32(uint256(4006));
+
+        address a = safe.predictCreate2(creationCode, salt);
+        address b = safe.predictCreate2(creationCode, salt);
+        assertEq(a, b);
+
+        address c = safe.predictCreate2(creationCode, bytes32(uint256(4007)));
+        assertTrue(a != c);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                       CLOSE SALE AFTER DEADLINE
+    //////////////////////////////////////////////////////////////*/
 
     function test_CloseSaleAfterDeadline() public {
         // Non-minting sale: DAO holds shares and transfers to buyers.
@@ -1147,7 +1567,7 @@ contract SafeSummonerTest is Test {
         );
 
         address deployed = safe.safeSummon(
-            "BurnTest", "BT", "", 1000, true, address(0), salt, h, s, config, extra
+            "BurnTest", "BT", "", 1000, true, address(0), salt, h, s, _noLoot(), config, extra
         );
         assertEq(deployed, dao);
 

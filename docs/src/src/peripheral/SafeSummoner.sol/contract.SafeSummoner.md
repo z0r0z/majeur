@@ -1,5 +1,5 @@
 # SafeSummoner
-[Git Source](https://github.com/z0r0z/majeur/blob/26195c42ab2bc92f824f7691eb427e6f0f067100/src/peripheral/SafeSummoner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/693e65b2d5461c8bced186f4330ea1fc0aee9dc9/src/peripheral/SafeSummoner.sol)
 
 **Title:**
 SafeSummoner
@@ -26,6 +26,59 @@ Config — Requires proposalTTL > timelockDelay (prevents proposals expiring in 
 constructor() payable;
 ```
 
+### multicall
+
+Batch multiple SafeSummoner calls in a single transaction.
+
+Uses delegatecall so msg.sender is preserved. msg.value is shared
+across all calls — callers sending ETH must ensure only one sub-call
+consumes it, or that the total is sufficient.
+
+
+```solidity
+function multicall(bytes[] calldata data) public payable returns (bytes[] memory results);
+```
+
+### create2Deploy
+
+Deploy an arbitrary contract via CREATE2.
+
+Useful for deploying peripheral contracts (hooks, modules) as part
+of a multicall summoning sequence with deterministic addresses.
+
+
+```solidity
+function create2Deploy(bytes calldata creationCode, bytes32 salt)
+    public
+    payable
+    returns (address deployed);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`creationCode`|`bytes`|Contract creation bytecode (with constructor args appended if any)|
+|`salt`|`bytes32`|        CREATE2 salt|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`deployed`|`address`|   The deployed contract address|
+
+
+### predictCreate2
+
+Predict the address of a contract deployed via create2Deploy.
+
+
+```solidity
+function predictCreate2(bytes calldata creationCode, bytes32 salt)
+    public
+    view
+    returns (address);
+```
+
 ### safeSummon
 
 Deploy a new DAO with validated configuration.
@@ -42,6 +95,7 @@ function safeSummon(
     bytes32 salt,
     address[] calldata initHolders,
     uint256[] calldata initShares,
+    uint256[] calldata initLoot,
     SafeConfig calldata config,
     Call[] calldata extraCalls
 ) public payable returns (address dao);
@@ -59,6 +113,7 @@ function safeSummon(
 |`salt`|`bytes32`|        CREATE2 salt for deterministic addresses|
 |`initHolders`|`address[]`| Initial share holders|
 |`initShares`|`uint256[]`|  Initial share amounts (must match initHolders length)|
+|`initLoot`|`uint256[]`|    Initial loot amounts per holder (empty = skip, else must match initHolders length)|
 |`config`|`SafeConfig`|      Typed configuration struct|
 |`extraCalls`|`Call[]`|  Additional raw initCalls appended after config (advanced use)|
 
@@ -76,13 +131,14 @@ function summonStandard(
     string calldata orgURI,
     bytes32 salt,
     address[] calldata initHolders,
-    uint256[] calldata initShares
+    uint256[] calldata initShares,
+    bool lockShares
 ) public payable returns (address);
 ```
 
 ### summonFast
 
-Fast DAO: 3-day voting, 1-day timelock, 10% quorum, ragequittable.
+Fast DAO: 3-day voting, 1-day timelock, 5% quorum, ragequittable.
 Suitable for agile teams, working groups, and sub-DAOs.
 
 
@@ -93,42 +149,23 @@ function summonFast(
     string calldata orgURI,
     bytes32 salt,
     address[] calldata initHolders,
-    uint256[] calldata initShares
+    uint256[] calldata initShares,
+    bool lockShares
 ) public payable returns (address);
 ```
 
-### summonMinimal
+### summonFounder
 
-Minimal DAO: 3-day voting, no timelock, 5% quorum, ragequittable.
-Suitable for small clubs, investment groups, and informal collectives.
-
-
-```solidity
-function summonMinimal(
-    string calldata orgName,
-    string calldata orgSymbol,
-    string calldata orgURI,
-    bytes32 salt,
-    address[] calldata initHolders,
-    uint256[] calldata initShares
-) public payable returns (address);
-```
-
-### summonLocked
-
-Standard non-ragequittable: 7-day voting, 2-day timelock, 10% quorum.
-Suitable for protocol treasuries and grant programs where exit liquidity
-should not drain the pool.
+Founder-mode DAO: single owner with 10M shares, 1-day voting, no timelock, 1% quorum.
+Designed for solo founders who want fast unilateral control with ragequit enabled.
 
 
 ```solidity
-function summonLocked(
+function summonFounder(
     string calldata orgName,
     string calldata orgSymbol,
     string calldata orgURI,
-    bytes32 salt,
-    address[] calldata initHolders,
-    uint256[] calldata initShares
+    bytes32 salt
 ) public payable returns (address);
 ```
 
@@ -151,6 +188,7 @@ function safeSummonDAICO(
     bytes32 salt,
     address[] calldata initHolders,
     uint256[] calldata initShares,
+    uint256[] calldata initLoot,
     SafeConfig calldata config,
     SaleModule calldata sale,
     TapModule calldata tap,
@@ -172,6 +210,7 @@ function summonStandardDAICO(
     bytes32 salt,
     address[] calldata initHolders,
     uint256[] calldata initShares,
+    bool lockShares,
     SaleModule calldata sale,
     TapModule calldata tap,
     SeedModule calldata seed
@@ -180,7 +219,7 @@ function summonStandardDAICO(
 
 ### summonFastDAICO
 
-Fast DAO (3d voting, 1d timelock, 10% quorum) + modular DAICO.
+Fast DAO (3d voting, 1d timelock, 5% quorum) + modular DAICO.
 
 
 ```solidity
@@ -191,6 +230,7 @@ function summonFastDAICO(
     bytes32 salt,
     address[] calldata initHolders,
     uint256[] calldata initShares,
+    bool lockShares,
     SaleModule calldata sale,
     TapModule calldata tap,
     SeedModule calldata seed
@@ -333,9 +373,20 @@ function burnPermitCall(
     bytes32 salt,
     address[] calldata initHolders,
     uint256[] calldata initShares,
-    uint256 deadline
+    uint256 deadline,
+    address singleton
 ) public pure returns (Call memory);
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`salt`|`bytes32`||
+|`initHolders`|`address[]`||
+|`initShares`|`uint256[]`||
+|`deadline`|`uint256`||
+|`singleton`|`address`|ShareBurner address (address(0) = use default SHARE_BURNER)|
+
 
 ### _buildModuleCalls
 
@@ -386,6 +437,31 @@ address(1) → shares, address(2) → loot, otherwise pass-through.
 function _resolveSeedToken(address dao, address token) internal pure returns (address);
 ```
 
+### _buildLootMints
+
+Build mintFromMoloch calls for initial loot distribution.
+Skips zero-amount entries. Returns empty array if initLoot is empty.
+
+
+```solidity
+function _buildLootMints(address dao, address[] calldata holders, uint256[] calldata loot)
+    internal
+    pure
+    returns (Call[] memory calls);
+```
+
+### _mergeExtra
+
+Concatenate a memory array with a calldata array.
+
+
+```solidity
+function _mergeExtra(Call[] memory a, Call[] calldata b)
+    internal
+    pure
+    returns (Call[] memory merged);
+```
+
 ### _defaultThreshold
 
 1% of total initial shares, floored at 1. Ensures proposalThreshold
@@ -433,6 +509,12 @@ function _predictLoot(address dao) internal pure returns (address);
 ```
 
 ## Errors
+### Create2Failed
+
+```solidity
+error Create2Failed();
+```
+
 ### NoInitialHolders
 
 ```solidity
@@ -445,22 +527,16 @@ error NoInitialHolders();
 error SalePriceRequired();
 ```
 
-### ModuleSaleConflict
-
-```solidity
-error ModuleSaleConflict();
-```
-
-### SeedGateWithoutSale
-
-```solidity
-error SeedGateWithoutSale();
-```
-
 ### TimelockExceedsTTL
 
 ```solidity
 error TimelockExceedsTTL();
+```
+
+### ModuleSaleConflict
+
+```solidity
+error ModuleSaleConflict();
 ```
 
 ### FutarchyCapRequired
@@ -481,6 +557,18 @@ error ProposalTTLRequired();
 error QuorumBpsOutOfRange();
 ```
 
+### SeedGateWithoutSale
+
+```solidity
+error SeedGateWithoutSale();
+```
+
+### InitLootLengthMismatch
+
+```solidity
+error InitLootLengthMismatch();
+```
+
 ### ProposalThresholdRequired
 
 ```solidity
@@ -491,6 +579,12 @@ error ProposalThresholdRequired();
 
 ```solidity
 error QuorumRequiredForFutarchy();
+```
+
+### RollbackSingletonRequired
+
+```solidity
+error RollbackSingletonRequired();
 ```
 
 ### MintingSaleWithDynamicQuorum
@@ -519,7 +613,7 @@ struct SafeConfig {
     bool lockLoot; // true = loot non-transferable at launch
     // ── Futarchy ──
     uint256 autoFutarchyParam; // 0 = off. 1..10000 = BPS of supply; >10000 = absolute
-    uint256 autoFutarchyCap; // Per-proposal cap. 0 = no cap
+    uint256 autoFutarchyCap; // Per-proposal cap. Must be > 0 when futarchy enabled (KF#3).
     address futarchyRewardToken; // Only checked if autoFutarchyParam > 0
     // ── Sale ──
     bool saleActive;
@@ -529,6 +623,7 @@ struct SafeConfig {
     bool saleMinting; // true = mint new, false = transfer from DAO
     bool saleIsLoot; // true = sell loot instead of shares
     // ── ShareBurner ──
+    address burnSingleton; // ShareBurner contract address (address(0) = use default SHARE_BURNER)
     uint256 saleBurnDeadline; // 0 = no auto-burn. >0 = timestamp after which unsold shares are burnable
     // ── RollbackGuardian ──
     address rollbackGuardian; // address(0) = skip. EOA or multisig that can emergency-bump config

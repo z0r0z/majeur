@@ -1,5 +1,5 @@
 # safeTransfer
-[Git Source](https://github.com/z0r0z/majeur/blob/26195c42ab2bc92f824f7691eb427e6f0f067100/src/peripheral/Tribute.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/693e65b2d5461c8bced186f4330ea1fc0aee9dc9/src/peripheral/Tribute.sol)
 
 
 ```solidity

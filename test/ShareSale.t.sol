@@ -56,8 +56,9 @@ contract ShareSaleTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        address deployed =
-            safe.safeSummon("SaleDAO", "SALE", "", 1000, true, address(0), salt, h, s, c, extra);
+        address deployed = safe.safeSummon(
+            "SaleDAO", "SALE", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
         assertEq(deployed, dao);
     }
 
@@ -145,8 +146,9 @@ contract ShareSaleTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        address deployed =
-            safe.safeSummon("LootDAO", "LOOT", "", 1000, true, address(0), salt, h, s, c, extra);
+        address deployed = safe.safeSummon(
+            "LootDAO", "LOOT", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
 
         Moloch m = Moloch(payable(deployed));
         address lootAddr = address(m.loot());
@@ -180,7 +182,9 @@ contract ShareSaleTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        safe.safeSummon("CapDAO", "CAP", "", 1000, true, address(0), salt, h, s, c, extra);
+        safe.safeSummon(
+            "CapDAO", "CAP", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
 
         // Buy 5e18 — should succeed (cost = 5e18 * 1e18 / 1e18 = 5 ETH)
         vm.prank(bob);
@@ -213,7 +217,9 @@ contract ShareSaleTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        safe.safeSummon("DeadlineDAO", "DL", "", 1000, true, address(0), salt, h, s, c, extra);
+        safe.safeSummon(
+            "DeadlineDAO", "DL", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
 
         // Buy before deadline — should work
         vm.prank(bob);
@@ -239,7 +245,7 @@ contract ShareSaleTest is Test {
         sale.buy{value: 1e18}(dao, 1e18);
     }
 
-    function test_SaleInitCallsHelper() public {
+    function test_SaleInitCallsHelper() public view {
         address dao = address(0xDA0);
         (address t1, bytes memory d1, address t2, bytes memory d2) =
             sale.saleInitCalls(dao, dao, 100e18, address(0), 1e15, 0);

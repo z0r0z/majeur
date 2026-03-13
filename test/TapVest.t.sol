@@ -44,8 +44,9 @@ contract TapVestTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        address deployed =
-            safe.safeSummon("TapDAO", "TAP", "", 1000, true, address(0), salt, h, s, c, extra);
+        address deployed = safe.safeSummon(
+            "TapDAO", "TAP", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
         assertEq(deployed, dao);
 
         // Fund the DAO with ETH

@@ -44,8 +44,9 @@ contract RollbackGuardianTest is Test {
         c.proposalTTL = 7 days;
         c.timelockDelay = 2 days;
 
-        address deployed =
-            safe.safeSummon("GuardDAO", "GUARD", "", 1000, true, address(0), salt, h, s, c, extra);
+        address deployed = safe.safeSummon(
+            "GuardDAO", "GUARD", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
         assertEq(deployed, dao);
     }
 
@@ -165,7 +166,7 @@ contract RollbackGuardianTest is Test {
     }
 
     function test_RevertIf_SetGuardianNotDAO() public {
-        address dao = _deployWithGuardian(bytes32(uint256(23)), 0);
+        _deployWithGuardian(bytes32(uint256(23)), 0);
 
         vm.prank(bob);
         vm.expectRevert(RollbackGuardian.NotConfigured.selector);

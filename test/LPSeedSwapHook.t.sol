@@ -111,8 +111,9 @@ contract LPSeedSwapHookTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        address deployed =
-            safe.safeSummon("SeedDAO", "SEED", "", 1000, true, address(0), salt, h, s, c, extra);
+        address deployed = safe.safeSummon(
+            "SeedDAO", "SEED", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
         assertEq(deployed, dao);
 
         // Fund DAO with ETH for LP
@@ -178,7 +179,18 @@ contract LPSeedSwapHookTest is Test {
         c.proposalTTL = 7 days;
 
         address deployed = safe.safeSummon(
-            "SaleSeedDAO", "SSEED", "", 1000, true, address(0), salt, h, s, c, extra
+            "SaleSeedDAO",
+            "SSEED",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            new uint256[](0),
+            c,
+            extra
         );
         assertEq(deployed, dao);
 
@@ -394,7 +406,9 @@ contract LPSeedSwapHookTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        safe.safeSummon("ComboDAO", "COMBO", "", 1000, true, address(0), salt, h, s, c, extra);
+        safe.safeSummon(
+            "ComboDAO", "COMBO", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
         vm.deal(dao, 10 ether);
 
         // Neither condition met
@@ -456,8 +470,9 @@ contract LPSeedSwapHookTest is Test {
         c.proposalThreshold = 1e18;
         c.proposalTTL = 7 days;
 
-        address deployed =
-            safe.safeSummon("LPTestDAO", "LPTST", "", 1000, true, address(0), salt, h, s, c, extra);
+        address deployed = safe.safeSummon(
+            "LPTestDAO", "LPTST", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
         assertEq(deployed, dao);
 
         // Fund DAO with USDC via mint
