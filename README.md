@@ -499,7 +499,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 
 ## Audits
 
-Moloch.sol has been scanned by twenty-eight independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
+Moloch.sol has been scanned by twenty-nine independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
 
 | Auditor | Type | Findings | Report |
 |---------|------|----------|--------|
@@ -531,10 +531,11 @@ Moloch.sol has been scanned by twenty-eight independent audit tools. Reports wit
 | [Almanax](./audit/almanax.md) | [Vulnerability scan](https://almanax.ai/) | 1 High, 2 Medium, 2 Low (0 novel) | All duplicates of known findings (KF#3, KF#8, KF#11, KF#18); no production blockers |
 | [Archethect SC-Auditor V2](./audit/archethect2.md) | [Map-Hunt-Attack V2 + PoC suite (sc-auditor v0.4.0)](https://github.com/Archethect/sc-auditor) | 16 claimed (4H, 5M, 5L, 2 design) — 2 novel, 13 duplicates, 1 config-mitigated | 2 novel findings (ragequit front-run, sale transfer lock bypass); significant severity inflation (all 4 HIGHs are known/config-dependent); 14 PoC tests provide useful regression coverage; no production blockers |
 | [Ackee Wake Arena](./audit/ackee.md) | [Vulnerability scan](https://wake-arena-stage.web.app/) | 6 (1H, 3M, 1L — all duplicates) | 0 novel findings; all 6 are duplicates of known findings (KF#1, KF#3, KF#6, KF#15) or previously identified patterns; no production blockers |
+| [Auron](./audit/auron.md) | Vulnerability report | 1 Low (1 novel — downgraded from reported High) | 1 novel finding: self-transfer under split delegation produces non-canceling vote deltas. Invariant violation is real but not practically exploitable with 18-decimal tokens — rounding asymmetry is sub-wei dust. Fix recommended for correctness; no production blockers |
 
-**No production blockers were identified across any audit.** Twelve novel smart contract findings were surfaced across twenty-eight scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues + 2 from Archethect V2). Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
+**No production blockers were identified across any audit.** Thirteen novel smart contract findings were surfaced across twenty-nine scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues + 2 from Archethect V2 + 1 from Auron). Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
 
-**Novel smart contract findings (12):**
+**Novel smart contract findings (13):**
 1. Vote receipt transferability breaks `cancelVote` (Pashov — Low, design tradeoff)
 2. Zero-winner futarchy pool lockup (Pashov — Low, funds remain in DAO treasury)
 3. Post-queue voting can flip timelocked proposals (Claude Opus 4.6/SECURITY.md — by design, timelock is a last-objection window)
@@ -547,6 +548,7 @@ Moloch.sol has been scanned by twenty-eight independent audit tools. Reports wit
 10. Counterfactual Tribute theft via summon frontrun — `initCalls` excluded from salt + Tribute accepts undeployed DAOs (Cantina — Low-Medium, extends KF#9)
 11. Ragequit front-run of treasury inflows — `ragequit` reads live `balanceOf(address(this))` with no snapshot, allowing front-running of large inflows for disproportionate extraction (Archethect V2 — Low, attacker must hold shares, marginal profit)
 12. Non-minting sale bypasses `transfersLocked` — DAO address exemption in `_checkUnlocked` allows `buyShares` non-minting path to distribute shares despite transfer lock (Archethect V2 — Low, governance configures both sale and lock)
+13. Self-transfer under split delegation produces non-canceling vote deltas — `_moveTokens()` applies two deltas on `from == to` that don't cancel under split delegation due to `_targetAlloc` rounding. Invariant violation is real but not practically exploitable with 18-decimal tokens — rounding asymmetry is sub-wei dust (Auron — Low, correctness fix recommended)
 
 **Tool ranking by signal quality:**
 - **Cantina Apex** produced the most novel smart contract findings (5) of any single audit, plus ~18 novel frontend findings — the first tool to systematically cover the dapp and peripheral contracts (Tribute, DAICO). The bumpConfig bypass (MAJEUR-15), Tribute bait-and-switch (MAJEUR-10), permit futarchy drain (MAJEUR-21), and DAICO LP math bug (MAJEUR-7) are all code-verified. The frontend XSS findings share a single root cause (`innerHTML` without escaping) but are individually valid. Signal-to-noise: 5 novel SC findings from 24 total (21%).
@@ -572,7 +574,9 @@ Moloch.sol has been scanned by twenty-eight independent audit tools. Reports wit
 
 - **Certora FV** is the only formal verification engagement. 142 properties across 7 contracts provide mathematical proofs for critical invariants (sum-of-balances, state machine monotonicity, write-once fields, access control, split delegation constraints, ragequit payout bounds). The L-01 tap forfeiture finding is confirmed via intentional violation (D-L1a) and reachability witness (D-L1b) — a novel angle on ragequit interaction with DAICO, but acknowledged as intentional Moloch exit-rights design. The two informational findings (unbounded Tribute arrays, `mulDiv` phantom overflow) are both known tradeoffs.
 
-Cross-referencing across all twenty-eight scans — twelve independent novel smart contract findings (plus ~18 novel frontend findings from Cantina), twenty-three catalogued known findings (KF#1–23), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full smart contract attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited. Archethect V2's ragequit front-run and transfer lock bypass findings extend coverage to economic timing attacks and access control edge cases not previously explored.
+- **Auron** identified a novel invariant violation in split-delegation vote accounting: self-transfers produce non-canceling deltas. However, the PoC used 0-decimal balances (raw integer mints like `mintFromMoloch(attacker, 1)` = 1 wei, not 1 share). Exhaustive testing across 11 configurations with realistic 18-decimal balances showed: (a) any transfer ≥ 1e14 wei produces exactly 0 steal, (b) 1-wei transfers consistently benefit the *victim* not the attacker (the "remainder to last" mechanism in `_targetAlloc` penalizes the attacker position), (c) the 4-way split loop (original PoC config) produced exactly 0 net change over 1000 iterations with 18-decimal balances, (d) even the "best" 2-way loop accumulated only 1000 wei (10^-15 of 1 share) over 1000 iterations. Downgraded from reported High to Low. Signal-to-noise: 1 novel from 1 total (100%), but significant severity inflation from unrealistic PoC parameters. Illustrative case study in why PoCs must use deployment-realistic token scales.
+
+Cross-referencing across all twenty-nine scans — thirteen independent novel smart contract findings (plus ~18 novel frontend findings from Cantina), twenty-three catalogued known findings (KF#1–23), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full smart contract attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited. Archethect V2's ragequit front-run and transfer lock bypass findings extend coverage to economic timing attacks and access control edge cases not previously explored.
 
 ### SafeSummoner
 
@@ -607,6 +611,7 @@ Several audit findings highlight configuration combinations that require care. D
 
 Identified through audit review for future contract versions:
 
+- Short-circuit self-transfers in `_moveTokens()` — add `if (from == to) { emit Transfer(from, to, amount); return; }` to prevent split-delegation vote delta invariant violation (Auron L-01, correctness fix)
 - Add `executed[id]` check to `fundFutarchy` — prevents dead futarchy pools on cancelled/executed proposals (KF#18)
 - Global aggregate cap on auto-futarchy earmarks (or restrict minted rewards to require `proposalThreshold > 0`)
 - Decouple futarchy resolution from voting freeze, or require `Expired` only (not `Defeated`) in `resolveFutarchyNo` — prevents premature NO-resolution on live proposals with zero quorum
@@ -650,7 +655,7 @@ Identified through audit review for future contract versions:
 
 ## Disclaimer
 
-*Reviewed by twenty-eight auditing tools (see [Audits](#audits)) — no formal manual audit. Use at your own risk.*
+*Reviewed by twenty-nine auditing tools (see [Audits](#audits)) — no formal manual audit. Use at your own risk.*
 
 ## License
 
