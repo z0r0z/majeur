@@ -10,16 +10,11 @@
 
 ## Why Majeur?
 
-| Feature | Majeur | Governor (OZ) | Aragon OSx |
-|---------|--------|---------------|------------|
-| Ragequit (exit with treasury share) | Yes | No | No |
-| Futarchy (prediction markets on votes) | Yes | No | No |
-| Split delegation (60% Alice, 40% Bob) | Yes | No | No |
-| Fully on-chain metadata (SVG) | Yes | No | No |
-| Single-contract deployment | Yes | Multi-contract | Plugin system |
-| DUNA legal wrapper support | Yes | No | No |
-
-The core idea: **you can always leave.** Disagree with the majority? Burn your shares and walk with your cut of the treasury. Everything else — futarchy, split delegation, on-chain SVGs — exists to make staying worth it.
+- Ragequit — exit with your share of the treasury
+- Futarchy — prediction markets on proposals
+- Split delegation — divide votes across multiple delegates
+- On-chain SVG metadata — no IPFS, no servers
+- DUNA legal wrapper support
 
 ## Deployments
 
@@ -54,15 +49,6 @@ Minimal proxy clones are deployed from these implementation contracts. Each DAO 
 
 > [daicowtf.eth](https://daicowtf.eth.limo/)
 
-## At a Glance
-
-```
-Vote with shares → Split delegation → Futarchy markets → Ragequit exit
-     ↓                    ↓                  ↓                ↓
-Execute any         60% Alice          Reward correct    Leave with your
-on-chain action     40% Bob            predictions       treasury share
-```
-
 ## Token System
 
 | Token | Standard | Purpose |
@@ -84,13 +70,16 @@ Shares, Loot, and Badges deploy as minimal proxy clones. Receipts live inside th
 Burn shares/loot → receive your pro-rata cut of the treasury. Own 10%? Claim 10% of every token. Only external tokens (ETH, USDC, etc.) — not the DAO's own shares, loot, or badges.
 
 ### Futarchy
-Prediction markets on proposals. Anyone funds a reward pool → voters receive receipt tokens → winning side splits the pool. Rewards correct predictions, not turnout.
+Prediction markets on proposals. Anyone funds a reward pool → voters receive receipt tokens → winning side splits the pool.
 
 ### Split Delegation
-Divide voting power across multiple delegates (e.g. 60% Alice, 40% Bob) instead of all-or-nothing.
+Divide voting power across multiple delegates (e.g. 60% Alice, 40% Bob).
 
 ### Badges
-Soulbound NFTs for the top 256 shareholders. Auto-update as balances change. Gate access to on-chain chat.
+Soulbound NFTs for the top 256 shareholders. Auto-update as balances change. Gate on-chain chat.
+
+### Wyoming DUNA
+Majeur supports Wyoming's **Decentralized Unincorporated Nonprofit Association (DUNA)** (Wyoming Statute 17-32-101). On-chain covenant in metadata, badge-based member registry, permanent governance records, ragequit as a legal exit right.
 
 ## Proposal Lifecycle
 
@@ -103,23 +92,6 @@ Unopened → Active → Succeeded → Queued (if timelock) → Executed
 ```
 
 **Pass conditions** (all must hold): quorum reached, FOR > AGAINST, minimum YES threshold met (if set), not expired.
-
-## Visual Card Examples
-
-### DAO Contract Card
-![DAO Contract Card](./assets/dao-contract-card.svg)
-
-### Proposal Card
-![Proposal Card](./assets/proposal-card.svg)
-
-### Vote Receipt Cards
-![Vote Receipt Cards](./assets/vote-receipt-cards.svg)
-
-### Permit Card
-![Permit Card](./assets/permit-card.svg)
-
-### Badge Card (Top 256 Holders)
-![Badge Card](./assets/badge-card.svg)
 
 ## Quick Start
 
@@ -207,28 +179,25 @@ dao.setProposalTTL(7 days);
 dao.chat("Hello DAO members!");  // top 256 only
 ```
 
-## Integration
+## Common Pitfalls
 
-```javascript
-const shares = await dao.shares();
-const totalSupply = await shares.totalSupply();
-const myBalance = await shares.balanceOf(account);
-const myVotes = await shares.getVotes(account);
+### Forgetting to sort tokens in ragequit
+```solidity
+// Wrong - will revert if not sorted
+address[] memory tokens = [dai, weth, usdc];
 
-// Check proposal state
-const state = await dao.state(proposalId);
-// States: 0=Unopened, 1=Active, 2=Queued, 3=Succeeded, 4=Defeated, 5=Expired, 6=Executed
-
-// Get vote tally
-const tally = await dao.tallies(proposalId);
-console.log(`FOR: ${tally.forVotes}, AGAINST: ${tally.againstVotes}`);
+// Correct - tokens sorted by address
+address[] memory tokens = [dai, usdc, weth]; // sorted ascending
 ```
 
-Key events: `Opened`, `Voted`, `Executed`, `SaleUpdated`.
+### Wrong basis points in delegation
+```solidity
+// Wrong - doesn't sum to 10000
+uint32[] memory bps = [6000, 3000]; // 90% total
 
-## Wyoming DUNA
-
-Majeur supports Wyoming's **Decentralized Unincorporated Nonprofit Association (DUNA)** — a legal entity that exists through smart contracts (Wyoming Statute 17-32-101). On-chain covenant in metadata, badge-based member registry, permanent governance records, ragequit as a legal exit right. No filings, no formalities.
+// Correct - must sum to exactly 10000
+uint32[] memory bps = [6000, 4000]; // 100% total
+```
 
 ## Contract Architecture
 
@@ -365,7 +334,7 @@ tap.pending(dao);    // total owed (ignoring caps)
 
 ### LPSeedSwapHook (Automatic LP Initialization)
 
-Seeds ZAMM liquidity from DAO treasury once conditions are met. Acts as a ZAMM hook — gates `addLiquidity` pre-seed and returns swap fees post-seed.
+Seeds ZAMM liquidity from DAO treasury. Gates `addLiquidity` pre-seed, returns swap fees post-seed.
 
 ```solidity
 // Configured automatically via SafeSummoner SeedModule, or manually:
@@ -417,77 +386,34 @@ safe.predictLoot(dao);
 safe.previewCalls(config);
 ```
 
-Modular sale/tap/LP composes three standalone singletons — `ShareSale`, `TapVest`, `LPSeedSwapHook` — configured via typed structs (`SaleModule`, `TapModule`, `SeedModule`). Set `singleton = address(0)` to skip any module.
+Modules: `ShareSale`, `TapVest`, `LPSeedSwapHook` — configured via `SaleModule`, `TapModule`, `SeedModule` structs. Set `singleton = address(0)` to skip.
 
-## Quick Reference
+## Visual Cards
 
-### Essential Functions
+![DAO Contract Card](./assets/dao-contract-card.svg)
+![Proposal Card](./assets/proposal-card.svg)
+![Vote Receipt Cards](./assets/vote-receipt-cards.svg)
+![Permit Card](./assets/permit-card.svg)
+![Badge Card](./assets/badge-card.svg)
 
-| Function | Purpose | Who Can Call |
-|----------|---------|--------------|
-| `summon()` | Deploy new DAO | Anyone |
-| `castVote()` | Vote on proposal | Share holders / delegates |
-| `executeByVotes()` | Execute passed proposal | Anyone |
-| `ragequit()` | Exit with treasury share | Share/Loot holders |
-| `delegate()` | Delegate voting power | Share holders |
-| `setSplitDelegation()` | Split delegation | Share holders |
-| `buyShares()` | Purchase shares during sale | Anyone (if sale active) |
-| `fundFutarchy()` | Add to prediction market | Anyone |
-| `cashOutFutarchy()` | Claim futarchy rewards | Receipt holders |
-| `chat()` | Post in member chat | Badge holders |
+## Integration
 
-### Governance Functions (DAO Only)
+```javascript
+const shares = await dao.shares();
+const totalSupply = await shares.totalSupply();
+const myBalance = await shares.balanceOf(account);
+const myVotes = await shares.getVotes(account);
 
-| Function | Purpose |
-|----------|---------|
-| `setSale()` | Enable built-in token sales |
-| `setPermit()` | Issue execution permits |
-| `setAllowance()` | Set treasury spending allowance |
-| `setTimelockDelay()` | Set execution delay |
-| `setQuorumBps()` | Set quorum percentage |
-| `setRagequittable()` | Enable/disable ragequit |
-| `setTransfersLocked()` | Lock/unlock share/loot transfers |
-| `setAutoFutarchy()` | Configure auto-funded futarchy |
-| `bumpConfig()` | Invalidate old proposals |
+// Check proposal state
+const state = await dao.state(proposalId);
+// States: 0=Unopened, 1=Active, 2=Queued, 3=Succeeded, 4=Defeated, 5=Expired, 6=Executed
 
-### Tribute Contract Functions
-
-| Function | Purpose | Who Can Call |
-|----------|---------|--------------|
-| `proposeTribute()` | Lock assets, create offer | Anyone |
-| `cancelTribute()` | Withdraw locked tribute | Original proposer |
-| `claimTribute()` | Accept and execute swap | DAO (via proposal) |
-| `getActiveDaoTributes()` | View pending tributes | Anyone (view) |
-
-## Common Pitfalls
-
-### 🚫 Pitfall: Forgetting to sort tokens in ragequit
-```solidity
-// ❌ Wrong - will revert if not sorted
-address[] memory tokens = [dai, weth, usdc];
-dao.ragequit(tokens, shares, loot);
-
-// ✅ Correct - tokens sorted by address
-address[] memory tokens = [dai, usdc, weth]; // sorted ascending
-dao.ragequit(tokens, shares, loot);
+// Get vote tally
+const tally = await dao.tallies(proposalId);
+console.log(`FOR: ${tally.forVotes}, AGAINST: ${tally.againstVotes}`);
 ```
 
-### 🚫 Pitfall: Voting after proposal expiry
-```solidity
-// Check proposal state before voting
-if (dao.state(proposalId) == ProposalState.Active) {
-    dao.castVote(proposalId, 1);
-}
-```
-
-### 🚫 Pitfall: Wrong basis points in delegation
-```solidity
-// ❌ Wrong - doesn't sum to 10000
-uint32[] memory bps = [6000, 3000]; // 90% total
-
-// ✅ Correct - must sum to exactly 10000
-uint32[] memory bps = [6000, 4000]; // 100% total
-```
+Key events: `Opened`, `Voted`, `Executed`, `SaleUpdated`.
 
 ## Development
 
@@ -545,6 +471,15 @@ forge snapshot
 - TapVest claim/rate/beneficiary governance
 - LP seed swap hook initialization
 - Rollback guardian emergency recovery
+
+### Gas Optimization
+
+| Technique | Savings | Details |
+|-----------|---------|---------|
+| Clone pattern | ~80% deployment | Minimal proxy clones for Shares, Loot, Badges |
+| Transient storage | ~5k/call | EIP-1153 for reentrancy guards |
+| Badge bitmap | ~20k/update | 256 holders in single storage slot |
+| Packed structs | ~20k/write | Tallies use 3 × uint96 for compact storage |
 
 ### Deploy
 
@@ -683,7 +618,6 @@ Identified through audit review for future contract versions:
 - Store originating `config` on proposal open; reject lifecycle actions on stale-config proposals (Cantina MAJEUR-15)
 - Add `if (isPermitReceipt[id]) revert` guards to `openProposal`, `castVote`, `fundFutarchy`, `resolveFutarchyNo` (Cantina MAJEUR-21)
 - Bind `claimTribute` to expected settlement terms via nonce/hash (Cantina MAJEUR-10)
-- Fix DAICO drift cap: replace `tribForLP` with total tribute in `_initLP` and `_quoteLPUsed` (Cantina MAJEUR-7)
 - Include `initCalls` in Summoner `summon` salt (Cantina MAJEUR-17)
 - ~~Systematic `innerHTML` → `textContent`/DOM API pass in dapp for all untrusted data sinks (Cantina XSS class)~~ **Patched** in demo dapp
 - ~~Hard-block transactional flows on signer chain ≠ app network (Cantina MAJEUR-24, MAJEUR-16)~~ **Patched** in demo dapp
@@ -692,16 +626,7 @@ Identified through audit review for future contract versions:
 - ~~Resolve token decimals from contract, not chat tags (Cantina MAJEUR-14, MAJEUR-9)~~ **Patched** in demo dapp
 - ~~Validate 18-decimal requirement for custom token wrapping at submit time (Cantina MAJEUR-20)~~ **Patched** in demo dapp
 - ~~Require Summoner provenance for deep-link DAOs (Cantina MAJEUR-8)~~ **Patched** in demo dapp (warning label + code check)
-- Route dapp summon through `SafeSummoner.safeSummon()` (Cantina MAJEUR-18) — pending SafeSummoner deployment
-
-## Gas Optimization
-
-| Technique | Savings | Details |
-|-----------|---------|---------|
-| Clone pattern | ~80% deployment | Minimal proxy clones for Shares, Loot, Badges |
-| Transient storage | ~5k/call | EIP-1153 for reentrancy guards |
-| Badge bitmap | ~20k/update | 256 holders in single storage slot |
-| Packed structs | ~20k/write | Tallies use 3 × uint96 for compact storage |
+- ~~Route dapp summon through `SafeSummoner.safeSummon()` (Cantina MAJEUR-18)~~ **SafeSummoner deployed**
 
 ## FAQ
 
