@@ -19,7 +19,7 @@
 | Single-contract deployment | Yes | Multi-contract | Plugin system |
 | DUNA legal wrapper support | Yes | No | No |
 
-**Majeur is for DAOs that prioritize member protection.** Ragequit means no one can be trapped — if you disagree with the majority, burn your shares and leave with your proportional treasury. Futarchy rewards voters who bet correctly on outcomes, not just those who show up. Split delegation lets you diversify representation instead of all-or-nothing.
+The core idea: **you can always leave.** Disagree with the majority? Burn your shares and walk with your cut of the treasury. Everything else — futarchy, split delegation, on-chain SVGs — exists to make staying worth it.
 
 ## Deployments
 
@@ -31,9 +31,8 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 | Renderer | [`0x000000000011C799980827F52d3137b4abD6E654`](https://contractscan.xyz/contract/0x000000000011C799980827F52d3137b4abD6E654) | On-chain SVG metadata renderer |
 | MolochViewHelper | [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db) | Batch read helper for dApps |
 | Tribute | [`0x000000000066524fcf78Dc1E41E9D525d9ea73D0`](https://contractscan.xyz/contract/0x000000000066524fcf78Dc1E41E9D525d9ea73D0) | OTC escrow for tribute proposals |
-| DAICO | [`0x000000000033e92DB97B4B3beCD2c255126C60aC`](https://contractscan.xyz/contract/0x000000000033e92DB97B4B3beCD2c255126C60aC) | Token sale with tap mechanism |
 | ShareBurner | [`0x000000000040084694F7B6fb2846D067B4c3Aa9f`](https://contractscan.xyz/contract/0x000000000040084694F7B6fb2846D067B4c3Aa9f) | Burn unsold shares after sale deadline |
-| ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for DAICO LP integration |
+| ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for LP seed swaps |
 | SafeSummoner | [`0x00000000004473e1f31c8266612e7fd5504e6f2a`](https://contractscan.xyz/contract/0x00000000004473e1f31c8266612e7fd5504e6f2a) | Safe deployment wrapper with validated config |
 
 ### Implementations
@@ -73,7 +72,7 @@ on-chain action     40% Bob            predictions       treasury share
 | **Receipts** | ERC-6909 | Vote receipts for futarchy payouts |
 | **Badges** | ERC-721 | Soulbound NFTs for top 256 shareholders |
 
-Shares, Loot, and Badges are deployed as separate minimal proxy clones. Receipts (ERC-6909) are managed directly within the Moloch contract. The DAO controls minting, burning, and transfer locks.
+Shares, Loot, and Badges deploy as minimal proxy clones. Receipts live inside the Moloch contract. The DAO controls minting, burning, and transfer locks.
 
 ## Architecture
 
@@ -82,34 +81,16 @@ Shares, Loot, and Badges are deployed as separate minimal proxy clones. Receipts
 ## Core Concepts
 
 ### Ragequit
-The defining feature of Moloch-style DAOs: **members can always exit**.
-
-Burn your shares/loot → receive your proportional share of the treasury. Own 10% of shares? Claim 10% of every treasury token. This creates a floor price for membership and protects minorities from majority tyranny.
-
-*Limitation: You can only claim external tokens (ETH, USDC, etc.) — not the DAO's own shares, loot, or badges.*
+Burn shares/loot → receive your pro-rata cut of the treasury. Own 10%? Claim 10% of every token. Only external tokens (ETH, USDC, etc.) — not the DAO's own shares, loot, or badges.
 
 ### Futarchy
-Skin-in-the-game governance through prediction markets:
-
-1. Anyone funds a reward pool for a proposal
-2. Vote YES, NO, or ABSTAIN → receive receipt tokens
-3. Proposal passes → YES voters split the pool; fails → NO voters win
-4. Burn your receipts to claim winnings
-
-This shifts incentives from "vote with the crowd" to "vote for what you believe will actually succeed."
+Prediction markets on proposals. Anyone funds a reward pool → voters receive receipt tokens → winning side splits the pool. Rewards correct predictions, not turnout.
 
 ### Split Delegation
-Distribute voting power across multiple delegates:
-
-```
-Traditional:  100% → Alice
-Split:        60% → Alice, 40% → Bob, or any combination
-```
-
-Useful when you trust different people for different expertise, or want to hedge your representation.
+Divide voting power across multiple delegates (e.g. 60% Alice, 40% Bob) instead of all-or-nothing.
 
 ### Badges
-Soulbound NFTs automatically minted for the top 256 shareholders. They update in real-time as balances change and gate access to member-only features like on-chain chat.
+Soulbound NFTs for the top 256 shareholders. Auto-update as balances change. Gate access to on-chain chat.
 
 ## Proposal Lifecycle
 
@@ -121,11 +102,7 @@ Unopened → Active → Succeeded → Queued (if timelock) → Executed
                  ↘ Expired (TTL)
 ```
 
-**Pass conditions** (all must be true):
-- Quorum reached (absolute or percentage)
-- FOR > AGAINST (ties fail)
-- Minimum YES threshold met (if configured)
-- Not expired
+**Pass conditions** (all must hold): quorum reached, FOR > AGAINST, minimum YES threshold met (if set), not expired.
 
 ## Visual Card Examples
 
@@ -144,147 +121,95 @@ Unopened → Active → Succeeded → Queued (if timelock) → Executed
 ### Badge Card (Top 256 Holders)
 ![Badge Card](./assets/badge-card.svg)
 
-
-
 ## Quick Start
 
 ### Deploy a DAO
 
 ```solidity
-// Deploy via Summoner factory
 Summoner summoner = new Summoner();
-
-address[] memory holders = [alice, bob, charlie];
-uint256[] memory shares = [100e18, 50e18, 50e18];
-
 Moloch dao = summoner.summon(
     "MyDAO",           // name
-    "MYDAO",          // symbol
-    "",               // URI (metadata)
-    5000,             // 50% quorum (basis points)
-    true,             // ragequittable
-    address(0),       // renderer (0 = default on-chain SVG)
-    bytes32(0),       // salt (for deterministic addresses)
-    holders,          // initial holders
-    shares,           // initial shares
-    new Call[](0)     // init calls (optional setup actions)
+    "MYDAO",           // symbol
+    "",                // URI
+    5000,              // 50% quorum (bps)
+    true,              // ragequittable
+    address(0),        // renderer (0 = default on-chain SVG)
+    bytes32(0),        // salt
+    [alice, bob, charlie],
+    [100e18, 50e18, 50e18],
+    new Call[](0)
 );
 ```
 
 ### Create & Vote on Proposals
 
 ```solidity
-// 1. Create proposal ID (anyone can compute this)
-uint256 proposalId = dao.proposalId(
-    0,                    // op: 0=call, 1=delegatecall
-    to,                   // contract to call
-    value,                // ETH to send
-    data,                 // calldata
-    nonce                 // unique nonce
-);
+uint256 proposalId = dao.proposalId(0, to, value, data, nonce);
 
-// 2. Open and vote (auto-opens on first vote)
-dao.castVote(proposalId, 1);  // support: 0=AGAINST, 1=FOR, 2=ABSTAIN
+dao.castVote(proposalId, 1);  // 0=AGAINST, 1=FOR, 2=ABSTAIN
 
-// 3. Execute when passed
 dao.executeByVotes(0, to, value, data, nonce);
 ```
 
 ### Weighted Delegation (Split Voting Power)
 
 ```solidity
-// Split delegation: 60% to alice, 40% to bob
-address[] memory delegates = [alice, bob];
-uint32[] memory bps = [6000, 4000];  // must sum to 10000
-dao.shares().setSplitDelegation(delegates, bps);
-
-// Clear split (return to single delegate)
+dao.shares().setSplitDelegation([alice, bob], [6000, 4000]);  // must sum to 10000
 dao.shares().clearSplitDelegation();
 ```
 
 ### Futarchy Markets
 
 ```solidity
-// Fund a prediction market for a proposal
-dao.fundFutarchy(
-    proposalId,
-    address(0),  // 0 = ETH, or token address
-    1 ether      // amount
-);
-
-// After resolution, claim winnings
-// Receipt IDs: keccak256("Moloch:receipt", proposalId, support)
+dao.fundFutarchy(proposalId, address(0), 1 ether);  // 0 = ETH
 dao.cashOutFutarchy(proposalId, myReceiptBalance);
 ```
 
 ### Token Sales
 
 ```solidity
-// DAO enables share sales (governance action)
-dao.setSale(
-    address(0),  // payment token (0=ETH, or ERC-20 address)
-    0.01 ether,  // price per share (in payment token units)
-    1000e18,     // cap (max shares that can be sold)
-    true,        // mint new shares (false = transfer from DAO treasury)
-    true,        // active (enable sales)
-    false        // isLoot (false = shares, true = loot)
-);
+// DAO configures sale (governance action)
+dao.setSale(address(0), 0.01 ether, 1000e18, true, true, false);
+//          token       price        cap       mint  active isLoot
 
-// Users can buy shares
-dao.buyShares{value: 1 ether}(
-    address(0),  // payment token (must match the sale config)
-    100e18,      // shares to buy
-    1 ether      // max payment willing to spend (slippage protection)
-);
-// Payment goes to DAO treasury, buyer receives shares/loot
+// Users buy
+dao.buyShares{value: 1 ether}(address(0), 100e18, 1 ether);
+//                              token     shares   maxPay
 ```
 
 ### Ragequit
 
 ```solidity
-// Exit with proportional share of treasury
-address[] memory tokens = [weth, usdc, dai];
-dao.ragequit(
-    tokens,      // tokens to claim
-    myShares,    // shares to burn
-    myLoot       // loot to burn
-);
+dao.ragequit([weth, usdc, dai], myShares, myLoot);  // tokens must be sorted
 ```
 
 ## Advanced Features
 
 ### Pre-Authorized Permits
 
-DAOs can issue permits allowing specific addresses to execute actions without voting:
+Permits let specific addresses execute actions without voting:
 
 ```solidity
-// DAO issues permit
-dao.setPermit(op, to, value, data, nonce, alice, 1);
-
-// Alice spends permit
-dao.spendPermit(op, to, value, data, nonce);
+dao.setPermit(op, to, value, data, nonce, alice, 1);  // DAO issues
+dao.spendPermit(op, to, value, data, nonce);            // Alice spends
 ```
 
-### Timelock Configuration
+### Timelocks
 
 ```solidity
-dao.setTimelockDelay(2 days);  // Delay between queue and execute
-dao.setProposalTTL(7 days);     // Proposal expiry time
+dao.setTimelockDelay(2 days);
+dao.setProposalTTL(7 days);
 ```
 
 ### Member Chat (Badge-Gated)
 
 ```solidity
-// Only badge holders (top 256) can chat
-dao.chat("Hello DAO members!");
+dao.chat("Hello DAO members!");  // top 256 only
 ```
 
-## Integration Examples
-
-### Reading DAO State
+## Integration
 
 ```javascript
-// Web3.js/Ethers.js
 const shares = await dao.shares();
 const totalSupply = await shares.totalSupply();
 const myBalance = await shares.balanceOf(account);
@@ -299,65 +224,11 @@ const tally = await dao.tallies(proposalId);
 console.log(`FOR: ${tally.forVotes}, AGAINST: ${tally.againstVotes}`);
 ```
 
-### Monitoring Events
-
-```javascript
-// Key events to watch
-dao.on("Opened", (id, snapshot, supply) => {
-    console.log(`Proposal ${id} opened at block ${snapshot}`);
-});
-
-dao.on("Voted", (id, voter, support, weight) => {
-    console.log(`${voter} voted ${support} with ${weight} votes`);
-});
-
-dao.on("Executed", (id, executor, op, target, value) => {
-    console.log(`Proposal ${id} executed by ${executor}`);
-});
-```
-
-## Features
-
-### Governance
-| Feature | Description |
-|---------|-------------|
-| Snapshot voting | Block N-1 snapshot prevents vote buying after proposal opens |
-| Flexible quorum | Absolute (e.g., 1000 votes) or percentage (e.g., 20%) |
-| Timelocks | Configurable delay between passing and execution |
-| Proposal TTL | Auto-expire stale proposals |
-| Vote/proposal cancellation | Change your mind before execution |
-
-### Economics
-| Feature | Description |
-|---------|-------------|
-| Ragequit | Exit with proportional treasury share |
-| Token sales | Built-in share/loot sales at configurable price |
-| DAICO | External sale contract with tap mechanism (controlled fund release) |
-| Tribute | OTC escrow for membership trades |
-| Futarchy | Prediction markets reward correct voters |
-
-### Technical
-| Feature | Description |
-|---------|-------------|
-| Split delegation | Divide voting power across multiple delegates |
-| ERC-6909 receipts | Gas-efficient multi-token for vote tracking |
-| Clone pattern | ~80% deployment gas savings |
-| Transient storage | EIP-1153 reentrancy guards |
-| On-chain SVG | Fully decentralized metadata — no IPFS, no servers |
+Key events: `Opened`, `Voted`, `Executed`, `SaleUpdated`.
 
 ## Wyoming DUNA
 
-Majeur supports Wyoming's **Decentralized Unincorporated Nonprofit Association (DUNA)** — a legal entity that exists purely through smart contracts (Wyoming Statute 17-32-101).
-
-| DUNA Benefit | How Majeur Implements It |
-|--------------|--------------------------|
-| Limited liability | On-chain legal covenant in metadata |
-| Member registry | Top-256 badge system |
-| Governance records | All votes stored permanently on-chain |
-| Exit rights | Ragequit (legal self-help remedy) |
-| No admin burden | No filings, meetings, or formalities |
-
-A DUNA lets your DAO sign real-world agreements, own property, and shield members from personal liability — without incorporating.
+Majeur supports Wyoming's **Decentralized Unincorporated Nonprofit Association (DUNA)** — a legal entity that exists through smart contracts (Wyoming Statute 17-32-101). On-chain covenant in metadata, badge-based member registry, permanent governance records, ragequit as a legal exit right. No filings, no formalities.
 
 ## Contract Architecture
 
@@ -401,7 +272,7 @@ Renderer (Singleton)
 
 ### Tribute (OTC Escrow)
 
-Simple escrow for "tribute proposals" — trade external assets for DAO membership:
+Trade external assets for DAO membership:
 
 ```solidity
 // 1. Proposer locks tribute (e.g., 10 ETH for 1000 shares)
@@ -415,7 +286,7 @@ tribute.proposeTribute{value: 10 ether}(
 
 // 2. DAO votes to accept, then claims (executes the swap)
 // DAO receives tribute, proposer receives shares
-dao.executeByVotes(...); // calls tribute.claimTribute(proposer, tribTkn)
+dao.executeByVotes(...); // calls tribute.claimTribute(proposer, tribTkn, tribAmt, forTkn, forAmt)
 ```
 
 **Key functions:**
@@ -424,44 +295,9 @@ dao.executeByVotes(...); // calls tribute.claimTribute(proposer, tribTkn)
 - `claimTribute()` - DAO accepts and executes swap
 - `getActiveDaoTributes()` - View all pending tributes for a DAO
 
-### DAICO (Token Sale + Tap)
-
-Inspired by Vitalik's DAICO concept — controlled fundraising with investor protection:
-
-```solidity
-// 1. DAO configures a sale
-dao.executeByVotes(...); // calls DAICO.setSaleWithTap(...)
-
-// 2. Users buy shares/loot
-daico.buy(dao, address(0), 1 ether, minShares);  // exact-in
-daico.buyExactOut(dao, address(0), 1000e18, maxPay);  // exact-out
-
-// 3. Ops team claims vested funds via tap
-daico.claimTap(dao);  // anyone can trigger, funds go to ops
-```
-
-**Sale Features:**
-- Fixed-price OTC sales (tribAmt:forAmt ratio)
-- Optional deadline expiry
-- Optional LP integration with ZAMM (auto-adds liquidity)
-- Drift protection prevents buyer underflow when spot > OTC price
-
-**Tap Mechanism:**
-- `ratePerSec` - Funds release rate (smallest units/second)
-- `ops` - Beneficiary address (can be updated by DAO)
-- Rate changes are non-retroactive (prevents gaming)
-- Dynamically caps to min(owed, allowance, balance) — respects ragequits
-
-**Summon Helpers:**
-```solidity
-// Deploy DAO with pre-configured DAICO sale
-daico.summonDAICO(summonConfig, "MyDAO", "DAO", ..., daicoConfig);
-daico.summonDAICOWithTap(..., tapConfig);  // includes tap
-```
-
 ### MolochViewHelper (Batch Reader)
 
-Gas-efficient view contract for dApp frontends:
+Batch reads for dApp frontends:
 
 ```solidity
 // Fetch full state for multiple DAOs in one call
@@ -479,26 +315,18 @@ DAOLens[] memory daos = helper.getDAOsFullState(
 UserMemberView[] memory myDaos = helper.getUserDAOs(
     user, 0, 100, tokens
 );
-
-// DAICO scanner: find all DAOs with active sales
-DAICOView[] memory sales = helper.scanDAICOs(0, 100, tribTokens);
 ```
 
-**Returned Data:**
-- `DAOLens` - Full DAO state (meta, config, supplies, members, proposals, messages, treasury)
-- `MemberView` - Account balances, seat ID, voting power, delegation splits
-- `ProposalView` - Tallies, state, voters, futarchy config
-- `SaleView` - Active DAICO sale terms, remaining supply, LP config
-- `TapView` - Tap config, claimable amount, treasury balance
+Returns `DAOLens` (full state), `MemberView` (balances, delegation), `ProposalView` (tallies, state, futarchy).
 
 ### ShareSale (Share/Loot Sales via Allowance)
 
-Singleton for selling DAO shares or loot via the allowance system. Uses Moloch's `_payout` sentinel addresses (`address(dao)` mints shares, `address(1007)` mints loot) and 1e18-scaled pricing for decimal friendliness.
+Sell shares or loot via the allowance system. Uses Moloch's `_payout` sentinels (`address(dao)` mints shares, `address(1007)` mints loot) with 1e18-scaled pricing.
 
 ```solidity
 // Setup (in SafeSummoner extraCalls or initCalls):
 // 1. dao.setAllowance(shareSale, address(dao), cap)  // or address(1007) for loot
-// 2. shareSale.configure(address(dao), payToken, price)
+// 2. shareSale.configure(address(dao), payToken, price, deadline)
 
 // Users buy shares
 shareSale.buy{value: cost}(dao, 10e18);  // 10 shares
@@ -508,13 +336,13 @@ shareSale.buy{value: cost}(dao, 10e18);  // 10 shares
 ```
 
 **Key functions:**
-- `configure()` - Set sale token, payment token, and price (called by DAO)
+- `configure()` - Set sale token, payment token, price, and deadline (called by DAO)
 - `buy()` - Purchase shares/loot (permissionless, refunds overpayment)
 - `saleInitCalls()` - Generate initCalls for setup
 
 ### TapVest (Linear Vesting via Allowance)
 
-Singleton for linear vesting from a DAO treasury. Derives from the DAICO tap pattern but operates independently via the allowance system.
+Linear vesting from a DAO treasury via the allowance system.
 
 ```solidity
 // Setup (in SafeSummoner extraCalls or initCalls):
@@ -535,9 +363,24 @@ tap.pending(dao);    // total owed (ignoring caps)
 - `setBeneficiary()` - Change recipient (DAO-only)
 - `setRate()` - Change rate, non-retroactive: unclaimed accrual is forfeited (DAO-only). Set to 0 to freeze.
 
+### LPSeedSwapHook (Automatic LP Initialization)
+
+Seeds ZAMM liquidity from DAO treasury once conditions are met. Acts as a ZAMM hook — gates `addLiquidity` pre-seed and returns swap fees post-seed.
+
+```solidity
+// Configured automatically via SafeSummoner SeedModule, or manually:
+// 1. dao.setAllowance(lpHook, tokenA, amountA)
+// 2. dao.setAllowance(lpHook, tokenB, amountB)
+// 3. lpHook.configure(...)
+
+// Anyone can trigger once conditions are met
+lpHook.seed(dao);
+lpHook.seedable(dao);  // check if ready
+```
+
 ### ShareBurner (Post-Sale Cleanup)
 
-Deployed singleton for burning unsold shares after a sale deadline. DAOs issue a one-shot permit during setup allowing ShareBurner to delegatecall `burnUnsold` via the DAO.
+Burns unsold shares after a sale deadline. DAOs issue a one-shot permit during setup.
 
 ```solidity
 // Setup via SafeSummoner (automatic when saleBurnDeadline > 0):
@@ -549,18 +392,23 @@ shareBurner.closeSale(dao, sharesAddr, deadline, nonce);
 
 ### SafeSummoner (Deployment Wrapper)
 
-Wrapper around the deployed Summoner that enforces audit-derived configuration guardrails. Validates `SafeConfig` structs and builds `initCalls` automatically.
+Wraps the Summoner with audit-derived configuration guardrails. Validates `SafeConfig` structs and builds `initCalls` automatically.
 
 ```solidity
 // Preset deployments (one-call with sane defaults)
-safe.summonStandard(name, symbol, uri, salt, holders, shares);  // 7d/2d/10%
-safe.summonFast(name, symbol, uri, salt, holders, shares);      // 3d/1d/10%
-safe.summonMinimal(name, symbol, uri, salt, holders, shares);   // 3d/none/5%
-safe.summonLocked(name, symbol, uri, salt, holders, shares);    // 7d/2d/10%/no ragequit
+safe.summonStandard(name, symbol, uri, salt, holders, shares, lockShares);  // 7d/2d/10%
+safe.summonFast(name, symbol, uri, salt, holders, shares, lockShares);      // 3d/1d/5%
+safe.summonFounder(name, symbol, uri, salt);                                // 1d/none/10%/solo
 
 // Full control
 safe.safeSummon(name, symbol, uri, quorum, ragequittable, renderer, salt,
-    holders, shares, config, extraCalls);
+    holders, shares, loot, config, extraCalls);
+
+// With modular sale/tap/LP (replaces legacy DAICO)
+safe.safeSummonDAICO(name, symbol, uri, quorum, ragequittable, renderer, salt,
+    holders, shares, loot, config, sale, tap, seed, extraCalls);
+safe.summonStandardDAICO(name, symbol, uri, salt, holders, shares, lockShares, sale, tap, seed);
+safe.summonFastDAICO(name, symbol, uri, salt, holders, shares, lockShares, sale, tap, seed);
 
 // Utilities
 safe.predictDAO(salt, holders, shares);
@@ -568,6 +416,8 @@ safe.predictShares(dao);
 safe.predictLoot(dao);
 safe.previewCalls(config);
 ```
+
+Modular sale/tap/LP composes three standalone singletons — `ShareSale`, `TapVest`, `LPSeedSwapHook` — configured via typed structs (`SaleModule`, `TapModule`, `SeedModule`). Set `singleton = address(0)` to skip any module.
 
 ## Quick Reference
 
@@ -609,30 +459,7 @@ safe.previewCalls(config);
 | `claimTribute()` | Accept and execute swap | DAO (via proposal) |
 | `getActiveDaoTributes()` | View pending tributes | Anyone (view) |
 
-### DAICO Contract Functions
-
-| Function | Purpose | Who Can Call |
-|----------|---------|--------------|
-| `setSale()` | Configure token sale | DAO |
-| `setSaleWithTap()` | Sale + tap in one call | DAO |
-| `setLPConfig()` | Configure LP auto-add | DAO |
-| `setTapOps()` | Update tap beneficiary | DAO |
-| `setTapRate()` | Adjust tap rate | DAO |
-| `buy()` | Exact-in purchase | Anyone |
-| `buyExactOut()` | Exact-out purchase | Anyone |
-| `claimTap()` | Release vested funds | Anyone (funds go to ops) |
-| `quoteBuy()` | Preview exact-in | Anyone (view) |
-| `quotePayExactOut()` | Preview exact-out | Anyone (view) |
-
-## Who Is This For?
-
-**DAO Members** — Vote, delegate (even split across multiple people), buy shares, ragequit, chat with top holders.
-
-**Proposal Creators** — Submit proposals, fund futarchy markets, set timelocks, cancel before votes are cast.
-
-**Developers** — Monitor events, build delegation UIs, create futarchy dashboards, display on-chain SVGs. Use `MolochViewHelper` for efficient batch reads.
-
-## Common Pitfalls & Solutions
+## Common Pitfalls
 
 ### 🚫 Pitfall: Forgetting to sort tokens in ragequit
 ```solidity
@@ -695,12 +522,13 @@ forge snapshot
 | File | Coverage |
 |------|----------|
 | `Moloch.t.sol` | Core governance: voting, delegation, execution, ragequit, futarchy, badges |
-| `DAICO.t.sol` | Token sales, tap mechanism, LP config, summon helpers |
 | `Tribute.t.sol` | OTC escrow: propose, cancel, claim tributes |
 | `MolochViewHelper.t.sol` | Batch read functions for dApps |
 | `SafeSummoner.t.sol` | Preset deployments, config validation, ShareBurner integration, address prediction |
 | `ShareSale.t.sol` | Share/loot purchases, refunds, allowance caps, pricing |
-| `Tap.t.sol` | Linear vesting claims, rate changes, beneficiary updates, cap enforcement |
+| `TapVest.t.sol` | Linear vesting claims, rate changes, beneficiary updates, cap enforcement |
+| `LPSeedSwapHook.t.sol` | LP seed swap hook for automatic ZAMM LP initialization |
+| `RollbackGuardian.t.sol` | Rollback guardian for emergency DAO recovery |
 | `ContractURI.t.sol` | On-chain metadata and DUNA covenant |
 | `URIVisualization.t.sol` | SVG rendering for cards |
 | `Bytecodesize.t.sol` | Contract size limits |
@@ -711,11 +539,12 @@ forge snapshot
 - Futarchy funding and payout
 - Ragequit with multiple tokens
 - Badge auto-updates on balance changes
-- DAICO tap claims and rate changes
 - Tribute propose/cancel/claim flows
 - SafeSummoner preset guardrails and ShareBurner permits
 - ShareSale buy/refund/cap flows with ETH
 - TapVest claim/rate/beneficiary governance
+- LP seed swap hook initialization
+- Rollback guardian emergency recovery
 
 ### Deploy
 
@@ -824,7 +653,7 @@ Cross-referencing across all twenty-eight scans — twelve independent novel sma
 | `autoFutarchyCap > 0` if futarchy enabled | KF#3 | Unbounded per-proposal earmarks; default minted-loot reward path has no natural balance cap, enabling NO-coalition treasury farming |
 | Block minting sale + dynamic-only quorum | KF#2 | Supply manipulation via buy → ragequit |
 
-DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-eight audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (DAICO, custom allowances, etc.).
+DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-eight audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (custom allowances, etc.).
 
 ### Configuration Guidance for Deployers
 
@@ -865,38 +694,6 @@ Identified through audit review for future contract versions:
 - ~~Require Summoner provenance for deep-link DAOs (Cantina MAJEUR-8)~~ **Patched** in demo dapp (warning label + code check)
 - Route dapp summon through `SafeSummoner.safeSummon()` (Cantina MAJEUR-18) — pending SafeSummoner deployment
 
-## Complete Workflow Example
-
-### Full DAO Lifecycle
-```solidity
-// 1. Deploy DAO
-Summoner summoner = new Summoner();
-Moloch dao = summoner.summon("MyDAO", "DAO", "", 5000, true, address(0), 
-    bytes32(0), [alice, bob], [100e18, 100e18], new Call[](0));
-
-// 2. Alice delegates 70% to expert1, 30% to expert2
-Shares shares = dao.shares();
-shares.setSplitDelegation([expert1, expert2], [7000, 3000]);
-
-// 3. Create and vote on treasury proposal
-bytes memory data = abi.encodeWithSignature(
-    "transfer(address,uint256)", charlie, 10 ether
-);
-uint256 id = dao.proposalId(0, weth, 0, data, bytes32("prop1"));
-dao.castVote(id, 1); // Vote FOR
-
-// 4. Wait for voting period...
-
-// 5. Execute if passed
-if (dao.state(id) == ProposalState.Succeeded) {
-    dao.executeByVotes(0, weth, 0, data, bytes32("prop1"));
-}
-
-// 6. Charlie can ragequit if unhappy
-address[] memory tokens = getSortedTreasuryTokens();
-dao.ragequit(tokens, myShares, 0);
-```
-
 ## Gas Optimization
 
 | Technique | Savings | Details |
@@ -908,50 +705,27 @@ dao.ragequit(tokens, myShares, 0);
 
 ## FAQ
 
-### Q: Can I change my vote after voting?
-**A:** Yes! Use `cancelVote(proposalId)` while the proposal is still Active. You'll get your vote receipt back and can vote again. Once the proposal transitions to Succeeded, Queued, or any other state, `cancelVote` is no longer available.
-
-### Q: What happens to badges when someone's balance changes?
-**A:** Badges automatically update. If you fall out of top 256, you lose the badge. If you enter top 256, you get one instantly.
-
-### Q: Can I delegate to myself?
-**A:** Yes, and it's the default. Your votes stay with you unless you explicitly delegate.
-
-### Q: What's the difference between `call` and `delegatecall` in proposals?
-**A:** 
-- `call` (op=0): Execute from DAO's context (normal)
-- `delegatecall` (op=1): Execute in DAO's storage (upgrades/modules)
+### Q: Can I change my vote?
+**A:** Yes — `cancelVote(proposalId)` while the proposal is Active. Once it transitions past Active, votes are locked.
 
 ### Q: Can I partially ragequit?
-**A:** Yes! Specify how many shares/loot to burn. You don't have to exit completely.
+**A:** Yes. Specify how many shares/loot to burn.
 
 ### Q: How are proposal IDs generated?
-**A:** Deterministically from: `keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))`. Anyone can compute it.
+**A:** `keccak256(abi.encode(dao, op, to, value, keccak256(data), nonce, config))`. Deterministic — anyone can compute it.
 
-### Q: What prevents vote buying?
-**A:** Snapshots at block N-1. You can't buy tokens after seeing a proposal and vote.
+### Q: What's `config`?
+**A:** A version number in every proposal ID. `bumpConfig()` invalidates all pending proposals and permits — an emergency brake.
 
-### Q: Can the DAO upgrade itself?
-**A:** Yes, through proposals with `delegatecall` or by deploying new contracts.
+### Q: Built-in sales vs modular sale/tap/LP?
+**A:** `setSale()` is simpler — direct minting at a fixed price. The modular approach composes `ShareSale` + `TapVest` + `LPSeedSwapHook` for controlled fund release, vesting, and automatic LP seeding — configured via `SafeSummoner`.
 
-### Q: What's the `config` parameter?
-**A:** A version number that's part of every proposal ID. The DAO can increment it via `bumpConfig()` to invalidate all old/pending proposal IDs and permits. This is a governance "emergency brake" if malicious proposals were created.
-
-### Q: Can I build a front-end for this?
-**A:** Yes! All metadata is on-chain (including SVGs). Use MolochViewHelper for batch reads.
-
-### Q: What's the difference between built-in sales and DAICO?
-**A:** Built-in `setSale()` is simpler — direct minting at a fixed price. DAICO adds tap mechanisms (controlled fund release), optional LP initialization, and operates as an external escrow contract for investor protection.
-
-### Q: How does the tap mechanism protect investors?
-**A:** The tap limits how fast the ops team can withdraw raised funds. DAO members can vote to lower the rate (or freeze it) if they lose confidence. If members ragequit, the tap auto-adjusts to the reduced treasury.
-
-### Q: Can I offer assets in exchange for DAO membership?
-**A:** Yes, use the Tribute contract. Lock your assets, propose the trade to the DAO, and if they vote to accept, the swap executes atomically.
+### Q: How does TapVest protect investors?
+**A:** It limits how fast ops can withdraw raised funds. The DAO can vote to lower the rate or freeze it. Ragequit auto-adjusts the tap to the reduced treasury.
 
 ## Disclaimer
 
-*These contracts have been reviewed by twenty-eight auditing tools (see [Audits](#audits)) but have not undergone a formal manual audit. No production blockers were identified, but use at your own risk. No warranties or guarantees provided.*
+*Reviewed by twenty-eight auditing tools (see [Audits](#audits)) — no formal manual audit. Use at your own risk.*
 
 ## License
 
