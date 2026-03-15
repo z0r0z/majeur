@@ -31,8 +31,9 @@
 | 6 | 2026-03-13 | Grimoire Agentic | 4 Sigils + 3 Familiars (adversarial triage) | 0 novel (2 Info, 2 DC) | [`grimoire-20260313.md`](grimoire-20260313.md) |
 | 7 | 2026-03-13 | Pashov AI Auditor v1 | DEEP (4 vector scan + 1 adversarial reasoning) | 0 novel (2 duplicates) | [`pashov-ai-deep-20260313.md`](pashov-ai-deep-20260313.md) |
 | 8 | 2026-03-13 | ChatGPT o3 (5.4) | Single-pass review | 1 novel (LOW-02), 3 accepted | [`chatgpt-20260313.md`](chatgpt-20260313.md) |
+| 9 | 2026-03-15 | Winfunc | Multi-phase deep validation | 2 (1 High, 1 High) — cross-module (ShareBurner wiring, CREATE2 squatting) | [`winfunc-20260315.md`](winfunc-20260315.md) |
 
-**Aggregate: 8 audits, 8 methodologies, 4 unique findings (all addressed). 0 Critical, 0 High, 0 Medium.**
+**Aggregate: 9 audits, 9 methodologies, 6 unique findings (all addressed). 0 Critical, 0 High (after review), 0 Medium.**
 
 ---
 
@@ -47,6 +48,20 @@ has been addressed.
 | 2 | `create2Deploy` salt not bound to `msg.sender` — front-running DoS on deterministic deployments | Info | Accepted | Audit #1 (conf 80) | #4 DT-01, #5 Finding 2, #6 I-01, #7 F1 |
 | 3 | `multicall` delegatecall shares `msg.value` across sub-calls — caller could double-spend own ETH | Info | Accepted | Audit #2 | #4 DT-02, #5 Finding 1, #6 I-02, #7 F2 |
 | 4 | `saleBurnDeadline` burn permit targets shares even when `saleIsLoot = true` — unsold loot not burnable | Low | Patched | Audit #8 (LOW-02) | — |
+| 5 | Auto-burn permit burns entire `balanceOf(dao)` rather than tracked sale inventory — over-scope burn if DAO holds shares for non-sale purposes | High | Accepted | Audit #9 (Winfunc #2) | ShareBurner KF#1 |
+| 6 | Predictable deployment address squatting via CREATE2 salt collision | High | Accepted | Audit #9 (Winfunc #6) | KF#2 variant |
+
+### Finding 5 — Assessment
+
+**Severity: High (accepted, not fixed — deployed contract).**
+
+SafeSummoner is already deployed. The finding is a configuration footgun: `saleBurnDeadline > 0` without an active non-minting sale is deployer misconfiguration. ShareBurner burns `balanceOf(dao)` by design. Deployers control `SafeConfig` and would need to intentionally set a burn deadline without a corresponding sale. Cross-tracked in ShareBurner KF#1.
+
+### Finding 6 — Assessment
+
+**Severity: High → Info (variant of KF#2, accepted).**
+
+Variant of KF#2 (CREATE2 salt not bound to `msg.sender`). `initHolders` and `initShares` are in the salt, so the attacker cannot substitute themselves as share holders. The legitimate deployer would see the misconfigured DAO and redeploy with a different salt. No funds are at risk since the DAO is empty at deployment time.
 
 ### Finding 1 — Assessment & Patch
 
