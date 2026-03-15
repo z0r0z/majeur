@@ -1,5 +1,5 @@
 # ShareSale
-[Git Source](https://github.com/z0r0z/majeur/blob/693e65b2d5461c8bced186f4330ea1fc0aee9dc9/src/peripheral/ShareSale.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/51bf2cf41940c30a56dd06b7564697883db9ead0/src/peripheral/ShareSale.sol)
 
 **Title:**
 ShareSale
@@ -104,12 +104,6 @@ event Purchase(address indexed dao, address indexed buyer, uint256 amount, uint2
 ```
 
 ## Errors
-### Expired
-
-```solidity
-error Expired();
-```
-
 ### InsufficientPayment
 
 ```solidity
@@ -122,6 +116,12 @@ error InsufficientPayment();
 error NotConfigured();
 ```
 
+### UnexpectedETH
+
+```solidity
+error UnexpectedETH();
+```
+
 ### ZeroAmount
 
 ```solidity
@@ -132,6 +132,12 @@ error ZeroAmount();
 
 ```solidity
 error ZeroPrice();
+```
+
+### Expired
+
+```solidity
+error Expired();
 ```
 
 ## Structs

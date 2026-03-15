@@ -21,11 +21,12 @@ pragma solidity ^0.8.30;
 ///   Usage:
 ///     shareSale.buy{value: cost}(dao, amount)
 contract ShareSale {
-    error Expired();
     error InsufficientPayment();
     error NotConfigured();
+    error UnexpectedETH();
     error ZeroAmount();
     error ZeroPrice();
+    error Expired();
 
     event Configured(
         address indexed dao, address token, address payToken, uint256 price, uint40 deadline
@@ -64,10 +65,7 @@ contract ShareSale {
         if (s.price == 0) revert NotConfigured();
         if (s.deadline != 0 && block.timestamp > s.deadline) revert Expired();
 
-        uint256 cost;
-        unchecked {
-            cost = amount * s.price / 1e18;
-        }
+        uint256 cost = amount * s.price / 1e18;
 
         // Collect payment
         if (s.payToken == address(0)) {
@@ -79,6 +77,7 @@ contract ShareSale {
                 }
             }
         } else {
+            if (msg.value != 0) revert UnexpectedETH();
             safeTransferFrom(s.payToken, dao, cost);
         }
 

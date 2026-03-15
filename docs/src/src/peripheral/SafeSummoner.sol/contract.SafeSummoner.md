@@ -1,5 +1,5 @@
 # SafeSummoner
-[Git Source](https://github.com/z0r0z/majeur/blob/693e65b2d5461c8bced186f4330ea1fc0aee9dc9/src/peripheral/SafeSummoner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/51bf2cf41940c30a56dd06b7564697883db9ead0/src/peripheral/SafeSummoner.sol)
 
 **Title:**
 SafeSummoner
@@ -156,7 +156,7 @@ function summonFast(
 
 ### summonFounder
 
-Founder-mode DAO: single owner with 10M shares, 1-day voting, no timelock, 1% quorum.
+Founder-mode DAO: single owner with 10M shares, 1-day voting, no timelock, 10% quorum.
 Designed for solo founders who want fast unilateral control with ragequit enabled.
 
 

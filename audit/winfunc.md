@@ -30,6 +30,25 @@
 > - **Strongest contributions:** LPSeedSwapHook pool collision (#3), pre-creation pricing attack (#5/#9), ShareBurner over-scope burn (#2), TapVest fake-DAO drain (#15), and ShareSale pricing overflow (#20). These expose real architectural gaps in peripheral contracts not covered by prior audits.
 > - **For the Moloch.sol-focused audit table and tool ranking**, this audit adds cross-validation confidence on 8 existing known findings but does not extend the core attack surface. Novel findings are scoped to peripherals and should be tracked in per-contract security documents.
 
+## Post-Review Responses
+
+Fixes applied and positions taken on each novel peripheral finding:
+
+| # | Finding | Action | Rationale |
+|---:|---|---|---|
+| 2 | ShareBurner over-scope burn | **Not fixed (deployed)** | SafeSummoner is already deployed. The finding is a configuration footgun: `saleBurnDeadline > 0` without an active non-minting sale is deployer misconfiguration. ShareBurner burns `balanceOf(dao)` by design — the "over-scope" is simply what burn means. Deployers control `SafeConfig` and would need to intentionally set a burn deadline without a corresponding sale. |
+| 3 | LPSeed cross-DAO pool takeover | **Not a real bug** | The audit's PoC only works by manually transferring victim DAO shares to an attacker DAO. In practice, each DAO's pool key always includes its own unique shares/loot token address, making pool ID collision impossible between different DAOs. The recommended fix (`id0 = uint256(uint160(dao))`) is also invalid: ZAMM `id0`/`id1` are ERC-6909 token IDs, not arbitrary namespace fields — non-zero values for ERC-20/ETH pairs would be rejected by ZAMM. |
+| 5/9 | LPSeed pre-creation pricing attack | **Fixed** | Pool ID is now reserved at `configure()` time so `beforeAction` blocks frontrun `addLiquidity` before `seed()` runs. This closes the window where `poolDAO[poolId]` is unset and the hook permits attacker LP adds. |
+| 14 | Tribute fake ERC20 funding | **Not fixed (by design)** | Tribute is an OTC escrow — the DAO must actively call `claimTribute()` via governance to accept an offer. The DAO can and should verify the tribute token address is legitimate before accepting. This is a social engineering vector, not a smart contract bug. A balance check would also break legitimate fee-on-transfer tokens. |
+| 15 | TapVest fake-DAO drain | **Not fixed (negligible impact)** | The attack can only drain stray ETH/ERC20 already sitting on the TapVest singleton from accidental transfers or forced ETH. In normal operation, TapVest never holds a persistent balance — `spendAllowance` delivers funds and `claim` immediately forwards them. Adding balance-before/after checks to every legitimate claim adds gas cost to protect against a scenario that shouldn't occur. |
+| 20 | ShareSale unchecked pricing overflow | **Fixed** | Removed `unchecked` block from `cost = amount * s.price / 1e18`. Solidity 0.8 checked arithmetic now prevents silent wraparound. |
+| 21/23 | Tribute discovery duplicate listing | **Not fixed (view-only)** | Discovery arrays (`daoTributeRefs`, `proposerTributeRefs`) are append-only logs for convenience views. Stale refs are filtered out by `getActiveDaoTributes()` which checks `offer.tribAmt != 0`. No fund risk — purely a gas/UX concern for very active proposers. |
+| 22 | MolochViewHelper contractURI DoS | **Not fixed (view-only)** | View helper read DoS from malicious `contractURI` responses affects off-chain reads only. No fund risk. |
+| 24 | LPSeed minSupply dusting griefing | **Not fixed (by design)** | Dusting requires the attacker to spend their own tokens. The DAO can reconfigure or cancel the seed. Minimal economic impact. |
+| 25 | ShareBurner closeSale leaves built-in sales live | **Not fixed (core contract)** | Would require adding a `deadline` field to `Moloch.Sale` struct or modifying core `buyShares()`. Core Moloch is already deployed/audited. DAOs using the ShareSale peripheral module (which has its own deadline field) are not affected. |
+| 26/28 | MolochViewHelper delegate omission | **Not fixed (view-only)** | View helper not enumerating delegate-only voters is a UX limitation, not a security bug. On-chain governance is unaffected — votes are correctly counted. |
+| 27 | ShareSale stray ETH on ERC20 purchase | **Fixed** | Added `msg.value != 0` revert in the ERC20 payment branch to prevent silent ETH loss. |
+
 ## Full Finding-by-Finding Overlap Matrix Against Existing Audits
 
 Novel means no exact root-cause match was found in the current `README.md` audit summary or any existing file under `audit/`. Variant means the exploit chain is sharper or broader, but the underlying root cause was already represented in the prior audit corpus.

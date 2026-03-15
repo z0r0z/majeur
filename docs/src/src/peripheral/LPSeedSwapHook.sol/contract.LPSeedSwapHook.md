@@ -1,5 +1,5 @@
 # LPSeedSwapHook
-[Git Source](https://github.com/z0r0z/majeur/blob/693e65b2d5461c8bced186f4330ea1fc0aee9dc9/src/peripheral/LPSeedSwapHook.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/51bf2cf41940c30a56dd06b7564697883db9ead0/src/peripheral/LPSeedSwapHook.sol)
 
 **Inherits:**
 [IZAMMHook](/src/peripheral/LPSeedSwapHook.sol/interface.IZAMMHook.md)
@@ -265,10 +265,10 @@ event FeeUpdated(address indexed dao, uint16 oldFee, uint16 newFee);
 error NotReady();
 ```
 
-### NotConfigured
+### Unauthorized
 
 ```solidity
-error NotConfigured();
+error Unauthorized();
 ```
 
 ### AlreadySeeded
@@ -283,10 +283,10 @@ error AlreadySeeded();
 error InvalidParams();
 ```
 
-### Unauthorized
+### NotConfigured
 
 ```solidity
-error Unauthorized();
+error NotConfigured();
 ```
 
 ## Structs

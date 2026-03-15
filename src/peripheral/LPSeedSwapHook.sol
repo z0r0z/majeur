@@ -136,10 +136,10 @@ uint16 constant DEFAULT_FEE_BPS = 30;
 ///     lpSeed.setFee(feeBps)         // update swap fee for the pool
 contract LPSeedSwapHook is IZAMMHook {
     error NotReady();
-    error NotConfigured();
+    error Unauthorized();
     error AlreadySeeded();
     error InvalidParams();
-    error Unauthorized();
+    error NotConfigured();
 
     event Configured(
         address indexed dao, address tokenA, uint256 amountA, address tokenB, uint256 amountB
@@ -203,6 +203,14 @@ contract LPSeedSwapHook is IZAMMHook {
             minSupply: minSupply,
             seeded: false
         });
+
+        // Reserve pool ID at configure time so beforeAction blocks
+        // frontrun addLiquidity before seed() runs.
+        (address t0, address t1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        IZAMM.PoolKey memory key =
+            IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: hookFeeOrHook()});
+        uint256 poolId = uint256(keccak256(abi.encode(key)));
+        poolDAO[poolId] = msg.sender;
 
         emit Configured(msg.sender, tokenA, amountA, tokenB, amountB);
     }
