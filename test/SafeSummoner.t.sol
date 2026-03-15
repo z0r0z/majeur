@@ -956,7 +956,7 @@ contract SafeSummonerTest is Test {
         assertEq(tToken, address(0));
         assertEq(tBen, bob);
 
-        (address seedA, address seedB,,,,,,,) = lpSeed.seeds(dao);
+        (address seedA, address seedB,,,,,,,,,) = lpSeed.seeds(dao);
         assertEq(seedA, address(0)); // ETH
         assertEq(seedB, sharesAddr); // resolved shares address
 
@@ -983,8 +983,8 @@ contract SafeSummonerTest is Test {
 
         // Seed LP
         lpSeed.seed(dao);
-        (,,,,,,,, bool seeded) = lpSeed.seeds(dao);
-        assertTrue(seeded);
+        (,,,,,,,,,, uint40 seeded) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
     }
 
     function test_SummonStandardDAICO() public {

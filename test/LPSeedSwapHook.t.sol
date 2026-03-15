@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
 import {Moloch, Shares, Loot} from "../src/Moloch.sol";
-import {SafeSummoner, Call} from "../src/peripheral/SafeSummoner.sol";
+import {SafeSummoner, Call, ILPSeedSwapHook} from "../src/peripheral/SafeSummoner.sol";
 import {ShareSale} from "../src/peripheral/ShareSale.sol";
 import {LPSeedSwapHook, IZAMM} from "../src/peripheral/LPSeedSwapHook.sol";
 
@@ -102,7 +102,7 @@ contract LPSeedSwapHookTest is Test {
             address(lpSeed),
             0,
             abi.encodeCall(
-                lpSeed.configure,
+                ILPSeedSwapHook.configure,
                 (address(0), amtA, sharesAddr, amtB, deadline, shareSaleAddr, minSupply)
             )
         );
@@ -161,7 +161,7 @@ contract LPSeedSwapHookTest is Test {
             address(lpSeed),
             0,
             abi.encodeCall(
-                lpSeed.configure,
+                ILPSeedSwapHook.configure,
                 (
                     address(0),
                     seedAmtA,
@@ -209,10 +209,12 @@ contract LPSeedSwapHookTest is Test {
             uint128 amountA,
             uint128 amountB,
             uint16 feeBps,
+            uint16 launchBps,
             uint40 deadline,
+            uint40 decayPeriod,
             address shareSaleGate,
             uint128 minSupply,
-            bool seeded
+            uint40 seeded
         ) = lpSeed.seeds(dao);
 
         assertEq(tokenA, address(0));
@@ -220,10 +222,12 @@ contract LPSeedSwapHookTest is Test {
         assertEq(amountA, 1e18);
         assertEq(amountB, 1000e18);
         assertEq(feeBps, 0);
+        assertEq(launchBps, 0);
         assertEq(deadline, 0);
+        assertEq(decayPeriod, 0);
         assertEq(shareSaleGate, address(0));
         assertEq(minSupply, 0);
-        assertFalse(seeded);
+        assertEq(seeded, 0);
     }
 
     function test_RevertIf_ConfigureZeroAmounts() public {
@@ -331,9 +335,9 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.cancel();
 
-        (,, uint128 amtA,,,,,, bool seeded) = lpSeed.seeds(dao);
+        (,, uint128 amtA,,,,,,,, uint40 seeded) = lpSeed.seeds(dao);
         assertEq(amtA, 0); // config cleared
-        assertFalse(seeded);
+        assertEq(seeded, 0);
     }
 
     function test_RevertIf_CancelNotConfigured() public {
@@ -397,7 +401,7 @@ contract LPSeedSwapHookTest is Test {
             address(lpSeed),
             0,
             abi.encodeCall(
-                lpSeed.configure,
+                ILPSeedSwapHook.configure,
                 (address(0), 1e18, sharesAddr, 100e18, deadline, address(shareSale), 0)
             )
         );
@@ -414,15 +418,13 @@ contract LPSeedSwapHookTest is Test {
         // Neither condition met
         assertFalse(lpSeed.seedable(dao));
 
-        // Only deadline met
-        vm.warp(deadline + 1);
-        assertFalse(lpSeed.seedable(dao)); // sale still has allowance
-
-        // Buy all shares to exhaust sale
+        // Sale complete before deadline — still blocked by deadline
         vm.prank(bob);
         shareSale.buy{value: 5e18}(dao, 5e18);
+        assertFalse(lpSeed.seedable(dao)); // deadline not reached
 
-        // Both conditions met
+        // After deadline — seedable (sale done + deadline passed)
+        vm.warp(deadline + 1);
         assertTrue(lpSeed.seedable(dao));
     }
 
@@ -462,7 +464,8 @@ contract LPSeedSwapHookTest is Test {
             address(lpSeed),
             0,
             abi.encodeCall(
-                lpSeed.configure, (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+                ILPSeedSwapHook.configure,
+                (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
             )
         );
 
@@ -483,9 +486,9 @@ contract LPSeedSwapHookTest is Test {
         // Seed LP
         lpSeed.seed(dao);
 
-        // Verify seeded flag
-        (,,,,,,,, bool seeded) = lpSeed.seeds(dao);
-        assertTrue(seeded);
+        // Verify seeded timestamp
+        (,,,,,,,,,, uint40 seeded) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
 
         // Verify cannot seed again
         vm.expectRevert(LPSeedSwapHook.AlreadySeeded.selector);
@@ -496,15 +499,18 @@ contract LPSeedSwapHookTest is Test {
 
     function test_SeedInitCallsHelper() public view {
         address dao = address(0xDA0);
-        (address t1, bytes memory d1, address t2, bytes memory d2, address t3, bytes memory d3) =
-            lpSeed.seedInitCalls(dao, address(0), 1e18, address(1), 1000e18, 0, address(0), 0);
+        address sharesAddr = address(0x54A8E);
+        (address[4] memory targets, bytes[4] memory data) =
+            lpSeed.seedInitCalls(dao, address(0), 1e18, sharesAddr, 1000e18, 0, 0, address(0), 0);
 
-        assertEq(t1, dao); // setAllowance tokenA
-        assertEq(t2, dao); // setAllowance tokenB
-        assertEq(t3, address(lpSeed)); // configure
-        assertTrue(d1.length > 0);
-        assertTrue(d2.length > 0);
-        assertTrue(d3.length > 0);
+        assertEq(targets[0], sharesAddr); // mintFromMoloch
+        assertEq(targets[1], dao); // setAllowance tokenA
+        assertEq(targets[2], dao); // setAllowance tokenB
+        assertEq(targets[3], address(lpSeed)); // configure
+        assertTrue(data[0].length > 0);
+        assertTrue(data[1].length > 0);
+        assertTrue(data[2].length > 0);
+        assertTrue(data[3].length > 0);
     }
 
     // ── Seedable: Not configured ─────────────────────────────────
@@ -530,7 +536,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.setFee(50); // 50 bps = 0.5%
 
-        (,,,, uint16 feeBps,,,,) = lpSeed.seeds(dao);
+        (,,,, uint16 feeBps,,,,,,) = lpSeed.seeds(dao);
         assertEq(feeBps, 50);
     }
 
@@ -543,7 +549,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.setFee(0); // reset to default
 
-        (,,,, uint16 feeBps,,,,) = lpSeed.seeds(dao);
+        (,,,, uint16 feeBps,,,,,,) = lpSeed.seeds(dao);
         assertEq(feeBps, 0);
     }
 
@@ -569,18 +575,621 @@ contract LPSeedSwapHookTest is Test {
         lpSeed.setFee(50);
     }
 
+    // ── Configure with custom fee ──────────────────────────────────
+
+    function test_Configure_WithFee() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(100));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 100e18)));
+        extra[1] =
+            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(0), 1e18)));
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 100e18))
+        );
+        // Use the 8-param configure with feeBps=100 (1%)
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeWithSignature(
+                "configure(address,uint128,address,uint128,uint16,uint40,address,uint128)",
+                address(0),
+                uint128(1e18),
+                sharesAddr,
+                uint128(100e18),
+                uint16(100),
+                uint40(0),
+                address(0),
+                uint128(0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "FeeDAO", "FEE", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        (,,,, uint16 feeBps,,,,,,) = lpSeed.seeds(dao);
+        assertEq(feeBps, 100);
+    }
+
+    function test_RevertIf_Configure_FeeAboveMax() public {
+        vm.prank(alice);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.configure(address(0), 1e18, address(1), 1e18, 10_001, 0, address(0), 0);
+    }
+
+    // ── Sale deadline bypass (dust mitigation) ────────────────────
+
+    function test_Seedable_SaleNoDealine_WithDust_Blocked() public {
+        (address dao,) = _deployWithSaleAndSeed(bytes32(uint256(110)), 10e18, 1e18, 1000e18);
+
+        // Buy 9e18 out of 10e18 — 1e18 dust remains
+        vm.prank(bob);
+        shareSale.buy{value: 9e18}(dao, 9e18);
+
+        // Sale has no deadline (0) AND LPSeed has no deadline (0) — dust blocks seeding
+        assertFalse(lpSeed.seedable(dao));
+    }
+
+    function test_Seedable_SaleNoDeadline_WithDust_LPSeedDeadlineBypass() public {
+        // Deploy with sale gate (no sale deadline) + LPSeed deadline as backstop
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(112));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint40 lpDeadline = uint40(block.timestamp + 14 days);
+
+        Call[] memory extra = new Call[](6);
+
+        // ShareSale with NO deadline
+        extra[0] =
+            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(shareSale), dao, 10e18)));
+        extra[1] = Call(
+            address(shareSale),
+            0,
+            abi.encodeCall(shareSale.configure, (dao, address(0), 1e18, uint40(0)))
+        );
+
+        // Mint shares for seed
+        extra[2] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 100e18)));
+
+        // LPSeedSwapHook with shareSale gate + LPSeed deadline as backstop
+        extra[3] =
+            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(0), 1e18)));
+        extra[4] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 100e18))
+        );
+        extra[5] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(0), 1e18, sharesAddr, 100e18, lpDeadline, address(shareSale), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "DustFixDAO", "DFIX", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        vm.deal(dao, 10 ether);
+
+        // Buy 9e18, leaving 1e18 dust. Sale has no deadline.
+        vm.prank(bob);
+        shareSale.buy{value: 9e18}(dao, 9e18);
+
+        // Before LPSeed deadline — blocked
+        assertFalse(lpSeed.seedable(dao));
+
+        // After LPSeed deadline — bypasses sale dust
+        vm.warp(lpDeadline + 1);
+        assertTrue(lpSeed.seedable(dao));
+    }
+
+    function test_Seedable_SaleDeadlinePassed_WithDust_Bypass() public {
+        // Deploy with both sale gate and explicit sale deadline
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(111));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint40 saleDeadline = uint40(block.timestamp + 7 days);
+
+        Call[] memory extra = new Call[](6);
+
+        // ShareSale with deadline
+        extra[0] =
+            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(shareSale), dao, 10e18)));
+        extra[1] = Call(
+            address(shareSale),
+            0,
+            abi.encodeCall(shareSale.configure, (dao, address(0), 1e18, saleDeadline))
+        );
+
+        // Mint shares for seed
+        extra[2] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 100e18)));
+
+        // LPSeedSwapHook setup with shareSale gate
+        extra[3] =
+            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(0), 1e18)));
+        extra[4] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 100e18))
+        );
+        extra[5] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(0), 1e18, sharesAddr, 100e18, 0, address(shareSale), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "DustDAO", "DUST", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        vm.deal(dao, 10 ether);
+
+        // Buy 9e18, leaving 1e18 dust
+        vm.prank(bob);
+        shareSale.buy{value: 9e18}(dao, 9e18);
+
+        // Before sale deadline — dust blocks
+        assertFalse(lpSeed.seedable(dao));
+
+        // After sale deadline — dust bypassed
+        vm.warp(saleDeadline + 1);
+        assertTrue(lpSeed.seedable(dao));
+    }
+
+    // ── Launch Fee Decay ────────────────────────────────────────────
+
+    function test_SetLaunchFee() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(120)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        lpSeed.setLaunchFee(500, 1 days);
+
+        (,,,,, uint16 launchBps,, uint40 decayPeriod,,,) = lpSeed.seeds(dao);
+        assertEq(launchBps, 500);
+        assertEq(decayPeriod, uint40(1 days));
+    }
+
+    function test_RevertIf_SetLaunchFeeNotConfigured() public {
+        vm.prank(address(0xdead));
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.setLaunchFee(500, 1 days);
+    }
+
+    function test_RevertIf_SetLaunchFeeAfterSeed() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(121));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 1000e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), 1000e18))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 1000e18))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), 1000e18, sharesAddr, 1000e18, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "LaunchDAO", "LNCH", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        usdc.mint(dao, 1000e18);
+        lpSeed.seed(dao);
+
+        // Can't set launch fee after seeding
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.AlreadySeeded.selector);
+        lpSeed.setLaunchFee(500, 1 days);
+    }
+
+    function test_RevertIf_SetLaunchFeeAboveMax() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(122)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setLaunchFee(10_001, 1 days);
+    }
+
+    function test_LaunchFeeInitCallHelper() public view {
+        (address target, uint256 value, bytes memory data) = lpSeed.launchFeeInitCall(500, 1 days);
+
+        assertEq(target, address(lpSeed));
+        assertEq(value, 0);
+        assertTrue(data.length > 0);
+    }
+
+    function test_LaunchFeeInitCallHelper_Encoding() public view {
+        (,, bytes memory data) = lpSeed.launchFeeInitCall(500, 1 days);
+
+        // Should encode setLaunchFee(500, 86400)
+        bytes memory expected = abi.encodeCall(lpSeed.setLaunchFee, (500, 1 days));
+        assertEq(keccak256(data), keccak256(expected));
+    }
+
+    // ── DAO Fee ─────────────────────────────────────────────────────
+
+    function test_SetDaoFee() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(130)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 200, false, false);
+
+        (address ben, uint16 buyBps, uint16 sellBps, bool buyOnInput, bool sellOnInput) =
+            lpSeed.daoFees(dao);
+        assertEq(ben, address(0xBEEF));
+        assertEq(buyBps, 100);
+        assertEq(sellBps, 200);
+        assertFalse(buyOnInput);
+        assertFalse(sellOnInput);
+    }
+
+    function test_SetDaoFee_AlwaysETH() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(132)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Fee always in ETH (token0): buy=input(ETH), sell=output(ETH)
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, true, false);
+
+        (, uint16 buyBps, uint16 sellBps, bool buyOnInput, bool sellOnInput) = lpSeed.daoFees(dao);
+        assertEq(buyBps, 100);
+        assertEq(sellBps, 100);
+        assertTrue(buyOnInput); // buy: fee on input = ETH
+        assertFalse(sellOnInput); // sell: fee on output = ETH
+    }
+
+    function test_SetDaoFee_Directional() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(134)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Buy fee only, no sell fee
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 50, 0, true, false);
+
+        (, uint16 buyBps, uint16 sellBps,,) = lpSeed.daoFees(dao);
+        assertEq(buyBps, 50);
+        assertEq(sellBps, 0);
+    }
+
+    function test_SetBeneficiary() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(133)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, false, false);
+
+        vm.prank(dao);
+        lpSeed.setBeneficiary(address(0xFACE));
+
+        (address ben, uint16 buyBps,,,) = lpSeed.daoFees(dao);
+        assertEq(ben, address(0xFACE));
+        assertEq(buyBps, 100);
+    }
+
+    function test_RevertIf_SetDaoFeeNotConfigured() public {
+        vm.prank(address(0xdead));
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, false, false);
+    }
+
+    function test_RevertIf_SetDaoFeeAboveMax() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(131)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setDaoFee(address(0xBEEF), 10_001, 0, false, false);
+    }
+
+    function test_DaoFeeInitCallHelper() public view {
+        (address target, uint256 value, bytes memory data) =
+            lpSeed.daoFeeInitCall(address(0xBEEF), 100, 200, true, false);
+
+        assertEq(target, address(lpSeed));
+        assertEq(value, 0);
+        bytes memory expected =
+            abi.encodeCall(lpSeed.setDaoFee, (address(0xBEEF), 100, 200, true, false));
+        assertEq(keccak256(data), keccak256(expected));
+    }
+
+    // ── View Helpers ──────────────────────────────────────────────
+
+    function test_PoolKeyOf() public {
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(140)), 1e18, 1000e18, 0, address(0), 0);
+
+        (IZAMM.PoolKey memory key, uint256 poolId) = lpSeed.poolKeyOf(dao);
+
+        // ETH is address(0) → always token0
+        assertEq(key.token0, address(0));
+        assertEq(key.token1, sharesAddr);
+        assertEq(key.feeOrHook, lpSeed.hookFeeOrHook());
+        assertTrue(poolId != 0);
+
+        // poolId matches what poolDAO was set to
+        assertEq(lpSeed.poolDAO(poolId), dao);
+    }
+
+    function test_RevertIf_PoolKeyOfNotConfigured() public {
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.poolKeyOf(address(0xdead));
+    }
+
+    function test_EffectiveFee_Default() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(142));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 1000e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), 1000e18))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 1000e18))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), 1000e18, sharesAddr, 1000e18, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ViewDAO", "VIEW", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        usdc.mint(dao, 1000e18);
+
+        // Before seeding: 0
+        assertEq(lpSeed.effectiveFee(dao), 0);
+
+        lpSeed.seed(dao);
+
+        // After seeding with feeBps=0: returns DEFAULT (30)
+        assertEq(lpSeed.effectiveFee(dao), 30);
+    }
+
+    function test_QuoteSwap() public {
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(143)), 1e18, 1000e18, 0, address(0), 0);
+
+        // No DAO fee — returns pool key, zero fees, zero beneficiary
+        (IZAMM.PoolKey memory key, uint256 poolFee, uint256 daoFee, bool onInput, address ben) =
+            lpSeed.quoteSwap(dao, true);
+        assertEq(key.token0, address(0)); // ETH
+        assertEq(key.token1, sharesAddr);
+        assertEq(poolFee, 0); // not seeded
+        assertEq(daoFee, 0);
+        assertEq(ben, address(0));
+
+        // Set DAO fee and quote buy direction
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 200, true, false);
+
+        (key, poolFee, daoFee, onInput, ben) = lpSeed.quoteSwap(dao, true);
+        assertEq(key.token0, address(0));
+        assertEq(daoFee, 100); // buyBps
+        assertTrue(onInput); // buyOnInput
+        assertEq(ben, address(0xBEEF));
+
+        // Quote sell direction
+        (, poolFee, daoFee, onInput, ben) = lpSeed.quoteSwap(dao, false);
+        assertEq(daoFee, 200); // sellBps
+        assertFalse(onInput); // sellOnInput
+    }
+
+    // ── Quoter: ExactIn / ExactOut ──────────────────────────────
+
+    /// @dev Helper: deploy DAO, seed ERC20+shares LP, return (dao, sharesAddr, poolKey)
+    function _deployAndSeedERC20(bytes32 salt, uint128 usdcAmt, uint128 sharesAmt)
+        internal
+        returns (address dao, address sharesAddr)
+    {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        dao = safe.predictDAO(salt, h, s);
+        sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, sharesAmt)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), usdcAmt))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, sharesAmt))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "QuoteDAO", "QTE", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        usdc.mint(dao, usdcAmt);
+        lpSeed.seed(dao);
+    }
+
+    function test_QuoteExactIn_NoDaoFee() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(150)), 1000e18, 1000e18);
+
+        (uint256 amountOut, uint256 daoTax) = lpSeed.quoteExactIn(dao, 10e18, true);
+
+        // With 30 bps pool fee, 1000/1000 reserves, 10e18 in:
+        // amountInWithFee = 10e18 * 9970 = 99.7e21
+        // numerator = 99.7e21 * 1000e18
+        // denominator = 1000e18 * 10000 + 99.7e21
+        // Expected ~9.87e18
+        assertTrue(amountOut > 9.8e18 && amountOut < 10e18);
+        assertEq(daoTax, 0);
+    }
+
+    function test_QuoteExactIn_WithDaoFee_OnInput() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(151)), 1000e18, 1000e18);
+
+        // Quote without DAO fee first
+        (uint256 noFeeOut,) = lpSeed.quoteExactIn(dao, 9.9e18, true);
+
+        // Set 1% DAO fee on buy input
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, true, true);
+
+        (uint256 amountOut, uint256 daoTax) = lpSeed.quoteExactIn(dao, 10e18, true);
+
+        // 1% tax on input: daoTax = 0.1e18, net input = 9.9e18
+        assertEq(daoTax, 0.1e18);
+        assertTrue(amountOut > 0);
+        // Should match a no-fee quote with 9.9e18 input (since 10e18 - 1% = 9.9e18)
+        assertEq(amountOut, noFeeOut);
+    }
+
+    function test_QuoteExactIn_WithDaoFee_OnOutput() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(152)), 1000e18, 1000e18);
+
+        // Set 2% DAO fee on buy output
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 200, 200, false, false);
+
+        (uint256 amountOut, uint256 daoTax) = lpSeed.quoteExactIn(dao, 10e18, true);
+
+        // Full 10e18 goes to ZAMM, then 2% of output is taxed
+        assertTrue(daoTax > 0);
+        assertTrue(amountOut > 0);
+        // daoTax should be ~2% of (amountOut + daoTax)
+        uint256 gross = amountOut + daoTax;
+        assertEq(daoTax, (gross * 200) / 10_000);
+    }
+
+    function test_QuoteExactOut_NoDaoFee() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(153)), 1000e18, 1000e18);
+
+        (uint256 amountIn, uint256 daoTax) = lpSeed.quoteExactOut(dao, 10e18, true);
+
+        // To get 10e18 out of 1000/1000 pool with 30 bps:
+        // amountIn = ceil(1000e18 * 10e18 * 10000 / (990e18 * 9970))
+        assertTrue(amountIn > 10e18); // must pay more than output due to fees + price impact
+        assertEq(daoTax, 0);
+    }
+
+    function test_QuoteExactOut_WithDaoFee_OnInput() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(154)), 1000e18, 1000e18);
+
+        // 1% DAO fee on input
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, true, true);
+
+        (uint256 amountIn, uint256 daoTax) = lpSeed.quoteExactOut(dao, 10e18, true);
+
+        // amountIn includes DAO tax
+        assertTrue(daoTax > 0);
+        assertTrue(amountIn > daoTax);
+
+        // daoTax / (amountIn - daoTax) should equal 100/9900
+        uint256 net = amountIn - daoTax;
+        assertEq(daoTax, (net * 100) / (10_000 - 100));
+    }
+
+    function test_QuoteExactOut_WithDaoFee_OnOutput() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(155)), 1000e18, 1000e18);
+
+        // 2% DAO fee on output
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 200, 200, false, false);
+
+        (uint256 amountIn, uint256 daoTax) = lpSeed.quoteExactOut(dao, 10e18, true);
+
+        // Need gross output = ceil(10e18 * 10000 / 9800)
+        uint256 desiredOut = 10e18;
+        uint256 expectedGross = (desiredOut * 10_000 + 9_799) / 9_800;
+        assertEq(daoTax, expectedGross - 10e18);
+        assertTrue(amountIn > 0);
+    }
+
+    function test_QuoteExactIn_Symmetry() public {
+        // Quote exactIn, then use the output as input to quoteExactOut — should round-trip
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(156)), 1000e18, 1000e18);
+
+        uint256 inputAmt = 5e18;
+        (uint256 amountOut,) = lpSeed.quoteExactIn(dao, inputAmt, true);
+        (uint256 roundTrip,) = lpSeed.quoteExactOut(dao, amountOut, true);
+
+        // Due to rounding, roundTrip should be == inputAmt or inputAmt + 1
+        assertTrue(roundTrip >= inputAmt && roundTrip <= inputAmt + 1);
+    }
+
     // ── Hook Access Control ───────────────────────────────────────
 
     function test_RevertIf_BeforeActionNotZAMM() public {
         vm.prank(alice);
         vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
         lpSeed.beforeAction(bytes4(0), 0, alice, "");
-    }
-
-    function test_RevertIf_AfterActionNotZAMM() public {
-        vm.prank(alice);
-        vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
-        lpSeed.afterAction(bytes4(0), 0, alice, 0, 0, 0, "");
     }
 
     // ── Configure: Overwrite ──────────────────────────────────────
@@ -593,7 +1202,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.configure(address(0), 2e18, sharesAddr, 200e18, 0, address(0), 0);
 
-        (,, uint128 amtA, uint128 amtB,,,,,) = lpSeed.seeds(dao);
+        (,, uint128 amtA, uint128 amtB,,,,,,,) = lpSeed.seeds(dao);
         assertEq(amtA, 2e18);
         assertEq(amtB, 200e18);
     }
@@ -626,7 +1235,8 @@ contract LPSeedSwapHookTest is Test {
             address(lpSeed),
             0,
             abi.encodeCall(
-                lpSeed.configure, (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+                ILPSeedSwapHook.configure,
+                (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
             )
         );
 
@@ -658,6 +1268,74 @@ contract LPSeedSwapHookTest is Test {
 
     // ── Cancel: Already seeded ────────────────────────────────────
 
+    // ── Configure: Blocked after seeding ─────────────────────────
+
+    function test_RevertIf_ConfigureAfterSeeded() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(95));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint128 usdcAmt = 1000e18;
+        uint128 sharesAmt = 1000e18;
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, sharesAmt)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), usdcAmt))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, sharesAmt))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ReconfDAO", "RECF", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        usdc.mint(dao, usdcAmt);
+        lpSeed.seed(dao);
+
+        // Reconfigure after seeding should revert — prevents bricking the pool
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.AlreadySeeded.selector);
+        lpSeed.configure(address(usdc), 500e18, sharesAddr, 500e18, 0, address(0), 0);
+    }
+
+    // ── setBeneficiary: Blocked when rates are zero ──────────────
+
+    function test_RevertIf_SetBeneficiaryNoRates() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(135)), 1e18, 1000e18, 0, address(0), 0);
+
+        // No daoFee configured — rates are zero
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setBeneficiary(address(0xBEEF));
+    }
+
+    function test_SetBeneficiary_AllowZeroWithoutRates() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(136)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Setting to address(0) should always work (disables routing)
+        vm.prank(dao);
+        lpSeed.setBeneficiary(address(0));
+    }
+
     function test_RevertIf_CancelAlreadySeeded() public {
         address[] memory h = new address[](1);
         h[0] = alice;
@@ -683,7 +1361,8 @@ contract LPSeedSwapHookTest is Test {
             address(lpSeed),
             0,
             abi.encodeCall(
-                lpSeed.configure, (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+                ILPSeedSwapHook.configure,
+                (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
             )
         );
 
@@ -709,12 +1388,9 @@ contract LPSeedSwapHookTest is Test {
         usdc.mint(dao, usdcAmt);
         lpSeed.seed(dao);
 
-        // Cancel after seeding — config is cleared (seeded flag deleted too)
+        // Cancel after seeding should revert — prevents bricking the pool
         vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.AlreadySeeded.selector);
         lpSeed.cancel();
-
-        (,, uint128 amtA,,,,,, bool seeded) = lpSeed.seeds(dao);
-        assertEq(amtA, 0);
-        assertFalse(seeded);
     }
 }

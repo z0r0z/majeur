@@ -1,5 +1,5 @@
 # Constants
-[Git Source](https://github.com/z0r0z/majeur/blob/7a39232caba6bdf1dca11fa0402ac5168540b811/src/peripheral/LPSeedSwapHook.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/7b0b09c645157c41733569026978219fbad0e559/src/peripheral/LPSeedSwapHook.sol)
 
 ### ZAMM
 ZAMM singleton address.
@@ -10,17 +10,11 @@ IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD)
 ```
 
 ### FLAG_BEFORE
-Hook encoding flags.
+Hook encoding flag — only beforeAction is used (afterAction is not registered).
 
 
 ```solidity
 uint256 constant FLAG_BEFORE = 1 << 255
-```
-
-### FLAG_AFTER
-
-```solidity
-uint256 constant FLAG_AFTER = 1 << 254
 ```
 
 ### DEFAULT_FEE_BPS

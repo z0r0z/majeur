@@ -1,5 +1,5 @@
 # ShareBurner
-[Git Source](https://github.com/z0r0z/majeur/blob/7a39232caba6bdf1dca11fa0402ac5168540b811/src/peripheral/ShareBurner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/7b0b09c645157c41733569026978219fbad0e559/src/peripheral/ShareBurner.sol)
 
 **Title:**
 ShareBurner

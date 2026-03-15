@@ -47,8 +47,6 @@ Minimal proxy clones are deployed from these implementation contracts. Each DAO 
 
 > [majeurdao.eth](https://majeurdao.eth.limo/)
 
-> [daicowtf.eth](https://daicowtf.eth.limo/)
-
 ## Token System
 
 | Token | Standard | Purpose |

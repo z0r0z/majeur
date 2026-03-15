@@ -4,7 +4,6 @@ Single-page HTML dApps for DAO governance. No build step, no dependencies — ju
 
 **Live:**
 - [majeurdao.eth](https://majeurdao.eth.limo/) — DAO governance interface
-- [daicowtf.eth](https://daicowtf.eth.limo/) — Token sale interface
 
 ## Quick Start
 
@@ -31,7 +30,6 @@ Each dApp is a self-contained HTML file that:
 |----------|---------|
 | MolochViewHelper | `0x00000000006631040967E58e3430e4B77921a2db` |
 | Summoner | `0x0000000000330B8df9E3bc5E553074DA58eE9138` |
-| DAICO | `0x000000000033e92DB97B4B3beCD2c255126C60aC` |
 
 ## Features
 
