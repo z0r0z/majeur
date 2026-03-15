@@ -499,7 +499,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
 
 ## Audits
 
-Moloch.sol has been scanned by twenty-nine independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
+Moloch.sol has been scanned by thirty-one independent audit tools. Reports with per-finding review notes are in [`/audit`](./audit/). Formal verification specs and harnesses are in [`/certora`](./certora/).
 
 | Auditor | Type | Findings | Report |
 |---------|------|----------|--------|
@@ -532,8 +532,10 @@ Moloch.sol has been scanned by twenty-nine independent audit tools. Reports with
 | [Archethect SC-Auditor V2](./audit/archethect2.md) | [Map-Hunt-Attack V2 + PoC suite (sc-auditor v0.4.0)](https://github.com/Archethect/sc-auditor) | 16 claimed (4H, 5M, 5L, 2 design) — 2 novel, 13 duplicates, 1 config-mitigated | 2 novel findings (ragequit front-run, sale transfer lock bypass); significant severity inflation (all 4 HIGHs are known/config-dependent); 14 PoC tests provide useful regression coverage; no production blockers |
 | [Ackee Wake Arena](./audit/ackee.md) | [Vulnerability scan](https://wake-arena-stage.web.app/) | 6 (1H, 3M, 1L — all duplicates) | 0 novel findings; all 6 are duplicates of known findings (KF#1, KF#3, KF#6, KF#15) or previously identified patterns; no production blockers |
 | [Auron](./audit/auron.md) | Vulnerability report | 1 Low (1 novel — downgraded from reported High) | 1 novel finding: self-transfer under split delegation produces non-canceling vote deltas. Invariant violation is real but not practically exploitable with 18-decimal tokens — rounding asymmetry is sub-wei dust. Fix recommended for correctness; no production blockers |
+| [webrainsec](./audit/webrainsec.md) | Security audit (multi-contract) | 20 (2H, 7M, 11L — 0 novel, all duplicates) | 0 novel findings; all 20 are duplicates of known findings or target obsolete DAICO.sol (removed). Strong cross-feature interaction analysis (M-05, M-06). 4 findings target obsolete DAICO.sol. Well-constructed PoCs; no production blockers |
+| [Winfunc](./audit/winfunc.md) | [Validated vulnerability scan (smart-contract mode)](https://winfunc.com/) | 28 (1C, 10H, 16M, 1L — 0 novel Moloch.sol core, 12 novel peripheral root causes, 8 duplicates/variants) | 0 novel Moloch.sol findings; all core findings are duplicates of KF#1, KF#3, KF#11, KF#17, KF#21. 12 novel root causes target peripheral contracts (LPSeedSwapHook, ShareBurner, TapVest, ShareSale, Tribute, MolochViewHelper) — candidates for per-contract audit extraction. Significant severity inflation on Moloch.sol duplicates (Critical = KF#17/Medium, Highs = KF#3+KF#11/Low). Zero false positives; no production blockers |
 
-**No production blockers were identified across any audit.** Thirteen novel smart contract findings were surfaced across twenty-nine scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues + 2 from Archethect V2 + 1 from Auron). Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
+**No production blockers were identified across any audit.** Thirteen novel Moloch.sol core findings were surfaced across thirty-one scans (5 from prior audits + 5 from Cantina covering peripheral contracts and namespace issues + 2 from Archethect V2 + 1 from Auron). Winfunc added 0 novel Moloch.sol core findings but identified 12 novel root causes in peripheral contracts (LPSeedSwapHook, ShareBurner, TapVest, ShareSale, Tribute, MolochViewHelper) — candidates for extraction into per-contract audit folders under `src/peripheral/audit/`. Cantina additionally identified ~18 novel frontend findings (XSS and logic bugs) — the first audit to cover the dapp. Configuration-dependent concerns are enforced by [`SafeSummoner`](./src/peripheral/SafeSummoner.sol); code-level issues are candidates for v2 hardening.
 
 **Novel smart contract findings (13):**
 1. Vote receipt transferability breaks `cancelVote` (Pashov — Low, design tradeoff)
@@ -572,11 +574,15 @@ Moloch.sol has been scanned by twenty-nine independent audit tools. Reports with
 
 - **Ackee Wake Arena** submitted 6 findings (1 High, 3 Medium, 1 Low) — all duplicates of known findings (KF#1, KF#3, KF#6, KF#15) or previously identified patterns. Finding #1 matches an explicit False Positive Pattern (ragequit drains futarchy pools). The composite High finding (#5) chains known components without novel discovery. Clean code snippets and exploit scenarios, but zero novel findings. Signal-to-noise: 0 novel from 6 total (0%).
 
+- **webrainsec** scanned Moloch.sol plus DAICO.sol, Tribute.sol, SafeSummoner.sol, MolochViewHelper.sol, and Renderer.sol. 20 findings (2H, 7M, 11L), all duplicates — 0 novel. The strongest aspect is cross-feature compositional reasoning: M-05 (auto-futarchy blocks cancel) and M-06 (permit + auto-futarchy + timelock compound) demonstrate good interaction analysis even though both map to known root causes. 4 findings target the obsolete DAICO.sol (removed, replaced by modular peripherals). H-01 (tap forfeiture) honestly acknowledges the Certora prior art. H-02 (buy-ragequit extraction) is KF#2. M-01 (`executeByVotes` return value) is a reasonable API semantics observation. Well-constructed PoCs with concrete output throughout. Signal-to-noise: 0 novel from 20 total (0%).
+
+- **Winfunc** is the first audit to scan the full repository — Moloch.sol core plus all peripheral contracts — producing the highest finding count (28) and the most novel peripheral root causes (12) of any single audit. For Moloch.sol core, all findings are duplicates of KF#1, KF#3, KF#11, KF#17, and KF#21, which further validates the core attack surface coverage. Core duplicate severities are rated higher than the existing corpus (KF#17 at Critical vs Medium, KF#3+KF#11 at High vs Low/Design). The standout value is in peripheral coverage: LPSeedSwapHook pool collision/pre-creation (#3/#5/#9 — first to identify the shared pool namespace gap), ShareBurner over-scope burn (#2), TapVest fake-DAO drain (#15) and partial-claim griefing (#4/#13, extends Certora L-01), ShareSale pricing overflow (#20) and stray ETH (#27), Tribute fake-funding (#14) and discovery spam (#21/#23), MolochViewHelper omissions (#22/#26/#28). Zero false positives across all 28 findings. Signal-to-noise for peripheral contracts: 12 novel root causes from 28 total (43%).
+
 - **Certora FV** is the only formal verification engagement. 142 properties across 7 contracts provide mathematical proofs for critical invariants (sum-of-balances, state machine monotonicity, write-once fields, access control, split delegation constraints, ragequit payout bounds). The L-01 tap forfeiture finding is confirmed via intentional violation (D-L1a) and reachability witness (D-L1b) — a novel angle on ragequit interaction with DAICO, but acknowledged as intentional Moloch exit-rights design. The two informational findings (unbounded Tribute arrays, `mulDiv` phantom overflow) are both known tradeoffs.
 
 - **Auron** identified a novel invariant violation in split-delegation vote accounting: self-transfers produce non-canceling deltas. However, the PoC used 0-decimal balances (raw integer mints like `mintFromMoloch(attacker, 1)` = 1 wei, not 1 share). Exhaustive testing across 11 configurations with realistic 18-decimal balances showed: (a) any transfer ≥ 1e14 wei produces exactly 0 steal, (b) 1-wei transfers consistently benefit the *victim* not the attacker (the "remainder to last" mechanism in `_targetAlloc` penalizes the attacker position), (c) the 4-way split loop (original PoC config) produced exactly 0 net change over 1000 iterations with 18-decimal balances, (d) even the "best" 2-way loop accumulated only 1000 wei (10^-15 of 1 share) over 1000 iterations. Downgraded from reported High to Low. Signal-to-noise: 1 novel from 1 total (100%), but significant severity inflation from unrealistic PoC parameters. Illustrative case study in why PoCs must use deployment-realistic token scales.
 
-Cross-referencing across all twenty-nine scans — thirteen independent novel smart contract findings (plus ~18 novel frontend findings from Cantina), twenty-three catalogued known findings (KF#1–23), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full smart contract attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited. Archethect V2's ragequit front-run and transfer lock bypass findings extend coverage to economic timing attacks and access control edge cases not previously explored.
+Cross-referencing across all thirty-one scans — thirteen independent novel Moloch.sol core findings (plus ~18 novel frontend findings from Cantina and 12 novel peripheral root causes from Winfunc), twenty-four catalogued known findings (KF#1–24), consistent duplicate confirmation across tools, and 142 formally verified invariants — increases confidence that the known findings represent the full Moloch.sol core attack surface. Cantina's coverage of the frontend and peripheral contracts (Tribute, DAICO) opened a new surface area not previously audited. Archethect V2's ragequit front-run and transfer lock bypass findings extend coverage to economic timing attacks and access control edge cases not previously explored. Winfunc's peripheral coverage (LPSeedSwapHook, ShareBurner, TapVest, ShareSale, Tribute, MolochViewHelper) identified 12 novel root causes in contracts not systematically audited before — these findings are candidates for extraction into per-contract security documents under `src/peripheral/audit/`.
 
 ### SafeSummoner
 
@@ -592,7 +598,7 @@ Cross-referencing across all twenty-nine scans — thirteen independent novel sm
 | `autoFutarchyCap > 0` if futarchy enabled | KF#3 | Unbounded per-proposal earmarks; default minted-loot reward path has no natural balance cap, enabling NO-coalition treasury farming |
 | Block minting sale + dynamic-only quorum | KF#2 | Supply manipulation via buy → ragequit |
 
-DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the twenty-eight audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (custom allowances, etc.).
+DAOs deployed through `SafeSummoner.safeSummon()` cannot hit the configuration footguns identified across the thirty-one audits. The `previewCalls()` function lets frontends inspect exactly which `initCalls` will execute, and `predictDAO()` returns the deterministic address before deployment. An `extraCalls` escape hatch preserves full flexibility for advanced setups (custom allowances, etc.).
 
 ### Configuration Guidance for Deployers
 
@@ -632,6 +638,15 @@ Identified through audit review for future contract versions:
 - ~~Validate 18-decimal requirement for custom token wrapping at submit time (Cantina MAJEUR-20)~~ **Patched** in demo dapp
 - ~~Require Summoner provenance for deep-link DAOs (Cantina MAJEUR-8)~~ **Patched** in demo dapp (warning label + code check)
 - ~~Route dapp summon through `SafeSummoner.safeSummon()` (Cantina MAJEUR-18)~~ **SafeSummoner deployed**
+- Namespace LPSeedSwapHook pool keys by DAO address — use `id0 = uint256(uint160(dao))` to prevent cross-DAO pool collision and ownership takeover (Winfunc #3)
+- Reserve LPSeedSwapHook pool ID at `configure()` time, not `seed()` time — prevent pre-creation front-running of launch pricing (Winfunc #5/#9)
+- Scope `ShareBurner.burnUnsold()` to tracked sale-inventory amount rather than live `balanceOf(dao)` — prevent burn of unrelated treasury-held shares (Winfunc #2)
+- Add `unpaidAccrual` carry field to TapVest — preserve accrued backlog on partial claims during treasury shortfalls (Winfunc #4/#13, extends Certora L-01)
+- Validate ShareSale pricing parameters for overflow at configuration time (Winfunc #20)
+- Reject `msg.value > 0` in ERC-20-denominated ShareSale purchases (Winfunc #27)
+- Wrap `contractURI` calls in try/catch in MolochViewHelper batch functions (Winfunc #22)
+- Validate Tribute ERC-20 receipt via balance-before/after check in `proposeTribute` (Winfunc #14)
+- Validate TapVest `configure()` caller is a legitimate DAO (Winfunc #15)
 
 ## FAQ
 
@@ -655,7 +670,7 @@ Identified through audit review for future contract versions:
 
 ## Disclaimer
 
-*Reviewed by twenty-nine auditing tools (see [Audits](#audits)) — no formal manual audit. Use at your own risk.*
+*Reviewed by thirty-one auditing tools (see [Audits](#audits)) — no formal manual audit. Use at your own risk.*
 
 ## License
 

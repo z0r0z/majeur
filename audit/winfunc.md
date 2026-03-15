@@ -17,6 +17,19 @@
 - No-prior-match findings vs. existing repo audit corpus: **15 finding rows / 12 unique root causes**
 - Prior-art overlaps / variants vs. existing repo audit corpus: **13 finding rows / 8 unique root causes**
 
+## Review Summary
+
+> **Reviewed 2026-03-15. No production blockers identified. Zero novel Moloch.sol core findings — all 12 novel root causes target peripheral contracts (LPSeedSwapHook, ShareBurner, TapVest, ShareSale, Tribute, MolochViewHelper).**
+>
+> - **28 findings total:** 1 Critical, 10 High, 16 Medium, 1 Low. Scope covers Moloch.sol core plus 6 peripheral contracts.
+> - **Moloch.sol core: 0 novel findings.** All core Moloch findings are duplicates of known findings (KF#1, KF#3, KF#11, KF#17, KF#21) or previously identified patterns from prior audits. The overlap classifications in Winfunc's own matrix are accurate.
+> - **Peripheral contracts: 12 novel root causes** across LPSeedSwapHook (3), ShareBurner (1), TapVest (2), ShareSale (2), Tribute (2), MolochViewHelper (2). These are the first audit to systematically cover the LPSeedSwapHook pool namespace and seeding lifecycle. Peripheral findings are candidates for extraction into per-contract audit folders (see `src/peripheral/audit/`).
+> - **Severity inflation is significant on Moloch.sol duplicates.** The Critical (#1) is KF#17 (Medium, configuration-dependent, mitigated by SafeSummoner). Highs #7/#8 are KF#3+KF#11 (Low/Design). High #10 is KF#1 (Low). High #11 is KF#11 (Low). These are all well-documented findings rated 1–3 levels lower in the existing corpus.
+> - **Zero false positives.** Every finding maps to either a known issue or a genuine peripheral contract gap. The overlap matrix is accurate and well-sourced.
+> - **Frontend XSS findings (#18/#19)** are duplicates of the Cantina XSS class (same `innerHTML` root cause, different DOM sinks). Patched in demo dapp.
+> - **Strongest contributions:** LPSeedSwapHook pool collision (#3), pre-creation pricing attack (#5/#9), ShareBurner over-scope burn (#2), TapVest fake-DAO drain (#15), and ShareSale pricing overflow (#20). These expose real architectural gaps in peripheral contracts not covered by prior audits.
+> - **For the Moloch.sol-focused audit table and tool ranking**, this audit adds cross-validation confidence on 8 existing known findings but does not extend the core attack surface. Novel findings are scoped to peripherals and should be tracked in per-contract security documents.
+
 ## Full Finding-by-Finding Overlap Matrix Against Existing Audits
 
 Novel means no exact root-cause match was found in the current `README.md` audit summary or any existing file under `audit/`. Variant means the exploit chain is sharper or broader, but the underlying root cause was already represented in the prior audit corpus.
@@ -89,6 +102,8 @@ Novel means no exact root-cause match was found in the current `README.md` audit
 
 <details>
 <summary><strong>1. Zero-quorum futarchy proposals can be prematurely NO-resolved and drained</strong></summary>
+
+> **Review: Duplicate of KF#17. Severity adjusted to Medium (configuration-dependent, mitigated by SafeSummoner).** This is the same zero-quorum premature NO-resolution finding originally discovered by ChatGPT (GPT 5.4) and catalogued as KF#17. `SafeSummoner.safeSummon()` enforces non-zero quorum when futarchy is enabled (`QuorumRequiredForFutarchy` revert), so any DAO deployed through the safe path is immune. The Critical rating (CVSS 9.1) ignores this deployment-time mitigation. The PoC is well-constructed but demonstrates a configuration that SafeSummoner explicitly prevents. Raw `Summoner.summon()` users are warned in README Configuration Guidance. **Severity: Medium (per KF#17, configuration-dependent).**
 
 **Winfunc ID:** `25`
 
@@ -480,6 +495,8 @@ The attacker needs only dust voting power in a zero-quorum DAO to become the sol
 <details>
 <summary><strong>2. SafeSummoner auto-burn helper can permissionlessly destroy unrelated DAO-held shares</strong></summary>
 
+> **Review: Valid novel finding targeting SafeSummoner + ShareBurner peripherals. High severity accepted for peripheral scope.** The root cause — `burnUnsold()` burns `balanceOf(dao)` rather than tracked sale inventory — is a genuine design gap not previously identified. The PoC is sound. Note: this is not a Moloch.sol core finding; it targets `SafeSummoner.sol` / `ShareBurner.sol` peripheral wiring. SafeSummoner KF#4 (patched: loot vs shares burn target) is a related but distinct bug. This finding should be tracked in `src/peripheral/audit/SafeSummoner/SECURITY.md` and the ShareBurner module. **V2 hardening:** scope `burnUnsold()` to a tracked sale-inventory amount rather than live treasury balance; add config validation rejecting `saleBurnDeadline > 0` without an active non-minting share sale.
+
 **Winfunc ID:** `21`
 
 **CVSS Score:** `8.2`
@@ -777,6 +794,8 @@ Installing the auto-burn helper without an actual sale lets anyone destroy unrel
 
 <details>
 <summary><strong>3. Singleton LP seed hook allows cross-DAO pool takeover and swap denial</strong></summary>
+
+> **Review: Valid novel finding targeting LPSeedSwapHook peripheral. High severity accepted for peripheral scope.** The `poolDAO[poolId]` last-writer-wins mapping with no prior-owner check is a genuine architectural gap. The PoC demonstrates deterministic pool key collision and ownership takeover. Not a Moloch.sol core finding — targets `LPSeedSwapHook.sol`. This is the strongest contribution from the Winfunc audit: the shared pool namespace design was not identified by any prior audit. **V2 hardening:** namespace pool keys by DAO address (use `id0 = uint256(uint160(dao))`) or enforce immutable first-registration with `if (existing != address(0) && existing != dao) revert`.
 
 **Winfunc ID:** `22`
 
@@ -1114,6 +1133,8 @@ The attacker gains effective control over the victim pool's hook-managed policy 
 
 <details>
 <summary><strong>4. Permissionless tap claims can permanently erase accrued vesting during treasury shortfalls</strong></summary>
+
+> **Review: Duplicate of Certora FV L-01 / webrainsec H-01 (tap forfeiture class). Severity adjusted to Low (acknowledged by-design behavior).** The tap forfeiture root cause — `lastClaim` advances unconditionally on partial claims — was first identified by Certora FV (L-01) and independently confirmed by webrainsec (H-01) and Grimoire. The project team acknowledged this as intentional Moloch exit-rights design: ragequit is sacrosanct and can drain treasury below tap obligations. The permissionless `claim()` angle adds a sharper framing (third-party griefing during shortfalls), but the root cause is documented and accepted. Not a Moloch.sol core finding — targets `TapVest.sol` peripheral. **Severity: Low (acknowledged design tradeoff, previously documented).**
 
 **Winfunc ID:** `11`
 
@@ -1455,6 +1476,8 @@ The attacker gains the ability to permanently destroy already-accrued tap compen
 
 <details>
 <summary><strong>5. LP seed hook allows attacker to pre-create the official pool and set launch pricing</strong></summary>
+
+> **Review: Valid novel finding targeting LPSeedSwapHook peripheral. High severity accepted for peripheral scope.** The pre-seed front-running window is a genuine design gap — `poolDAO[poolId]` is unset until `seed()` runs, so `beforeAction()` permits the attacker's early `addLiquidity`. Same LPSeedSwapHook root cause cluster as #3 and #9 but distinct attack vector (price manipulation vs ownership takeover). Not a Moloch.sol core finding. **V2 hardening:** reserve the deterministic pool ID at `configure()` time, not `seed()` time; set nonzero `amount0Min`/`amount1Min` in the `seed()` call.
 
 **Winfunc ID:** `19`
 
@@ -1867,6 +1890,8 @@ The attacker has turned the DAO's official hooked pool into an attacker-initiali
 <details>
 <summary><strong>6. Predictable SafeSummoner deployment address can be squatted and maliciously initialized</strong></summary>
 
+> **Review: Variant of KF#9 (CREATE2 salt not bound to msg.sender). Severity adjusted to Low-Medium (per V1.5 assessment).** This extends KF#9 with a concrete SafeSummoner exploit chain but the fundamental constraint remains: `initHolders` and `initShares` are in the salt, so the attacker cannot substitute themselves as share holders. The V1.5 assessment (SECURITY.md) and Cantina's MAJEUR-17 already document this class. The SafeSummoner framing is sharper (attacker controls `initCalls` including module wiring) but the legitimate deployer would see the misconfigured DAO and redeploy with a different salt. No funds are at risk since the DAO is empty at deployment time. **Severity: Low-Medium (per KF#9 / V1.5 assessment).**
+
 **Winfunc ID:** `20`
 
 **CVSS Score:** `8.1`
@@ -2207,6 +2232,8 @@ The attacker permanently occupies the DAO address the victim expected to own, pr
 <details>
 <summary><strong>7. Uncapped auto-futarchy minted-loot rewards enable repeated ragequit-based treasury drain</strong></summary>
 
+> **Review: Duplicate of KF#3 + KF#11. Severity adjusted to Low (configuration-dependent, mitigated by SafeSummoner).** This is the auto-futarchy farming / NO-coalition treasury drain class found by 9+ prior audits: Octane (#4 — earliest detailed articulation), Pashov, Forefy, QuillShield, ChatGPT, ChatGPT Pro, Qwen, Archethect V2, Almanax, Grimoire, Solarizer. KF#3 documents this as Design: "a majority NO coalition can also collect auto-funded pools by repeatedly defeating proposals — this is by design (NO voters are rewarded for correct predictions)." Mitigated by `proposalThreshold > 0` (KF#11), `autoFutarchyCap` (per-proposal bound), and SafeSummoner enforcement. The ragequit extraction angle is KF#3 (ragequit drains futarchy pools — by design). **Severity: Low (per KF#3 + KF#11, configuration-dependent).**
+
 **Winfunc ID:** `29`
 
 **CVSS Score:** `8.1`
@@ -2514,6 +2541,8 @@ The attacker converts repeated proposal defeats into synthetic loot rewards and 
 <details>
 <summary><strong>8. Uncapped auto-futarchy default reward path enables NO-side loot farming and treasury dilution</strong></summary>
 
+> **Review: Duplicate of KF#3 + KF#11 (same root cause as #7). Severity adjusted to Low.** Same auto-futarchy minted-reward farming class documented in KF#3. The "default reward path" framing (when `rewardToken = address(0)` → minted Loot via `address(1007)`) is the specific variant previously documented by Octane, Pashov, and ChatGPT Pro. Mitigated by the same SafeSummoner guardrails. **Severity: Low (per KF#3 + KF#11).**
+
 **Winfunc ID:** `28`
 
 **CVSS Score:** `7.8`
@@ -2803,6 +2832,8 @@ The attacker converts repeated proposal defeats into synthetic loot rewards and 
 
 <details>
 <summary><strong>9. LP seed hook allows attacker-controlled first liquidity and launch-price manipulation</strong></summary>
+
+> **Review: Valid novel finding targeting LPSeedSwapHook peripheral. Same root cause cluster as #3 and #5.** This is the first-liquidity variant of the LPSeedSwapHook pre-creation attack. The attacker creates the pool before `seed()` with a chosen reserve ratio, then DAO funds enter at the attacker-set price. The `amount0Min = amount1Min = 0` in `seed()` exacerbates the issue. Not a Moloch.sol core finding. **V2 hardening:** same fixes as #3/#5 — reserve pool ID at configure time, enforce minimum amounts, and check pool existence before seeding.
 
 **Winfunc ID:** `16`
 
@@ -3125,6 +3156,8 @@ The attacker becomes the unauthorized first LP for the DAO’s intended hook poo
 <details>
 <summary><strong>10. Exact-cap purchase turns a finite token sale into unlimited over-cap issuance</strong></summary>
 
+> **Review: Duplicate of KF#1 (sale cap sentinel collision). Severity adjusted to Low.** SECURITY.md KF#1: "Sale cap sentinel collision (`0` = unlimited = exhausted)." The most widely confirmed finding across all audits — Zellic, Pashov, SCV Scan, QuillShield, Grimoire, Archethect V2, Almanax, Ackee, and others. Buyer still pays `pricePerShare` — no free tokens. For non-minting sales, the DAO's held share balance is the real hard cap. V2 hardening candidate: use `type(uint256).max` as the "unlimited" sentinel. **Severity: Low (per KF#1).**
+
 **Winfunc ID:** `18`
 
 **CVSS Score:** `7.5`
@@ -3438,6 +3471,8 @@ The attacker acquires more shares than the DAO configured the sale to allow. In 
 
 <details>
 <summary><strong>11. Raw DAO launch lets a frontrunner seize proposer control and block cancellation for that proposal ID</strong></summary>
+
+> **Review: Variant of KF#11 (proposalThreshold == 0 griefing). Severity adjusted to Low.** This is the proposal-ID tombstoning / front-run cancel class previously found by Octane (#1), Zellic (#10), DeepSeek, Almanax (LOW-1), Solarizer (MED-1), and Grimoire. Key mitigations: (1) `castVote` auto-opens proposals atomically (proposers use `multicall` to open+vote in one tx), (2) `proposalThreshold > 0` restricts who can open, (3) auto-futarchy blocks cancellation via nonzero `F.pool`, (4) proposer can reissue with a new nonce. The "raw DAO launch" framing is specific to zero-threshold DAOs deployed through raw `Summoner.summon()` — SafeSummoner enforces `proposalThreshold > 0`. **Severity: Low (per KF#11, configuration-dependent).**
 
 **Winfunc ID:** `26`
 
@@ -3814,6 +3849,8 @@ The attacker gains control over the targeted proposal’s proposer slot and can 
 <details>
 <summary><strong>12. Permit-backed IDs can be opened as proposals and farm NO-side futarchy rewards</strong></summary>
 
+> **Review: Duplicate of KF#21 (Cantina MAJEUR-21). Severity accepted as Medium.** SECURITY.md KF#21: "Permit IDs enter proposal/futarchy lifecycle — `openProposal`, `castVote`, `fundFutarchy`, `resolveFutarchyNo` never check `isPermitReceipt[id]`." First discovered by Cantina Apex. The V1.5 assessment documents containment: bounded by `autoFutarchyCap`, requires `proposalThreshold` worth of shares, one-shot per permit ID, and promptly spending permits tombstones the ID. V2 fix: add `if (isPermitReceipt[id]) revert` guards. **Severity: Medium (per KF#21).**
+
 **Winfunc ID:** `27`
 
 **CVSS Score:** `6.8`
@@ -4116,6 +4153,8 @@ A pending permit ID can be abused as a proposal/futarchy ID long enough to mint 
 
 <details>
 <summary><strong>13. Permissionless partial tap claims permanently burn accrued vesting</strong></summary>
+
+> **Review: Duplicate — same root cause as #4 (Certora FV L-01, tap forfeiture class). Severity adjusted to Low.** See #4 review. This is the same TapVest partial-claim forfeiture documented by Certora, webrainsec, and Grimoire. The permissionless-claim angle is a sharper framing but the root cause is acknowledged as intentional Moloch exit-rights design. Not a Moloch.sol core finding — targets `TapVest.sol`. **Severity: Low (acknowledged design tradeoff).**
 
 **Winfunc ID:** `1`
 
@@ -4423,6 +4462,8 @@ The attacker does not need to steal treasury assets to succeed. By calling a per
 
 <details>
 <summary><strong>14. Tribute escrow accepts fake ERC20 funding and can pay proposers for undelivered tributes</strong></summary>
+
+> **Review: Valid novel finding targeting Tribute peripheral. Medium severity accepted for peripheral scope.** This is distinct from Cantina's MAJEUR-10 (bait-and-switch): the fake-funding / undelivered-tribute payout path is a different attack vector. The root cause — `proposeTribute` does not validate that the offered ERC20 actually transfers value — is a genuine Tribute.sol design gap not previously identified. Not a Moloch.sol core finding. **V2 hardening:** validate actual token receipt (balance-before/after check) in `proposeTribute`, or require the DAO's claim to assert expected balances.
 
 **Winfunc ID:** `4`
 
@@ -4790,6 +4831,8 @@ The attacker receives real DAO consideration for a tribute that was never escrow
 <details>
 <summary><strong>15. TapVest claim flow lets fake DAOs drain singleton balances</strong></summary>
 
+> **Review: Valid novel finding targeting TapVest peripheral. Medium severity accepted for peripheral scope.** The fake-DAO / singleton-balance TapVest drain is a genuine design gap not previously identified. The attack — register a fake DAO in TapVest and claim against balances already held by the singleton — exploits the lack of DAO validation in `configure()`. Not a Moloch.sol core finding — targets `TapVest.sol`. **V2 hardening:** validate that `msg.sender` is a legitimate DAO (e.g., check Summoner provenance or require the DAO to confirm the configuration via a callback).
+
 **Winfunc ID:** `12`
 
 **CVSS Score:** `6.5`
@@ -5075,6 +5118,8 @@ The attacker can steal any ETH already sitting in the shared `TapVest` singleton
 <details>
 <summary><strong>16. Permissionless futarchy NO-resolution can freeze zero-quorum proposals before voting</strong></summary>
 
+> **Review: Duplicate of KF#17 (same root cause as #1). Severity adjusted to Medium.** See #1 review. Same zero-quorum premature NO-resolution finding, different framing (freeze-only without the drain). Already catalogued and mitigated by SafeSummoner. **Severity: Medium (per KF#17, configuration-dependent).**
+
 **Winfunc ID:** `13`
 
 **CVSS Score:** `6.5`
@@ -5356,6 +5401,8 @@ A public attacker can trigger premature NO-resolution in a zero-quorum deploymen
 
 <details>
 <summary><strong>17. Zero-threshold proposal opening lets first caller tombstone a proposal ID before votes</strong></summary>
+
+> **Review: Variant of KF#11 (same root cause as #11). Severity adjusted to Low.** See #11 review. Same proposal-ID tombstoning / front-run cancel class. Sharper framing but same root cause and same mitigations (atomic open+vote via `multicall`, `proposalThreshold > 0`, SafeSummoner enforcement). **Severity: Low (per KF#11, configuration-dependent).**
 
 **Winfunc ID:** `24`
 
@@ -5642,6 +5689,8 @@ The attacker does not gain direct treasury control, but they do gain the ability
 
 <details>
 <summary><strong>18. Default DAO contractURI metadata can trigger DOM XSS in the dapp modal</strong></summary>
+
+> **Review: Duplicate of Cantina XSS class. Already patched in demo dapp.** Same `innerHTML`-with-untrusted-metadata root cause first identified by Cantina Apex (MAJEUR-5, MAJEUR-3, MAJEUR-4, etc.). New DOM sink instance but same root cause. The systematic `innerHTML` → `textContent`/DOM API pass has been applied to the demo dapp. Not a smart contract finding — dapp-layer only. **Severity: Medium (frontend, patched).**
 
 **Winfunc ID:** `5`
 
@@ -5951,6 +6000,8 @@ The attacker gains arbitrary JavaScript execution in the Majeur dapp origin for 
 <details>
 <summary><strong>19. Renderer-generated DAO contract metadata name can trigger XSS in the official dapp modal</strong></summary>
 
+> **Review: Duplicate of Cantina XSS class (same root cause as #18). Already patched in demo dapp.** Different DOM sink, same `innerHTML` root cause. See #18 review. **Severity: Medium (frontend, patched).**
+
 **Winfunc ID:** `10`
 
 **CVSS Score:** `6.1`
@@ -6247,6 +6298,8 @@ The attacker gains the ability to execute arbitrary JavaScript in the victim's b
 
 <details>
 <summary><strong>20. Share sale unchecked pricing math allows free or underpriced asset purchases</strong></summary>
+
+> **Review: Valid novel finding targeting ShareSale peripheral. Medium severity accepted for peripheral scope.** Unchecked multiplication overflow in `ShareSale` pricing is a genuine design gap not present in prior audits. Not a Moloch.sol core finding — targets `ShareSale.sol`. The governance configuration dependency (DAO sets the price parameters) applies the privileged-role rule, but the overflow itself should be guarded. **V2 hardening:** add checked arithmetic or validate pricing parameters at configuration time to prevent overflow combinations.
 
 **Winfunc ID:** `17`
 
@@ -6601,6 +6654,8 @@ The attacker obtains the full allowance-backed sale inventory selected in the ca
 <details>
 <summary><strong>21. DAO tribute discovery spam duplicates a live offer and makes discovery views scale with history</strong></summary>
 
+> **Review: Valid novel finding targeting Tribute peripheral. Medium severity accepted for peripheral scope.** The stale-reference duplicate-listing bug in Tribute discovery is distinct from prior Tribute findings (KF#20 bait-and-switch, Certora I-02 unbounded arrays). Not a Moloch.sol core finding — targets `Tribute.sol` discovery mechanism. Same root cause as #23. **V2 hardening:** deduplicate discovery arrays on cancel/re-propose or use a mapping-based discovery index.
+
 **Winfunc ID:** `3`
 
 **CVSS Score:** `5.4`
@@ -6907,6 +6962,8 @@ The attacker gains the ability to cheaply poison a DAO's tribute discovery surfa
 <details>
 <summary><strong>22. Renderer-backed contractURI can deny service to batched DAO view helper reads</strong></summary>
 
+> **Review: Valid novel finding targeting MolochViewHelper peripheral. Medium severity accepted for peripheral scope.** The `contractURI`-backed helper read DoS — a malicious renderer causing batch view calls to revert — is a genuine design gap not previously documented. Not a Moloch.sol core finding — targets `MolochViewHelper.sol`. Impact is griefing/DoS only, not fund loss. **V2 hardening:** wrap `contractURI` calls in try/catch within the view helper batch functions.
+
 **Winfunc ID:** `23`
 
 **CVSS Score:** `5.4`
@@ -7185,6 +7242,8 @@ The attacker gains a reliable way to break shared read paths that aggregate DAO 
 
 <details>
 <summary><strong>23. Tribute re-proposals can duplicate a single active offer in DAO discovery</strong></summary>
+
+> **Review: Valid novel finding (same root cause as #21). Medium severity accepted for peripheral scope.** See #21 review. Tribute cancel/re-propose cycles creating duplicate discovery listings. Not a Moloch.sol core finding. **Severity: Medium (peripheral, griefing/UX impact).**
 
 **Winfunc ID:** `2`
 
@@ -7483,6 +7542,8 @@ The attacker can make one real tribute appear many times in the DAO's public dis
 
 <details>
 <summary><strong>24. LP seed minSupply gate can be griefed by dusting tokenB into the DAO</strong></summary>
+
+> **Review: Valid novel finding targeting LPSeedSwapHook peripheral. Medium severity accepted for peripheral scope.** The `minSupply` gate griefing via tokenB dusting is a genuine design gap not previously documented. Attacker can block LP seeding by sending dust tokens to the DAO, keeping the readiness check false. Not a Moloch.sol core finding. Impact is griefing/DoS until governance clears the balance. **V2 hardening:** use a signed-off snapshot balance check rather than live `balanceOf`, or allow governance to override the seed gate.
 
 **Winfunc ID:** `6`
 
@@ -7831,6 +7892,8 @@ An attacker can keep the min-supply gate unsatisfied by dusting `tokenB` into th
 <details>
 <summary><strong>25. ShareBurner closeSale leaves built-in DAO sales live after expiry</strong></summary>
 
+> **Review: Valid novel finding targeting ShareBurner/SafeSummoner peripheral. Medium severity accepted for peripheral scope.** The observation that `ShareBurner.closeSale()` burns unsold inventory but doesn't deactivate the built-in `setSale` is a genuine design gap. Not a Moloch.sol core finding — targets `ShareBurner.sol` + `SafeSummoner.sol` wiring. Impact is moderate: post-expiry buyers would find no inventory (shares already burned), but the sale's `active` flag being true is misleading. **V2 hardening:** include a `setSale(..., active: false)` call in the burn permit's delegatecall payload.
+
 **Winfunc ID:** `14`
 
 **CVSS Score:** `5.3`
@@ -8131,6 +8194,8 @@ Confirm the non-minting sale remains purchasable after the burn deadline until s
 <details>
 <summary><strong>26. Governance helper omits delegated and non-seat voters, hiding real votes and receipt state</strong></summary>
 
+> **Review: Valid novel finding targeting MolochViewHelper peripheral. Medium severity accepted for peripheral scope.** The view-helper omission of delegate/non-seat voters from governance views is a genuine design gap not previously documented. Not a Moloch.sol core finding — targets `MolochViewHelper.sol`. Impact is UX-layer: real on-chain votes are hidden from dapp displays, which could mislead users about participation. No fund loss. Same root cause as #28. **V2 hardening:** extend the view helper to enumerate voters from ERC-6909 receipt holders or emit indexed vote events that the helper can query.
+
 **Winfunc ID:** `7`
 
 **CVSS Score:** `4.3`
@@ -8385,6 +8450,8 @@ The attacker can make a real vote count toward governance while remaining absent
 
 <details>
 <summary><strong>27. ERC20-denominated ShareSale purchases can permanently lock stray ETH</strong></summary>
+
+> **Review: Valid novel finding targeting ShareSale peripheral. Medium severity accepted for peripheral scope.** Stray ETH sent to an ERC-20-denominated `ShareSale` purchase being permanently locked is a genuine edge case not previously documented. Not a Moloch.sol core finding — targets `ShareSale.sol`. Impact is user-error ETH loss, not an exploitable vulnerability. **V2 hardening:** reject `msg.value > 0` when the sale's payment token is an ERC-20, or refund excess ETH.
 
 **Winfunc ID:** `8`
 
@@ -8683,6 +8750,8 @@ The attacker does not receive the ETH directly; instead, the victim's extra ETH 
 <details>
 <summary><strong>28. Delegate-only governance accounts disappear from personalized DAO dashboards</strong></summary>
 
+> **Review: Valid novel finding (same root cause as #26). Low severity accepted.** See #26 review. Delegate-only accounts missing from personalized views is the same MolochViewHelper omission. UX-layer impact only, no fund loss. Not a Moloch.sol core finding. **Severity: Low (peripheral, UX impact).**
+
 **Winfunc ID:** `15`
 
 **CVSS Score:** `3.5`
@@ -8932,7 +9001,7 @@ contract DelegateOnlyVoterHiddenTest is Test {
 
         // Open a proposal and vote from the delegate-only address.
         bytes memory data = abi.encodeWithSignature("setValue(uint256)", 123);
-        uint256 id = dao.proposalId(0, target, 0, data, bytes32(0));
+are        uint256 id = dao.proposalId(0, target, 0, data, bytes32(0));
 
         vm.prank(alice);
         dao.openProposal(id);
