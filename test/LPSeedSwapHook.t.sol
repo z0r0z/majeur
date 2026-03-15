@@ -521,4 +521,200 @@ contract LPSeedSwapHookTest is Test {
         assertEq(val & uint256(uint160(address(lpSeed))), uint256(uint160(address(lpSeed))));
         assertTrue(val > 10_000); // hook mode, not fee mode
     }
+
+    // ── setFee ────────────────────────────────────────────────────
+
+    function test_SetFee() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(70)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        lpSeed.setFee(50); // 50 bps = 0.5%
+
+        (,,,, uint16 feeBps,,,,) = lpSeed.seeds(dao);
+        assertEq(feeBps, 50);
+    }
+
+    function test_SetFee_ToZero() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(71)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        lpSeed.setFee(50);
+
+        vm.prank(dao);
+        lpSeed.setFee(0); // reset to default
+
+        (,,,, uint16 feeBps,,,,) = lpSeed.seeds(dao);
+        assertEq(feeBps, 0);
+    }
+
+    function test_RevertIf_SetFeeAboveMax() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(72)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setFee(10_001);
+    }
+
+    function test_RevertIf_SetFeeNotConfigured() public {
+        vm.prank(address(0xdead));
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.setFee(50);
+    }
+
+    function test_RevertIf_SetFeeNotDAO() public {
+        _deployWithSeed(bytes32(uint256(73)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(bob);
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.setFee(50);
+    }
+
+    // ── Hook Access Control ───────────────────────────────────────
+
+    function test_RevertIf_BeforeActionNotZAMM() public {
+        vm.prank(alice);
+        vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
+        lpSeed.beforeAction(bytes4(0), 0, alice, "");
+    }
+
+    function test_RevertIf_AfterActionNotZAMM() public {
+        vm.prank(alice);
+        vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
+        lpSeed.afterAction(bytes4(0), 0, alice, 0, 0, 0, "");
+    }
+
+    // ── Configure: Overwrite ──────────────────────────────────────
+
+    function test_Configure_Overwrite() public {
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(80)), 1e18, 100e18, 0, address(0), 0);
+
+        // Reconfigure with different amounts
+        vm.prank(dao);
+        lpSeed.configure(address(0), 2e18, sharesAddr, 200e18, 0, address(0), 0);
+
+        (,, uint128 amtA, uint128 amtB,,,,,) = lpSeed.seeds(dao);
+        assertEq(amtA, 2e18);
+        assertEq(amtB, 200e18);
+    }
+
+    // ── Seedable: Already seeded ──────────────────────────────────
+
+    function test_Seedable_AlreadySeeded() public {
+        // Use the ERC20 pair test setup
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(90));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint128 usdcAmt = 1000e18;
+        uint128 sharesAmt = 1000e18;
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, sharesAmt)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), usdcAmt))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, sharesAmt))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                lpSeed.configure, (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "SeedOnceDAO",
+            "ONCE",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            new uint256[](0),
+            c,
+            extra
+        );
+
+        usdc.mint(dao, usdcAmt);
+        lpSeed.seed(dao);
+
+        // After seeding, seedable returns false
+        assertFalse(lpSeed.seedable(dao));
+    }
+
+    // ── Cancel: Already seeded ────────────────────────────────────
+
+    function test_RevertIf_CancelAlreadySeeded() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(91));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint128 usdcAmt = 1000e18;
+        uint128 sharesAmt = 1000e18;
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, sharesAmt)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), usdcAmt))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, sharesAmt))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                lpSeed.configure, (address(usdc), usdcAmt, sharesAddr, sharesAmt, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "CancelSeeded",
+            "CNCL",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            new uint256[](0),
+            c,
+            extra
+        );
+
+        usdc.mint(dao, usdcAmt);
+        lpSeed.seed(dao);
+
+        // Cancel after seeding — config is cleared (seeded flag deleted too)
+        vm.prank(dao);
+        lpSeed.cancel();
+
+        (,, uint128 amtA,,,,,, bool seeded) = lpSeed.seeds(dao);
+        assertEq(amtA, 0);
+        assertFalse(seeded);
+    }
 }

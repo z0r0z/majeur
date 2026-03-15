@@ -255,4 +255,152 @@ contract ShareSaleTest is Test {
         assertTrue(d1.length > 0);
         assertTrue(d2.length > 0);
     }
+
+    // ── Configure Reverts ─────────────────────────────────────────
+
+    function test_RevertIf_ConfigureZeroPrice() public {
+        vm.expectRevert(ShareSale.ZeroPrice.selector);
+        sale.configure(address(0xDA0), address(0), 0, uint40(0));
+    }
+
+    // ── ERC20 PayToken ────────────────────────────────────────────
+
+    function test_BuySharesWithERC20() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(20));
+        address dao = safe.predictDAO(salt, h, s);
+
+        MockERC20 payToken = new MockERC20("Pay", "PAY", 18);
+        payToken.mint(bob, 1000e18);
+
+        // Configure: minting shares, paid with ERC20
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 1000e18)));
+        extra[1] = Call(
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (dao, address(payToken), 1e18, uint40(0)))
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ERC20PayDAO",
+            "EPAY",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            new uint256[](0),
+            c,
+            extra
+        );
+
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        uint256 buyAmount = 10e18;
+        uint256 cost = 10e18; // 10 shares * 1 token/share
+
+        vm.startPrank(bob);
+        payToken.approve(address(sale), cost);
+        sale.buy(dao, buyAmount);
+        vm.stopPrank();
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), buyAmount);
+        assertEq(payToken.balanceOf(dao), cost);
+    }
+
+    function test_RevertIf_UnexpectedETH_ERC20Sale() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(21));
+        address dao = safe.predictDAO(salt, h, s);
+
+        MockERC20 payToken = new MockERC20("Pay", "PAY", 18);
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 100e18)));
+        extra[1] = Call(
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (dao, address(payToken), 1e18, uint40(0)))
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "NoETHDAO", "NOETH", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        // Sending ETH to an ERC20-priced sale should revert
+        vm.prank(bob);
+        vm.expectRevert(ShareSale.UnexpectedETH.selector);
+        sale.buy{value: 1 ether}(dao, 1e18);
+    }
+
+    // ── SaleInitCalls for loot ────────────────────────────────────
+
+    function test_SaleInitCallsHelper_Loot() public view {
+        address dao = address(0xDA0);
+        (address t1, bytes memory d1, address t2, bytes memory d2) =
+            sale.saleInitCalls(dao, address(1007), 500e18, address(0), 1e15, 0);
+
+        assertEq(t1, dao);
+        assertEq(t2, address(sale));
+        assertTrue(d1.length > 0);
+        assertTrue(d2.length > 0);
+    }
+}
+
+contract MockERC20 {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint256 public totalSupply;
+
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
 }

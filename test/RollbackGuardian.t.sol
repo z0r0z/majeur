@@ -289,4 +289,71 @@ contract RollbackGuardianTest is Test {
         // Config bumped
         assertTrue(Moloch(payable(dao)).config() > 0);
     }
+
+    // ── Governance Access Control (additional) ────────────────────
+
+    function test_RevertIf_SetExpiryNotDAO() public {
+        _deployWithGuardian(bytes32(uint256(50)), 0);
+
+        vm.prank(bob);
+        vm.expectRevert(RollbackGuardian.NotConfigured.selector);
+        guardian.setExpiry(uint40(block.timestamp + 365 days));
+    }
+
+    function test_RevertIf_RevokeNotDAO() public {
+        _deployWithGuardian(bytes32(uint256(51)), 0);
+
+        vm.prank(bob);
+        vm.expectRevert(RollbackGuardian.NotConfigured.selector);
+        guardian.revoke();
+    }
+
+    // ── Kill Futarchy Expired ─────────────────────────────────────
+
+    function test_KillFutarchy_RevertIf_Expired() public {
+        uint40 expiry = uint40(block.timestamp + 1 days);
+        address dao = _deployWithGuardian(bytes32(uint256(52)), expiry);
+
+        vm.prank(dao);
+        Moloch(payable(dao)).setAutoFutarchy(500, 10e18);
+
+        vm.warp(expiry + 1);
+
+        vm.prank(guardianEOA);
+        vm.expectRevert(RollbackGuardian.Expired.selector);
+        guardian.killFutarchy(dao);
+    }
+
+    // ── Reconfigure Guardian ──────────────────────────────────────
+
+    function test_SetGuardian_ThenRollback() public {
+        address dao = _deployWithGuardian(bytes32(uint256(53)), 0);
+
+        vm.prank(dao);
+        guardian.setGuardian(bob);
+
+        // Old guardian can't rollback
+        vm.prank(guardianEOA);
+        vm.expectRevert(RollbackGuardian.Unauthorized.selector);
+        guardian.rollback(dao);
+
+        // New guardian can
+        uint64 configBefore = Moloch(payable(dao)).config();
+        vm.prank(bob);
+        guardian.rollback(dao);
+        assertEq(Moloch(payable(dao)).config(), configBefore + 1);
+    }
+
+    // ── Revoke then reconfigure ───────────────────────────────────
+
+    function test_Revoke_KillFutarchy_Fails() public {
+        address dao = _deployWithGuardian(bytes32(uint256(54)), 0);
+
+        vm.prank(dao);
+        guardian.revoke();
+
+        vm.prank(guardianEOA);
+        vm.expectRevert(RollbackGuardian.NotConfigured.selector);
+        guardian.killFutarchy(dao);
+    }
 }

@@ -247,4 +247,146 @@ contract TapVestTest is Test {
         assertTrue(d1.length > 0);
         assertTrue(d2.length > 0);
     }
+
+    // ── Configure Reverts ─────────────────────────────────────────
+
+    function test_RevertIf_ConfigureZeroRate() public {
+        vm.expectRevert(TapVest.ZeroRate.selector);
+        tap.configure(address(0), beneficiary, 0);
+    }
+
+    function test_RevertIf_ConfigureZeroBeneficiary() public {
+        vm.expectRevert();
+        tap.configure(address(0), address(0), 1e15);
+    }
+
+    // ── Governance Access Control ─────────────────────────────────
+
+    function test_RevertIf_SetBeneficiaryNotDAO() public {
+        uint128 rate = 1e18 / uint128(1 days);
+        _deployWithTap(bytes32(uint256(20)), rate, 100e18);
+
+        vm.prank(alice);
+        vm.expectRevert(TapVest.NotConfigured.selector);
+        tap.setBeneficiary(address(0xFACE));
+    }
+
+    function test_RevertIf_SetBeneficiaryToZero() public {
+        uint128 rate = 1e18 / uint128(1 days);
+        address dao = _deployWithTap(bytes32(uint256(21)), rate, 100e18);
+
+        vm.prank(dao);
+        vm.expectRevert();
+        tap.setBeneficiary(address(0));
+    }
+
+    function test_RevertIf_SetRateNotDAO() public {
+        uint128 rate = 1e18 / uint128(1 days);
+        _deployWithTap(bytes32(uint256(22)), rate, 100e18);
+
+        vm.prank(alice);
+        vm.expectRevert(TapVest.NotConfigured.selector);
+        tap.setRate(2e15);
+    }
+
+    // ── ERC20 Token Tap ───────────────────────────────────────────
+
+    function test_ClaimERC20() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(30));
+        address dao = safe.predictDAO(salt, h, s);
+
+        MockERC20 token = new MockERC20("Vesting", "VEST", 18);
+        token.mint(dao, 100e18);
+
+        uint128 rate = 1e18 / uint128(1 days);
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(tap), address(token), 100e18))
+        );
+        extra[1] = Call(
+            address(tap), 0, abi.encodeCall(tap.configure, (address(token), beneficiary, rate))
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ERC20TapDAO",
+            "ETAP",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            new uint256[](0),
+            c,
+            extra
+        );
+
+        vm.warp(block.timestamp + 1 days);
+
+        uint256 benBefore = token.balanceOf(beneficiary);
+        tap.claim(dao);
+        uint256 claimed = token.balanceOf(beneficiary) - benBefore;
+
+        assertApproxEqAbs(claimed, 1e18, 1e15);
+    }
+
+    // ── Pending View for unconfigured ─────────────────────────────
+
+    function test_PendingView_NotConfigured() public view {
+        assertEq(tap.pending(address(0xdead)), 0);
+    }
+
+    function test_ClaimableView_NotConfigured() public view {
+        assertEq(tap.claimable(address(0xdead)), 0);
+    }
+}
+
+contract MockERC20 {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint256 public totalSupply;
+
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
 }
