@@ -956,18 +956,19 @@ contract SafeSummonerTest is Test {
         assertEq(tToken, address(0));
         assertEq(tBen, bob);
 
-        (address seedA, address seedB,,,,,,,,,) = lpSeed.seeds(dao);
+        (address seedA, address seedB,,,,,,,,,,,,) = lpSeed.seeds(dao);
         assertEq(seedA, address(0)); // ETH
         assertEq(seedB, sharesAddr); // resolved shares address
 
-        // Shares were minted to DAO for LP seeding
-        assertEq(Shares(sharesAddr).balanceOf(dao), 5e18);
+        // No pre-mint — shares are minted on spend via allowance sentinel
+        assertEq(Shares(sharesAddr).balanceOf(dao), 0);
 
         // Allowances set correctly
         assertEq(Moloch(payable(dao)).allowance(dao, address(shareSale)), 50e18);
         assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 5 ether);
         assertEq(Moloch(payable(dao)).allowance(address(0), address(lpSeed)), 5e18);
-        assertEq(Moloch(payable(dao)).allowance(sharesAddr, address(lpSeed)), 5e18);
+        // LP seed uses Moloch mint sentinel (address(dao)) for shares, not real ERC20
+        assertEq(Moloch(payable(dao)).allowance(dao, address(lpSeed)), 5e18);
 
         // LP not seedable yet (sale gate active, sale not complete)
         assertFalse(lpSeed.seedable(dao));
@@ -983,7 +984,7 @@ contract SafeSummonerTest is Test {
 
         // Seed LP
         lpSeed.seed(dao);
-        (,,,,,,,,,, uint40 seeded) = lpSeed.seeds(dao);
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
         assertTrue(seeded != 0);
     }
 
@@ -1686,5 +1687,341 @@ contract SafeSummonerTest is Test {
 
         // DAO balance should be 0 after burn
         assertEq(Shares(sharesAddr).balanceOf(dao), 0);
+    }
+
+    // ── Full DAICO Lifecycle: Sale → Tap Claim → Seed LP ──────────
+
+    function test_SafeSummonDAICO_FullLifecycle_TapAndSeed() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(3001));
+
+        ShareSale shareSale = new ShareSale();
+        TapVest tapVest = new TapVest();
+        LPSeedSwapHook lpSeed = new LPSeedSwapHook();
+
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        // Sale: 50 shares at 1 ETH each, minting
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 50e18;
+        sale.minting = true;
+
+        // Tap: ETH streaming to bob at 0.01 ETH/sec, 10 ETH budget
+        SafeSummoner.TapModule memory tap;
+        tap.singleton = address(tapVest);
+        tap.token = address(0);
+        tap.budget = 10 ether;
+        tap.beneficiary = bob;
+        tap.ratePerSec = 0.01e18; // 0.01 ETH/sec
+
+        // Seed: 5 ETH + 5 shares (mint sentinel), gated by sale
+        SafeSummoner.SeedModule memory seed;
+        seed.singleton = address(lpSeed);
+        seed.tokenA = address(0); // ETH
+        seed.amountA = 5e18;
+        seed.tokenB = address(1); // shares sentinel
+        seed.amountB = 5e18;
+        seed.gateBySale = true;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18;
+
+        address deployed = safe.safeSummonDAICO{value: 50 ether}(
+            "LifecycleDAO",
+            "LIFE",
+            "",
+            0,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            _noLoot(),
+            config,
+            sale,
+            tap,
+            seed,
+            new Call[](0)
+        );
+        assertEq(deployed, dao);
+
+        // ── Phase 1: Sale in progress, tap accruing ──────────────
+        // Warp 100 seconds — tap accrues 1 ETH (0.01 * 100)
+        vm.warp(block.timestamp + 100);
+
+        uint256 claimable = tapVest.claimable(dao);
+        assertEq(claimable, 1 ether);
+
+        // Claim tap — bob receives ETH from DAO treasury
+        uint256 bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 1 ether);
+
+        // LP still gated by sale
+        assertFalse(lpSeed.seedable(dao));
+
+        // ── Phase 2: Complete sale ───────────────────────────────
+        vm.deal(alice, 200 ether);
+        vm.prank(alice);
+        shareSale.buy{value: 50 ether}(dao, 50e18);
+        assertEq(Moloch(payable(dao)).allowance(dao, address(shareSale)), 0);
+
+        // ── Phase 3: Seed LP (sale complete) ─────────────────────
+        assertTrue(lpSeed.seedable(dao));
+        lpSeed.seed(dao);
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+
+        // Verify shares were minted to LP (not pre-minted)
+        // DAO should have LP tokens, shares went into the pool
+
+        // ── Phase 4: Tap continues post-seed ─────────────────────
+        // Warp another 200 seconds — 2 ETH accrued
+        vm.warp(block.timestamp + 200);
+
+        claimable = tapVest.claimable(dao);
+        assertEq(claimable, 2 ether);
+
+        bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 2 ether);
+
+        // Verify tap allowance decreased (10 - 1 - 2 = 7)
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 7 ether);
+    }
+
+    function test_SafeSummonDAICO_TapExhaustsBudget() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(3002));
+
+        TapVest tapVest = new TapVest();
+
+        address dao = safe.predictDAO(salt, h, s);
+
+        // Tap: 1 ETH budget, 0.1 ETH/sec
+        SafeSummoner.TapModule memory tap;
+        tap.singleton = address(tapVest);
+        tap.token = address(0);
+        tap.budget = 1 ether;
+        tap.beneficiary = bob;
+        tap.ratePerSec = 0.1e18;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        safe.safeSummonDAICO{value: 10 ether}(
+            "TapDAO",
+            "TAP",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            _noLoot(),
+            config,
+            _emptySale(),
+            tap,
+            _emptySeed(),
+            new Call[](0)
+        );
+
+        // Warp 20 seconds — owed = 2 ETH but budget = 1 ETH
+        vm.warp(block.timestamp + 20);
+
+        // Claimable capped by allowance
+        uint256 claimable = tapVest.claimable(dao);
+        assertEq(claimable, 1 ether);
+
+        uint256 bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 1 ether);
+
+        // Allowance exhausted — nothing left
+        assertEq(tapVest.claimable(dao), 0);
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 0);
+    }
+
+    function test_SafeSummonDAICO_SharedETHTreasury() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(3003));
+
+        TapVest tapVest = new TapVest();
+        LPSeedSwapHook lpSeed = new LPSeedSwapHook();
+
+        address dao = safe.predictDAO(salt, h, s);
+
+        // Tap: 3 ETH budget
+        SafeSummoner.TapModule memory tap;
+        tap.singleton = address(tapVest);
+        tap.token = address(0);
+        tap.budget = 3 ether;
+        tap.beneficiary = bob;
+        tap.ratePerSec = 0.01e18;
+
+        // Seed: 5 ETH + 5 shares, no gate
+        SafeSummoner.SeedModule memory seed;
+        seed.singleton = address(lpSeed);
+        seed.tokenA = address(0);
+        seed.amountA = 5e18;
+        seed.tokenB = address(1); // shares sentinel
+        seed.amountB = 5e18;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+
+        // Fund with exactly 8 ETH = 5 (seed) + 3 (tap budget)
+        safe.safeSummonDAICO{value: 8 ether}(
+            "SharedDAO",
+            "SHRD",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            _noLoot(),
+            config,
+            _emptySale(),
+            tap,
+            seed,
+            new Call[](0)
+        );
+
+        // Seed first — uses 5 ETH
+        lpSeed.seed(dao);
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+
+        // DAO has 3 ETH left for tap
+        assertEq(dao.balance, 3 ether);
+
+        // Warp 300 seconds — owed = 3 ETH, exactly matches budget
+        vm.warp(block.timestamp + 300);
+
+        uint256 bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 3 ether);
+
+        // Both modules fully consumed
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 0);
+        assertEq(dao.balance, 0);
+    }
+
+    // ── Loot Sale → Tap → Seed LP (loot + ETH) ─────────────────
+
+    function test_SafeSummonDAICO_LootSale_TapAndSeed() public {
+        (address[] memory h, uint256[] memory s) = _holders1();
+        bytes32 salt = bytes32(uint256(3004));
+
+        ShareSale shareSale = new ShareSale();
+        TapVest tapVest = new TapVest();
+        LPSeedSwapHook lpSeed = new LPSeedSwapHook();
+
+        address dao = safe.predictDAO(salt, h, s);
+        address lootAddr = safe.predictLoot(dao);
+
+        // Sale: 50 loot at 1 ETH each, minting
+        SafeSummoner.SaleModule memory sale;
+        sale.singleton = address(shareSale);
+        sale.payToken = address(0);
+        sale.price = 1e18;
+        sale.cap = 50e18;
+        sale.sellLoot = true;
+        sale.minting = true;
+
+        // Tap: ETH streaming to bob at 0.01 ETH/sec, 10 ETH budget
+        SafeSummoner.TapModule memory tap;
+        tap.singleton = address(tapVest);
+        tap.token = address(0);
+        tap.budget = 10 ether;
+        tap.beneficiary = bob;
+        tap.ratePerSec = 0.01e18;
+
+        // Seed: 5 ETH + 5 loot (mint sentinel), gated by sale
+        SafeSummoner.SeedModule memory seed;
+        seed.singleton = address(lpSeed);
+        seed.tokenA = address(0); // ETH
+        seed.amountA = 5e18;
+        seed.tokenB = address(2); // loot sentinel
+        seed.amountB = 5e18;
+        seed.gateBySale = true;
+
+        SafeSummoner.SafeConfig memory config = _baseConfig();
+        config.quorumAbsolute = 10e18;
+
+        address deployed = safe.safeSummonDAICO{value: 50 ether}(
+            "LootLifecycleDAO",
+            "LLOOT",
+            "",
+            0,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            _noLoot(),
+            config,
+            sale,
+            tap,
+            seed,
+            new Call[](0)
+        );
+        assertEq(deployed, dao);
+
+        // Verify sale configured with loot sentinel
+        (address saleToken,,,) = shareSale.sales(dao);
+        assertEq(saleToken, address(1007)); // loot minting sentinel
+
+        // Verify seed configured with loot as tokenB
+        (address seedA, address seedB,,,,,,,,,,,,) = lpSeed.seeds(dao);
+        assertEq(seedA, address(0)); // ETH
+        assertEq(seedB, lootAddr); // resolved loot ERC20 address
+
+        // Verify allowances: ETH split between seed + tap, loot for seed
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(lpSeed)), 5e18);
+        assertEq(Moloch(payable(dao)).allowance(address(1007), address(lpSeed)), 5e18);
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 10 ether);
+
+        // ── Phase 1: LP gated by sale ──────────────────────────────
+        assertFalse(lpSeed.seedable(dao));
+
+        // ── Phase 2: Tap accrues during sale ───────────────────────
+        vm.warp(block.timestamp + 100);
+        uint256 bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 1 ether);
+
+        // ── Phase 3: Complete loot sale ─────────────────────────────
+        vm.deal(alice, 200 ether);
+        vm.prank(alice);
+        shareSale.buy{value: 50 ether}(dao, 50e18);
+        assertEq(Moloch(payable(dao)).allowance(address(1007), address(shareSale)), 0);
+
+        // Alice received loot
+        assertEq(Shares(lootAddr).balanceOf(alice), 50e18);
+
+        // ── Phase 4: Seed LP (loot + ETH) ──────────────────────────
+        assertTrue(lpSeed.seedable(dao));
+        lpSeed.seed(dao);
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+
+        // Loot minted for LP (not pre-minted), allowance spent
+        assertEq(Moloch(payable(dao)).allowance(address(1007), address(lpSeed)), 0);
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(lpSeed)), 0);
+
+        // ── Phase 5: Tap continues post-seed ───────────────────────
+        vm.warp(block.timestamp + 200);
+        bobBefore = bob.balance;
+        tapVest.claim(dao);
+        assertEq(bob.balance - bobBefore, 2 ether);
+
+        // Tap allowance: 10 - 1 - 2 = 7 ETH remaining
+        assertEq(Moloch(payable(dao)).allowance(address(0), address(tapVest)), 7 ether);
     }
 }

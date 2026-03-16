@@ -190,9 +190,9 @@ contract ShareSaleTest is Test {
         vm.prank(bob);
         sale.buy{value: 5e18}(dao, 5e18);
 
-        // Buy 1 more — should fail (allowance exhausted)
+        // Buy 1 more — should revert ZeroAmount (allowance exhausted, caps to 0)
         vm.prank(bob);
-        vm.expectRevert(); // underflow in allowance -= amount
+        vm.expectRevert(ShareSale.ZeroAmount.selector);
         sale.buy{value: 1e18}(dao, 1e18);
     }
 
@@ -353,6 +353,137 @@ contract ShareSaleTest is Test {
     }
 
     // ── SaleInitCalls for loot ────────────────────────────────────
+
+    // ── Exact-out capping ────────────────────────────────────────
+
+    function test_BuyCapsToRemaining() public {
+        address dao = _deployDAO(bytes32(uint256(30)));
+        Moloch m = Moloch(payable(dao));
+        address sharesAddr = address(m.shares());
+
+        // Allowance is 1000e18, buy 90e18 first
+        vm.prank(bob);
+        sale.buy{value: 90e18}(dao, 90e18);
+
+        // Try to buy 920e18 but only 910e18 remains — caps to 910e18, refunds 10 ETH
+        vm.deal(bob, 1000 ether);
+        uint256 bobBalBefore = bob.balance;
+        uint256 bobSharesBefore = Shares(sharesAddr).balanceOf(bob);
+
+        vm.prank(bob);
+        sale.buy{value: 920e18}(dao, 920e18);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob) - bobSharesBefore, 910e18);
+        assertEq(bobBalBefore - bob.balance, 910e18);
+    }
+
+    function test_BuyMaxUint_BuysRemaining() public {
+        address dao = _deployDAO(bytes32(uint256(31)));
+        Moloch m = Moloch(payable(dao));
+        address sharesAddr = address(m.shares());
+
+        // Buy 90e18 first
+        vm.prank(bob);
+        sale.buy{value: 90e18}(dao, 90e18);
+
+        // Buy remaining with type(uint256).max
+        vm.deal(bob, 1000 ether);
+        uint256 bobBalBefore = bob.balance;
+        vm.prank(bob);
+        sale.buy{value: 920e18}(dao, type(uint256).max);
+
+        // 910e18 remained
+        assertEq(Shares(sharesAddr).balanceOf(bob), 1000e18);
+        assertEq(bobBalBefore - bob.balance, 910e18);
+    }
+
+    // ── Exact-in (ETH) ──────────────────────────────────────────
+
+    function test_BuyExactIn() public {
+        address dao = _deployDAO(bytes32(uint256(32)));
+        Moloch m = Moloch(payable(dao));
+        address sharesAddr = address(m.shares());
+
+        // Price is 1e18 (1 ETH per share), send 7 ETH → 7 shares
+        uint256 bobBalBefore = bob.balance;
+        vm.prank(bob);
+        sale.buyExactIn{value: 7 ether}(dao);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), 7e18);
+        assertEq(bobBalBefore - bob.balance, 7 ether);
+    }
+
+    function test_BuyExactIn_CapsToRemaining() public {
+        address dao = _deployDAO(bytes32(uint256(33)));
+        Moloch m = Moloch(payable(dao));
+        address sharesAddr = address(m.shares());
+
+        // Buy 90e18 first
+        vm.prank(bob);
+        sale.buy{value: 90e18}(dao, 90e18);
+
+        // Send 920 ETH but only 910e18 shares remain → buy 910, refund 10 ETH
+        vm.deal(bob, 1000 ether);
+        uint256 bobBalBefore = bob.balance;
+        vm.prank(bob);
+        sale.buyExactIn{value: 920 ether}(dao);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), 1000e18);
+        assertEq(bobBalBefore - bob.balance, 910 ether);
+    }
+
+    function test_BuyExactIn_RevertIf_ERC20Sale() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(34));
+        address dao = safe.predictDAO(salt, h, s);
+
+        MockERC20 payToken = new MockERC20("Pay", "PAY", 18);
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 100e18)));
+        extra[1] = Call(
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (dao, address(payToken), 1e18, uint40(0)))
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ERC20DAO", "ERC", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        vm.prank(bob);
+        vm.expectRevert(ShareSale.UnexpectedETH.selector);
+        sale.buyExactIn{value: 1 ether}(dao);
+    }
+
+    function test_BuyExactIn_RevertIf_ZeroValue() public {
+        address dao = _deployDAO(bytes32(uint256(35)));
+        vm.prank(bob);
+        vm.expectRevert(ShareSale.ZeroAmount.selector);
+        sale.buyExactIn(dao);
+    }
+
+    function test_BuyExactIn_RevertIf_SoldOut() public {
+        address dao = _deployDAO(bytes32(uint256(36)));
+
+        // Buy all 1000e18
+        vm.deal(bob, 1100 ether);
+        vm.prank(bob);
+        sale.buy{value: 1000e18}(dao, type(uint256).max);
+
+        // Exact-in should revert — nothing left
+        vm.prank(bob);
+        vm.expectRevert(ShareSale.ZeroAmount.selector);
+        sale.buyExactIn{value: 1 ether}(dao);
+    }
 
     function test_SaleInitCallsHelper_Loot() public view {
         address dao = address(0xDA0);

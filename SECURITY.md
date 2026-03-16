@@ -422,6 +422,110 @@ Apply these in order:
 
 ---
 
+## Peripheral: Tribute.sol — Security Audit Prompt
+
+> **Purpose:** Structured prompt for an AI auditor to analyze `src/peripheral/Tribute.sol` (~340 lines, 1 contract + 3 free functions). Paste this section along with a copy of `src/peripheral/Tribute.sol` into your AI of choice.
+>
+> Prior audits: Pashov Skills, Grimoire (6 agents). Reports: `audit/tribute-pashov-skills.md`, `audit/tribute-grimoire.md`.
+
+### Instructions
+
+You are a senior Solidity security auditor. Analyze `Tribute.sol` — a standalone OTC escrow peripheral for Moloch DAOs. Work in **two rounds**:
+
+**Round 1: Defense Verification.** For each defense mechanism in the table below, verify it works as described by tracing the actual code. Cite specific line numbers. State whether the defense holds or is broken. Then verify each of the 6 key invariants against the code. This round should produce a conclusion for every defense and every invariant — "Verified" or "Violated" with evidence.
+
+**Round 2: Adversarial Hunt.** Attempt to find vulnerabilities NOT covered by the Known Findings table (T-1 through T-6) or the False Positive Patterns table. For each candidate:
+1. Check it against the Known Findings table — if it matches, discard it as a duplicate.
+2. Check it against the False Positive Patterns table — if it matches, discard it.
+3. Attempt to disprove it by finding the guard, constraint, or code path that prevents exploitation.
+4. Rate your confidence (0-100). Only include findings that survive all three checks.
+
+**Report format:** For each finding: `[SEVERITY-N] Title`, severity, confidence, location (file:lines), description, attack path with concrete function calls, disproof attempt, recommendation. For Round 1: a table of defenses verified/violated and invariants verified/violated.
+
+### Architecture
+
+| Item | Detail |
+|------|--------|
+| **Contract** | `Tribute` — 1 contract + 3 free functions (~340 lines) |
+| **Purpose** | Standalone OTC escrow. Proposers lock ETH/ERC-20 tributes targeting a DAO. DAOs claim tributes atomically (swap). Proposers can cancel. |
+| **Access control** | No owner, no admin. `proposeTribute` = anyone. `cancelTribute` = proposer only (keyed by `msg.sender`). `claimTribute` = DAO only (keyed by `msg.sender`). |
+| **Integration target** | Moloch DAO contracts which have `receive() external payable {}` and execute proposals via `to.call{value}(data)` |
+| **Storage** | Mapping `tributes[proposer][dao][tribTkn] → TributeOffer`. Two append-only ref arrays for on-chain discovery (paginated view functions). |
+| **Free functions** | `safeTransferETH`, `safeTransfer`, `safeTransferFrom` — Solady-style assembly. Shared with Moloch.sol. |
+
+### Defense Mechanisms
+
+| Defense | Mechanism | What It Prevents |
+|---------|-----------|-----------------|
+| **EIP-1153 reentrancy guard** | Transient storage `TSTORE`/`TLOAD` in `nonReentrant` on all 3 mutating functions | All reentrancy (same-function, cross-function, ERC777 hooks) |
+| **CEI ordering** | `proposeTribute` writes all state before `safeTransferFrom`. `cancelTribute`/`claimTribute` delete mapping before external calls | Reentrancy even without the guard |
+| **Bait-and-switch prevention** | `claimTribute` requires `(tribAmt, forTkn, forAmt)` as explicit params, verified against stored values, reverts `TermsMismatch` | Proposer cancel + re-propose with worse terms between DAO approval and execution |
+| **Overwrite guard** | `if (offer.tribAmt != 0) revert` in `proposeTribute` | Double-locking same `(proposer, dao, tribTkn)` key |
+| **ETH/ERC20 mutual exclusion** | `msg.value != 0` branch requires `tribTkn == address(0)` and `tribAmt == 0`; else branch requires `tribTkn != address(0)` and `tribAmt != 0` | Mixed ETH+ERC20 in single offer, msg.value double-counting |
+| **Pagination bounds** | `start >= len \|\| limit == 0` early return in view functions | Infinite loop on out-of-bounds start, ambiguous next=0 on limit=0 |
+| **Solady safe transfers** | Assembly `safeTransfer`/`safeTransferFrom` with extcodesize + returndatasize checks | USDT missing-return, EOA token address, non-contract calls |
+
+### Key Invariants
+
+1. Sum of all active `offer.tribAmt` for ETH tributes (`tribTkn == address(0)`) ≤ `address(this).balance`
+2. For each active offer: `offer.tribAmt > 0` and `offer.forAmt > 0`
+3. Mapping key `(proposer, dao, tribTkn)` is unique — no two active offers share a key
+4. Only the proposer (`msg.sender` at proposal time) can cancel; only the target DAO (`msg.sender` at claim time) can claim
+5. `claimTribute` is atomic — both legs complete or neither does (EVM revert atomicity)
+6. Ref arrays are monotonically non-decreasing in length (append-only)
+
+### Critical Code Paths (Priority Order)
+
+1. **`claimTribute`** — Atomic OTC swap. Deletes offer, pays proposer (ETH or ERC20 pull), sends tribute to DAO. Two external calls after state deletion.
+2. **`proposeTribute`** — Deposit + state write. ETH via msg.value or ERC20 via safeTransferFrom (after state writes).
+3. **`cancelTribute`** — Refund. Deletes offer, returns tribute to proposer.
+4. **`getActiveDaoTributes` / `getActiveProposerTributes`** — Paginated views. Iterate ref arrays, filter by `tribAmt != 0`.
+
+### Design Constraints (Intentional — Do Not Flag)
+
+- **Fee-on-transfer / rebasing tokens unsupported.** Recorded `tribAmt` must equal actual balance held. NatSpec documents this. Consistent with Moloch.sol's transfer patterns and Uniswap V2/V3.
+- **ETH push to proposer.** `claimTribute` pushes ETH directly. If proposer is a contract with reverting receive, DAO cannot claim that offer. N/A to Moloch DAOs (all have `receive() external payable {}`). Proposer chose their own address.
+- **Ref arrays are append-only.** Stale entries from cancelled/claimed offers are never removed. Mitigated by pagination. No on-chain state-changing function iterates these arrays.
+- **No sweep function.** Force-sent ETH (selfdestruct) is permanently stranded. Contract never uses `address(this).balance` for accounting — all amounts from mappings.
+
+### False Positive Patterns (Do NOT Flag These)
+
+| Pattern | Why It's Not a Bug |
+|---------|-------------------|
+| "safeTransfer corrupts the free memory pointer" | Solady pattern: `mstore(0x34, 0)` only zeros high bytes of FMP word (0x40–0x53). Actual FMP value lives in bytes 0x54–0x5F, untouched. Verified byte-by-byte. |
+| "ETH locked when DAO can't receive" | EVM reverts are atomic. If `safeTransferETH(dao, ...)` reverts, `delete tributes[...]` is also reverted. No funds locked. |
+| "safeTransferFrom uses caller() instead of a from parameter" | Intentional Solady convention. `from = caller()` is always `msg.sender` of the outer call. All call sites verified correct. |
+| "Proposer can lock their own ETH by bricking receive()" | Self-inflicted. No third party can trigger this. Proposer chose their own address. |
+| "Ref arrays can be spammed" | Spam requires gas + real token deposits per offer. Pagination mitigates view DoS. Core functions are O(1). |
+| "No expiry / deadline on tributes" | By design. Proposer can cancel anytime. DAO claims via governance vote. |
+
+### Tribute Known Findings
+
+| # | Finding | Severity | Status |
+|---|---------|----------|--------|
+| T-1 | Fee-on-transfer token permanently locks tribute funds | Info | Documented — unsupported token type |
+| T-2 | ETH push to proposer DoS via reverting receive | Info | N/A to Moloch integration |
+| T-3 | Rebasing token downward rebase locks funds | Info | Same root cause as T-1 |
+| T-4 | Unbounded ref array growth | Info | Mitigated — pagination with OOB + limit=0 guard |
+| T-5 | CEI violation in proposeTribute | Info | **Fixed** — `safeTransferFrom` moved after all state writes |
+| T-6 | `limit=0` pagination ambiguity | Info | **Fixed** — early return on `limit == 0` |
+| T-7 | Stale ref resurrection on key reuse — cancel/repost same `(proposer, dao, tribTkn)` causes duplicate entries in paginated views | Low | Accepted — view-only, no fund risk |
+
+### Assembly Verification
+
+All 6 assembly blocks verified correct against Solady reference:
+
+| Block | Verdict | Key Check |
+|-------|---------|-----------|
+| `safeTransferETH` | Clean | `codesize()` offset safe (zero-length calldata) |
+| `safeTransfer` | Clean | FMP restoration via `mstore(0x34, 0)` — bytes 0x54–0x5F untouched |
+| `safeTransferFrom` | Clean | FMP saved/restored. `shl(96, caller())` encoding. 100-byte calldata layout. |
+| Return-value check | Clean | 7 token behaviors: returns true, returns nothing (USDT), returns false, call failure, silent revert, EOA, precompile |
+| `nonReentrant` | Clean | Guard set before `_`, cleared after. Transient slot consistent both halves. |
+| View array trim | Clean | `mstore(result, found)` — standard in-place trim, `memory-safe` valid |
+
+---
+
 ## Final Checklist
 
 Before submitting your report, verify:
@@ -429,10 +533,10 @@ Before submitting your report, verify:
 - [ ] Every finding has a concrete attack path with specific function calls and line numbers
 - [ ] Every finding includes a disproof attempt explaining what you checked
 - [ ] Every finding has a confidence score (0-100)
-- [ ] No finding duplicates the 23 Known Findings
-- [ ] No finding matches a False Positive Pattern
+- [ ] No finding duplicates a Known Finding (Moloch: KF#1–24, Tribute: T-1–T-7)
+- [ ] No finding matches a False Positive Pattern (check the table for your target contract)
 - [ ] Severity ratings follow the adjustment rules (especially the privileged-role rule)
-- [ ] All 10 vulnerability categories have a conclusion (finding or "no issues found")
-- [ ] All 8 invariants have been checked
+- [ ] All vulnerability categories / defense mechanisms have a conclusion (verified or violated)
+- [ ] All invariants have been checked (Moloch: 8 invariants, Tribute: 6 invariants)
 - [ ] Critical/High findings include a concrete Proof of Concept with actual function signatures
 - [ ] The report distinguishes between novel findings and confirmed duplicates

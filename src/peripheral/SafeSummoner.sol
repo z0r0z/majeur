@@ -181,8 +181,9 @@ contract SafeSummoner {
 
     /// @dev LPSeedSwapHook module config. singleton = address(0) to skip.
     ///      Token sentinels: address(1) = DAO shares, address(2) = DAO loot.
-    ///      When a sentinel is used, the wrapper mints that amount to the DAO
-    ///      and resolves it to the predicted shares/loot ERC20 address.
+    ///      When a sentinel is used, the allowance is set on the Moloch mint sentinel
+    ///      (address(dao) for shares, address(1007) for loot) so that spendAllowance
+    ///      triggers mint-on-spend instead of requiring pre-minted tokens.
     ///      LPSeedSwapHook acts as a ZAMM hook — the pool's feeOrHook is always derived
     ///      from the LPSeedSwapHook singleton address, preventing frontrun pool creation.
     struct SeedModule {
@@ -891,11 +892,7 @@ contract SafeSummoner {
         uint256 n;
         if (sale.singleton != address(0)) n += 2; // setAllowance + configure
         if (tap.singleton != address(0)) n += 2; // setAllowance + configure
-        if (seed.singleton != address(0)) {
-            n += 3; // 2x setAllowance + configure
-            if (_isSeedSentinel(seed.tokenA)) n++; // mint
-            if (_isSeedSentinel(seed.tokenB)) n++; // mint
-        }
+        if (seed.singleton != address(0)) n += 3; // 2x setAllowance + configure
 
         calls = new Call[](n);
         uint256 i;
@@ -929,57 +926,53 @@ contract SafeSummoner {
 
         // ── SeedModule ──────────────────────────────────────────
         if (seed.singleton != address(0)) {
+            // Resolve real ERC20 addresses for pool key
             address tokenA = _resolveSeedToken(dao, seed.tokenA);
             address tokenB = _resolveSeedToken(dao, seed.tokenB);
             address shareSale = seed.gateBySale ? sale.singleton : address(0);
 
-            // Mint sentinel tokens to DAO (must precede allowance)
-            if (_isSeedSentinel(seed.tokenA)) {
-                calls[i++] = Call(
-                    tokenA,
-                    0,
-                    abi.encodeCall(ISharesLoot.mintFromMoloch, (dao, uint256(seed.amountA)))
-                );
-            }
-            if (_isSeedSentinel(seed.tokenB)) {
-                calls[i++] = Call(
-                    tokenB,
-                    0,
-                    abi.encodeCall(ISharesLoot.mintFromMoloch, (dao, uint256(seed.amountB)))
-                );
-            }
+            // Resolve Moloch allowance sentinels (address(dao) for shares, address(1007) for loot)
+            // When set, spendAllowance triggers mint-on-spend instead of transfer
+            address allowTokenA = _resolveSeedAllowanceToken(dao, seed.tokenA);
+            address allowTokenB = _resolveSeedAllowanceToken(dao, seed.tokenB);
 
-            // Set allowances
+            // Resolve mintToken sentinels for LPSeedSwapHook configure
+            // address(0) = use tokenA/B directly, non-zero = mint sentinel for spendAllowance
+            address mintTokenA = _isSeedSentinel(seed.tokenA) ? allowTokenA : address(0);
+            address mintTokenB = _isSeedSentinel(seed.tokenB) ? allowTokenB : address(0);
+
+            // Set allowances (on sentinel for minting, on real ERC20 for transfer)
             calls[i++] = Call(
                 dao,
                 0,
                 abi.encodeCall(
-                    IMoloch.setAllowance, (seed.singleton, tokenA, uint256(seed.amountA))
+                    IMoloch.setAllowance, (seed.singleton, allowTokenA, uint256(seed.amountA))
                 )
             );
             calls[i++] = Call(
                 dao,
                 0,
                 abi.encodeCall(
-                    IMoloch.setAllowance, (seed.singleton, tokenB, uint256(seed.amountB))
+                    IMoloch.setAllowance, (seed.singleton, allowTokenB, uint256(seed.amountB))
                 )
             );
 
-            // Configure LPSeedSwapHook
+            // Configure LPSeedSwapHook with mint sentinels
             calls[i++] = Call(
                 seed.singleton,
                 0,
-                abi.encodeCall(
-                    ILPSeedSwapHook.configure,
-                    (
-                        tokenA,
-                        seed.amountA,
-                        tokenB,
-                        seed.amountB,
-                        seed.deadline,
-                        shareSale,
-                        seed.minSupply
-                    )
+                abi.encodeWithSignature(
+                    "configure(address,uint128,address,uint128,uint16,uint40,address,uint128,address,address)",
+                    tokenA,
+                    seed.amountA,
+                    tokenB,
+                    seed.amountB,
+                    uint16(0), // feeBps (default)
+                    seed.deadline,
+                    shareSale,
+                    seed.minSupply,
+                    mintTokenA,
+                    mintTokenB
                 )
             );
         }
@@ -1010,6 +1003,19 @@ contract SafeSummoner {
     function _resolveSeedToken(address dao, address token) internal pure returns (address) {
         if (token == address(1)) return _predictShares(dao);
         if (token == address(2)) return _predictLoot(dao);
+        return token;
+    }
+
+    /// @dev Resolve SeedModule token to Moloch allowance token.
+    ///      Sentinels use Moloch mint sentinels: address(1) → address(dao) for shares,
+    ///      address(2) → address(1007) for loot. Non-sentinels use real ERC20 address.
+    function _resolveSeedAllowanceToken(address dao, address token)
+        internal
+        pure
+        returns (address)
+    {
+        if (token == address(1)) return dao; // Moloch shares mint sentinel
+        if (token == address(2)) return address(1007); // Moloch loot mint sentinel
         return token;
     }
 

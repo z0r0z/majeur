@@ -4,6 +4,16 @@
 > for burning unsold DAO shares after a sale deadline. This document indexes all audits,
 > tracks known findings, and documents mitigations.
 
+### Instructions
+
+You are a senior Solidity security auditor. Analyze `ShareBurner.sol` (~91 lines) — a stateless singleton that burns unsold DAO shares via a delegatecall permit after a sale deadline. Work in **two rounds**:
+
+**Round 1: Defense Verification.** For each defense mechanism in the table below, verify it works as described by tracing the actual code. Cite specific line numbers. State whether the defense holds or is broken. Then verify each invariant. Produce a conclusion for every defense and every invariant — "Verified" or "Violated" with evidence.
+
+**Round 2: Adversarial Hunt.** Attempt to find vulnerabilities NOT covered by the Known Findings table or the Dismissed Findings table. For each candidate: (1) check it against Known Findings — discard if duplicate, (2) check it against Dismissed Findings — discard if already disproved, (3) attempt disproof, (4) rate confidence 0-100. Only include findings that survive all checks.
+
+**Report format:** For each finding: `[SEVERITY-N] Title`, severity, confidence, location (file:lines), description, attack path, disproof attempt, recommendation.
+
 ---
 
 ## Contract Overview

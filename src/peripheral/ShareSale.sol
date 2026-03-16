@@ -56,14 +56,22 @@ contract ShareSale {
         emit Configured(msg.sender, token, payToken, price, deadline);
     }
 
-    /// @notice Buy shares or loot from a DAO.
+    /// @notice Buy shares or loot from a DAO (exact-out).
+    ///         Caps to remaining allowance if amount exceeds it.
+    ///         Use type(uint256).max to buy all remaining.
+    ///         Refunds excess ETH for ETH-priced sales.
     /// @param dao    The DAO to buy from
-    /// @param amount Number of shares/loot to buy
+    /// @param amount Max shares/loot to buy (capped to remaining)
     function buy(address dao, uint256 amount) public payable {
         if (amount == 0) revert ZeroAmount();
         Sale memory s = sales[dao];
         if (s.price == 0) revert NotConfigured();
         if (s.deadline != 0 && block.timestamp > s.deadline) revert Expired();
+
+        // Cap to remaining allowance
+        uint256 remaining = IMoloch(dao).allowance(s.token, address(this));
+        if (amount > remaining) amount = remaining;
+        if (amount == 0) revert ZeroAmount();
 
         uint256 cost = amount * s.price / 1e18;
 
@@ -85,6 +93,46 @@ contract ShareSale {
         IMoloch(dao).spendAllowance(s.token, amount);
 
         // Resolve actual token contract and forward to buyer
+        address tokenAddr;
+        if (s.token == dao) {
+            tokenAddr = address(IMoloch(dao).shares());
+        } else if (s.token == address(1007)) {
+            tokenAddr = address(IMoloch(dao).loot());
+        } else {
+            tokenAddr = s.token;
+        }
+        safeTransfer(tokenAddr, msg.sender, amount);
+
+        emit Purchase(dao, msg.sender, amount, cost);
+    }
+
+    /// @notice Buy shares with exact ETH input.
+    ///         Computes max shares from msg.value, caps to remaining, refunds excess.
+    /// @param dao The DAO to buy from
+    function buyExactIn(address dao) public payable {
+        Sale memory s = sales[dao];
+        if (s.price == 0) revert NotConfigured();
+        if (s.payToken != address(0)) revert UnexpectedETH();
+        if (s.deadline != 0 && block.timestamp > s.deadline) revert Expired();
+        if (msg.value == 0) revert ZeroAmount();
+
+        uint256 amount = msg.value * 1e18 / s.price;
+
+        // Cap to remaining allowance
+        uint256 remaining = IMoloch(dao).allowance(s.token, address(this));
+        if (amount > remaining) amount = remaining;
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 cost = amount * s.price / 1e18;
+        safeTransferETH(dao, cost);
+        if (msg.value > cost) {
+            unchecked {
+                safeTransferETH(msg.sender, msg.value - cost);
+            }
+        }
+
+        IMoloch(dao).spendAllowance(s.token, amount);
+
         address tokenAddr;
         if (s.token == dao) {
             tokenAddr = address(IMoloch(dao).shares());
@@ -124,6 +172,7 @@ contract ShareSale {
 interface IMoloch {
     function spendAllowance(address token, uint256 amount) external;
     function setAllowance(address spender, address token, uint256 amount) external;
+    function allowance(address token, address spender) external view returns (uint256);
     function shares() external view returns (address);
     function loot() external view returns (address);
 }

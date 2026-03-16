@@ -80,30 +80,34 @@ contract LPSeedSwapHookTest is Test {
         sharesAddr = safe.predictShares(dao);
 
         // Build extra initCalls:
-        // 1. Mint shares to DAO (for LP seeding)
-        // 2. setAllowance(lpSeed, address(0), amtA)  -- ETH side
-        // 3. setAllowance(lpSeed, sharesAddr, amtB)   -- shares side
-        // 4. lpSeed.configure(...)
-        Call[] memory extra = new Call[](4);
+        // 1. setAllowance(lpSeed, address(0), amtA)  -- ETH side (regular transfer)
+        // 2. setAllowance(lpSeed, dao, amtB)          -- shares mint sentinel
+        // 3. lpSeed.configure(...) with mintTokenB = dao (mint-on-spend)
+        Call[] memory extra = new Call[](3);
 
-        // Mint shares to DAO for seeding
-        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, amtB)));
-
-        // ETH allowance
-        extra[1] =
+        // ETH allowance (regular transfer path)
+        extra[0] =
             Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(0), amtA)));
 
-        // Shares allowance
-        extra[2] =
-            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, amtB)));
+        // Shares allowance on Moloch mint sentinel (address(dao) = mint shares on spend)
+        extra[1] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), dao, amtB)));
 
-        // Configure LPSeedSwapHook
-        extra[3] = Call(
+        // Configure LPSeedSwapHook with mintTokenB = dao (shares mint sentinel)
+        extra[2] = Call(
             address(lpSeed),
             0,
-            abi.encodeCall(
-                ILPSeedSwapHook.configure,
-                (address(0), amtA, sharesAddr, amtB, deadline, shareSaleAddr, minSupply)
+            abi.encodeWithSignature(
+                "configure(address,uint128,address,uint128,uint16,uint40,address,uint128,address,address)",
+                address(0),
+                amtA,
+                sharesAddr,
+                amtB,
+                uint16(0),
+                deadline,
+                shareSaleAddr,
+                minSupply,
+                address(0),
+                dao
             )
         );
 
@@ -213,8 +217,10 @@ contract LPSeedSwapHookTest is Test {
             uint40 deadline,
             uint40 decayPeriod,
             address shareSaleGate,
-            uint128 minSupply,
-            uint40 seeded
+            uint128 minSupply,,
+            uint40 seeded,
+            address mintTokenA,
+            address mintTokenB
         ) = lpSeed.seeds(dao);
 
         assertEq(tokenA, address(0));
@@ -309,19 +315,21 @@ contract LPSeedSwapHookTest is Test {
         (address dao, address sharesAddr) =
             _deployWithSeed(bytes32(uint256(30)), 1e18, 100e18, 0, address(0), 50e18);
 
-        // DAO has 100e18 shares (minted for seed) + 100e18 from init = way above minSupply
+        // Mint extra shares to DAO to exceed minSupply threshold
+        vm.prank(dao);
+        Shares(sharesAddr).mintFromMoloch(dao, 100e18);
+
         uint256 daoBal = Shares(sharesAddr).balanceOf(dao);
         assertTrue(daoBal > 50e18);
         assertFalse(lpSeed.seedable(dao));
     }
 
     function test_Seedable_MinSupplyMet() public {
-        // Use a small amount so DAO balance will be near zero after distribution
         (address dao, address sharesAddr) =
             _deployWithSeed(bytes32(uint256(31)), 1e18, 100e18, 0, address(0), 200e18);
 
-        // DAO has 100e18 (seed mint) + alice's don't count (she holds them).
-        // DAO's own balance = 100e18 for seed. minSupply = 200e18 so already met.
+        // With allowance-based minting, DAO has no pre-minted shares.
+        // DAO balance = 0, which is <= minSupply (200e18), so seedable.
         uint256 daoBal = Shares(sharesAddr).balanceOf(dao);
         assertTrue(daoBal <= 200e18);
         assertTrue(lpSeed.seedable(dao));
@@ -335,7 +343,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.cancel();
 
-        (,, uint128 amtA,,,,,,,, uint40 seeded) = lpSeed.seeds(dao);
+        (,, uint128 amtA,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
         assertEq(amtA, 0); // config cleared
         assertEq(seeded, 0);
     }
@@ -487,7 +495,7 @@ contract LPSeedSwapHookTest is Test {
         lpSeed.seed(dao);
 
         // Verify seeded timestamp
-        (,,,,,,,,,, uint40 seeded) = lpSeed.seeds(dao);
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
         assertTrue(seeded != 0);
 
         // Verify cannot seed again
@@ -500,17 +508,17 @@ contract LPSeedSwapHookTest is Test {
     function test_SeedInitCallsHelper() public view {
         address dao = address(0xDA0);
         address sharesAddr = address(0x54A8E);
-        (address[4] memory targets, bytes[4] memory data) =
-            lpSeed.seedInitCalls(dao, address(0), 1e18, sharesAddr, 1000e18, 0, 0, address(0), 0);
+        // mintTokenB = dao → shares mint sentinel for allowance-based minting
+        (address[3] memory targets, bytes[3] memory data) = lpSeed.seedInitCalls(
+            dao, address(0), 1e18, sharesAddr, 1000e18, 0, 0, address(0), 0, address(0), dao
+        );
 
-        assertEq(targets[0], sharesAddr); // mintFromMoloch
-        assertEq(targets[1], dao); // setAllowance tokenA
-        assertEq(targets[2], dao); // setAllowance tokenB
-        assertEq(targets[3], address(lpSeed)); // configure
+        assertEq(targets[0], dao); // setAllowance tokenA (ETH)
+        assertEq(targets[1], dao); // setAllowance tokenB (shares mint sentinel)
+        assertEq(targets[2], address(lpSeed)); // configure
         assertTrue(data[0].length > 0);
         assertTrue(data[1].length > 0);
         assertTrue(data[2].length > 0);
-        assertTrue(data[3].length > 0);
     }
 
     // ── Seedable: Not configured ─────────────────────────────────
@@ -536,7 +544,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.setFee(50); // 50 bps = 0.5%
 
-        (,,,, uint16 feeBps,,,,,,) = lpSeed.seeds(dao);
+        (,,,, uint16 feeBps,,,,,,,,,) = lpSeed.seeds(dao);
         assertEq(feeBps, 50);
     }
 
@@ -549,7 +557,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.setFee(0); // reset to default
 
-        (,,,, uint16 feeBps,,,,,,) = lpSeed.seeds(dao);
+        (,,,, uint16 feeBps,,,,,,,,,) = lpSeed.seeds(dao);
         assertEq(feeBps, 0);
     }
 
@@ -619,7 +627,7 @@ contract LPSeedSwapHookTest is Test {
             "FeeDAO", "FEE", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
         );
 
-        (,,,, uint16 feeBps,,,,,,) = lpSeed.seeds(dao);
+        (,,,, uint16 feeBps,,,,,,,,,) = lpSeed.seeds(dao);
         assertEq(feeBps, 100);
     }
 
@@ -776,7 +784,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.setLaunchFee(500, 1 days);
 
-        (,,,,, uint16 launchBps,, uint40 decayPeriod,,,) = lpSeed.seeds(dao);
+        (,,,,, uint16 launchBps,, uint40 decayPeriod,,,,,,) = lpSeed.seeds(dao);
         assertEq(launchBps, 500);
         assertEq(decayPeriod, uint40(1 days));
     }
@@ -1202,7 +1210,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         lpSeed.configure(address(0), 2e18, sharesAddr, 200e18, 0, address(0), 0);
 
-        (,, uint128 amtA, uint128 amtB,,,,,,,) = lpSeed.seeds(dao);
+        (,, uint128 amtA, uint128 amtB,,,,,,,,,,) = lpSeed.seeds(dao);
         assertEq(amtA, 2e18);
         assertEq(amtB, 200e18);
     }
@@ -1392,5 +1400,56 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(dao);
         vm.expectRevert(LPSeedSwapHook.AlreadySeeded.selector);
         lpSeed.cancel();
+    }
+
+    // ── Seed: Mint-on-spend sentinel path (ETH + shares) ─────────
+
+    function test_Seed_MintSentinel_ETHShares() public {
+        // Deploy via _deployWithSeed which uses mintTokenB = dao sentinel
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(200)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Verify mintTokenB is set to dao (shares mint sentinel)
+        (,,,,,,,,,,,, address mintTokenA, address mintTokenB) = lpSeed.seeds(dao);
+        assertEq(mintTokenA, address(0)); // ETH side: no sentinel
+        assertEq(mintTokenB, dao); // shares side: mint sentinel
+
+        // DAO has no pre-minted shares — they'll be minted on spend
+        assertEq(Shares(sharesAddr).balanceOf(dao), 0);
+
+        // Seed should work via mint-on-spend
+        assertTrue(lpSeed.seedable(dao));
+        uint256 liq = lpSeed.seed(dao);
+        assertTrue(liq > 0);
+
+        // Verify seeded
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+
+        // Shares were minted and deposited into LP — DAO should not hold them
+        // (they went into the ZAMM pool)
+        assertEq(Shares(sharesAddr).balanceOf(address(lpSeed)), 0); // no leftover on hook
+
+        // Cannot seed again
+        vm.expectRevert(LPSeedSwapHook.AlreadySeeded.selector);
+        lpSeed.seed(dao);
+    }
+
+    function test_Seed_MintSentinel_WithSaleGate() public {
+        // Deploy with sale + LP seed where seed uses mint sentinel
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(201)), 1e18, 500e18, 0, address(0), 0);
+
+        // Verify the mint sentinel path works after manual sale gate scenario
+        assertTrue(lpSeed.seedable(dao));
+
+        uint256 sharesBefore = Shares(sharesAddr).totalSupply();
+        lpSeed.seed(dao);
+        uint256 sharesAfter = Shares(sharesAddr).totalSupply();
+
+        // Shares supply should have increased by ~500e18 (minted via sentinel)
+        assertTrue(sharesAfter > sharesBefore);
+        // The minted amount should be at least the seed amount
+        assertTrue(sharesAfter - sharesBefore >= 500e18);
     }
 }

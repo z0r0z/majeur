@@ -113,9 +113,12 @@ contract TributeTest is Test {
         // Check ETH was transferred to contract
         assertEq(address(tribute).balance, tribAmt);
 
-        // Check discovery arrays
-        assertEq(tribute.getDaoTributeCount(dao), 1);
-        assertEq(tribute.getProposerTributeCount(proposer), 1);
+        // Check discovery arrays via paginated views
+        (Tribute.ActiveTributeView[] memory daoViews,) = tribute.getActiveDaoTributes(dao, 0, 10);
+        assertEq(daoViews.length, 1);
+        (Tribute.ActiveTributeView[] memory propViews,) =
+            tribute.getActiveProposerTributes(proposer, 0, 10);
+        assertEq(propViews.length, 1);
     }
 
     function test_proposeTribute_ETH_forETH() public {
@@ -508,22 +511,109 @@ contract TributeTest is Test {
         vm.prank(otherUser);
         tribute.proposeTribute{value: 2 ether}(dao, address(0), 0, address(tokenB), 150 ether);
 
-        // Get active tributes
-        Tribute.ActiveTributeView[] memory activeTributes = tribute.getActiveDaoTributes(dao);
-        assertEq(activeTributes.length, 3);
+        // Get active tributes (paginated, large limit)
+        (Tribute.ActiveTributeView[] memory active, uint256 next) =
+            tribute.getActiveDaoTributes(dao, 0, 100);
+        assertEq(active.length, 3);
+        assertEq(next, 0); // no more pages
 
         // Cancel one tribute
         vm.prank(proposer);
         tribute.cancelTribute(dao, address(0));
 
         // Should now have 2 active tributes
-        activeTributes = tribute.getActiveDaoTributes(dao);
-        assertEq(activeTributes.length, 2);
+        (active, next) = tribute.getActiveDaoTributes(dao, 0, 100);
+        assertEq(active.length, 2);
+        assertEq(next, 0);
+    }
+
+    function test_getActiveDaoTributes_pagination() public {
+        // Create 3 tributes from different users
+        vm.prank(proposer);
+        tribute.proposeTribute{value: 1 ether}(dao, address(0), 0, address(tokenB), 100 ether);
+
+        vm.startPrank(proposer);
+        tokenA.approve(address(tribute), 50 ether);
+        tribute.proposeTribute(dao, address(tokenA), 50 ether, address(tokenB), 200 ether);
+        vm.stopPrank();
+
+        vm.deal(otherUser, 10 ether);
+        vm.prank(otherUser);
+        tribute.proposeTribute{value: 2 ether}(dao, address(0), 0, address(tokenB), 150 ether);
+
+        // Page 1: limit 2
+        (Tribute.ActiveTributeView[] memory page1, uint256 next1) =
+            tribute.getActiveDaoTributes(dao, 0, 2);
+        assertEq(page1.length, 2);
+        assertTrue(next1 != 0); // more to scan
+
+        // Page 2: continue from next1
+        (Tribute.ActiveTributeView[] memory page2, uint256 next2) =
+            tribute.getActiveDaoTributes(dao, next1, 2);
+        assertEq(page2.length, 1);
+        assertEq(next2, 0); // done
     }
 
     function test_getActiveDaoTributes_empty() public view {
-        Tribute.ActiveTributeView[] memory activeTributes = tribute.getActiveDaoTributes(dao);
-        assertEq(activeTributes.length, 0);
+        (Tribute.ActiveTributeView[] memory active, uint256 next) =
+            tribute.getActiveDaoTributes(dao, 0, 100);
+        assertEq(active.length, 0);
+        assertEq(next, 0);
+    }
+
+    function test_getActiveDaoTributes_startOutOfBounds() public view {
+        (Tribute.ActiveTributeView[] memory active, uint256 next) =
+            tribute.getActiveDaoTributes(dao, 999, 10);
+        assertEq(active.length, 0);
+        assertEq(next, 0);
+    }
+
+    function test_getActiveProposerTributes_startOutOfBounds() public view {
+        (Tribute.ActiveTributeView[] memory active, uint256 next) =
+            tribute.getActiveProposerTributes(proposer, 999, 10);
+        assertEq(active.length, 0);
+        assertEq(next, 0);
+    }
+
+    function test_getActiveProposerTributes() public {
+        address dao2 = address(0x4444);
+
+        vm.startPrank(proposer);
+        tribute.proposeTribute{value: 1 ether}(dao, address(0), 0, address(tokenB), 100 ether);
+        tribute.proposeTribute{value: 2 ether}(dao2, address(0), 0, address(tokenB), 200 ether);
+        vm.stopPrank();
+
+        (Tribute.ActiveTributeView[] memory active, uint256 next) =
+            tribute.getActiveProposerTributes(proposer, 0, 100);
+        assertEq(active.length, 2);
+        assertEq(next, 0);
+
+        // Verify correct dao addresses in results
+        assertEq(active[0].dao, dao);
+        assertEq(active[1].dao, dao2);
+    }
+
+    function test_getActiveProposerTributes_pagination() public {
+        address dao2 = address(0x4444);
+        address dao3 = address(0x5555);
+
+        vm.startPrank(proposer);
+        tribute.proposeTribute{value: 1 ether}(dao, address(0), 0, address(tokenB), 100 ether);
+        tribute.proposeTribute{value: 2 ether}(dao2, address(0), 0, address(tokenB), 200 ether);
+        tribute.proposeTribute{value: 3 ether}(dao3, address(0), 0, address(tokenB), 300 ether);
+        vm.stopPrank();
+
+        // Page 1
+        (Tribute.ActiveTributeView[] memory page1, uint256 next1) =
+            tribute.getActiveProposerTributes(proposer, 0, 2);
+        assertEq(page1.length, 2);
+        assertTrue(next1 != 0);
+
+        // Page 2
+        (Tribute.ActiveTributeView[] memory page2, uint256 next2) =
+            tribute.getActiveProposerTributes(proposer, next1, 2);
+        assertEq(page2.length, 1);
+        assertEq(next2, 0);
     }
 
     function test_multipleTributesToDifferentDAOs() public {
@@ -534,8 +624,13 @@ contract TributeTest is Test {
         tribute.proposeTribute{value: 2 ether}(dao2, address(0), 0, address(tokenB), 200 ether);
         vm.stopPrank();
 
-        assertEq(tribute.getDaoTributeCount(dao), 1);
-        assertEq(tribute.getDaoTributeCount(dao2), 1);
-        assertEq(tribute.getProposerTributeCount(proposer), 2);
+        (Tribute.ActiveTributeView[] memory daoActive,) = tribute.getActiveDaoTributes(dao, 0, 100);
+        (Tribute.ActiveTributeView[] memory dao2Active,) =
+            tribute.getActiveDaoTributes(dao2, 0, 100);
+        (Tribute.ActiveTributeView[] memory propActive,) =
+            tribute.getActiveProposerTributes(proposer, 0, 100);
+        assertEq(daoActive.length, 1);
+        assertEq(dao2Active.length, 1);
+        assertEq(propActive.length, 2);
     }
 }

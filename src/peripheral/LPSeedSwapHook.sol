@@ -145,7 +145,10 @@ contract LPSeedSwapHook {
         uint40 decayPeriod; // seconds to decay from launchBps to feeBps (0 = instant target)
         address shareSale; // if set, seed only after this ShareSale's allowance is spent
         uint128 minSupply; // if set, seed only after DAO's tokenB balance <= minSupply
+        uint128 tokenBSnapshot; // tokenB balance at configure time (griefing resistance for minSupply)
         uint40 seeded; // 0 = not seeded, else block.timestamp when seeded
+        address mintTokenA; // if set, use this for spendAllowance instead of tokenA (sentinel mint path)
+        address mintTokenB; // if set, use this for spendAllowance instead of tokenB (sentinel mint path)
     }
 
     /// @notice DAO fee config for routed swaps. Separate from seed config so fees
@@ -204,6 +207,39 @@ contract LPSeedSwapHook {
         address shareSale,
         uint128 minSupply
     ) public {
+        configure(
+            tokenA,
+            amountA,
+            tokenB,
+            amountB,
+            feeBps,
+            deadline,
+            shareSale,
+            minSupply,
+            address(0),
+            address(0)
+        );
+    }
+
+    /// @notice Configure LP seed with sentinel mint tokens for mint-on-spend via Moloch allowance.
+    /// @dev When mintTokenA/B are set, seed() calls spendAllowance with the sentinel address
+    ///      instead of the real ERC20, triggering Moloch's _payout to mint tokens to this contract.
+    ///      Use address(dao) for shares sentinel, address(1007) for loot sentinel.
+    ///      tokenA/tokenB must still be the real ERC20 addresses (used for pool key and ZAMM).
+    /// @param mintTokenA Sentinel for spendAllowance on tokenA side (address(0) = use tokenA directly)
+    /// @param mintTokenB Sentinel for spendAllowance on tokenB side (address(0) = use tokenB directly)
+    function configure(
+        address tokenA,
+        uint128 amountA,
+        address tokenB,
+        uint128 amountB,
+        uint16 feeBps,
+        uint40 deadline,
+        address shareSale,
+        uint128 minSupply,
+        address mintTokenA,
+        address mintTokenB
+    ) public {
         if (amountA == 0 || amountB == 0 || tokenB == address(0)) {
             revert InvalidParams();
         }
@@ -222,7 +258,10 @@ contract LPSeedSwapHook {
             decayPeriod: 0,
             shareSale: shareSale,
             minSupply: minSupply,
-            seeded: 0
+            tokenBSnapshot: minSupply != 0 ? uint128(balanceOf(tokenB, msg.sender)) : 0,
+            seeded: 0,
+            mintTokenA: mintTokenA,
+            mintTokenB: mintTokenB
         });
 
         // Reserve pool ID at configure time so beforeAction blocks
@@ -231,6 +270,11 @@ contract LPSeedSwapHook {
         IZAMM.PoolKey memory key =
             IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: hookFeeOrHook()});
         uint256 poolId = uint256(keccak256(abi.encode(key)));
+        // Prevent overwriting a pool already claimed by a different seeded DAO
+        address existing = poolDAO[poolId];
+        if (existing != address(0) && existing != msg.sender && seeds[existing].seeded != 0) {
+            revert AlreadySeeded();
+        }
         poolDAO[poolId] = msg.sender;
 
         emit Configured(msg.sender, tokenA, amountA, tokenB, amountB);
@@ -255,9 +299,11 @@ contract LPSeedSwapHook {
         address tokenA = cfg.tokenA;
         address tokenB = cfg.tokenB;
 
-        // Pull tokens from DAO via allowance (ETH uses address(0) allowance path)
-        IMoloch(dao).spendAllowance(tokenA, amtA);
-        IMoloch(dao).spendAllowance(tokenB, amtB);
+        // Pull tokens from DAO via allowance. When mintToken is set, spendAllowance
+        // uses the Moloch sentinel (e.g. address(dao) for shares) to mint-on-spend
+        // instead of transferring pre-minted tokens.
+        IMoloch(dao).spendAllowance(cfg.mintTokenA != address(0) ? cfg.mintTokenA : tokenA, amtA);
+        IMoloch(dao).spendAllowance(cfg.mintTokenB != address(0) ? cfg.mintTokenB : tokenB, amtB);
 
         // Build canonical pool key (token0 < token1)
         // For ETH (address(0)), it's always token0
@@ -275,9 +321,12 @@ contract LPSeedSwapHook {
         IZAMM.PoolKey memory key =
             IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: feeOrHook});
 
-        // Re-register poolId → dao (configure() sets it first, but another DAO
-        // could have overwritten it by configuring the same pair in between)
+        // Re-register poolId → dao. Revert if already claimed by a different seeded DAO.
         uint256 poolId = uint256(keccak256(abi.encode(key)));
+        address existing = poolDAO[poolId];
+        if (existing != address(0) && existing != dao && seeds[existing].seeded != 0) {
+            revert AlreadySeeded();
+        }
         poolDAO[poolId] = dao;
 
         // Approve ZAMM to spend tokens
@@ -326,6 +375,15 @@ contract LPSeedSwapHook {
         SeedConfig storage cfg = seeds[msg.sender];
         if (cfg.amountA == 0) revert NotConfigured();
         if (cfg.seeded != 0) revert AlreadySeeded();
+
+        // Clean up poolDAO so this pool key isn't permanently blocked
+        (address t0, address t1) =
+            cfg.tokenA < cfg.tokenB ? (cfg.tokenA, cfg.tokenB) : (cfg.tokenB, cfg.tokenA);
+        IZAMM.PoolKey memory key =
+            IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: hookFeeOrHook()});
+        delete poolDAO[uint256(keccak256(abi.encode(key)))];
+
+        delete daoFees[msg.sender];
         delete seeds[msg.sender];
         emit Cancelled(msg.sender);
     }
@@ -338,6 +396,10 @@ contract LPSeedSwapHook {
         if (newFeeBps > 10_000) revert InvalidParams();
         SeedConfig storage cfg = seeds[msg.sender];
         if (cfg.amountA == 0) revert NotConfigured();
+        // Block fee changes during active launch decay to prevent discontinuous fee jumps
+        if (cfg.launchBps != 0 && cfg.decayPeriod != 0 && cfg.seeded != 0) {
+            if (block.timestamp < cfg.seeded + cfg.decayPeriod) revert NotReady();
+        }
         uint16 old = cfg.feeBps;
         cfg.feeBps = newFeeBps;
         emit FeeUpdated(msg.sender, old, newFeeBps);
@@ -349,6 +411,7 @@ contract LPSeedSwapHook {
     /// @param decayPeriod Seconds to decay from launchBps to feeBps (0 = instant target)
     function setLaunchFee(uint16 launchBps, uint40 decayPeriod) public {
         if (launchBps > 10_000) revert InvalidParams();
+        if (launchBps != 0 && decayPeriod == 0) revert InvalidParams();
         SeedConfig storage cfg = seeds[msg.sender];
         if (cfg.amountA == 0) revert NotConfigured();
         if (cfg.seeded != 0) revert AlreadySeeded();
@@ -370,7 +433,7 @@ contract LPSeedSwapHook {
         bool buyOnInput,
         bool sellOnInput
     ) public {
-        if (buyBps > 10_000 || sellBps > 10_000) revert InvalidParams();
+        if (buyBps >= 10_000 || sellBps >= 10_000) revert InvalidParams();
         // Require beneficiary when rates are set, and rates when beneficiary is set
         if (beneficiary == address(0) && (buyBps | sellBps) != 0) revert InvalidParams();
         if (beneficiary != address(0) && (buyBps | sellBps) == 0) revert InvalidParams();
@@ -643,14 +706,18 @@ contract LPSeedSwapHook {
         address tokenIn = zeroForOne ? poolKey.token0 : poolKey.token1;
         address tokenOut = zeroForOne ? poolKey.token1 : poolKey.token0;
 
-        // Reject ETH sent on ERC20-input paths (would be trapped)
-        if (tokenIn != address(0) && msg.value != 0) revert InvalidParams();
+        // For ETH input, msg.value IS the amount; for ERC20 input, no ETH allowed
+        if (tokenIn == address(0)) {
+            amountIn = msg.value;
+        } else {
+            if (msg.value != 0) revert InvalidParams();
+        }
 
         if (onInput) {
             // ── Fee on input ────────────────────────────────────────
             if (tokenIn == address(0)) {
-                uint256 tax = (msg.value * bps) / 10_000;
-                uint256 net = msg.value - tax;
+                uint256 tax = (amountIn * bps) / 10_000;
+                uint256 net = amountIn - tax;
                 if (tax != 0) safeTransferETH(ben, tax);
                 amountOut = ZAMM.swapExactIn{value: net}(
                     poolKey, net, amountOutMin, zeroForOne, to, deadline
@@ -666,8 +733,8 @@ contract LPSeedSwapHook {
         } else {
             // ── Fee on output ───────────────────────────────────────
             if (tokenIn == address(0)) {
-                amountOut = ZAMM.swapExactIn{value: msg.value}(
-                    poolKey, msg.value, 0, zeroForOne, address(this), deadline
+                amountOut = ZAMM.swapExactIn{value: amountIn}(
+                    poolKey, amountIn, 0, zeroForOne, address(this), deadline
                 );
             } else {
                 safeTransferFrom(tokenIn, address(this), amountIn);
@@ -708,21 +775,25 @@ contract LPSeedSwapHook {
         address tokenIn = zeroForOne ? poolKey.token0 : poolKey.token1;
         address tokenOut = zeroForOne ? poolKey.token1 : poolKey.token0;
 
-        // Reject ETH sent on ERC20-input paths (would be trapped)
-        if (tokenIn != address(0) && msg.value != 0) revert InvalidParams();
+        // For ETH input, msg.value IS the max; for ERC20 input, no ETH allowed
+        if (tokenIn == address(0)) {
+            amountInMax = msg.value;
+        } else {
+            if (msg.value != 0) revert InvalidParams();
+        }
 
         if (onInput) {
             // ── Fee on input ────────────────────────────────────────
             if (tokenIn == address(0)) {
                 // Derive max net ETH for ZAMM after tax
-                uint256 netMax = (msg.value * (10_000 - bps)) / 10_000;
+                uint256 netMax = (amountInMax * (10_000 - bps)) / 10_000;
                 amountIn = ZAMM.swapExactOut{value: netMax}(
                     poolKey, amountOut, netMax, zeroForOne, to, deadline
                 );
                 uint256 tax = (amountIn * bps) / (10_000 - bps);
                 uint256 spent = amountIn + tax;
                 if (tax != 0) safeTransferETH(ben, tax);
-                uint256 refund = msg.value - spent;
+                uint256 refund = amountInMax - spent;
                 if (refund != 0) safeTransferETH(msg.sender, refund);
                 amountIn = spent; // return gross to caller
             } else {
@@ -743,10 +814,10 @@ contract LPSeedSwapHook {
                 bps != 0 ? (amountOut * 10_000 + (10_000 - bps) - 1) / (10_000 - bps) : amountOut;
 
             if (tokenIn == address(0)) {
-                amountIn = ZAMM.swapExactOut{value: msg.value}(
-                    poolKey, gross, msg.value, zeroForOne, address(this), deadline
+                amountIn = ZAMM.swapExactOut{value: amountInMax}(
+                    poolKey, gross, amountInMax, zeroForOne, address(this), deadline
                 );
-                uint256 refund = msg.value - amountIn;
+                uint256 refund = amountInMax - amountIn;
                 if (refund != 0) safeTransferETH(msg.sender, refund);
             } else {
                 safeTransferFrom(tokenIn, address(this), amountInMax);
@@ -790,9 +861,13 @@ contract LPSeedSwapHook {
             }
         }
 
-        // Supply gate: DAO's tokenB balance must be at or below threshold
+        // Supply gate: DAO's tokenB balance must be at or below threshold.
+        // Cap at snapshot to ignore unsolicited deposits (griefing resistance).
         if (cfg.minSupply != 0) {
             uint256 daoBal = balanceOf(cfg.tokenB, dao);
+            if (cfg.tokenBSnapshot != 0 && daoBal > cfg.tokenBSnapshot) {
+                daoBal = cfg.tokenBSnapshot;
+            }
             if (daoBal > cfg.minSupply) return false;
         }
 
@@ -806,10 +881,12 @@ contract LPSeedSwapHook {
                           INIT CALL HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Generate initCalls for setting up an LP seed with shares premint.
-    /// @dev Returns 4 calls: mintFromMoloch(tokenB → DAO), setAllowance(tokenA),
-    ///      setAllowance(tokenB), configure(). Use when tokenB is DAO shares/loot.
-    ///      For external ERC20 tokenB, drop calls[0] and use the last 3 only.
+    /// @notice Generate initCalls for setting up an LP seed with mint-on-spend.
+    /// @dev Returns 3 calls: setAllowance(tokenA), setAllowance(tokenB), configure().
+    ///      When mintTokenA/B are set, allowances use the Moloch sentinel (e.g. address(dao)
+    ///      for shares) so spendAllowance mints tokens directly instead of requiring premint.
+    /// @param mintTokenA Moloch sentinel for tokenA (address(0) = regular transfer, address(dao) = mint shares)
+    /// @param mintTokenB Moloch sentinel for tokenB (address(0) = regular transfer, address(dao) = mint shares)
     function seedInitCalls(
         address dao,
         address tokenA,
@@ -819,24 +896,28 @@ contract LPSeedSwapHook {
         uint16 feeBps,
         uint40 deadline,
         address shareSale,
-        uint128 minSupply
-    ) public view returns (address[4] memory targets, bytes[4] memory data) {
-        // 0. tokenB.mintFromMoloch(dao, amountB) — premint shares to DAO
-        targets[0] = tokenB;
-        data[0] = abi.encodeWithSignature("mintFromMoloch(address,uint256)", dao, uint256(amountB));
+        uint128 minSupply,
+        address mintTokenA,
+        address mintTokenB
+    ) public view returns (address[3] memory targets, bytes[3] memory data) {
+        // 0. dao.setAllowance(lpSeed, allowTokenA, amountA)
+        targets[0] = dao;
+        data[0] = abi.encodeCall(
+            IMoloch.setAllowance,
+            (address(this), mintTokenA != address(0) ? mintTokenA : tokenA, amountA)
+        );
 
-        // 1. dao.setAllowance(lpSeed, tokenA, amountA)
+        // 1. dao.setAllowance(lpSeed, allowTokenB, amountB)
         targets[1] = dao;
-        data[1] = abi.encodeCall(IMoloch.setAllowance, (address(this), tokenA, amountA));
+        data[1] = abi.encodeCall(
+            IMoloch.setAllowance,
+            (address(this), mintTokenB != address(0) ? mintTokenB : tokenB, amountB)
+        );
 
-        // 2. dao.setAllowance(lpSeed, tokenB, amountB)
-        targets[2] = dao;
-        data[2] = abi.encodeCall(IMoloch.setAllowance, (address(this), tokenB, amountB));
-
-        // 3. lpSeed.configure(...)
-        targets[3] = address(this);
-        data[3] = abi.encodeWithSignature(
-            "configure(address,uint128,address,uint128,uint16,uint40,address,uint128)",
+        // 2. lpSeed.configure(...)
+        targets[2] = address(this);
+        data[2] = abi.encodeWithSignature(
+            "configure(address,uint128,address,uint128,uint16,uint40,address,uint128,address,address)",
             tokenA,
             amountA,
             tokenB,
@@ -844,7 +925,9 @@ contract LPSeedSwapHook {
             feeBps,
             deadline,
             shareSale,
-            minSupply
+            minSupply,
+            mintTokenA,
+            mintTokenB
         );
     }
 

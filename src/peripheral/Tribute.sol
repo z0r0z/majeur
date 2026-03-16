@@ -2,6 +2,8 @@
 pragma solidity ^0.8.30;
 
 /// @notice Simple tribute OTC escrow maker for DAO proposals.
+/// @dev Fee-on-transfer and rebasing tokens are unsupported — recorded amounts
+///      must equal actual balances. Use only standard ERC-20 tokens as tribTkn/forTkn.
 contract Tribute {
     struct TributeOffer {
         uint256 tribAmt; // amount of tribTkn locked up
@@ -86,7 +88,6 @@ contract Tribute {
             // ERC20 tribute
             if (tribTkn == address(0)) revert InvalidParams();
             if (tribAmt == 0) revert InvalidParams();
-            safeTransferFrom(tribTkn, address(this), tribAmt);
         }
 
         TributeOffer storage offer = tributes[msg.sender][dao][tribTkn];
@@ -99,8 +100,10 @@ contract Tribute {
 
         // register escrow for onchain discovery
         daoTributeRefs[dao].push(DaoTributeRef({proposer: msg.sender, tribTkn: tribTkn}));
-
         proposerTributeRefs[msg.sender].push(ProposerTributeRef({dao: dao, tribTkn: tribTkn}));
+
+        // ERC20: pull after all state writes (CEI)
+        if (msg.value == 0) safeTransferFrom(tribTkn, address(this), tribAmt);
 
         emit TributeProposed(msg.sender, dao, tribTkn, tribAmt, forTkn, forAmt);
     }
@@ -154,15 +157,11 @@ contract Tribute {
         if (offer.forTkn == address(0)) {
             // ETH as consideration
             if (msg.value != offer.forAmt) revert InvalidParams();
-            if (offer.forAmt > 0) {
-                safeTransferETH(proposer, offer.forAmt);
-            }
+            safeTransferETH(proposer, offer.forAmt);
         } else {
             // ERC20 as consideration, pull from DAO to proposer
             if (msg.value != 0) revert InvalidParams();
-            if (offer.forAmt > 0) {
-                safeTransferFrom(offer.forTkn, proposer, offer.forAmt);
-            }
+            safeTransferFrom(offer.forTkn, proposer, offer.forAmt);
         }
 
         // 2) Contract sends the locked tribute to the DAO
@@ -177,59 +176,103 @@ contract Tribute {
         emit TributeClaimed(proposer, dao, tribTkn, offer.tribAmt, offer.forTkn, offer.forAmt);
     }
 
-    function getDaoTributeCount(address dao) public view returns (uint256) {
-        return daoTributeRefs[dao].length;
-    }
-
-    function getProposerTributeCount(address proposer) public view returns (uint256) {
-        return proposerTributeRefs[proposer].length;
-    }
-
     struct ActiveTributeView {
         address proposer;
+        address dao;
         address tribTkn;
         uint256 tribAmt;
         address forTkn;
         uint256 forAmt;
     }
 
-    function getActiveDaoTributes(address dao)
+    /// @notice Paginated active tributes targeting a DAO.
+    /// @param dao The DAO address to query.
+    /// @param start Ref array index to start scanning from.
+    /// @param limit Max number of active results to return.
+    /// @return result The active tributes found.
+    /// @return next The ref index to pass as `start` for the next page (0 = no more).
+    function getActiveDaoTributes(address dao, uint256 start, uint256 limit)
         public
         view
-        returns (ActiveTributeView[] memory result)
+        returns (ActiveTributeView[] memory result, uint256 next)
     {
         DaoTributeRef[] storage refs = daoTributeRefs[dao];
         uint256 len = refs.length;
+        if (start >= len || limit == 0) return (new ActiveTributeView[](0), 0);
 
-        // first pass: count active
-        uint256 count;
-        for (uint256 i; i != len; ++i) {
-            TributeOffer storage offer = tributes[refs[i].proposer][dao][refs[i].tribTkn];
-            if (offer.tribAmt != 0) {
-                unchecked {
-                    ++count;
-                }
-            }
-        }
-
-        result = new ActiveTributeView[](count);
-        uint256 idx;
-        for (uint256 i; i != len; ++i) {
+        result = new ActiveTributeView[](limit);
+        uint256 found;
+        uint256 i = start;
+        for (; i != len && found != limit; ++i) {
             DaoTributeRef storage r = refs[i];
             TributeOffer storage offer = tributes[r.proposer][dao][r.tribTkn];
             if (offer.tribAmt != 0) {
-                result[idx] = ActiveTributeView({
+                result[found] = ActiveTributeView({
                     proposer: r.proposer,
+                    dao: dao,
                     tribTkn: r.tribTkn,
                     tribAmt: offer.tribAmt,
                     forTkn: offer.forTkn,
                     forAmt: offer.forAmt
                 });
                 unchecked {
-                    ++idx;
+                    ++found;
                 }
             }
         }
+
+        // trim excess
+        assembly ("memory-safe") {
+            mstore(result, found)
+        }
+
+        // signal whether there are more refs to scan
+        if (i != len) next = i;
+    }
+
+    /// @notice Paginated active tributes created by a proposer.
+    /// @param proposer The proposer address to query.
+    /// @param start Ref array index to start scanning from.
+    /// @param limit Max number of active results to return.
+    /// @return result The active tributes found.
+    /// @return next The ref index to pass as `start` for the next page (0 = no more).
+    function getActiveProposerTributes(address proposer, uint256 start, uint256 limit)
+        public
+        view
+        returns (ActiveTributeView[] memory result, uint256 next)
+    {
+        ProposerTributeRef[] storage refs = proposerTributeRefs[proposer];
+        uint256 len = refs.length;
+        if (start >= len || limit == 0) return (new ActiveTributeView[](0), 0);
+
+        result = new ActiveTributeView[](limit);
+        uint256 found;
+        uint256 i = start;
+        for (; i != len && found != limit; ++i) {
+            ProposerTributeRef storage r = refs[i];
+            TributeOffer storage offer = tributes[proposer][r.dao][r.tribTkn];
+            if (offer.tribAmt != 0) {
+                result[found] = ActiveTributeView({
+                    proposer: proposer,
+                    dao: r.dao,
+                    tribTkn: r.tribTkn,
+                    tribAmt: offer.tribAmt,
+                    forTkn: offer.forTkn,
+                    forAmt: offer.forAmt
+                });
+                unchecked {
+                    ++found;
+                }
+            }
+        }
+
+        // trim excess
+        assembly ("memory-safe") {
+            mstore(result, found)
+        }
+
+        // signal whether there are more refs to scan
+        if (i != len) next = i;
     }
 
     uint256 constant REENTRANCY_GUARD_SLOT = 0x929eee149b4bd21268;
