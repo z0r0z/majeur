@@ -25,7 +25,7 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 | Summoner | [`0x0000000000330B8df9E3bc5E553074DA58eE9138`](https://contractscan.xyz/contract/0x0000000000330B8df9E3bc5E553074DA58eE9138) | Factory for deploying new DAOs |
 | Renderer | [`0x000000000011C799980827F52d3137b4abD6E654`](https://contractscan.xyz/contract/0x000000000011C799980827F52d3137b4abD6E654) | On-chain SVG metadata renderer |
 | MolochViewHelper | [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db) | Batch read helper for dApps |
-| Tribute | [`0x000000000066524fcf78Dc1E41E9D525d9ea73D0`](https://contractscan.xyz/contract/0x000000000066524fcf78Dc1E41E9D525d9ea73D0) | OTC escrow for tribute proposals |
+| Tribute | [`0x00000000068d348f971845d60236dAe210ea80A6`](https://contractscan.xyz/contract/0x00000000068d348f971845d60236dAe210ea80A6) | OTC escrow for tribute proposals |
 | ShareBurner | [`0x000000000040084694F7B6fb2846D067B4c3Aa9f`](https://contractscan.xyz/contract/0x000000000040084694F7B6fb2846D067B4c3Aa9f) | Burn unsold shares after sale deadline |
 | ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for LP seed swaps |
 | SafeSummoner | [`0x00000000004473e1f31c8266612e7fd5504e6f2a`](https://contractscan.xyz/contract/0x00000000004473e1f31c8266612e7fd5504e6f2a) | Safe deployment wrapper with validated config |
@@ -543,7 +543,7 @@ Moloch.sol has been scanned by thirty-two independent audit tools. Reports with 
 4. Public `fundFutarchy` + zero-quorum `state()` enables permanent proposal freeze via premature NO-resolution (ChatGPT (GPT 5.4) — Medium, configuration-dependent, enforced by SafeSummoner)
 5. `fundFutarchy` accepts executed/cancelled proposal IDs, creating permanently stuck futarchy pools (ChatGPT Pro (GPT 5.4 Pro) — Medium, missing `executed[id]` check)
 6. `bumpConfig` emergency brake bypass — lifecycle functions accept raw IDs without config validation (Cantina — Medium, extends KF#10)
-7. Tribute bait-and-switch — escrow settlement terms not bound to claim key (Cantina — Medium, Tribute.sol — **patched and redeployed**: v2 `claimTribute()` now requires explicit term verification)
+7. Tribute bait-and-switch — escrow settlement terms not bound to claim key (Cantina — Medium, Tribute.sol — **patched and redeployed** to `0x00000000068d348f971845d60236dAe210ea80A6`: v2 `claimTribute()` now requires explicit term verification, CEI fix in `proposeTribute`, pagination guards)
 8. Permit IDs enter proposal/futarchy lifecycle — missing `isPermitReceipt` guards enable futarchy pool drain (Cantina — Medium, extends KF#10)
 9. DAICO LP drift cap uses wrong variable (`tribForLP` vs `totalTrib`) — shifts tokens from LP to buyer when pool spot > OTC. Buyer pays full price; drift is self-correcting via arb; UIs hide pool until sale completion. Impact is reduced LP depth, not theft (Cantina — Low, DAICO.sol, V2 hardening candidate)
 10. Counterfactual Tribute theft via summon frontrun — `initCalls` excluded from salt + Tribute accepts undeployed DAOs (Cantina — Low-Medium, extends KF#9)

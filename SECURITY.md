@@ -285,6 +285,11 @@ parameter matches the stored offer, reverting `TermsMismatch` on any discrepancy
 DAO's governance proposal encodes these values at approval time, a cancel+re-propose attack
 causes the claim to revert — the DAO sends nothing and loses nothing.
 
+**Redeployment:** Tribute.sol has been redeployed with all patches (bait-and-switch prevention,
+CEI fix in `proposeTribute`, pagination `limit=0` guard) to
+[`0x00000000068d348f971845d60236dAe210ea80A6`](https://contractscan.xyz/contract/0x00000000068d348f971845d60236dAe210ea80A6).
+The previous deployment at `0x000000000066524fcf78Dc1E41E9D525d9ea73D0` is deprecated.
+
 ### KF#9: CREATE2 salt not bound to `msg.sender` — Non-issue
 
 **Claimed attack:** Anyone can frontrun a `summon()` call and deploy to the same CREATE2

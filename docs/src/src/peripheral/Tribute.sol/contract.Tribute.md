@@ -1,7 +1,10 @@
 # Tribute
-[Git Source](https://github.com/z0r0z/majeur/blob/7b0b09c645157c41733569026978219fbad0e559/src/peripheral/Tribute.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/676b7eee1f7e1cd8bc1842d11a4fbdc43b31c4ac/src/peripheral/Tribute.sol)
 
 Simple tribute OTC escrow maker for DAO proposals.
+
+Fee-on-transfer and rebasing tokens are unsupported — recorded amounts
+must equal actual balances. Use only standard ERC-20 tokens as tribTkn/forTkn.
 
 
 ## State Variables
@@ -100,29 +103,59 @@ function claimTribute(
 ) public payable nonReentrant;
 ```
 
-### getDaoTributeCount
-
-
-```solidity
-function getDaoTributeCount(address dao) public view returns (uint256);
-```
-
-### getProposerTributeCount
-
-
-```solidity
-function getProposerTributeCount(address proposer) public view returns (uint256);
-```
-
 ### getActiveDaoTributes
 
+Paginated active tributes targeting a DAO.
+
 
 ```solidity
-function getActiveDaoTributes(address dao)
+function getActiveDaoTributes(address dao, uint256 start, uint256 limit)
     public
     view
-    returns (ActiveTributeView[] memory result);
+    returns (ActiveTributeView[] memory result, uint256 next);
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`dao`|`address`|The DAO address to query.|
+|`start`|`uint256`|Ref array index to start scanning from.|
+|`limit`|`uint256`|Max number of active results to return.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`result`|`ActiveTributeView[]`|The active tributes found.|
+|`next`|`uint256`|The ref index to pass as `start` for the next page (0 = no more).|
+
+
+### getActiveProposerTributes
+
+Paginated active tributes created by a proposer.
+
+
+```solidity
+function getActiveProposerTributes(address proposer, uint256 start, uint256 limit)
+    public
+    view
+    returns (ActiveTributeView[] memory result, uint256 next);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`proposer`|`address`|The proposer address to query.|
+|`start`|`uint256`|Ref array index to start scanning from.|
+|`limit`|`uint256`|Max number of active results to return.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`result`|`ActiveTributeView[]`|The active tributes found.|
+|`next`|`uint256`|The ref index to pass as `start` for the next page (0 = no more).|
+
 
 ### nonReentrant
 
@@ -224,6 +257,7 @@ struct ProposerTributeRef {
 ```solidity
 struct ActiveTributeView {
     address proposer;
+    address dao;
     address tribTkn;
     uint256 tribAmt;
     address forTkn;

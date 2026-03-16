@@ -1,5 +1,5 @@
 # LPSeedSwapHook
-[Git Source](https://github.com/z0r0z/majeur/blob/7b0b09c645157c41733569026978219fbad0e559/src/peripheral/LPSeedSwapHook.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/676b7eee1f7e1cd8bc1842d11a4fbdc43b31c4ac/src/peripheral/LPSeedSwapHook.sol)
 
 **Title:**
 LPSeedSwapHook
@@ -125,6 +125,46 @@ function configure(
 |`deadline`|`uint40`|  Seed only after this timestamp (0 = no time gate)|
 |`shareSale`|`address`| ShareSale address to check for sale completion (address(0) = no check)|
 |`minSupply`|`uint128`| Seed only after DAO's tokenB balance <= this (0 = no check)|
+
+
+### configure
+
+Configure LP seed with sentinel mint tokens for mint-on-spend via Moloch allowance.
+
+When mintTokenA/B are set, seed() calls spendAllowance with the sentinel address
+instead of the real ERC20, triggering Moloch's _payout to mint tokens to this contract.
+Use address(dao) for shares sentinel, address(1007) for loot sentinel.
+tokenA/tokenB must still be the real ERC20 addresses (used for pool key and ZAMM).
+
+
+```solidity
+function configure(
+    address tokenA,
+    uint128 amountA,
+    address tokenB,
+    uint128 amountB,
+    uint16 feeBps,
+    uint40 deadline,
+    address shareSale,
+    uint128 minSupply,
+    address mintTokenA,
+    address mintTokenB
+) public;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`tokenA`|`address`||
+|`amountA`|`uint128`||
+|`tokenB`|`address`||
+|`amountB`|`uint128`||
+|`feeBps`|`uint16`||
+|`deadline`|`uint40`||
+|`shareSale`|`address`||
+|`minSupply`|`uint128`||
+|`mintTokenA`|`address`|Sentinel for spendAllowance on tokenA side (address(0) = use tokenA directly)|
+|`mintTokenB`|`address`|Sentinel for spendAllowance on tokenB side (address(0) = use tokenB directly)|
 
 
 ### seed
@@ -451,11 +491,11 @@ receive() external payable;
 
 ### seedInitCalls
 
-Generate initCalls for setting up an LP seed with shares premint.
+Generate initCalls for setting up an LP seed with mint-on-spend.
 
-Returns 4 calls: mintFromMoloch(tokenB → DAO), setAllowance(tokenA),
-setAllowance(tokenB), configure(). Use when tokenB is DAO shares/loot.
-For external ERC20 tokenB, drop calls[0] and use the last 3 only.
+Returns 3 calls: setAllowance(tokenA), setAllowance(tokenB), configure().
+When mintTokenA/B are set, allowances use the Moloch sentinel (e.g. address(dao)
+for shares) so spendAllowance mints tokens directly instead of requiring premint.
 
 
 ```solidity
@@ -468,9 +508,27 @@ function seedInitCalls(
     uint16 feeBps,
     uint40 deadline,
     address shareSale,
-    uint128 minSupply
-) public view returns (address[4] memory targets, bytes[4] memory data);
+    uint128 minSupply,
+    address mintTokenA,
+    address mintTokenB
+) public view returns (address[3] memory targets, bytes[3] memory data);
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`dao`|`address`||
+|`tokenA`|`address`||
+|`amountA`|`uint128`||
+|`tokenB`|`address`||
+|`amountB`|`uint128`||
+|`feeBps`|`uint16`||
+|`deadline`|`uint40`||
+|`shareSale`|`address`||
+|`minSupply`|`uint128`||
+|`mintTokenA`|`address`|Moloch sentinel for tokenA (address(0) = regular transfer, address(dao) = mint shares)|
+|`mintTokenB`|`address`|Moloch sentinel for tokenB (address(0) = regular transfer, address(dao) = mint shares)|
+
 
 ### daoFeeInitCall
 
@@ -597,7 +655,10 @@ struct SeedConfig {
     uint40 decayPeriod; // seconds to decay from launchBps to feeBps (0 = instant target)
     address shareSale; // if set, seed only after this ShareSale's allowance is spent
     uint128 minSupply; // if set, seed only after DAO's tokenB balance <= minSupply
+    uint128 tokenBSnapshot; // tokenB balance at configure time (griefing resistance for minSupply)
     uint40 seeded; // 0 = not seeded, else block.timestamp when seeded
+    address mintTokenA; // if set, use this for spendAllowance instead of tokenA (sentinel mint path)
+    address mintTokenB; // if set, use this for spendAllowance instead of tokenB (sentinel mint path)
 }
 ```
 

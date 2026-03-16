@@ -1,5 +1,5 @@
 # SafeSummoner
-[Git Source](https://github.com/z0r0z/majeur/blob/7b0b09c645157c41733569026978219fbad0e559/src/peripheral/SafeSummoner.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/676b7eee1f7e1cd8bc1842d11a4fbdc43b31c4ac/src/peripheral/SafeSummoner.sol)
 
 **Title:**
 SafeSummoner
@@ -437,6 +437,20 @@ address(1) → shares, address(2) → loot, otherwise pass-through.
 function _resolveSeedToken(address dao, address token) internal pure returns (address);
 ```
 
+### _resolveSeedAllowanceToken
+
+Resolve SeedModule token to Moloch allowance token.
+Sentinels use Moloch mint sentinels: address(1) → address(dao) for shares,
+address(2) → address(1007) for loot. Non-sentinels use real ERC20 address.
+
+
+```solidity
+function _resolveSeedAllowanceToken(address dao, address token)
+    internal
+    pure
+    returns (address);
+```
+
 ### _buildLootMints
 
 Build mintFromMoloch calls for initial loot distribution.
@@ -666,8 +680,9 @@ struct TapModule {
 ### SeedModule
 LPSeedSwapHook module config. singleton = address(0) to skip.
 Token sentinels: address(1) = DAO shares, address(2) = DAO loot.
-When a sentinel is used, the wrapper mints that amount to the DAO
-and resolves it to the predicted shares/loot ERC20 address.
+When a sentinel is used, the allowance is set on the Moloch mint sentinel
+(address(dao) for shares, address(1007) for loot) so that spendAllowance
+triggers mint-on-spend instead of requiring pre-minted tokens.
 LPSeedSwapHook acts as a ZAMM hook — the pool's feeOrHook is always derived
 from the LPSeedSwapHook singleton address, preventing frontrun pool creation.
 

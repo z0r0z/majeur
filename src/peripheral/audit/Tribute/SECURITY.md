@@ -47,8 +47,11 @@ You are a senior Solidity security auditor. Analyze `Tribute.sol` (~340 lines, 1
 | 4 | 2026-03-16 | Pashov Skills v1 | 4-agent parallel vector scan | 2 (85, 80) — both known | [`../../audit/tribute-pashov-skills.md`](../../audit/tribute-pashov-skills.md) |
 | 5 | 2026-03-16 | Grimoire | 4 Sigils + 2 Familiars | 0 novel (4 Info, all known) | [`../../audit/tribute-grimoire.md`](../../audit/tribute-grimoire.md) |
 | 6 | 2026-03-16 | ChatGPT (GPT 5.4) | 2 runs (pre/post instructions) | Run 1: 0 novel (1 FP, 3 dup). Run 2: 1 novel (T-7) | [`../../audit/tribute-chatgpt.md`](../../audit/tribute-chatgpt.md) |
+| 7 | 2026-03-16 | Claude (Opus 4.6) | 2-round (defense verification + adversarial hunt) | 0 novel, 7/7 defenses verified, 6/6 invariants verified | [`claude-20260316.md`](claude-20260316.md) |
 
-**Aggregate: 6 audits, 7 unique findings (all addressed). 0 Critical, 0 High, 0 Medium (after patches), 1 Low, 6 Informational.**
+**Aggregate: 7 audits, 7 unique findings (all addressed). 0 Critical, 0 High, 0 Medium (after patches), 1 Low, 6 Informational.**
+
+**Deployment:** Tribute.sol redeployed with all patches to [`0x00000000068d348f971845d60236dAe210ea80A6`](https://contractscan.xyz/contract/0x00000000068d348f971845d60236dAe210ea80A6). Previous deployment at `0x000000000066524fcf78Dc1E41E9D525d9ea73D0` is deprecated.
 
 ---
 

@@ -1,5 +1,5 @@
 # ShareSale
-[Git Source](https://github.com/z0r0z/majeur/blob/7b0b09c645157c41733569026978219fbad0e559/src/peripheral/ShareSale.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/676b7eee1f7e1cd8bc1842d11a4fbdc43b31c4ac/src/peripheral/ShareSale.sol)
 
 **Title:**
 ShareSale
@@ -51,7 +51,10 @@ function configure(address token, address payToken, uint256 price, uint40 deadli
 
 ### buy
 
-Buy shares or loot from a DAO.
+Buy shares or loot from a DAO (exact-out).
+Caps to remaining allowance if amount exceeds it.
+Use type(uint256).max to buy all remaining.
+Refunds excess ETH for ETH-priced sales.
 
 
 ```solidity
@@ -62,7 +65,23 @@ function buy(address dao, uint256 amount) public payable;
 |Name|Type|Description|
 |----|----|-----------|
 |`dao`|`address`|   The DAO to buy from|
-|`amount`|`uint256`|Number of shares/loot to buy|
+|`amount`|`uint256`|Max shares/loot to buy (capped to remaining)|
+
+
+### buyExactIn
+
+Buy shares with exact ETH input.
+Computes max shares from msg.value, caps to remaining, refunds excess.
+
+
+```solidity
+function buyExactIn(address dao) public payable;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`dao`|`address`|The DAO to buy from|
 
 
 ### saleInitCalls
