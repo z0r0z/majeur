@@ -434,7 +434,7 @@ You are a senior Solidity security auditor. Analyze `Tribute.sol` — a standalo
 
 **Round 1: Defense Verification.** For each defense mechanism in the table below, verify it works as described by tracing the actual code. Cite specific line numbers. State whether the defense holds or is broken. Then verify each of the 6 key invariants against the code. This round should produce a conclusion for every defense and every invariant — "Verified" or "Violated" with evidence.
 
-**Round 2: Adversarial Hunt.** Attempt to find vulnerabilities NOT covered by the Known Findings table (T-1 through T-6) or the False Positive Patterns table. For each candidate:
+**Round 2: Adversarial Hunt.** Attempt to find vulnerabilities NOT covered by the Known Findings table (T-1 through T-7) or the False Positive Patterns table. For each candidate:
 1. Check it against the Known Findings table — if it matches, discard it as a duplicate.
 2. Check it against the False Positive Patterns table — if it matches, discard it.
 3. Attempt to disprove it by finding the guard, constraint, or code path that prevents exploitation.

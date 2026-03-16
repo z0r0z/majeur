@@ -4,7 +4,7 @@
 > escrow peripheral for Moloch DAOs. Paste this document along with a copy of
 > `src/peripheral/Tribute.sol` into your AI of choice.
 >
-> Prior audits: Cantina, Winfunc, Zellic, Pashov Skills, Grimoire (6 agents), ChatGPT o3.
+> Prior audits: Cantina, Winfunc, Zellic, Pashov Skills, Grimoire (6 agents), ChatGPT 5.4.
 > Reports in this directory and `audit/tribute-pashov-skills.md`, `audit/tribute-grimoire.md`, `audit/tribute-chatgpt.md`.
 
 ### Instructions
@@ -13,7 +13,7 @@ You are a senior Solidity security auditor. Analyze `Tribute.sol` (~340 lines, 1
 
 **Round 1: Defense Verification.** For each defense mechanism in the table below, verify it works as described by tracing the actual code. Cite specific line numbers. State whether the defense holds or is broken. Then verify each of the 6 key invariants against the code. Produce a conclusion for every defense and every invariant — "Verified" or "Violated" with evidence.
 
-**Round 2: Adversarial Hunt.** Attempt to find vulnerabilities NOT covered by the Known Findings table (T-1 through T-6) or the False Positive Patterns table. For each candidate:
+**Round 2: Adversarial Hunt.** Attempt to find vulnerabilities NOT covered by the Known Findings table (T-1 through T-7) or the False Positive Patterns table. For each candidate:
 1. Check it against the Known Findings table — if it matches, discard it as a duplicate.
 2. Check it against the False Positive Patterns table — if it matches, discard it.
 3. Attempt to disprove it by finding the guard, constraint, or code path that prevents exploitation.
@@ -46,9 +46,9 @@ You are a senior Solidity security auditor. Analyze `Tribute.sol` (~340 lines, 1
 | 3 | 2026-03-15 | Zellic V12 | Autonomous scan | 2 (1 High → Dup, 1 Low → novel) | [`zellic-20260315.md`](zellic-20260315.md) |
 | 4 | 2026-03-16 | Pashov Skills v1 | 4-agent parallel vector scan | 2 (85, 80) — both known | [`../../audit/tribute-pashov-skills.md`](../../audit/tribute-pashov-skills.md) |
 | 5 | 2026-03-16 | Grimoire | 4 Sigils + 2 Familiars | 0 novel (4 Info, all known) | [`../../audit/tribute-grimoire.md`](../../audit/tribute-grimoire.md) |
-| 6 | 2026-03-16 | ChatGPT o3 (5.4) | Single-pass review | 0 novel (1 FP, 3 duplicates) | [`../../audit/tribute-chatgpt.md`](../../audit/tribute-chatgpt.md) |
+| 6 | 2026-03-16 | ChatGPT (GPT 5.4) | 2 runs (pre/post instructions) | Run 1: 0 novel (1 FP, 3 dup). Run 2: 1 novel (T-7) | [`../../audit/tribute-chatgpt.md`](../../audit/tribute-chatgpt.md) |
 
-**Aggregate: 6 audits, 6 unique findings (all addressed). 0 Critical, 0 High, 0 Medium (after patches), 6 Informational.**
+**Aggregate: 6 audits, 7 unique findings (all addressed). 0 Critical, 0 High, 0 Medium (after patches), 1 Low, 6 Informational.**
 
 ---
 
@@ -62,7 +62,7 @@ You are a senior Solidity security auditor. Analyze `Tribute.sol` (~340 lines, 1
 | T-4 | Unbounded ref array growth | Info | Mitigated — pagination with OOB + limit=0 guard | Winfunc #21/23 | Zellic #3, Grimoire Sigil 3, ChatGPT INFO-4 |
 | T-5 | CEI violation in proposeTribute (interaction before effects) | Info | **Fixed** — `safeTransferFrom` moved after all state writes | Grimoire Sigil 1 | — |
 | T-6 | `limit=0` pagination returns ambiguous `next=0` | Info | **Fixed** — early return on `limit == 0` | Grimoire Sigil 3 | — |
-| T-7 | Stale ref resurrection on key reuse — cancel/repost same key causes duplicate entries in paginated views | Low | Accepted — view-only, no fund risk | ChatGPT o3 (Run 2) | — |
+| T-7 | Stale ref resurrection on key reuse — cancel/repost same key causes duplicate entries in paginated views | Low | Accepted — view-only, no fund risk | ChatGPT 5.4 (Run 2) | — |
 
 ### Legacy Findings (pre-patch, now resolved)
 
