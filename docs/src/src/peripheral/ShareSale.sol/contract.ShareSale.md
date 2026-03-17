@@ -1,5 +1,5 @@
 # ShareSale
-[Git Source](https://github.com/z0r0z/majeur/blob/13360a942bd5f358d43ac5a53ba3981007990305/src/peripheral/ShareSale.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/44b014e70c45a531ab7ef5f4e32dcfcda5ea81fa/src/peripheral/ShareSale.sol)
 
 **Title:**
 ShareSale
@@ -15,7 +15,7 @@ e.g. price = 0.01e18 means 0.01 ETH per whole share (1e18 units)
 Works naturally with any payToken decimals.
 Setup (include in Summoner initCalls or SafeSummoner extraCalls):
 1. dao.setAllowance(shareSale, address(dao), cap)   // or address(1007) for loot
-2. shareSale.configure(address(dao), payToken, price) // called BY dao -> keyed to msg.sender
+2. shareSale.configure(address(dao), payToken, price, deadline) // called BY dao -> keyed to msg.sender
 Usage:
 shareSale.buy{value: cost}(dao, amount)
 
@@ -31,6 +31,13 @@ mapping(address dao => Sale) public sales
 
 
 ## Functions
+### constructor
+
+
+```solidity
+constructor() payable;
+```
+
 ### configure
 
 Configure sale parameters. Must be called by the DAO (e.g. in initCalls).
@@ -70,8 +77,8 @@ function buy(address dao, uint256 amount) public payable;
 
 ### buyExactIn
 
-Buy shares with exact ETH input.
-Computes max shares from msg.value, caps to remaining, refunds excess.
+Buy shares or loot with exact ETH input.
+Computes max amount from msg.value, caps to remaining, refunds excess.
 
 
 ```solidity
@@ -88,7 +95,7 @@ function buyExactIn(address dao) public payable;
 
 Generate initCalls for setting up a ShareSale.
 
-Returns (target, value, data) tuples for use in initCalls or extraCalls.
+Returns (target, data) pairs for use in initCalls or extraCalls.
 Call 1: dao.setAllowance(shareSale, token, cap)
 Call 2: shareSale.configure(token, payToken, price, deadline)  (target = this contract)
 

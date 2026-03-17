@@ -299,6 +299,42 @@ contract LPSeedSwapHook {
         address tokenA = cfg.tokenA;
         address tokenB = cfg.tokenB;
 
+        // Treasury clamping: cap seed amounts to what the DAO actually has.
+        // Prevents revert if sale undersold, members ragequit, or treasury was spent.
+        // Skip for mint sentinel paths — tokens are minted on-demand by spendAllowance.
+        if (cfg.mintTokenA == address(0)) {
+            uint256 balA = tokenA == address(0) ? dao.balance : balanceOf(tokenA, dao);
+            if (amtA > balA) amtA = uint128(balA);
+        }
+        if (cfg.mintTokenB == address(0)) {
+            uint256 balB = tokenB == address(0) ? dao.balance : balanceOf(tokenB, dao);
+            if (amtB > balB) amtB = uint128(balB);
+        }
+
+        // Abort if treasury clamping zeroed either side — nothing to seed
+        if (amtA == 0 || amtB == 0) revert NotReady();
+
+        // Arb protection: if gated by a ShareSale, clamp LP ratio so shares are not
+        // underpriced vs what buyers paid. Excess shares are refunded to the DAO.
+        if (cfg.shareSale != address(0)) {
+            (, address payToken,, uint256 salePrice) = IShareSale(cfg.shareSale).sales(dao);
+            if (salePrice != 0) {
+                // Determine which LP side is the pay token and which is the shares token.
+                bool aIsPay = (payToken == address(0)) ? tokenA == address(0) : tokenA == payToken;
+                uint256 payAmt = aIsPay ? uint256(amtA) : uint256(amtB);
+                // Max shares the pay side can support at sale price
+                uint256 maxShares = payAmt * 1e18 / salePrice;
+                if (aIsPay) {
+                    if (amtB > maxShares) amtB = uint128(maxShares);
+                } else {
+                    if (amtA > maxShares) amtA = uint128(maxShares);
+                }
+            }
+        }
+
+        // Abort if arb clamping zeroed either side
+        if (amtA == 0 || amtB == 0) revert NotReady();
+
         // Pull tokens from DAO via allowance. When mintToken is set, spendAllowance
         // uses the Moloch sentinel (e.g. address(dao) for shares) to mint-on-spend
         // instead of transferring pre-minted tokens.

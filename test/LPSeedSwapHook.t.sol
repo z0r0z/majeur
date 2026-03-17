@@ -218,9 +218,7 @@ contract LPSeedSwapHookTest is Test {
             uint40 decayPeriod,
             address shareSaleGate,
             uint128 minSupply,,
-            uint40 seeded,
-            address mintTokenA,
-            address mintTokenB
+            uint40 seeded,,
         ) = lpSeed.seeds(dao);
 
         assertEq(tokenA, address(0));

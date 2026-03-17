@@ -1700,8 +1700,6 @@ contract SafeSummonerTest is Test {
         LPSeedSwapHook lpSeed = new LPSeedSwapHook();
 
         address dao = safe.predictDAO(salt, h, s);
-        address sharesAddr = safe.predictShares(dao);
-
         // Sale: 50 shares at 1 ETH each, minting
         SafeSummoner.SaleModule memory sale;
         sale.singleton = address(shareSale);

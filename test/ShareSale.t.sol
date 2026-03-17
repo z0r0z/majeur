@@ -485,6 +485,138 @@ contract ShareSaleTest is Test {
         sale.buyExactIn{value: 1 ether}(dao);
     }
 
+    // ── Round-up pricing: no dust ─────────────────────────────
+
+    function test_NoDust_SmallAmountStillCosts() public {
+        // With price = 1e16 (0.01 ETH/share), buying 1 wei of shares
+        // should cost 1 wei (rounded up from 0), not revert.
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(40));
+        address dao = safe.predictDAO(salt, h, s);
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 100e18)));
+        extra[1] = Call(
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (dao, address(0), 1e16, uint40(0))) // 0.01 ETH/share
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "DustDAO", "DUST", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        // Buy 1 wei of shares — should cost 1 wei (rounded up), not revert
+        vm.prank(bob);
+        sale.buy{value: 1}(dao, 1);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), 1);
+    }
+
+    function test_NoDust_FullAllowanceDrainable() public {
+        // With price = 1e16 (0.01 ETH/share) and cap = 99 wei of shares,
+        // the full allowance should be spendable without dust remaining.
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(41));
+        address dao = safe.predictDAO(salt, h, s);
+
+        uint256 cap = 99; // 99 wei of shares — would have been unspendable pre-roundup
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, cap)));
+        extra[1] = Call(
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (dao, address(0), 1e16, uint40(0))) // 0.01 ETH/share
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "FullDAO", "FULL", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        // Buy all 99 wei — cost rounds up to 1 wei
+        vm.prank(bob);
+        sale.buy{value: 1}(dao, cap);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), cap);
+        // Allowance should be fully spent
+        assertEq(Moloch(payable(dao)).allowance(dao, address(sale)), 0);
+    }
+
+    function test_NoDust_BuyExactIn_SmallValue() public {
+        // buyExactIn with small msg.value and fractional price should work
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(42));
+        address dao = safe.predictDAO(salt, h, s);
+
+        Call[] memory extra = new Call[](2);
+        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 100e18)));
+        extra[1] = Call(
+            address(sale),
+            0,
+            abi.encodeCall(sale.configure, (dao, address(0), 1e16, uint40(0))) // 0.01 ETH/share
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ExactDAO", "EXCT", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        // Send 1 wei of ETH — should buy 100 wei of shares (1 * 1e18 / 1e16 = 100)
+        // cost = ceil(100 * 1e16 / 1e18) = ceil(1) = 1 wei
+        vm.prank(bob);
+        sale.buyExactIn{value: 1}(dao);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), 100);
+        // No refund — cost equals msg.value exactly
+    }
+
+    function test_RoundUp_BuyerPaysAtMostOneWeiExtra() public {
+        address dao = _deployDAO(bytes32(uint256(43))); // price = 1e18
+        Moloch m = Moloch(payable(dao));
+        address sharesAddr = address(m.shares());
+
+        // With price=1e18, cost = ceil(amount * 1e18 / 1e18) = amount exactly
+        // No rounding occurs — buyer pays exact cost
+        uint256 buyAmount = 7e18;
+        uint256 bobBalBefore = bob.balance;
+
+        vm.prank(bob);
+        sale.buy{value: 7e18}(dao, buyAmount);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), buyAmount);
+        assertEq(bobBalBefore - bob.balance, 7e18); // exact, no extra
+    }
+
     function test_SaleInitCallsHelper_Loot() public view {
         address dao = address(0xDA0);
         (address t1, bytes memory d1, address t2, bytes memory d2) =

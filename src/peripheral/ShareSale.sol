@@ -16,7 +16,7 @@ pragma solidity ^0.8.30;
 ///
 ///   Setup (include in Summoner initCalls or SafeSummoner extraCalls):
 ///     1. dao.setAllowance(shareSale, address(dao), cap)   // or address(1007) for loot
-///     2. shareSale.configure(address(dao), payToken, price) // called BY dao -> keyed to msg.sender
+///     2. shareSale.configure(address(dao), payToken, price, deadline) // called BY dao -> keyed to msg.sender
 ///
 ///   Usage:
 ///     shareSale.buy{value: cost}(dao, amount)
@@ -44,6 +44,8 @@ contract ShareSale {
 
     /// @dev Keyed by DAO address. Set via configure() called by the DAO itself.
     mapping(address dao => Sale) public sales;
+
+    constructor() payable {}
 
     /// @notice Configure sale parameters. Must be called by the DAO (e.g. in initCalls).
     /// @param token    Allowance token: use address(dao) for shares, address(1007) for loot
@@ -73,7 +75,10 @@ contract ShareSale {
         if (amount > remaining) amount = remaining;
         if (amount == 0) revert ZeroAmount();
 
-        uint256 cost = amount * s.price / 1e18;
+        uint256 cost = (amount * s.price + 1e18 - 1) / 1e18; // round up: no dust
+
+        // Spend allowance first (CEI: effects before interactions)
+        IMoloch(dao).spendAllowance(s.token, amount);
 
         // Collect payment
         if (s.payToken == address(0)) {
@@ -89,9 +94,6 @@ contract ShareSale {
             safeTransferFrom(s.payToken, dao, cost);
         }
 
-        // Spend allowance — _payout mints/transfers to this contract
-        IMoloch(dao).spendAllowance(s.token, amount);
-
         // Resolve actual token contract and forward to buyer
         address tokenAddr;
         if (s.token == dao) {
@@ -106,8 +108,8 @@ contract ShareSale {
         emit Purchase(dao, msg.sender, amount, cost);
     }
 
-    /// @notice Buy shares with exact ETH input.
-    ///         Computes max shares from msg.value, caps to remaining, refunds excess.
+    /// @notice Buy shares or loot with exact ETH input.
+    ///         Computes max amount from msg.value, caps to remaining, refunds excess.
     /// @param dao The DAO to buy from
     function buyExactIn(address dao) public payable {
         Sale memory s = sales[dao];
@@ -123,15 +125,17 @@ contract ShareSale {
         if (amount > remaining) amount = remaining;
         if (amount == 0) revert ZeroAmount();
 
-        uint256 cost = amount * s.price / 1e18;
+        uint256 cost = (amount * s.price + 1e18 - 1) / 1e18; // round up: no dust
+
+        // Spend allowance first (CEI: effects before interactions)
+        IMoloch(dao).spendAllowance(s.token, amount);
+
         safeTransferETH(dao, cost);
         if (msg.value > cost) {
             unchecked {
                 safeTransferETH(msg.sender, msg.value - cost);
             }
         }
-
-        IMoloch(dao).spendAllowance(s.token, amount);
 
         address tokenAddr;
         if (s.token == dao) {
@@ -147,7 +151,7 @@ contract ShareSale {
     }
 
     /// @notice Generate initCalls for setting up a ShareSale.
-    /// @dev Returns (target, value, data) tuples for use in initCalls or extraCalls.
+    /// @dev Returns (target, data) pairs for use in initCalls or extraCalls.
     ///      Call 1: dao.setAllowance(shareSale, token, cap)
     ///      Call 2: shareSale.configure(token, payToken, price, deadline)  (target = this contract)
     function saleInitCalls(

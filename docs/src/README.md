@@ -28,8 +28,9 @@ All contracts are deployed at the same CREATE2 addresses across supported networ
 | MolochViewHelper | [`0x00000000006631040967E58e3430e4B77921a2db`](https://contractscan.xyz/contract/0x00000000006631040967E58e3430e4B77921a2db) | Batch read helper for dApps |
 | Tribute | [`0x00000000068d348f971845d60236dAe210ea80A6`](https://contractscan.xyz/contract/0x00000000068d348f971845d60236dAe210ea80A6) | OTC escrow for tribute proposals |
 | ShareBurner | [`0x000000000040084694F7B6fb2846D067B4c3Aa9f`](https://contractscan.xyz/contract/0x000000000040084694F7B6fb2846D067B4c3Aa9f) | Burn unsold shares after sale deadline |
-| ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for LP seed swaps |
+| ShareSale | [`0x0000000021ea5069B532CeE09058aB9e02EA60f9`](https://contractscan.xyz/contract/0x0000000021ea5069B532CeE09058aB9e02EA60f9) | Fixed-price share/loot sale via allowance system |
 | TapVest | [`0x0000000060cdD33cbE020fAE696E70E7507bF56D`](https://contractscan.xyz/contract/0x0000000060cdD33cbE020fAE696E70E7507bF56D) | Linear vesting from DAO treasury via allowance system |
+| ZAMM | [`0x000000000000040470635EB91b7CE4D132D616eD`](https://contractscan.xyz/contract/0x000000000000040470635EB91b7CE4D132D616eD) | AMM for LP seed swaps |
 
 ### Implementations
 
