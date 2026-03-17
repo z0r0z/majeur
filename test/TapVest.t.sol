@@ -99,11 +99,12 @@ contract TapVestTest is Test {
         vm.warp(block.timestamp + 10 days);
 
         uint256 c = tap.claimable(dao);
-        assertEq(c, 2e18); // capped by allowance
+        // Rounded down to whole seconds — within 1 second of rate
+        assertApproxEqAbs(c, 2e18, rate);
 
         uint256 benBefore = beneficiary.balance;
         tap.claim(dao);
-        assertEq(beneficiary.balance - benBefore, 2e18);
+        assertApproxEqAbs(beneficiary.balance - benBefore, 2e18, rate);
 
         // Second claim should fail — allowance exhausted
         vm.warp(block.timestamp + 1 days);
@@ -120,11 +121,24 @@ contract TapVestTest is Test {
 
         vm.warp(block.timestamp + 10 days);
         uint256 c = tap.claimable(dao);
-        assertEq(c, 0.5e18); // capped by balance
+        // Rounded down to whole seconds — slightly less than 0.5 ETH
+        assertApproxEqAbs(c, 0.5e18, rate); // within 1 second of rate
 
         uint256 benBefore = beneficiary.balance;
         tap.claim(dao);
-        assertEq(beneficiary.balance - benBefore, 0.5e18);
+        uint256 firstClaimed = beneficiary.balance - benBefore;
+        assertApproxEqAbs(firstClaimed, 0.5e18, rate);
+
+        // Refund DAO — beneficiary should be able to claim the remainder
+        vm.deal(dao, 100 ether);
+        uint256 remaining = tap.claimable(dao);
+        assertApproxEqAbs(remaining, 10e18 - firstClaimed, rate);
+
+        uint256 benBefore2 = beneficiary.balance;
+        tap.claim(dao);
+        // Total across both claims should equal ~10 ETH (no overpayment)
+        uint256 totalClaimed = firstClaimed + (beneficiary.balance - benBefore2);
+        assertApproxEqAbs(totalClaimed, 10e18, 1e15);
     }
 
     function test_MultipleClaims() public {
@@ -278,6 +292,23 @@ contract TapVestTest is Test {
         vm.prank(dao);
         vm.expectRevert();
         tap.setBeneficiary(address(0));
+    }
+
+    function test_SetBeneficiaryWhileFrozen() public {
+        uint128 rate = 1e18 / uint128(1 days);
+        address dao = _deployWithTap(bytes32(uint256(23)), rate, 100e18);
+
+        // Freeze the tap
+        vm.prank(dao);
+        tap.setRate(0);
+
+        // Should still be able to change beneficiary while frozen
+        address newBen = address(0xFACE);
+        vm.prank(dao);
+        tap.setBeneficiary(newBen);
+
+        (, address ben,,) = tap.taps(dao);
+        assertEq(ben, newBen);
     }
 
     function test_RevertIf_SetRateNotDAO() public {

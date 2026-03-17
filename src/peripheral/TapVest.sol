@@ -7,8 +7,9 @@ pragma solidity ^0.8.30;
 ///         this contract an allowance via `setAllowance(Tap, token, budget)`.
 ///
 ///   Vesting formula: owed = ratePerSec * elapsed
-///   Claimed = min(owed, allowance, daoBalance)
+///   Claimed = min(owed, allowance, daoBalance), rounded to whole seconds when capped.
 ///   Allowance acts as the total budget cap.
+///   When capped, lastClaim advances proportionally (unclaimed time is preserved).
 ///
 ///   Setup (include in Summoner initCalls or SafeSummoner extraCalls):
 ///     1. dao.setAllowance(tap, token, totalBudget)
@@ -43,7 +44,11 @@ contract TapVest {
     /// @dev Keyed by DAO address. Set via configure() called by the DAO itself.
     mapping(address dao => TapConfig) public taps;
 
+    constructor() payable {}
+
     /// @notice Configure tap parameters. Must be called by the DAO (e.g. in initCalls).
+    ///         Overwrites any existing config — resets lastClaim, forfeiting accrued time.
+    ///         Use setBeneficiary/setRate for parameter changes on an active tap.
     /// @param token       Token to vest (address(0) = ETH)
     /// @param beneficiary Recipient of vested funds
     /// @param ratePerSec  Vesting rate in smallest token units per second
@@ -56,6 +61,7 @@ contract TapVest {
 
     /// @notice Claim accrued funds. Permissionless — funds always go to the beneficiary.
     /// @param dao The DAO to claim from
+    /// @return claimed The amount actually claimed (may be less than owed)
     function claim(address dao) public returns (uint256 claimed) {
         TapConfig storage tap = taps[dao];
         if (tap.ratePerSec == 0) revert NotConfigured();
@@ -79,8 +85,16 @@ contract TapVest {
         if (claimed > daoBalance) claimed = daoBalance;
         if (claimed == 0) revert NothingToClaim();
 
-        // Update timestamp before external calls (CEI)
-        tap.lastClaim = uint64(block.timestamp);
+        // Advance timestamp proportionally when capped, preserving unclaimed time.
+        // Round claimed down to whole seconds to prevent overpayment from truncation.
+        if (claimed == owed) {
+            tap.lastClaim = uint64(block.timestamp);
+        } else {
+            uint64 advance = uint64(claimed / tap.ratePerSec);
+            if (advance == 0) revert NothingToClaim();
+            claimed = uint256(advance) * uint256(tap.ratePerSec);
+            tap.lastClaim += advance;
+        }
 
         // Pull from DAO -> this contract
         IMoloch(dao).spendAllowance(token, claimed);
@@ -96,15 +110,16 @@ contract TapVest {
     }
 
     /// @notice View: how much can be claimed now.
+    /// @param dao The DAO to query
     function claimable(address dao) public view returns (uint256) {
         TapConfig memory tap = taps[dao];
         if (tap.ratePerSec == 0) return 0;
 
-        uint256 owed;
+        uint64 elapsed;
         unchecked {
-            uint64 elapsed = uint64(block.timestamp) - tap.lastClaim;
-            owed = uint256(tap.ratePerSec) * uint256(elapsed);
+            elapsed = uint64(block.timestamp) - tap.lastClaim;
         }
+        uint256 owed = uint256(tap.ratePerSec) * uint256(elapsed);
         if (owed == 0) return 0;
 
         uint256 allowance = IMoloch(dao).allowance(tap.token, address(this));
@@ -112,26 +127,33 @@ contract TapVest {
 
         uint256 c = owed < allowance ? owed : allowance;
         if (c > daoBalance) c = daoBalance;
+        if (c < owed) {
+            // Round down to whole seconds (matches claim() behavior)
+            c = (c / tap.ratePerSec) * tap.ratePerSec;
+        }
         return c;
     }
 
     /// @notice View: total owed based on time (ignoring allowance/balance caps).
+    /// @param dao The DAO to query
     function pending(address dao) public view returns (uint256) {
         TapConfig memory tap = taps[dao];
         if (tap.ratePerSec == 0) return 0;
+        uint64 elapsed;
         unchecked {
-            uint64 elapsed = uint64(block.timestamp) - tap.lastClaim;
-            return uint256(tap.ratePerSec) * uint256(elapsed);
+            elapsed = uint64(block.timestamp) - tap.lastClaim;
         }
+        return uint256(tap.ratePerSec) * uint256(elapsed);
     }
 
     // ── DAO Governance ──────────────────────────────────────────
 
-    /// @notice Update the beneficiary. Only callable by the DAO.
+    /// @notice Update the beneficiary. Only callable by the DAO. Works on frozen (rate=0) taps.
+    /// @param newBeneficiary New recipient of vested funds
     function setBeneficiary(address newBeneficiary) public {
         require(newBeneficiary != address(0));
         TapConfig storage tap = taps[msg.sender];
-        if (tap.ratePerSec == 0) revert NotConfigured();
+        if (tap.ratePerSec == 0 && tap.beneficiary == address(0)) revert NotConfigured();
         address old = tap.beneficiary;
         tap.beneficiary = newBeneficiary;
         emit BeneficiaryUpdated(msg.sender, old, newBeneficiary);
@@ -153,6 +175,11 @@ contract TapVest {
     receive() external payable {}
 
     /// @notice Generate initCalls for setting up a Tap.
+    /// @param dao         The DAO address (used as setAllowance target)
+    /// @param token       Token to vest (address(0) = ETH)
+    /// @param budget      Total allowance budget
+    /// @param beneficiary Recipient of vested funds
+    /// @param ratePerSec  Vesting rate in smallest token units per second
     function tapInitCalls(
         address dao,
         address token,
