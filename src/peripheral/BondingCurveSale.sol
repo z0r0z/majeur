@@ -23,10 +23,10 @@ contract BondingCurveSale {
     error InsufficientPayment();
     error NotConfigured();
     error UnexpectedETH();
+    error InvalidCurve();
     error ZeroAmount();
     error ZeroPrice();
     error Expired();
-    error InvalidCurve();
 
     event Configured(
         address indexed dao,
@@ -122,16 +122,7 @@ contract BondingCurveSale {
             safeTransferFrom(s.payToken, dao, cost);
         }
 
-        // Resolve actual token contract and forward to buyer
-        address tokenAddr;
-        if (s.token == dao) {
-            tokenAddr = address(IMoloch(dao).shares());
-        } else if (s.token == address(1007)) {
-            tokenAddr = address(IMoloch(dao).loot());
-        } else {
-            tokenAddr = s.token;
-        }
-        safeTransfer(tokenAddr, msg.sender, amount);
+        safeTransfer(_resolveToken(dao, s.token), msg.sender, amount);
 
         emit Purchase(dao, msg.sender, amount, cost);
     }
@@ -183,6 +174,8 @@ contract BondingCurveSale {
         if (amount == 0) revert ZeroAmount();
 
         uint256 cost = _cost(s, sold, amount);
+        // Clamp: sqrt truncation + ceil in _cost can overshoot by 1 wei
+        if (cost > msg.value) cost = msg.value;
 
         // Spend allowance first (CEI: effects before interactions)
         IMoloch(dao).spendAllowance(s.token, amount);
@@ -194,15 +187,7 @@ contract BondingCurveSale {
             }
         }
 
-        address tokenAddr;
-        if (s.token == dao) {
-            tokenAddr = address(IMoloch(dao).shares());
-        } else if (s.token == address(1007)) {
-            tokenAddr = address(IMoloch(dao).loot());
-        } else {
-            tokenAddr = s.token;
-        }
-        safeTransfer(tokenAddr, msg.sender, amount);
+        safeTransfer(_resolveToken(dao, s.token), msg.sender, amount);
 
         emit Purchase(dao, msg.sender, amount, cost);
     }
@@ -227,6 +212,13 @@ contract BondingCurveSale {
         target2 = address(this);
         data2 =
             abi.encodeCall(this.configure, (token, payToken, startPrice, endPrice, cap, deadline));
+    }
+
+    /// @dev Resolve allowance token sentinel to actual ERC20 address.
+    function _resolveToken(address dao, address token) internal view returns (address) {
+        if (token == dao) return address(IMoloch(dao).shares());
+        if (token == address(1007)) return address(IMoloch(dao).loot());
+        return token;
     }
 
     /// @dev Compute cost for `amount` tokens starting at position `sold` on the curve.
