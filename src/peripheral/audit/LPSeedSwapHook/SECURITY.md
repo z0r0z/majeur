@@ -38,8 +38,11 @@ You are a senior Solidity security auditor. Analyze `LPSeedSwapHook.sol` (~520 l
 | 3 | 2026-03-15 | Pashov Skills v1 | 4-agent parallel vector scan | 5 (1 Duplicate, 2 Patched, 2 Accepted) | [`pashov-20260315.md`](pashov-20260315.md) |
 | 4 | 2026-03-18 | Pashov Skills v1 | Post-patch re-scan | 0 (1 FP, 1 Duplicate) | [`pashov-20260318.md`](pashov-20260318.md) |
 | 5 | 2026-03-18 | Grimoire (Sigil+Familiar) | 4-agent parallel hunt + adversarial triage | 1 (1 Low — patched) | [`grimoire-20260318.md`](grimoire-20260318.md) |
+| 6 | 2026-03-18 | ChatGPT 5.4 | Two-round defense verification + adversarial hunt | 1 (1 Medium — false positive) | [`chatgpt-20260318.md`](chatgpt-20260318.md) |
+| 7 | 2026-03-18 | Zellic V12 | Autonomous scan (post-patch) | 6 (1 High — patched, 4 Invalid, 1 Low — acknowledged) | [`zellic-20260318.md`](zellic-20260318.md) |
+| 8 | 2026-03-18 | Claude Opus 4 | Two-round defense verification + adversarial hunt | 0 (missed KF#8 cancel path) | [`claude-20260318.md`](claude-20260318.md) |
 
-**Aggregate: 5 audits, 8 unique findings. 0 Critical, 1 High (accepted theoretical), 4 Medium (2 patched, 2 accepted), 2 Low (both patched).**
+**Aggregate: 8 audits, 9 unique findings. 0 Critical, 1 High (accepted theoretical), 1 High (patched), 4 Medium (2 patched, 2 accepted), 2 Low (both patched), 1 Low (acknowledged).**
 
 ---
 
@@ -54,6 +57,7 @@ You are a senior Solidity security auditor. Analyze `LPSeedSwapHook.sol` (~520 l
 | 5 | Launch fee underflow — `launchBps < feeBps` causes revert in `beforeAction` decay math | Medium | Patched | Pashov #5 | — |
 | 6 | `swapExactOut` ERC20 fee-on-input missing `netMax` — ZAMM cap not reduced for tax, causing underflow on refund | Low | Patched | Pre-audit review | — |
 | 7 | `quoteExactOut` fee-on-input floor rounding returns insufficient `amountIn`, causing swap revert | Low | Patched | Grimoire L-01 | — |
+| 8 | Stale `cancel()` can de-register a live pool's `poolDAO` entry — attacker pre-configures same pair, DAO seeds, attacker cancels stale config wiping `poolDAO` | High | Patched | Zellic-2 #2 | — |
 
 ### Finding 1 — Assessment
 
@@ -115,6 +119,20 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 
 **Fix:** Ceil the tax in `quoteExactOut` fee-on-input (L668): `daoTax = (net * bps + (10_000 - bps) - 1) / (10_000 - bps)`. This guarantees `floor(amountIn * (10_000 - bps) / 10_000) >= net`.
 
+### Finding 8 — Assessment & Patch
+
+**Severity: High (patched).**
+
+`cancel()` deleted `poolDAO[poolId]` without verifying that the caller still owned that mapping. An attacker could:
+1. Call `configure()` for the same token pair before the DAO seeds (overwriting `poolDAO` — allowed because the guard only checked `seeds[existing].seeded != 0`)
+2. Wait for the DAO to `seed()` (which re-registers `poolDAO` to the DAO)
+3. Call `cancel()` — their stale config produces the same `poolId`, deleting the DAO's live `poolDAO` entry
+4. All swaps on the pool now revert `NotConfigured`, and the DAO cannot re-configure (blocked by `AlreadySeeded`)
+
+**Fix (two parts):**
+1. `cancel()` — added `if (poolDAO[poolId] != msg.sender) revert Unauthorized()` before deleting, preventing stale configs from wiping another DAO's live pool
+2. `configure()` — tightened overwrite guard from `existing != address(0) && existing != msg.sender && seeds[existing].seeded != 0` to unconditional `existing != address(0) && existing != msg.sender`, blocking pre-seed hijacking of any claimed pool
+
 ---
 
 ## Dismissed Findings
@@ -127,6 +145,12 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 | Pashov #4 (Medium) | Fee-on-transfer token DoS in `seed()` | **Accepted as unsupported token type.** DAO shares/loot tokens don't have transfer fees. DAOs configure their own tokens — using a fee-on-transfer token is a misconfiguration. See Design Choices DC-4. |
 | Pashov-2 #1 (High) | Hardcoded 1e18 arb-clamp bypassed for non-18-decimal tokens | **False positive.** The `1e18` is the shares scaling factor, not a token-decimal assumption. `salePrice` is defined as "payToken-wei per 1e18 share-wei" by both ShareSale and BondingCurveSale. Formula `maxShares = payAmt * 1e18 / salePrice` is the algebraic inverse of `cost = amount * price / 1e18` — correct for any pay token decimals. See DC-6. |
 | Pashov-2 #2 (Low) | Blacklisted beneficiary DoS (re-scan) | **Duplicate of Pashov #3.** |
+| ChatGPT #M1 (Medium) | Stale `poolDAO` claims survive reconfiguration | **False positive.** Cleanup logic at `configure()` L250-260 already deletes old `poolDAO` entry when reconfiguring with different tokens. Audit was run against a prior revision. See [`chatgpt-20260318.md`](chatgpt-20260318.md). |
+| Zellic-2 #3 (Critical) | Reentrancy during readiness check via `_isReady` external calls | **Invalid.** `cfg.seeded` set before external calls (CEI). `_isReady` uses `staticcall`/view reads. See [`zellic-20260318.md`](zellic-20260318.md). |
+| Zellic-2 #5 (High) | Minimum supply check inverted | **Invalid.** Duplicate of Zellic #5 — same design misunderstanding. `minSupply` is a ceiling. |
+| Zellic-2 #6 (High) | Global seeding flag bypasses pool readiness | **Invalid.** Duplicate of Zellic #9 — same cross-pool flag concern. Impractical with DAO-configured tokens. |
+| Zellic-2 #4 (Medium) | ETH ignored when configured as tokenB | **Invalid.** `tokenB != address(0)` enforced in `configure()` — ETH can only be tokenA. |
+| Zellic-2 #1 (Low) | Fee activation flag inconsistent (`setBeneficiary` clears beneficiary but leaves bps) | **Acknowledged.** Residual bps are inert when beneficiary is zero — routing enforcement is off, users swap directly via ZAMM. Not a security issue. |
 
 ---
 
@@ -152,6 +176,8 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 | Bidirectional launch fee decay | KF#5 | `beforeAction` handles both `launch >= target` and `launch < target` without underflow |
 | `swapExactOut` ERC20 `netMax` cap | KF#6 | ZAMM's input cap reduced by fee bps to reserve room for tax and refund |
 | `quoteExactOut` fee-on-input ceil tax | KF#7 | Ceil `daoTax` in quote to guarantee quoted `amountIn` survives floor division in swap |
+| `cancel()` poolDAO ownership guard | KF#8 | `if (poolDAO[poolId] != msg.sender) revert Unauthorized()` — prevents stale configs from wiping live pool mappings |
+| `configure()` unconditional overwrite guard | KF#8 | Blocks any non-self `poolDAO` overwrite regardless of seeded status — closes pre-seed hijack window |
 
 ---
 
@@ -185,17 +211,18 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 
 ## Cross-Audit Coverage Matrix
 
-| Vulnerability Class | #1 Winfunc | #2 Zellic | #3 Pashov | #4 Pashov-2 | #5 Grimoire |
-|---|---|---|---|---|---|
-| Reentrancy | Clean (CEI) | #8 Invalid (CEI confirmed) | Clean (lock + CEI) | Clean | Clean (16 sub-hypotheses dismissed) |
-| Access control | #3 (theoretical) | #4 Duplicate, #9 Invalid | #1 Duplicate | Clean | Clean (16 sub-hypotheses dismissed) |
-| Frontrunning/MEV | **#5/9 (patched)** | — | — | Clean | Clean |
-| Slippage | — | — | **#2 (patched)** | Clean | Clean |
-| Arithmetic | — | — | **#5 (patched)** | #1 FP (decimal-agnostic confirmed) | **L-01 (patched)** |
-| DoS / griefing | **#24 (accepted)** | **#6 Duplicate** | #3, #4 Accepted | #2 Duplicate | Clean |
-| Readiness logic | — | #5 Invalid (correct semantics) | — | Clean | Clean |
-| Pool identity | **#3 (accepted)** | **#4 Duplicate** | #1 Duplicate | Clean | Clean |
-| Token compatibility | — | — | #4 Accepted (unsupported) | Clean | Clean (assembly byte-verified) |
+| Vulnerability Class | #1 Winfunc | #2 Zellic | #3 Pashov | #4 Pashov-2 | #5 Grimoire | #6 ChatGPT | #7 Zellic-2 | #8 Claude |
+|---|---|---|---|---|---|---|---|---|
+| Reentrancy | Clean (CEI) | #8 Invalid (CEI confirmed) | Clean (lock + CEI) | Clean | Clean (16 sub-hypotheses dismissed) | Clean (CEI verified) | #3 Invalid (CEI confirmed) | Clean (CEI verified) |
+| Access control | #3 (theoretical) | #4 Duplicate, #9 Invalid | #1 Duplicate | Clean | Clean (16 sub-hypotheses dismissed) | Clean | **#2 (patched)** | Missed KF#8 |
+| Frontrunning/MEV | **#5/9 (patched)** | — | — | Clean | Clean | Clean | — | Clean |
+| Slippage | — | — | **#2 (patched)** | Clean | Clean | Clean (net check verified) | — | Clean (net check verified) |
+| Arithmetic | — | — | **#5 (patched)** | #1 FP (decimal-agnostic confirmed) | **L-01 (patched)** | — | — | Clean (refund algebra verified) |
+| DoS / griefing | **#24 (accepted)** | **#6 Duplicate** | #3, #4 Accepted | #2 Duplicate | Clean | — | — | Clean |
+| Readiness logic | — | #5 Invalid (correct semantics) | — | Clean | Clean | — | #5 Invalid (duplicate) | Clean (all gates verified) |
+| Pool identity | **#3 (accepted)** | **#4 Duplicate** | #1 Duplicate | Clean | Clean | #M1 FP (cleanup exists) | **#2 (patched)**, #6 Invalid | Partial (configure only, missed cancel) |
+| Token compatibility | — | — | #4 Accepted (unsupported) | Clean | Clean (assembly byte-verified) | — | #4 Invalid (tokenB≠ETH) | Clean |
+| Fee consistency | — | — | — | — | — | — | #1 Acknowledged (low) | Clean (zero-bps passthrough verified) |
 
 ---
 
@@ -211,5 +238,7 @@ Recommended next scans:
 - [ ] Cross-module scan: LPSeedSwapHook + ShareSale + SafeSummoner together
 - [ ] Fuzz testing of `_isReady` with edge-case balances and timestamps
 - [ ] Formal verification of seeding state machine (configure → seed → seeded)
-- [ ] Integration test: routed swaps with fee-on-output confirming net slippage check
-- [ ] Integration test: seed with 6-decimal pay token (e.g. USDC mock) confirming arb-clamp correctness
+- [x] Integration test: routed swaps with fee-on-output confirming net slippage check *(added 2026-03-18)*
+- [x] Integration test: seed with 6-decimal pay token (e.g. USDC mock) confirming arb-clamp correctness *(existing)*
+- [x] Integration test: beforeAction swap/LP paths for seeded, unseeded, and unregistered pools *(added 2026-03-18)*
+- [x] Integration test: launch fee decay curve (both directions) *(added 2026-03-18)*

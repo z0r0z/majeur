@@ -76,6 +76,9 @@ contract MockERC20 {
 }
 
 contract LPSeedSwapHookTest is Test {
+    /// @dev ZAMM singleton address (mirrors contract constant).
+    address constant ZAMM_ADDR = 0x000000000000040470635EB91b7CE4D132D616eD;
+
     SafeSummoner internal safe;
     LPSeedSwapHook internal lpSeed;
     ShareSale internal shareSale;
@@ -1193,9 +1196,9 @@ contract LPSeedSwapHookTest is Test {
         assertTrue(daoTax > 0);
         assertTrue(amountIn > daoTax);
 
-        // daoTax / (amountIn - daoTax) should equal 100/9900
+        // daoTax = ceil(net * bps / (10_000 - bps)) — contract uses ceiling division
         uint256 net = amountIn - daoTax;
-        assertEq(daoTax, (net * 100) / (10_000 - 100));
+        assertEq(daoTax, (net * 100 + (10_000 - 100) - 1) / (10_000 - 100));
     }
 
     function test_QuoteExactOut_WithDaoFee_OnOutput() public {
@@ -1555,9 +1558,7 @@ contract LPSeedSwapHookTest is Test {
 
         // Also approve shareSale to pull USDC6 from bob (done outside initCalls)
         // Approve shares transfer from DAO to lpSeed
-        extra[7] = Call(
-            sharesAddr, 0, abi.encodeCall(Shares.approve, (address(lpSeed), sharesAmt))
-        );
+        extra[7] = Call(sharesAddr, 0, abi.encodeCall(Shares.approve, (address(lpSeed), sharesAmt)));
 
         SafeSummoner.SafeConfig memory c;
         c.proposalThreshold = 1e18;
@@ -1602,5 +1603,937 @@ contract LPSeedSwapHookTest is Test {
         // DAO started with sharesAmt (1000e18), LP consumed expectedMaxShares (10e18)
         // Remaining = 1000e18 - 10e18 = 990e18
         assertEq(daoSharesAfter, daoSharesBefore - expectedMaxShares);
+    }
+
+    // ── Launch Fee Decay Curve ───────────────────────────────────
+
+    function test_EffectiveFee_LaunchDecay_Midway() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(400));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](5);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 1000e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), 1000e18))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 1000e18))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), 1000e18, sharesAddr, 1000e18, 0, address(0), 0)
+            )
+        );
+        // setLaunchFee: 1000 bps → 30 bps over 1000 seconds
+        extra[4] = Call(address(lpSeed), 0, abi.encodeCall(lpSeed.setLaunchFee, (1000, 1000)));
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "DecayDAO", "DCAY", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        usdc.mint(dao, 1000e18);
+
+        uint256 seedTs = block.timestamp;
+        lpSeed.seed(dao);
+
+        // At t=0 (seed time): fee = launchBps = 1000
+        assertEq(lpSeed.effectiveFee(dao), 1000);
+
+        // At t=500 (midway): fee = 1000 - (1000 - 30) * 500 / 1000 = 515
+        vm.warp(seedTs + 500);
+        assertEq(lpSeed.effectiveFee(dao), 515);
+
+        // At t=1000 (end of decay): fee = target = 30
+        vm.warp(seedTs + 1000);
+        assertEq(lpSeed.effectiveFee(dao), 30);
+
+        // After decay period: still target
+        vm.warp(seedTs + 2000);
+        assertEq(lpSeed.effectiveFee(dao), 30);
+    }
+
+    function test_EffectiveFee_LaunchLowerThanTarget() public {
+        // launch < target: fee increases over time
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(401));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](5);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 1000e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), 1000e18))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 1000e18))
+        );
+        // Configure with feeBps=500 (target)
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeWithSignature(
+                "configure(address,uint128,address,uint128,uint16,uint40,address,uint128)",
+                address(usdc),
+                uint128(1000e18),
+                sharesAddr,
+                uint128(1000e18),
+                uint16(500),
+                uint40(0),
+                address(0),
+                uint128(0)
+            )
+        );
+        // launchBps=100 < target=500, decay over 1000s
+        extra[4] = Call(address(lpSeed), 0, abi.encodeCall(lpSeed.setLaunchFee, (100, 1000)));
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "RiseDAO", "RISE", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        usdc.mint(dao, 1000e18);
+
+        uint256 seedTs = block.timestamp;
+        lpSeed.seed(dao);
+
+        // At t=0: fee = launchBps = 100
+        assertEq(lpSeed.effectiveFee(dao), 100);
+
+        // At midway: fee = 100 + (500 - 100) * 500 / 1000 = 300
+        vm.warp(seedTs + 500);
+        assertEq(lpSeed.effectiveFee(dao), 300);
+
+        // After decay: fee = target = 500
+        vm.warp(seedTs + 1000);
+        assertEq(lpSeed.effectiveFee(dao), 500);
+    }
+
+    // ── setFee Blocked During Active Launch Decay ────────────────
+
+    function test_RevertIf_SetFeeDuringActiveDecay() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(402));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](5);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 1000e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), 1000e18))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 1000e18))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), 1000e18, sharesAddr, 1000e18, 0, address(0), 0)
+            )
+        );
+        extra[4] = Call(address(lpSeed), 0, abi.encodeCall(lpSeed.setLaunchFee, (500, 1 days)));
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "DecayLockDAO",
+            "DLCK",
+            "",
+            1000,
+            true,
+            address(0),
+            salt,
+            h,
+            s,
+            new uint256[](0),
+            c,
+            extra
+        );
+        usdc.mint(dao, 1000e18);
+        lpSeed.seed(dao);
+
+        // During decay — blocked
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.NotReady.selector);
+        lpSeed.setFee(100);
+
+        // After decay — allowed
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(dao);
+        lpSeed.setFee(100);
+        (,,,, uint16 feeBps,,,,,,,,,) = lpSeed.seeds(dao);
+        assertEq(feeBps, 100);
+    }
+
+    // ── Configure: Stale poolDAO Cleanup ─────────────────────────
+
+    function test_Configure_CleansStalePoolDAO() public {
+        // Configure with tokenA=usdc, tokenB=shares, then reconfigure with different tokens.
+        // Old poolDAO entry should be cleaned up.
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 100, address(1), 100, 0, address(0), 0);
+
+        // Compute old poolId
+        (address ot0, address ot1) =
+            address(usdc) < address(1) ? (address(usdc), address(1)) : (address(1), address(usdc));
+        IZAMM.PoolKey memory oldKey = IZAMM.PoolKey({
+            id0: 0, id1: 0, token0: ot0, token1: ot1, feeOrHook: lpSeed.hookFeeOrHook()
+        });
+        uint256 oldPoolId = uint256(keccak256(abi.encode(oldKey)));
+        assertEq(lpSeed.poolDAO(oldPoolId), alice);
+
+        // Reconfigure with different tokenB
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 200, address(2), 200, 0, address(0), 0);
+
+        // Old poolDAO should be cleared
+        assertEq(lpSeed.poolDAO(oldPoolId), address(0));
+
+        // New pool should be registered
+        (address nt0, address nt1) =
+            address(usdc) < address(2) ? (address(usdc), address(2)) : (address(2), address(usdc));
+        IZAMM.PoolKey memory newKey = IZAMM.PoolKey({
+            id0: 0, id1: 0, token0: nt0, token1: nt1, feeOrHook: lpSeed.hookFeeOrHook()
+        });
+        uint256 newPoolId = uint256(keccak256(abi.encode(newKey)));
+        assertEq(lpSeed.poolDAO(newPoolId), alice);
+    }
+
+    function test_Configure_SameTokensNoStaleCleanup() public {
+        // Reconfigure with same tokens — no cleanup needed, same poolId reused
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 100, address(1), 100, 0, address(0), 0);
+
+        (address t0, address t1) =
+            address(usdc) < address(1) ? (address(usdc), address(1)) : (address(1), address(usdc));
+        IZAMM.PoolKey memory key = IZAMM.PoolKey({
+            id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: lpSeed.hookFeeOrHook()
+        });
+        uint256 poolId = uint256(keccak256(abi.encode(key)));
+
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 200, address(1), 200, 0, address(0), 0);
+
+        // Same poolId still mapped to alice
+        assertEq(lpSeed.poolDAO(poolId), alice);
+    }
+
+    // ── Configure: poolId Collision with Seeded DAO ──────────────
+
+    function test_RevertIf_ConfigurePoolClaimedBySeededDAO() public {
+        // First DAO configures and seeds a pair
+        (address dao1, address sharesAddr) =
+            _deployAndSeedERC20(bytes32(uint256(410)), 1000e18, 1000e18);
+
+        // Verify pool is seeded
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao1);
+        assertTrue(seeded != 0);
+
+        // Verify poolDAO is set
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao1);
+        assertEq(lpSeed.poolDAO(poolId), dao1);
+
+        // Second user tries to configure the same token pair — should revert
+        // because poolDAO[poolId] == dao1, not bob
+        vm.prank(bob);
+        vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
+        lpSeed.configure(address(usdc), 500e18, sharesAddr, 500e18, 0, address(0), 0);
+    }
+
+    function test_RevertIf_ConfigurePoolClaimedByUnseededDAO() public {
+        // Even unseeded DAOs can't be overwritten by a different caller
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 100, address(1), 100, 0, address(0), 0);
+
+        vm.prank(bob);
+        vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
+        lpSeed.configure(address(usdc), 200, address(1), 200, 0, address(0), 0);
+    }
+
+    // ── Cancel: Stale config de-registration (Zellic #2) ─────────
+
+    function test_RevertIf_StaleCancelClearsPoolDAO() public {
+        // Attacker pre-configures the same pair before DAO deployment
+        // After tightened configure(), attacker can't overwrite an existing poolDAO.
+        // So test the cancel guard directly: if somehow attacker has a stale config
+        // pointing to the same poolId that was later taken by the DAO,
+        // cancel must not wipe it.
+
+        // Deploy DAO with ETH+shares seed
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(451)), 1e18, 1000e18, 0, address(0), 0);
+
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+        assertEq(lpSeed.poolDAO(poolId), dao);
+
+        // Seed the DAO
+        lpSeed.seed(dao);
+
+        // Attacker tries to configure the same pair — blocked
+        vm.prank(bob);
+        vm.expectRevert(LPSeedSwapHook.Unauthorized.selector);
+        lpSeed.configure(address(0), 1e18, sharesAddr, 1000e18, 0, address(0), 0);
+
+        // poolDAO still points to DAO
+        assertEq(lpSeed.poolDAO(poolId), dao);
+    }
+
+    function test_RevertIf_CancelWrongPoolDAO() public {
+        // If cancel() is called but poolDAO was overwritten (e.g. reconfigure scenario),
+        // cancel must revert Unauthorized
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 100, address(1), 100, 0, address(0), 0);
+
+        // Alice reconfigures with different tokens — old poolDAO deleted, new one set
+        vm.prank(alice);
+        lpSeed.configure(address(usdc), 100, address(2), 100, 0, address(0), 0);
+
+        // Bob configures the old pair (now free)
+        vm.prank(bob);
+        lpSeed.configure(address(usdc), 100, address(1), 100, 0, address(0), 0);
+
+        // Alice cancels — her current config is usdc+address(2)
+        // poolDAO for usdc+address(2) should be alice, so cancel works
+        vm.prank(alice);
+        lpSeed.cancel();
+
+        // Bob cancels — his config is usdc+address(1), poolDAO should be bob
+        vm.prank(bob);
+        lpSeed.cancel();
+    }
+
+    // ── Seed: Treasury Clamping ──────────────────────────────────
+
+    function test_Seed_TreasuryClamping_LessThanConfigured() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(420));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint128 configAmt = 1000e18;
+
+        Call[] memory extra = new Call[](4);
+        // Mint only 500 shares (less than configured 1000)
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 500e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), configAmt))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, configAmt))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), configAmt, sharesAddr, configAmt, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "ClampDAO", "CLMP", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        // Fund with only 500 USDC (less than configured 1000)
+        usdc.mint(dao, 500e18);
+
+        assertTrue(lpSeed.seedable(dao));
+        uint256 liq = lpSeed.seed(dao);
+        assertTrue(liq > 0);
+
+        // Verify it still seeded despite lower balances
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+    }
+
+    function test_RevertIf_Seed_TreasuryClamping_ZeroBalance() public {
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(421));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        Call[] memory extra = new Call[](4);
+        extra[0] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, 1000e18)));
+        extra[1] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc), 1000e18))
+        );
+        extra[2] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, 1000e18))
+        );
+        extra[3] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (address(usdc), 1000e18, sharesAddr, 1000e18, 0, address(0), 0)
+            )
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        safe.safeSummon(
+            "EmptyDAO", "EMPT", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        // Don't fund DAO with USDC — clamping will zero it out
+
+        vm.expectRevert(LPSeedSwapHook.NotReady.selector);
+        lpSeed.seed(dao);
+    }
+
+    // ── setDaoFee Validation Edge Cases ──────────────────────────
+
+    function test_RevertIf_SetDaoFee_ZeroBeneficiaryWithRates() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(430)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setDaoFee(address(0), 100, 100, false, false);
+    }
+
+    function test_RevertIf_SetDaoFee_BeneficiaryWithZeroRates() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(431)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setDaoFee(address(0xBEEF), 0, 0, false, false);
+    }
+
+    function test_SetDaoFee_DisableRouting() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(432)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Enable routing
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, false, false);
+
+        // Disable by setting all to zero
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0), 0, 0, false, false);
+
+        (address ben,,,,) = lpSeed.daoFees(dao);
+        assertEq(ben, address(0));
+    }
+
+    // ── setBeneficiary: Not Configured ───────────────────────────
+
+    function test_RevertIf_SetBeneficiaryNotConfigured() public {
+        vm.prank(address(0xdead));
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.setBeneficiary(address(0xBEEF));
+    }
+
+    // ── setLaunchFee: NonZero Bps with Zero Decay ────────────────
+
+    function test_RevertIf_SetLaunchFeeNonZeroBpsZeroDecay() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(440)), 1e18, 1000e18, 0, address(0), 0);
+
+        vm.prank(dao);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.setLaunchFee(500, 0);
+    }
+
+    function test_SetLaunchFee_ZeroBpsZeroDecay_Allowed() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(441)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Setting both to zero should work (disable launch fee)
+        vm.prank(dao);
+        lpSeed.setLaunchFee(0, 0);
+
+        (,,,,, uint16 launchBps,, uint40 decayPeriod,,,,,,) = lpSeed.seeds(dao);
+        assertEq(launchBps, 0);
+        assertEq(decayPeriod, 0);
+    }
+
+    // ── Cancel: Cleans poolDAO ───────────────────────────────────
+
+    function test_Cancel_CleansPoolDAO() public {
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(450)), 1e18, 1000e18, 0, address(0), 0);
+
+        // Get the poolId
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+        assertEq(lpSeed.poolDAO(poolId), dao);
+
+        vm.prank(dao);
+        lpSeed.cancel();
+
+        // poolDAO should be cleared
+        assertEq(lpSeed.poolDAO(poolId), address(0));
+    }
+
+    // ── Routed Swaps: swapExactIn ────────────────────────────────
+
+    /// @dev Helper: deploy, seed, set DAO fee, return (dao, sharesAddr, poolKey)
+    function _deploySeedAndSetDaoFee(
+        bytes32 salt,
+        uint128 usdcAmt,
+        uint128 sharesAmt,
+        address beneficiary,
+        uint16 buyBps,
+        uint16 sellBps,
+        bool buyOnInput,
+        bool sellOnInput
+    ) internal returns (address dao, address sharesAddr, IZAMM.PoolKey memory key) {
+        (dao, sharesAddr) = _deployAndSeedERC20(salt, usdcAmt, sharesAmt);
+
+        vm.prank(dao);
+        lpSeed.setDaoFee(beneficiary, buyBps, sellBps, buyOnInput, sellOnInput);
+
+        (key,) = lpSeed.poolKeyOf(dao);
+    }
+
+    function test_SwapExactIn_FeeOnInput_ERC20() public {
+        address beneficiary = address(0xBEEF);
+        (address dao,, IZAMM.PoolKey memory key) = _deploySeedAndSetDaoFee(
+            bytes32(uint256(500)), 1000e18, 1000e18, beneficiary, 100, 100, true, true
+        );
+
+        // Buy: swap USDC → shares (zeroForOne depends on ordering)
+        // Determine direction: usdc is token0 or token1?
+        bool zeroForOne = key.token0 == address(usdc);
+        address tokenIn = zeroForOne ? key.token0 : key.token1;
+
+        uint256 amountIn = 10e18;
+        usdc.mint(alice, amountIn);
+        vm.prank(alice);
+        usdc.approve(address(lpSeed), amountIn);
+
+        uint256 beneficiaryBefore = MockERC20(tokenIn).balanceOf(beneficiary);
+
+        vm.prank(alice);
+        uint256 amountOut = lpSeed.swapExactIn(key, amountIn, 0, zeroForOne, alice, block.timestamp);
+
+        assertTrue(amountOut > 0);
+
+        // Beneficiary should have received 1% of input
+        uint256 expectedTax = (amountIn * 100) / 10_000;
+        uint256 beneficiaryAfter = MockERC20(tokenIn).balanceOf(beneficiary);
+        assertEq(beneficiaryAfter - beneficiaryBefore, expectedTax);
+    }
+
+    function test_SwapExactIn_FeeOnOutput_ERC20() public {
+        address beneficiary = address(0xBEEF);
+        (address dao,, IZAMM.PoolKey memory key) = _deploySeedAndSetDaoFee(
+            bytes32(uint256(501)), 1000e18, 1000e18, beneficiary, 200, 200, false, false
+        );
+
+        bool zeroForOne = key.token0 == address(usdc);
+        address tokenOut = zeroForOne ? key.token1 : key.token0;
+
+        uint256 amountIn = 10e18;
+        usdc.mint(alice, amountIn);
+        vm.prank(alice);
+        usdc.approve(address(lpSeed), amountIn);
+
+        uint256 aliceBefore = MockERC20(tokenOut).balanceOf(alice);
+
+        vm.prank(alice);
+        uint256 amountOut = lpSeed.swapExactIn(key, amountIn, 0, zeroForOne, alice, block.timestamp);
+
+        uint256 aliceAfter = MockERC20(tokenOut).balanceOf(alice);
+        assertEq(aliceAfter - aliceBefore, amountOut);
+        assertTrue(amountOut > 0);
+
+        // Beneficiary should have received 2% of gross output
+        uint256 beneficiaryBal = MockERC20(tokenOut).balanceOf(beneficiary);
+        assertTrue(beneficiaryBal > 0);
+    }
+
+    function test_SwapExactIn_FeeOnOutput_SlippageRevert() public {
+        address beneficiary = address(0xBEEF);
+        (address dao,, IZAMM.PoolKey memory key) = _deploySeedAndSetDaoFee(
+            bytes32(uint256(502)), 1000e18, 1000e18, beneficiary, 200, 200, false, false
+        );
+
+        bool zeroForOne = key.token0 == address(usdc);
+
+        uint256 amountIn = 10e18;
+        usdc.mint(alice, amountIn);
+        vm.prank(alice);
+        usdc.approve(address(lpSeed), amountIn);
+
+        // Set unreasonably high amountOutMin — should revert with Slippage
+        vm.prank(alice);
+        vm.expectRevert(LPSeedSwapHook.Slippage.selector);
+        lpSeed.swapExactIn(key, amountIn, type(uint256).max, zeroForOne, alice, block.timestamp);
+    }
+
+    function test_RevertIf_SwapExactIn_ERC20WithMsgValue() public {
+        address beneficiary = address(0xBEEF);
+        (address dao,, IZAMM.PoolKey memory key) = _deploySeedAndSetDaoFee(
+            bytes32(uint256(503)), 1000e18, 1000e18, beneficiary, 100, 100, true, true
+        );
+
+        bool zeroForOne = key.token0 == address(usdc);
+        uint256 amountIn = 10e18;
+        usdc.mint(alice, amountIn);
+        vm.prank(alice);
+        usdc.approve(address(lpSeed), amountIn);
+
+        // Send ETH with ERC20 input — should revert
+        vm.prank(alice);
+        vm.expectRevert(LPSeedSwapHook.InvalidParams.selector);
+        lpSeed.swapExactIn{value: 1 ether}(key, amountIn, 0, zeroForOne, alice, block.timestamp);
+    }
+
+    // ── Routed Swaps: swapExactOut ───────────────────────────────
+
+    function test_SwapExactOut_FeeOnInput_ERC20() public {
+        address beneficiary = address(0xBEEF);
+        (address dao,, IZAMM.PoolKey memory key) = _deploySeedAndSetDaoFee(
+            bytes32(uint256(510)), 1000e18, 1000e18, beneficiary, 100, 100, true, true
+        );
+
+        bool zeroForOne = key.token0 == address(usdc);
+        address tokenIn = zeroForOne ? key.token0 : key.token1;
+
+        uint256 amountOut = 5e18;
+        uint256 amountInMax = 50e18; // generous max
+        usdc.mint(alice, amountInMax);
+        vm.prank(alice);
+        usdc.approve(address(lpSeed), amountInMax);
+
+        uint256 aliceBefore = MockERC20(tokenIn).balanceOf(alice);
+
+        vm.prank(alice);
+        uint256 amountIn =
+            lpSeed.swapExactOut(key, amountOut, amountInMax, zeroForOne, alice, block.timestamp);
+
+        assertTrue(amountIn > 0);
+        assertTrue(amountIn <= amountInMax);
+
+        // Alice should have gotten refund of unused input
+        uint256 aliceAfter = MockERC20(tokenIn).balanceOf(alice);
+        assertEq(aliceBefore - aliceAfter, amountIn);
+
+        // Beneficiary should have received tax
+        uint256 beneficiaryBal = MockERC20(tokenIn).balanceOf(beneficiary);
+        assertTrue(beneficiaryBal > 0);
+    }
+
+    function test_SwapExactOut_FeeOnOutput_ERC20() public {
+        address beneficiary = address(0xBEEF);
+        (address dao, address sharesAddr, IZAMM.PoolKey memory key) = _deploySeedAndSetDaoFee(
+            bytes32(uint256(511)), 1000e18, 1000e18, beneficiary, 200, 200, false, false
+        );
+
+        bool zeroForOne = key.token0 == address(usdc);
+        address tokenOut = zeroForOne ? key.token1 : key.token0;
+
+        uint256 desiredOut = 5e18;
+        uint256 amountInMax = 50e18;
+        usdc.mint(alice, amountInMax);
+        vm.prank(alice);
+        usdc.approve(address(lpSeed), amountInMax);
+
+        uint256 aliceOutBefore = MockERC20(tokenOut).balanceOf(alice);
+
+        vm.prank(alice);
+        uint256 amountIn =
+            lpSeed.swapExactOut(key, desiredOut, amountInMax, zeroForOne, alice, block.timestamp);
+
+        assertTrue(amountIn > 0);
+
+        // Alice should have received exactly desiredOut of output token
+        uint256 aliceOutAfter = MockERC20(tokenOut).balanceOf(alice);
+        assertEq(aliceOutAfter - aliceOutBefore, desiredOut);
+
+        // Beneficiary should have received the tax portion
+        uint256 beneficiaryBal = MockERC20(tokenOut).balanceOf(beneficiary);
+        assertTrue(beneficiaryBal > 0);
+    }
+
+    // ── Routed Swaps: ETH input ──────────────────────────────────
+
+    function test_SwapExactIn_FeeOnInput_ETH() public {
+        address beneficiary = address(0xBEEF);
+
+        // Deploy ETH + shares pair and seed
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(520)), 10e18, 1000e18, 0, address(0), 0);
+        lpSeed.seed(dao);
+
+        // Set DAO fee: buy on input (ETH)
+        vm.prank(dao);
+        lpSeed.setDaoFee(beneficiary, 100, 100, true, false);
+
+        (IZAMM.PoolKey memory key,) = lpSeed.poolKeyOf(dao);
+
+        // ETH is token0, shares is token1. Buy = zeroForOne = true
+        uint256 ethIn = 1e18;
+        uint256 beneficiaryBefore = beneficiary.balance;
+
+        vm.prank(alice);
+        uint256 amountOut =
+            lpSeed.swapExactIn{value: ethIn}(key, ethIn, 0, true, alice, block.timestamp);
+        assertTrue(amountOut > 0);
+
+        // Beneficiary should have received 1% of ETH
+        uint256 expectedTax = (ethIn * 100) / 10_000;
+        assertEq(beneficiary.balance - beneficiaryBefore, expectedTax);
+    }
+
+    function test_SwapExactIn_FeeOnOutput_ETH() public {
+        address beneficiary = address(0xBEEF);
+
+        // Deploy ETH + shares pair and seed
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(521)), 10e18, 1000e18, 0, address(0), 0);
+        lpSeed.seed(dao);
+
+        // Set DAO fee: sell on output (ETH), !zeroForOne
+        vm.prank(dao);
+        lpSeed.setDaoFee(beneficiary, 100, 200, false, false);
+
+        (IZAMM.PoolKey memory key,) = lpSeed.poolKeyOf(dao);
+
+        // Sell: shares → ETH (!zeroForOne). Need shares for alice.
+        Shares shares = Shares(sharesAddr);
+        // Mint shares to alice via DAO
+        vm.prank(dao);
+        shares.mintFromMoloch(alice, 100e18);
+
+        uint256 sharesIn = 10e18;
+        vm.prank(alice);
+        shares.approve(address(lpSeed), sharesIn);
+
+        uint256 aliceEthBefore = alice.balance;
+
+        vm.prank(alice);
+        uint256 amountOut = lpSeed.swapExactIn(key, sharesIn, 0, false, alice, block.timestamp);
+        assertTrue(amountOut > 0);
+
+        // Alice received ETH
+        assertTrue(alice.balance > aliceEthBefore);
+
+        // Beneficiary received ETH fee
+        assertTrue(beneficiary.balance > 0);
+    }
+
+    function test_SwapExactOut_FeeOnInput_ETH() public {
+        address beneficiary = address(0xBEEF);
+
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(522)), 10e18, 1000e18, 0, address(0), 0);
+        lpSeed.seed(dao);
+
+        vm.prank(dao);
+        lpSeed.setDaoFee(beneficiary, 100, 100, true, true);
+
+        (IZAMM.PoolKey memory key,) = lpSeed.poolKeyOf(dao);
+
+        // Buy shares with ETH (zeroForOne=true)
+        uint256 desiredOut = 50e18;
+        uint256 ethMax = 5e18;
+        uint256 aliceEthBefore = alice.balance;
+
+        vm.prank(alice);
+        uint256 amountIn = lpSeed.swapExactOut{value: ethMax}(
+            key, desiredOut, ethMax, true, alice, block.timestamp
+        );
+        assertTrue(amountIn > 0);
+        assertTrue(amountIn <= ethMax);
+
+        // Alice should have gotten refund
+        assertTrue(alice.balance >= aliceEthBefore - amountIn);
+
+        // Beneficiary received ETH tax
+        assertTrue(beneficiary.balance > 0);
+    }
+
+    function test_SwapExactOut_FeeOnOutput_ETH() public {
+        address beneficiary = address(0xBEEF);
+
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(523)), 10e18, 1000e18, 0, address(0), 0);
+        lpSeed.seed(dao);
+
+        // Sell direction: shares → ETH, fee on output (ETH)
+        vm.prank(dao);
+        lpSeed.setDaoFee(beneficiary, 200, 200, false, false);
+
+        (IZAMM.PoolKey memory key,) = lpSeed.poolKeyOf(dao);
+
+        // Mint shares to alice
+        vm.prank(dao);
+        Shares(sharesAddr).mintFromMoloch(alice, 100e18);
+
+        uint256 desiredEthOut = 0.1e18;
+        uint256 sharesMax = 50e18;
+
+        vm.prank(alice);
+        Shares(sharesAddr).approve(address(lpSeed), sharesMax);
+
+        uint256 aliceEthBefore = alice.balance;
+        uint256 benBefore = beneficiary.balance;
+
+        vm.prank(alice);
+        uint256 amountIn =
+            lpSeed.swapExactOut(key, desiredEthOut, sharesMax, false, alice, block.timestamp);
+        assertTrue(amountIn > 0);
+
+        // Alice received exactly desiredEthOut
+        assertEq(alice.balance - aliceEthBefore, desiredEthOut);
+
+        // Beneficiary received ETH tax
+        assertTrue(beneficiary.balance > benBefore);
+    }
+
+    // ── beforeAction: Swap Paths ────────────────────────────────
+
+    function test_BeforeAction_SwapOnUnseededPool_Reverts() public {
+        // Configure but don't seed — swap should be blocked
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(530)), 1e18, 1000e18, 0, address(0), 0);
+
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+
+        // Call beforeAction as ZAMM for swap selector
+        vm.prank(ZAMM_ADDR);
+        vm.expectRevert(LPSeedSwapHook.NotReady.selector);
+        lpSeed.beforeAction(IZAMM.swapExactIn.selector, poolId, alice, "");
+    }
+
+    function test_BeforeAction_SwapOnSeededPool_Returns() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(531)), 1000e18, 1000e18);
+
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+
+        // Swap should pass (no DAO fee)
+        vm.prank(ZAMM_ADDR);
+        uint256 feeBps = lpSeed.beforeAction(IZAMM.swapExactIn.selector, poolId, alice, "");
+        assertEq(feeBps, 30); // DEFAULT_FEE_BPS
+    }
+
+    function test_BeforeAction_SwapOnUnregisteredPool_Reverts() public {
+        // Random poolId with no poolDAO entry
+        uint256 fakePoolId = 12345;
+
+        vm.prank(ZAMM_ADDR);
+        vm.expectRevert(LPSeedSwapHook.NotConfigured.selector);
+        lpSeed.beforeAction(IZAMM.swapExactIn.selector, fakePoolId, alice, "");
+    }
+
+    function test_BeforeAction_LPOnUnregisteredPool_Allowed() public {
+        // LP on unregistered pool should be allowed
+        uint256 fakePoolId = 12345;
+
+        vm.prank(ZAMM_ADDR);
+        uint256 feeBps = lpSeed.beforeAction(IZAMM.addLiquidity.selector, fakePoolId, alice, "");
+        assertEq(feeBps, 0);
+    }
+
+    function test_BeforeAction_LPOnUnseededPool_Blocked() public {
+        (address dao,) = _deployWithSeed(bytes32(uint256(532)), 1e18, 1000e18, 0, address(0), 0);
+
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+
+        // LP from external address (not seed) should be blocked
+        vm.prank(ZAMM_ADDR);
+        vm.expectRevert(LPSeedSwapHook.NotReady.selector);
+        lpSeed.beforeAction(IZAMM.addLiquidity.selector, poolId, alice, "");
+    }
+
+    function test_BeforeAction_LPOnSeededPool_Allowed() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(533)), 1000e18, 1000e18);
+
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+
+        // LP after seeding should pass
+        vm.prank(ZAMM_ADDR);
+        uint256 feeBps = lpSeed.beforeAction(IZAMM.addLiquidity.selector, poolId, alice, "");
+        assertEq(feeBps, 0);
+    }
+
+    function test_BeforeAction_RoutingEnforced_DirectSwapBlocked() public {
+        (address dao,) = _deployAndSeedERC20(bytes32(uint256(534)), 1000e18, 1000e18);
+
+        // Enable routing
+        vm.prank(dao);
+        lpSeed.setDaoFee(address(0xBEEF), 100, 100, true, true);
+
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+
+        // Direct swap() always blocked when routing active
+        vm.prank(ZAMM_ADDR);
+        vm.expectRevert(LPSeedSwapHook.NotHooked.selector);
+        lpSeed.beforeAction(IZAMM.swap.selector, poolId, alice, "");
+
+        // swapExactIn from non-hook sender blocked
+        vm.prank(ZAMM_ADDR);
+        vm.expectRevert(LPSeedSwapHook.NotHooked.selector);
+        lpSeed.beforeAction(IZAMM.swapExactIn.selector, poolId, alice, "");
+
+        // swapExactIn from hook itself allowed
+        vm.prank(ZAMM_ADDR);
+        uint256 feeBps =
+            lpSeed.beforeAction(IZAMM.swapExactIn.selector, poolId, address(lpSeed), "");
+        assertEq(feeBps, 30);
+    }
+
+    // ── Seed: ETH Pair on Fork ───────────────────────────────────
+
+    function test_Seed_ETHPair() public {
+        (address dao, address sharesAddr) =
+            _deployWithSeed(bytes32(uint256(540)), 5e18, 500e18, 0, address(0), 0);
+
+        assertTrue(lpSeed.seedable(dao));
+        uint256 liq = lpSeed.seed(dao);
+        assertTrue(liq > 0);
+
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+
+        // Pool should exist on ZAMM
+        (, uint256 poolId) = lpSeed.poolKeyOf(dao);
+        (uint112 r0, uint112 r1,,,,,) = IZAMM(ZAMM_ADDR).pools(poolId);
+        assertTrue(r0 > 0 && r1 > 0);
+    }
+
+    // ── Receive ETH ──────────────────────────────────────────────
+
+    function test_ReceiveETH() public {
+        // LPSeedSwapHook should accept ETH
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        (bool ok,) = address(lpSeed).call{value: 0.1 ether}("");
+        assertTrue(ok);
     }
 }

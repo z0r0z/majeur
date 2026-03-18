@@ -247,6 +247,19 @@ contract LPSeedSwapHook {
         if (feeBps > 10_000) revert InvalidParams();
         if (seeds[msg.sender].seeded != 0) revert AlreadySeeded();
 
+        // Clean up stale poolDAO entry if reconfiguring with different tokens
+        {
+            SeedConfig storage old = seeds[msg.sender];
+            if (old.amountA != 0 && (old.tokenA != tokenA || old.tokenB != tokenB)) {
+                (address ot0, address ot1) =
+                    old.tokenA < old.tokenB ? (old.tokenA, old.tokenB) : (old.tokenB, old.tokenA);
+                IZAMM.PoolKey memory oldKey = IZAMM.PoolKey({
+                    id0: 0, id1: 0, token0: ot0, token1: ot1, feeOrHook: hookFeeOrHook()
+                });
+                delete poolDAO[uint256(keccak256(abi.encode(oldKey)))];
+            }
+        }
+
         seeds[msg.sender] = SeedConfig({
             tokenA: tokenA,
             tokenB: tokenB,
@@ -270,10 +283,10 @@ contract LPSeedSwapHook {
         IZAMM.PoolKey memory key =
             IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: hookFeeOrHook()});
         uint256 poolId = uint256(keccak256(abi.encode(key)));
-        // Prevent overwriting a pool already claimed by a different seeded DAO
+        // Prevent overwriting a pool already claimed by a different DAO
         address existing = poolDAO[poolId];
-        if (existing != address(0) && existing != msg.sender && seeds[existing].seeded != 0) {
-            revert AlreadySeeded();
+        if (existing != address(0) && existing != msg.sender) {
+            revert Unauthorized();
         }
         poolDAO[poolId] = msg.sender;
 
@@ -417,7 +430,9 @@ contract LPSeedSwapHook {
             cfg.tokenA < cfg.tokenB ? (cfg.tokenA, cfg.tokenB) : (cfg.tokenB, cfg.tokenA);
         IZAMM.PoolKey memory key =
             IZAMM.PoolKey({id0: 0, id1: 0, token0: t0, token1: t1, feeOrHook: hookFeeOrHook()});
-        delete poolDAO[uint256(keccak256(abi.encode(key)))];
+        uint256 poolId = uint256(keccak256(abi.encode(key)));
+        if (poolDAO[poolId] != msg.sender) revert Unauthorized();
+        delete poolDAO[poolId];
 
         delete daoFees[msg.sender];
         delete seeds[msg.sender];
