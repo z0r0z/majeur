@@ -7,6 +7,40 @@ import {SafeSummoner, Call, ILPSeedSwapHook} from "../src/peripheral/SafeSummone
 import {ShareSale} from "../src/peripheral/ShareSale.sol";
 import {LPSeedSwapHook, IZAMM} from "../src/peripheral/LPSeedSwapHook.sol";
 
+/// @dev Minimal mock ERC20 with configurable decimals.
+contract MockERC20_6d {
+    string public name = "Mock USDC";
+    string public symbol = "MUSDC";
+    uint8 public decimals = 6;
+
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint256 public totalSupply;
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
 /// @dev Minimal mock ERC20 for the "other side" of the LP pair.
 contract MockERC20 {
     string public name = "Mock";
@@ -46,6 +80,7 @@ contract LPSeedSwapHookTest is Test {
     LPSeedSwapHook internal lpSeed;
     ShareSale internal shareSale;
     MockERC20 internal usdc;
+    MockERC20_6d internal usdc6;
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0x0B0B);
@@ -58,6 +93,7 @@ contract LPSeedSwapHookTest is Test {
         lpSeed = new LPSeedSwapHook();
         shareSale = new ShareSale();
         usdc = new MockERC20();
+        usdc6 = new MockERC20_6d();
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -1449,5 +1485,122 @@ contract LPSeedSwapHookTest is Test {
         assertTrue(sharesAfter > sharesBefore);
         // The minted amount should be at least the seed amount
         assertTrue(sharesAfter - sharesBefore >= 500e18);
+    }
+
+    // ── Arb-Clamp: 6-Decimal Pay Token ──────────────────────────
+
+    function test_Seed_ArbClamp_6DecimalPayToken() public {
+        // Verify arb-protection clamping is decimal-agnostic.
+        // ShareSale price = 10e6 means "10 USDC6-wei per 1e18 share-wei" → $10/share.
+        // With 100e6 USDC6 in treasury, maxShares = 100e6 * 1e18 / 10e6 = 10e18.
+        // Configure seed with 1000e18 shares — clamp should reduce to 10e18.
+
+        address[] memory h = new address[](1);
+        h[0] = alice;
+        uint256[] memory s = new uint256[](1);
+        s[0] = 100e18;
+
+        bytes32 salt = bytes32(uint256(300));
+        address dao = safe.predictDAO(salt, h, s);
+        address sharesAddr = safe.predictShares(dao);
+
+        uint256 salePrice = 10e6; // $10/share in 6-decimal USDC
+        uint256 saleCap = 10e18; // 10 shares for sale
+        uint128 usdcAmt = 100e6; // 100 USDC (6 decimals) for LP
+        uint128 sharesAmt = 1000e18; // intentionally high — clamp should reduce
+
+        // 8 initCalls: ShareSale(2) + mint shares(1) + LPSeed(4) + approve USDC allowance(1)
+        Call[] memory extra = new Call[](8);
+
+        // ShareSale: setAllowance for shares + configure with USDC6 pay token
+        extra[0] =
+            Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(shareSale), dao, saleCap)));
+        extra[1] = Call(
+            address(shareSale),
+            0,
+            abi.encodeCall(shareSale.configure, (dao, address(usdc6), salePrice, uint40(0)))
+        );
+
+        // Mint shares to DAO for LP seeding
+        extra[2] = Call(sharesAddr, 0, abi.encodeCall(Shares.mintFromMoloch, (dao, sharesAmt)));
+
+        // LPSeedSwapHook: setAllowance(USDC6) + setAllowance(shares) + configure
+        extra[3] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), address(usdc6), usdcAmt))
+        );
+        extra[4] = Call(
+            dao, 0, abi.encodeCall(Moloch.setAllowance, (address(lpSeed), sharesAddr, sharesAmt))
+        );
+        extra[5] = Call(
+            address(lpSeed),
+            0,
+            abi.encodeCall(
+                ILPSeedSwapHook.configure,
+                (
+                    address(usdc6),
+                    usdcAmt,
+                    sharesAddr,
+                    sharesAmt,
+                    0, // no deadline gate
+                    address(shareSale), // sale completion gate
+                    0 // no minSupply gate
+                )
+            )
+        );
+
+        // Approve USDC6 transfers: DAO approves lpSeed (for spendAllowance pull)
+        extra[6] = Call(
+            address(usdc6), 0, abi.encodeCall(MockERC20_6d.approve, (address(lpSeed), usdcAmt))
+        );
+
+        // Also approve shareSale to pull USDC6 from bob (done outside initCalls)
+        // Approve shares transfer from DAO to lpSeed
+        extra[7] = Call(
+            sharesAddr, 0, abi.encodeCall(Shares.approve, (address(lpSeed), sharesAmt))
+        );
+
+        SafeSummoner.SafeConfig memory c;
+        c.proposalThreshold = 1e18;
+        c.proposalTTL = 7 days;
+
+        address deployed = safe.safeSummon(
+            "ArbClamp6d", "AC6D", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
+        );
+        assertEq(deployed, dao);
+
+        // Fund DAO with USDC6
+        usdc6.mint(dao, usdcAmt);
+
+        // Complete the sale: bob buys all 10e18 shares with USDC6
+        // cost = 10e18 * 10e6 / 1e18 = 100e6 (rounds up)
+        usdc6.mint(bob, 100e6);
+        vm.prank(bob);
+        usdc6.approve(address(shareSale), 100e6);
+        vm.prank(bob);
+        shareSale.buy(dao, 10e18);
+
+        // Sale exhausted — seedable
+        assertTrue(lpSeed.seedable(dao));
+
+        // Record shares balance before seed
+        uint256 daoSharesBefore = Shares(sharesAddr).balanceOf(dao);
+
+        // Seed — arb clamp should kick in
+        lpSeed.seed(dao);
+
+        // Verify seeded
+        (,,,,,,,,,,, uint40 seeded,,) = lpSeed.seeds(dao);
+        assertTrue(seeded != 0);
+
+        // Expected maxShares = usdcAmt * 1e18 / salePrice = 100e6 * 1e18 / 10e6 = 10e18
+        uint256 expectedMaxShares = uint256(usdcAmt) * 1e18 / salePrice;
+        assertEq(expectedMaxShares, 10e18);
+
+        // DAO should have excess shares returned (1000e18 - 10e18 = 990e18 unclaimed)
+        // The shares that went into LP should be clamped to ~10e18
+        uint256 daoSharesAfter = Shares(sharesAddr).balanceOf(dao);
+        // DAO started with sharesAmt (1000e18), LP consumed expectedMaxShares (10e18)
+        // Remaining = 1000e18 - 10e18 = 990e18
+        assertEq(daoSharesAfter, daoSharesBefore - expectedMaxShares);
     }
 }

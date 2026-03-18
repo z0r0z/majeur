@@ -36,8 +36,10 @@ You are a senior Solidity security auditor. Analyze `LPSeedSwapHook.sol` (~520 l
 | 1 | 2026-03-15 | Winfunc | Multi-phase deep validation | 4 (2 High, 1 High, 1 Medium) | [`winfunc-20260315.md`](winfunc-20260315.md) |
 | 2 | 2026-03-15 | Zellic V12 | Autonomous scan | 4 (2 High → Invalid, 1 Medium → Invalid, 1 Medium → Duplicate) | [`zellic-20260315.md`](zellic-20260315.md) |
 | 3 | 2026-03-15 | Pashov Skills v1 | 4-agent parallel vector scan | 5 (1 Duplicate, 2 Patched, 2 Accepted) | [`pashov-20260315.md`](pashov-20260315.md) |
+| 4 | 2026-03-18 | Pashov Skills v1 | Post-patch re-scan | 0 (1 FP, 1 Duplicate) | [`pashov-20260318.md`](pashov-20260318.md) |
+| 5 | 2026-03-18 | Grimoire (Sigil+Familiar) | 4-agent parallel hunt + adversarial triage | 1 (1 Low — patched) | [`grimoire-20260318.md`](grimoire-20260318.md) |
 
-**Aggregate: 3 audits, 7 unique findings. 0 Critical, 1 High (accepted theoretical), 4 Medium (2 patched, 2 accepted), 1 Low (patched via pre-audit review).**
+**Aggregate: 5 audits, 8 unique findings. 0 Critical, 1 High (accepted theoretical), 4 Medium (2 patched, 2 accepted), 2 Low (both patched).**
 
 ---
 
@@ -51,6 +53,7 @@ You are a senior Solidity security auditor. Analyze `LPSeedSwapHook.sol` (~520 l
 | 4 | Fee-on-output slippage bypass — `amountOutMin` checked on gross not net in `swapExactIn` | Medium | Patched | Pashov #2 | — |
 | 5 | Launch fee underflow — `launchBps < feeBps` causes revert in `beforeAction` decay math | Medium | Patched | Pashov #5 | — |
 | 6 | `swapExactOut` ERC20 fee-on-input missing `netMax` — ZAMM cap not reduced for tax, causing underflow on refund | Low | Patched | Pre-audit review | — |
+| 7 | `quoteExactOut` fee-on-input floor rounding returns insufficient `amountIn`, causing swap revert | Low | Patched | Grimoire L-01 | — |
 
 ### Finding 1 — Assessment
 
@@ -102,6 +105,16 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 
 **Fix:** Compute `netMax = (amountInMax * (10_000 - bps)) / 10_000` and pass that to ZAMM, matching the ETH path's pattern.
 
+### Finding 7 — Assessment & Patch
+
+**Severity: Low (patched).**
+
+`quoteExactOut` with fee-on-input computed `daoTax = floor(net * bps / (10_000 - bps))`, but `swapExactOut` computed `netMax = floor(amountInMax * (10_000 - bps) / 10_000)`. Due to floor rounding asymmetry, `netMax` could be 1 less than `net`, causing ZAMM to revert with `InsufficientInputAmount()`. No fund loss — the transaction simply reverts — but any caller relying on the quote for `amountInMax` would experience intermittent reverts.
+
+**Not a duplicate of KF#6:** KF#6 addressed the *absence* of the `netMax` cap. This finding is about a rounding asymmetry *in* the `netMax` calculation introduced by that patch.
+
+**Fix:** Ceil the tax in `quoteExactOut` fee-on-input (L668): `daoTax = (net * bps + (10_000 - bps) - 1) / (10_000 - bps)`. This guarantees `floor(amountIn * (10_000 - bps) / 10_000) >= net`.
+
 ---
 
 ## Dismissed Findings
@@ -112,6 +125,8 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 | Zellic #5 (Medium) | Inverted minSupply readiness gate | **Invalid.** Misinterprets semantics — `minSupply` is a ceiling ("seed when remaining supply drops below"), not a floor. NatSpec explicitly states: "seed only after DAO's tokenB balance <= minSupply". Implementation is correct. See [`zellic-20260315.md`](zellic-20260315.md). |
 | Pashov #3 (Medium) | Blacklisted beneficiary DoSes swaps | **Accepted as design constraint.** DAO controls beneficiary via `setBeneficiary()` — governance can change it. Pull-based fees would add gas overhead to every swap. Typical pools use DAO shares tokens, not blacklistable tokens like USDC. |
 | Pashov #4 (Medium) | Fee-on-transfer token DoS in `seed()` | **Accepted as unsupported token type.** DAO shares/loot tokens don't have transfer fees. DAOs configure their own tokens — using a fee-on-transfer token is a misconfiguration. See Design Choices DC-4. |
+| Pashov-2 #1 (High) | Hardcoded 1e18 arb-clamp bypassed for non-18-decimal tokens | **False positive.** The `1e18` is the shares scaling factor, not a token-decimal assumption. `salePrice` is defined as "payToken-wei per 1e18 share-wei" by both ShareSale and BondingCurveSale. Formula `maxShares = payAmt * 1e18 / salePrice` is the algebraic inverse of `cost = amount * price / 1e18` — correct for any pay token decimals. See DC-6. |
+| Pashov-2 #2 (Low) | Blacklisted beneficiary DoS (re-scan) | **Duplicate of Pashov #3.** |
 
 ---
 
@@ -124,6 +139,7 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 | DC-3 | Transient `SEEDING_SLOT` flag scoped to `seed()` call only | By design | Zellic #9 |
 | DC-4 | Fee-on-transfer tokens are not supported — `seed()` and routed swaps assume 1:1 transfer amounts | By design | Pashov #4 |
 | DC-5 | Push-based fee distribution to beneficiary — simpler than pull pattern, DAO can change beneficiary via governance | By design | Pashov #3 |
+| DC-6 | Arb-protection clamp is decimal-agnostic — `salePrice` is "payToken-wei per 1e18 share-wei", so `maxShares = payAmt * 1e18 / salePrice` works for any pay token decimals (ETH/18d, USDC/6d, etc.) | By design | Pashov-2 #1 (FP) |
 
 ---
 
@@ -135,6 +151,7 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 | Net slippage check in `swapExactIn` | KF#4 | `amountOutMin` checked against net output after tax, not gross from ZAMM |
 | Bidirectional launch fee decay | KF#5 | `beforeAction` handles both `launch >= target` and `launch < target` without underflow |
 | `swapExactOut` ERC20 `netMax` cap | KF#6 | ZAMM's input cap reduced by fee bps to reserve room for tax and refund |
+| `quoteExactOut` fee-on-input ceil tax | KF#7 | Ceil `daoTax` in quote to guarantee quoted `amountIn` survives floor division in swap |
 
 ---
 
@@ -168,17 +185,17 @@ In `swapExactOut` ERC20 fee-on-input, `amountInMax` was passed directly to ZAMM 
 
 ## Cross-Audit Coverage Matrix
 
-| Vulnerability Class | #1 Winfunc | #2 Zellic | #3 Pashov |
-|---|---|---|---|
-| Reentrancy | Clean (CEI) | #8 Invalid (CEI confirmed) | Clean (lock + CEI) |
-| Access control | #3 (theoretical) | #4 Duplicate, #9 Invalid | #1 Duplicate |
-| Frontrunning/MEV | **#5/9 (patched)** | — | — |
-| Slippage | — | — | **#2 (patched)** |
-| Arithmetic | — | — | **#5 (patched)** |
-| DoS / griefing | **#24 (accepted)** | **#6 Duplicate** | #3, #4 Accepted |
-| Readiness logic | — | #5 Invalid (correct semantics) | — |
-| Pool identity | **#3 (accepted)** | **#4 Duplicate** | #1 Duplicate |
-| Token compatibility | — | — | #4 Accepted (unsupported) |
+| Vulnerability Class | #1 Winfunc | #2 Zellic | #3 Pashov | #4 Pashov-2 | #5 Grimoire |
+|---|---|---|---|---|---|
+| Reentrancy | Clean (CEI) | #8 Invalid (CEI confirmed) | Clean (lock + CEI) | Clean | Clean (16 sub-hypotheses dismissed) |
+| Access control | #3 (theoretical) | #4 Duplicate, #9 Invalid | #1 Duplicate | Clean | Clean (16 sub-hypotheses dismissed) |
+| Frontrunning/MEV | **#5/9 (patched)** | — | — | Clean | Clean |
+| Slippage | — | — | **#2 (patched)** | Clean | Clean |
+| Arithmetic | — | — | **#5 (patched)** | #1 FP (decimal-agnostic confirmed) | **L-01 (patched)** |
+| DoS / griefing | **#24 (accepted)** | **#6 Duplicate** | #3, #4 Accepted | #2 Duplicate | Clean |
+| Readiness logic | — | #5 Invalid (correct semantics) | — | Clean | Clean |
+| Pool identity | **#3 (accepted)** | **#4 Duplicate** | #1 Duplicate | Clean | Clean |
+| Token compatibility | — | — | #4 Accepted (unsupported) | Clean | Clean (assembly byte-verified) |
 
 ---
 
@@ -195,3 +212,4 @@ Recommended next scans:
 - [ ] Fuzz testing of `_isReady` with edge-case balances and timestamps
 - [ ] Formal verification of seeding state machine (configure → seed → seeded)
 - [ ] Integration test: routed swaps with fee-on-output confirming net slippage check
+- [ ] Integration test: seed with 6-decimal pay token (e.g. USDC mock) confirming arb-clamp correctness

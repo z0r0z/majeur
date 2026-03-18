@@ -665,7 +665,7 @@ contract LPSeedSwapHook {
         if (fee.beneficiary != address(0) && bps != 0) {
             if (onInput) {
                 uint256 net = _getAmountIn(amountOut, rIn, rOut, poolFee);
-                daoTax = (net * bps) / (10_000 - bps);
+                daoTax = (net * bps + (10_000 - bps) - 1) / (10_000 - bps);
                 amountIn = net + daoTax;
             } else {
                 uint256 gross = bps != 0
