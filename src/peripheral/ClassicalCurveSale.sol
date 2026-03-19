@@ -11,15 +11,16 @@ pragma solidity ^0.8.30;
 ///   Cost/proceeds for N tokens is the integral: P₀ · T₀² · N / ((T₀−x)(T₀−x−N))
 ///
 ///   Lifecycle:
-///     1. Creator deploys ERC20, approves this contract, calls configure()
+///     1. Creator calls launch() (deploys ERC20 clone + configures curve atomically)
+///        — or deploys token separately, approves this contract, calls configure()
 ///     2. Users buy() / sell() on the curve (fee charged both directions)
 ///     3. When raisedETH >= graduationTarget (or cap fully sold), trading freezes
 ///     4. Anyone calls graduate() — seeds ZAMM LP with this contract as hook
 ///
 ///   Post-graduation this contract acts as a ZAMM hook for the graduated pool:
-///     - Returns configurable pool swap fee via beforeAction()
+///     - Returns pool swap fee via beforeAction()
 ///     - Enforces routed swaps when creator fee is active (swapExactIn/swapExactOut)
-///     - Creator can update pool fee and configure revenue fees on swaps
+///     - Creator can configure revenue fees on swaps via setCreatorFee()
 ///
 ///   Keyed by token address — one curve per token, but creators can launch many tokens.
 contract ClassicalCurveSale {
@@ -208,6 +209,7 @@ contract ClassicalCurveSale {
         uint256 excess = supply - needed;
         if (excess != 0) {
             if (vestCliff != 0 || vestDuration != 0) {
+                if (excess > type(uint128).max) revert InvalidParams();
                 creatorVests[token] = CreatorVest({
                     total: uint128(excess),
                     claimed: 0,
@@ -237,6 +239,8 @@ contract ClassicalCurveSale {
     }
 
     /// @notice Configure a new bonding curve sale. Pulls cap + lpTokens from msg.sender.
+    /// @dev    Only use with standard ERC20 tokens. Fee-on-transfer, rebasing, or callback-enabled
+    ///         tokens (ERC777, etc.) may cause accounting mismatches or reentrancy issues.
     /// @param creator          Who controls this curve (receives fees, unsold tokens, governance)
     /// @param token            ERC20 to sell (must have approved this contract for cap + lpTokens)
     /// @param cap              Tokens available on the curve
@@ -310,6 +314,12 @@ contract ClassicalCurveSale {
             // Flat price: T₀ doesn't matter, but set to 2·cap to avoid division issues
             vr = cap * 2;
         }
+        if (vr > type(uint128).max) revert InvalidParams();
+        if (cap > type(uint128).max) revert InvalidParams();
+        if (startPrice > type(uint128).max) revert InvalidParams();
+        if (endPrice > type(uint128).max) revert InvalidParams();
+        if (lpTokens > type(uint128).max) revert InvalidParams();
+        if (graduationTarget > type(uint128).max) revert InvalidParams();
 
         // Validate graduation target is achievable from full cap sale
         if (graduationTarget != 0) {
@@ -318,7 +328,7 @@ contract ClassicalCurveSale {
                 maxETH = (cap * startPrice + 1e18 - 1) / 1e18;
             } else {
                 uint256 remAfter = vr - cap;
-                maxETH = (startPrice * cap * vr + remAfter * 1e18 - 1) / (remAfter * 1e18);
+                maxETH = mulDivUp(startPrice * cap, vr, remAfter * 1e18);
             }
             if (graduationTarget > maxETH) revert InvalidParams();
         }
@@ -582,7 +592,7 @@ contract ClassicalCurveSale {
             amount = netETH * 1e18 / startPrice;
         } else {
             uint256 R = vr - sold;
-            uint256 A = startPrice * vr * vr / R / 1e18;
+            uint256 A = mulDiv(startPrice, vr * vr, R * 1e18);
             amount = netETH * R / (A + netETH);
         }
 
@@ -591,7 +601,15 @@ contract ClassicalCurveSale {
         if (amount < minAmountOut) revert Slippage();
 
         uint256 cost = _cost(startPrice, endPrice, vr, sold, amount);
-        if (cost > netETH) cost = netETH;
+        while (cost > netETH) {
+            // Approximation overshoot — reduce amount until cost fits within netETH
+            if (amount <= 1) revert ZeroAmount();
+            unchecked {
+                amount -= 1;
+            }
+            cost = _cost(startPrice, endPrice, vr, sold, amount);
+        }
+        if (amount < minAmountOut) revert Slippage();
 
         uint256 newSold = sold + amount;
         c.sold = uint128(newSold);
@@ -600,10 +618,13 @@ contract ClassicalCurveSale {
 
         _checkGraduation(c, newSold, cap, newRaisedETH, c.graduationTarget);
 
+        // Recalculate fee on actual cost (not full msg.value) for consistency with buy()
+        fee = (cost * feeBps) / 10_000;
+
         safeTransfer(token, msg.sender, amount);
         if (fee != 0) safeTransferETH(creator, fee);
 
-        uint256 refund = netETH - cost;
+        uint256 refund = msg.value - cost - fee;
         if (refund != 0) safeTransferETH(msg.sender, refund);
 
         emit Purchase(token, msg.sender, amount, cost + fee);
@@ -674,12 +695,11 @@ contract ClassicalCurveSale {
         } else {
             uint256 R = vr - sold;
             // A = startPrice · T₀² / 1e18, B = proceeds · R
-            uint256 A = startPrice * vr / 1e18 * vr;
+            uint256 A = mulDiv(startPrice, vr * vr, 1e18);
             uint256 B = proceeds * R;
             if (B >= A) revert InsufficientLiquidity();
             uint256 denom = A - B;
-            uint256 num = B * R; // proceeds · R²
-            amount = (num + denom - 1) / denom;
+            amount = mulDivUp(B, R, denom);
         }
 
         if (amount > sold) amount = sold;
@@ -690,6 +710,7 @@ contract ClassicalCurveSale {
         uint256 fee = (proceeds * feeBps) / 10_000;
         uint256 net = proceeds - fee;
 
+        if (net < ethOut) revert Slippage();
         if (proceeds > raisedETH) revert InsufficientLiquidity();
 
         // CEI: update state before external calls
@@ -736,15 +757,18 @@ contract ClassicalCurveSale {
 
         // Build pool key with self as hook (ETH = address(0) is always token0)
         (IZAMM.PoolKey memory key, uint256 poolId) = poolKeyOf(token);
-        poolToken[poolId] = token;
 
+        // Approve before registering pool to close reentrancy window via malicious token
         ensureApproval(token, address(ZAMM));
+
+        // Register pool AFTER approval — prevents malicious token from front-running LP seeding
+        poolToken[poolId] = token;
 
         address recipient = c.lpRecipient == address(0) ? address(0xdead) : c.lpRecipient;
 
-        // Transient bypass so beforeAction allows this addLiquidity
+        // Transient bypass so beforeAction allows this addLiquidity (scoped to this poolId)
         assembly ("memory-safe") {
-            tstore(SEEDING_SLOT, address())
+            tstore(SEEDING_SLOT, add(poolId, 1))
         }
         (uint256 used0, uint256 used1, uint256 liq) = ZAMM.addLiquidity{value: ethForLP}(
             key, ethForLP, tokensForLP, 0, 0, recipient, block.timestamp
@@ -783,11 +807,11 @@ contract ClassicalCurveSale {
             sig != IZAMM.swapExactIn.selector && sig != IZAMM.swapExactOut.selector
                 && sig != IZAMM.swap.selector
         ) {
-            // Pre-seed: only allow from graduate() via transient bypass
+            // Pre-seed: only allow from graduate() via transient bypass (scoped to exact poolId)
             if (token == address(0)) {
                 bool seeding;
                 assembly ("memory-safe") {
-                    seeding := tload(SEEDING_SLOT)
+                    seeding := eq(tload(SEEDING_SLOT), add(poolId, 1))
                 }
                 if (!seeding) revert NotConfigured();
             }
@@ -810,6 +834,8 @@ contract ClassicalCurveSale {
     // ── Creator Governance ───────────────────────────────────────
 
     /// @notice Transfer creator role to a new address. Only callable by current creator.
+    /// @dev    Setting a contract that rejects ETH as creator will DoS fee-bearing buys/sells.
+    ///         Also transfers vesting claim rights — claim before transferring if needed.
     /// @param token      The token whose creator to update
     /// @param newCreator The new creator address (must not be address(0))
     function setCreator(address token, address newCreator) public {
@@ -827,7 +853,7 @@ contract ClassicalCurveSale {
     function setLpRecipient(address token, address newRecipient) public {
         CurveConfig storage c = _curves[token];
         if (msg.sender != c.creator) revert Unauthorized();
-        if (c.seeded) revert Graduated();
+        if (c.graduated) revert Graduated();
         c.lpRecipient = newRecipient;
         emit LpRecipientUpdated(token, newRecipient);
     }
@@ -1083,9 +1109,8 @@ contract ClassicalCurveSale {
 
         uint256 rem = virtualReserve - sold;
         uint256 remAfter = rem - amount;
-        uint256 step = startPrice * amount * virtualReserve / rem;
-        uint256 denom = remAfter * 1e18;
-        return (step * virtualReserve + denom - 1) / denom;
+        uint256 step = mulDiv(startPrice * amount, virtualReserve, rem);
+        return mulDivUp(step, virtualReserve, remAfter * 1e18);
     }
 
     // ── Multicall ──────────────────────────────────────────────
@@ -1156,6 +1181,57 @@ interface IZAMM {
 
 /// @dev ZAMM singleton address.
 IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
+
+/// @dev Returns floor(x * y / d) with full 512-bit intermediate precision.
+///      Reverts on overflow (result > uint256) or d == 0.
+///      From Solady FixedPointMathLib (https://github.com/Vectorized/solady).
+function mulDiv(uint256 x, uint256 y, uint256 d) pure returns (uint256 z) {
+    assembly ("memory-safe") {
+        z := mul(x, y)
+        for {} 1 {} {
+            if iszero(mul(or(iszero(x), eq(div(z, x), y)), d)) {
+                let mm := mulmod(x, y, not(0))
+                let p1 := sub(mm, add(z, lt(mm, z)))
+                let r := mulmod(x, y, d)
+                let t := and(d, sub(0, d))
+                if iszero(gt(d, p1)) {
+                    mstore(0x00, 0xad251c27)
+                    revert(0x1c, 0x04)
+                }
+                d := div(d, t)
+                let inv := xor(2, mul(3, d))
+                inv := mul(inv, sub(2, mul(d, inv)))
+                inv := mul(inv, sub(2, mul(d, inv)))
+                inv := mul(inv, sub(2, mul(d, inv)))
+                inv := mul(inv, sub(2, mul(d, inv)))
+                inv := mul(inv, sub(2, mul(d, inv)))
+                z := mul(
+                    or(mul(sub(p1, gt(r, z)), add(div(sub(0, t), t), 1)), div(sub(z, r), t)),
+                    mul(sub(2, mul(d, inv)), inv)
+                )
+                break
+            }
+            z := div(z, d)
+            break
+        }
+    }
+}
+
+/// @dev Returns ceil(x * y / d) with full 512-bit intermediate precision.
+///      Reverts on overflow (result > uint256) or d == 0.
+///      From Solady FixedPointMathLib (https://github.com/Vectorized/solady).
+function mulDivUp(uint256 x, uint256 y, uint256 d) pure returns (uint256 z) {
+    z = mulDiv(x, y, d);
+    assembly ("memory-safe") {
+        if mulmod(x, y, d) {
+            z := add(z, 1)
+            if iszero(z) {
+                mstore(0x00, 0xad251c27)
+                revert(0x1c, 0x04)
+            }
+        }
+    }
+}
 
 function sqrt(uint256 x) pure returns (uint256 z) {
     assembly ("memory-safe") {

@@ -2,7 +2,7 @@
 
 > **Purpose:** Structured prompt for an AI auditor to analyze `Moloch.sol` and produce a clean, analyzable security report. Paste this document along with a copy of `src/Moloch.sol` into your AI of choice.
 >
-> **Methodology encoded from:** 32 independent audit tools — Forefy multi-expert framework, Archethect Map-Hunt-Attack falsification, HackenProof bug bounty triage, Pashov deep-mode adversarial reasoning, Trail of Bits code maturity scoring, and others. This prompt distills the techniques that produced the best signal-to-noise across all 32.
+> **Methodology encoded from:** 33 independent audit tools — Forefy multi-expert framework, Archethect Map-Hunt-Attack falsification, HackenProof bug bounty triage, Pashov deep-mode adversarial reasoning, Trail of Bits code maturity scoring, and others. This prompt distills the techniques that produced the best signal-to-noise across all 33.
 
 ---
 
@@ -149,7 +149,7 @@ Evaluate each category systematically. **You must produce a conclusion for every
 
 ## False Positive Patterns (Do NOT Flag These)
 
-These patterns were repeatedly flagged by weaker auditors and confirmed as non-issues across 31 audits. If you find yourself writing a finding that matches one of these, reconsider:
+These patterns were repeatedly flagged by weaker auditors and confirmed as non-issues across 32 audits. If you find yourself writing a finding that matches one of these, reconsider:
 
 | Pattern | Why It's Not a Bug |
 |---------|-------------------|

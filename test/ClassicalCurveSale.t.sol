@@ -2,7 +2,14 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "../lib/forge-std/src/Test.sol";
-import {ClassicalCurveSale, IZAMM} from "../src/peripheral/ClassicalCurveSale.sol";
+import {
+    ClassicalCurveSale,
+    IZAMM,
+    mulDiv,
+    mulDivUp,
+    sqrt
+} from "../src/peripheral/ClassicalCurveSale.sol";
+import {FixedPointMathLib} from "../lib/solady/src/utils/FixedPointMathLib.sol";
 
 contract ClassicalCurveSaleTest is Test {
     ClassicalCurveSale internal sale;
@@ -566,7 +573,7 @@ contract ClassicalCurveSaleTest is Test {
         sale.sell(tkn, 50e18, 0);
         vm.stopPrank();
 
-        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        (,, uint256 sold,,,,,,,,,,,) = sale.curves(tkn);
         assertEq(sold, 50e18);
     }
 
@@ -774,7 +781,7 @@ contract ClassicalCurveSaleTest is Test {
         assertFalse(sale.graduable(tkn));
     }
 
-    function test_Graduable_FalseForUnconfigured() public {
+    function test_Graduable_FalseForUnconfigured() public view {
         assertFalse(sale.graduable(address(0xdead)));
     }
 
@@ -1105,6 +1112,358 @@ contract ClassicalCurveSaleTest is Test {
         // Contract should accept ETH
         (bool ok,) = address(sale).call{value: 1 ether}("");
         assertTrue(ok);
+    }
+
+    // ── mulDiv correctness ───────────────────────────────────────
+
+    function test_MulDiv_Basic() public pure {
+        assertEq(mulDiv(10, 20, 5), 40);
+        assertEq(mulDiv(1e18, 1e18, 1e18), 1e18);
+        assertEq(mulDiv(0, 100, 1), 0);
+        assertEq(mulDiv(100, 0, 1), 0);
+    }
+
+    function test_MulDiv_RevertIf_ZeroDenominator() public {
+        MulDivReverts h = new MulDivReverts();
+        vm.expectRevert();
+        h.divByZero();
+    }
+
+    function test_MulDiv_RevertIf_Overflow() public {
+        MulDivReverts h = new MulDivReverts();
+        vm.expectRevert();
+        h.overflow();
+    }
+
+    function test_MulDiv_512bit_MaxDiv() public pure {
+        // (max * max) / max = max
+        assertEq(mulDiv(type(uint256).max, type(uint256).max, type(uint256).max), type(uint256).max);
+    }
+
+    function test_MulDiv_512bit_HalfDiv() public pure {
+        // (max * 2) / 2 = max — triggers 512-bit path since max*2 overflows
+        uint256 result = mulDiv(type(uint256).max, 2, 2);
+        assertEq(result, type(uint256).max);
+    }
+
+    function test_MulDiv_Fuzz_MatchesSolady_SmallInputs(uint256 x, uint256 y, uint256 d)
+        public
+        pure
+    {
+        x = bound(x, 0, type(uint128).max);
+        y = bound(y, 0, type(uint128).max);
+        d = bound(d, 1, type(uint256).max);
+        assertEq(mulDiv(x, y, d), FixedPointMathLib.mulDiv(x, y, d));
+    }
+
+    function test_MulDiv_Fuzz_MatchesSolady_512bit(uint256 x, uint256 y, uint256 d) public pure {
+        // Force 512-bit path: both large, d large enough to avoid result overflow
+        x = bound(x, type(uint128).max, type(uint256).max);
+        y = bound(y, 2, type(uint256).max);
+        d = bound(d, x, type(uint256).max);
+        assertEq(mulDiv(x, y, d), FixedPointMathLib.fullMulDiv(x, y, d));
+    }
+
+    // ── mulDivUp correctness ─────────────────────────────────────
+
+    function test_MulDivUp_Basic() public pure {
+        assertEq(mulDivUp(10, 20, 5), 40); // exact
+        assertEq(mulDivUp(10, 3, 7), 5); // 30/7 = 4.28 → 5
+        assertEq(mulDivUp(1, 1, 2), 1); // 0.5 → 1
+        assertEq(mulDivUp(3, 1, 3), 1); // exact
+    }
+
+    function test_MulDivUp_AlwaysGeMulDiv(uint256 x, uint256 y, uint256 d) public pure {
+        x = bound(x, 0, type(uint128).max);
+        y = bound(y, 0, type(uint128).max);
+        d = bound(d, 1, type(uint256).max);
+        assertGe(mulDivUp(x, y, d), mulDiv(x, y, d));
+    }
+
+    function test_MulDivUp_Fuzz_MatchesSolady(uint256 x, uint256 y, uint256 d) public pure {
+        x = bound(x, 0, type(uint128).max);
+        y = bound(y, 0, type(uint128).max);
+        d = bound(d, 1, type(uint256).max);
+        assertEq(mulDivUp(x, y, d), FixedPointMathLib.mulDivUp(x, y, d));
+    }
+
+    function test_MulDivUp_Fuzz_MatchesSolady_512bit(uint256 x, uint256 y, uint256 d) public pure {
+        x = bound(x, type(uint128).max, type(uint256).max);
+        y = bound(y, 2, type(uint256).max);
+        d = bound(d, x, type(uint256).max);
+        assertEq(mulDivUp(x, y, d), FixedPointMathLib.fullMulDivUp(x, y, d));
+    }
+
+    // ── sqrt correctness ─────────────────────────────────────────
+
+    function test_Sqrt_KnownValues() public pure {
+        assertEq(sqrt(0), 0);
+        assertEq(sqrt(1), 1);
+        assertEq(sqrt(4), 2);
+        assertEq(sqrt(9), 3);
+        assertEq(sqrt(1e18), 1e9);
+        assertEq(sqrt(type(uint256).max), 340282366920938463463374607431768211455);
+    }
+
+    function test_Sqrt_Fuzz_MatchesSolady(uint256 x) public pure {
+        assertEq(sqrt(x), FixedPointMathLib.sqrt(x));
+    }
+
+    function test_Sqrt_Fuzz_FloorProperty(uint256 x) public pure {
+        uint256 z = sqrt(x);
+        assertTrue(z * z <= x);
+        if (z < type(uint128).max) {
+            assertTrue((z + 1) * (z + 1) > x);
+        }
+    }
+
+    // ── buyExactIn overshoot regression ──────────────────────────
+
+    function test_BuyExactIn_SteepCurve_NoFee_NoRevert() public {
+        // Regression: steep curve with feeBps=0 previously reverted
+        address tkn = _configureNoFee();
+
+        // Advance curve to 25% sold
+        vm.prank(bob);
+        sale.buy{value: sale.quote(tkn, 250e18)}(tkn, 250e18, 0);
+
+        // buyExactIn at this point was the failing case
+        vm.prank(carol);
+        sale.buyExactIn{value: 1 ether}(tkn, 0);
+        assertGt(token.balanceOf(carol), 0);
+    }
+
+    function test_BuyExactIn_SteepCurve_ManyCalls() public {
+        // Walk entire curve with buyExactIn to find any revert
+        address tkn = _configureNoFee();
+        for (uint256 i; i < 20; i++) {
+            address buyer = address(uint160(0x3000 + i));
+            vm.deal(buyer, 100 ether);
+            vm.prank(buyer);
+            try sale.buyExactIn{value: 0.5 ether}(tkn, 0) {
+                assertGt(token.balanceOf(buyer), 0);
+            } catch {
+                // Only acceptable revert: ZeroAmount (fully sold) or Graduated
+                (,,,,,,,,,,,, bool graduated,) = sale.curves(tkn);
+                assertTrue(graduated, "unexpected revert before graduation");
+                break;
+            }
+        }
+    }
+
+    function test_BuyExactIn_RaisedETH_MatchesBalance() public {
+        // Verify raisedETH accounting with the overshoot fix
+        address tkn = _configureNoFee();
+
+        for (uint256 i; i < 10; i++) {
+            address buyer = address(uint160(0x4000 + i));
+            vm.deal(buyer, 100 ether);
+            vm.prank(buyer);
+            try sale.buyExactIn{value: 1 ether}(tkn, 0) {}
+            catch {
+                break;
+            }
+        }
+
+        (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        assertEq(address(sale).balance, raisedETH);
+    }
+
+    function test_BuyExactIn_VerySteepCurve() public {
+        // 100x ratio
+        MockToken t2 = new MockToken("T3", "T3", 18);
+        address tkn = address(t2);
+        t2.mint(alice, CAP);
+        vm.startPrank(alice);
+        t2.approve(address(sale), CAP);
+        sale.configure(alice, tkn, CAP, 0.001e18, 0.1e18, 0, 0, 0, address(0), 0, NO_CREATOR_FEE);
+        vm.stopPrank();
+
+        for (uint256 i; i < 15; i++) {
+            address buyer = address(uint160(0x5000 + i));
+            vm.deal(buyer, 100 ether);
+            vm.prank(buyer);
+            try sale.buyExactIn{value: 2 ether}(tkn, 0) {}
+            catch {
+                break;
+            }
+        }
+
+        (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        assertEq(address(sale).balance, raisedETH);
+    }
+
+    // ── Fuzz Tests ───────────────────────────────────────────────
+
+    function test_Fuzz_BuyExactIn_NeverUnderpayCurve(uint256 ethIn, uint256 soldBefore) public {
+        // Fuzz buyExactIn across curve positions — raisedETH must always match balance
+        address tkn = _configureNoFee();
+
+        // Advance curve to a random position
+        soldBefore = bound(soldBefore, 0, 900e18);
+        if (soldBefore > 0) {
+            uint256 advanceCost = sale.quote(tkn, soldBefore);
+            vm.prank(bob);
+            sale.buy{value: advanceCost}(tkn, soldBefore, 0);
+        }
+
+        // buyExactIn with random ETH amount
+        ethIn = bound(ethIn, 0.001 ether, 50 ether);
+        address buyer = address(uint160(0x7000));
+        vm.deal(buyer, ethIn);
+        vm.prank(buyer);
+        try sale.buyExactIn{value: ethIn}(tkn, 0) {
+            // Must hold: raisedETH == contract balance
+            (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+            assertEq(address(sale).balance, raisedETH, "raisedETH != balance after buyExactIn");
+        } catch {
+            // Acceptable reverts: ZeroAmount (fully sold) or Graduated
+        }
+    }
+
+    function test_Fuzz_BuyExactIn_WithFee(uint256 ethIn, uint16 feeBps) public {
+        feeBps = uint16(bound(feeBps, 0, 5000));
+        address tkn = _configureWith(START_PRICE, END_PRICE, feeBps, 0, 0, address(0));
+
+        ethIn = bound(ethIn, 0.01 ether, 20 ether);
+        vm.prank(bob);
+        try sale.buyExactIn{value: ethIn}(tkn, 0) {
+            (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+            // Contract may hold slightly more than raisedETH due to fee rounding
+            assertGe(address(sale).balance, raisedETH, "balance < raisedETH");
+        } catch {}
+    }
+
+    function test_Fuzz_BuySell_Roundtrip_NeverProfits(uint256 amount) public {
+        address tkn = _configureWith(START_PRICE, END_PRICE, 100, 0, 0, address(0)); // 1% fee
+        amount = bound(amount, 1e18, 500e18);
+
+        uint256 cost = sale.quote(tkn, amount);
+        uint256 fee = (cost * 100) / 10_000;
+        uint256 bobBefore = bob.balance;
+
+        vm.startPrank(bob);
+        sale.buy{value: cost + fee}(tkn, amount, 0);
+        uint256 received = token.balanceOf(bob);
+        token.approve(address(sale), received);
+        sale.sell(tkn, received, 0);
+        vm.stopPrank();
+
+        assertLe(bob.balance, bobBefore, "round-trip should never profit");
+    }
+
+    function test_Fuzz_SellExactOut_NeverOverdraws(uint256 buyAmount, uint256 ethOut) public {
+        address tkn = _configureNoFee();
+
+        // Buy some tokens first
+        buyAmount = bound(buyAmount, 10e18, 500e18);
+        uint256 cost = sale.quote(tkn, buyAmount);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, buyAmount, 0);
+
+        // Try sellExactOut for random ETH amount
+        ethOut = bound(ethOut, 0.001 ether, cost);
+        vm.startPrank(bob);
+        token.approve(address(sale), buyAmount);
+        try sale.sellExactOut(tkn, ethOut, buyAmount) {
+            // raisedETH must match balance
+            (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+            assertEq(address(sale).balance, raisedETH, "raisedETH != balance after sellExactOut");
+            // Bob got at least what they asked for
+            assertGe(bob.balance, ethOut, "received less than ethOut");
+        } catch {
+            // Acceptable: Slippage, InsufficientLiquidity, ZeroAmount
+        }
+        vm.stopPrank();
+    }
+
+    function test_Fuzz_Graduation_ByTarget(uint256 target) public {
+        // Compute max ETH from full cap on a fresh no-fee curve
+        address tkn0 = _configureNoFee();
+        uint256 maxETH = sale.quote(tkn0, CAP);
+
+        // New curve with random graduation target
+        target = bound(target, 1, maxETH);
+        MockToken t2 = new MockToken("T2", "T2", 18);
+        t2.mint(alice, CAP);
+        vm.startPrank(alice);
+        t2.approve(address(sale), CAP);
+        sale.configure(
+            alice,
+            address(t2),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            0,
+            target,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+
+        // Buy until graduated
+        uint256 bought;
+        for (uint256 i; i < 20; i++) {
+            (,,,,,,,,,,,, bool graduated,) = sale.curves(address(t2));
+            if (graduated) break;
+            uint256 chunk = bound(CAP / 10, 1e18, CAP - bought);
+            if (chunk == 0) break;
+            uint256 c2 = sale.quote(address(t2), chunk);
+            vm.prank(bob);
+            sale.buy{value: c2}(address(t2), chunk, 0);
+            bought += chunk;
+        }
+
+        (,,,,,,,,,,,, bool grad,) = sale.curves(address(t2));
+        if (grad) {
+            assertTrue(sale.graduable(address(t2)), "should be graduable");
+        }
+    }
+
+    function test_Fuzz_MaxUint128_Config() public {
+        // Boundary: configure with large-but-valid uint128 values
+        uint128 bigCap = 1e30; // 1 trillion tokens with 18 decimals
+        uint128 bigPrice = 1e28; // 10 billion ETH per token (absurd but valid)
+        // vr check will likely reject extreme combos, so use flat curve
+        MockToken t3 = new MockToken("BIG", "BIG", 18);
+        t3.mint(alice, bigCap);
+        vm.startPrank(alice);
+        t3.approve(address(sale), bigCap);
+        sale.configure(
+            alice, address(t3), bigCap, bigPrice, bigPrice, 0, 0, 0, address(0), 0, NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+
+        // Quote should not overflow
+        uint256 cost = sale.quote(address(t3), 1e18); // 1 token
+        assertEq(cost, bigPrice); // flat curve: 1 token * price / 1e18
+    }
+
+    function test_Fuzz_Quote_SymmetricBuySell(uint256 amount) public {
+        address tkn = _configureNoFee();
+        amount = bound(amount, 1e18, CAP);
+
+        uint256 buyCost = sale.quote(tkn, amount);
+
+        // Buy, then quote the sell for same amount
+        vm.prank(bob);
+        sale.buy{value: buyCost}(tkn, amount, 0);
+        uint256 sellProceeds = sale.quoteSell(tkn, amount);
+
+        // buy cost == sell proceeds on a no-fee curve (same _cost function)
+        assertEq(buyCost, sellProceeds, "buy/sell quote mismatch");
+    }
+}
+
+contract MulDivReverts {
+    function divByZero() external pure {
+        mulDiv(1, 1, 0);
+    }
+
+    function overflow() external pure {
+        mulDiv(type(uint256).max, type(uint256).max, 1);
     }
 }
 
