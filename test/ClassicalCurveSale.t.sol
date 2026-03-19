@@ -63,6 +63,9 @@ contract ClassicalCurveSaleTest is Test {
             lpTokens,
             lpRecipient,
             0,
+            0,
+            0,
+            0,
             NO_CREATOR_FEE
         );
         vm.stopPrank();
@@ -132,6 +135,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             address(0),
             0,
+            0,
+            0,
+            0,
             NO_CREATOR_FEE
         );
     }
@@ -149,6 +155,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             address(0),
             0,
+            0,
+            0,
+            0,
             NO_CREATOR_FEE
         );
     }
@@ -156,7 +165,20 @@ contract ClassicalCurveSaleTest is Test {
     function test_Configure_RevertIf_ZeroStartPrice() public {
         vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
         sale.configure(
-            alice, address(token), CAP, 0, END_PRICE, FEE_BPS, 0, 0, address(0), 0, NO_CREATOR_FEE
+            alice,
+            address(token),
+            CAP,
+            0,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            0,
+            0,
+            0,
+            NO_CREATOR_FEE
         );
     }
 
@@ -172,6 +194,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             0,
             address(0),
+            0,
+            0,
+            0,
             0,
             NO_CREATOR_FEE
         );
@@ -192,6 +217,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             0,
             address(0),
+            0,
+            0,
+            0,
             0,
             NO_CREATOR_FEE
         );
@@ -215,6 +243,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             address(0),
             0,
+            0,
+            0,
+            0,
             NO_CREATOR_FEE
         );
         vm.stopPrank();
@@ -236,6 +267,9 @@ contract ClassicalCurveSaleTest is Test {
             1000 ether,
             0,
             address(0),
+            0,
+            0,
+            0,
             0,
             NO_CREATOR_FEE
         );
@@ -262,6 +296,9 @@ contract ClassicalCurveSaleTest is Test {
             maxETH,
             0,
             address(0),
+            0,
+            0,
+            0,
             0,
             NO_CREATOR_FEE
         );
@@ -459,6 +496,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             0,
             address(0),
+            0,
+            0,
+            0,
             0,
             NO_CREATOR_FEE
         );
@@ -733,7 +773,20 @@ contract ClassicalCurveSaleTest is Test {
         vm.startPrank(alice);
         token.approve(address(sale), CAP);
         sale.configure(
-            alice, tkn, CAP, START_PRICE, END_PRICE, 0, halfCost, 0, address(0), 0, NO_CREATOR_FEE
+            alice,
+            tkn,
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            0,
+            halfCost,
+            0,
+            address(0),
+            0,
+            0,
+            0,
+            0,
+            NO_CREATOR_FEE
         );
         vm.stopPrank();
 
@@ -986,7 +1039,9 @@ contract ClassicalCurveSaleTest is Test {
         token.mint(alice, CAP);
         vm.startPrank(alice);
         token.approve(address(sale), CAP);
-        sale.configure(alice, tkn, CAP, 0.001e18, 0.1e18, 0, 0, 0, address(0), 0, NO_CREATOR_FEE);
+        sale.configure(
+            alice, tkn, CAP, 0.001e18, 0.1e18, 0, 0, 0, address(0), 0, 0, 0, 0, NO_CREATOR_FEE
+        );
         vm.stopPrank();
 
         uint256 cost = sale.quote(tkn, CAP);
@@ -1276,7 +1331,9 @@ contract ClassicalCurveSaleTest is Test {
         t2.mint(alice, CAP);
         vm.startPrank(alice);
         t2.approve(address(sale), CAP);
-        sale.configure(alice, tkn, CAP, 0.001e18, 0.1e18, 0, 0, 0, address(0), 0, NO_CREATOR_FEE);
+        sale.configure(
+            alice, tkn, CAP, 0.001e18, 0.1e18, 0, 0, 0, address(0), 0, 0, 0, 0, NO_CREATOR_FEE
+        );
         vm.stopPrank();
 
         for (uint256 i; i < 15; i++) {
@@ -1399,6 +1456,9 @@ contract ClassicalCurveSaleTest is Test {
             0,
             address(0),
             0,
+            0,
+            0,
+            0,
             NO_CREATOR_FEE
         );
         vm.stopPrank();
@@ -1432,7 +1492,20 @@ contract ClassicalCurveSaleTest is Test {
         vm.startPrank(alice);
         t3.approve(address(sale), bigCap);
         sale.configure(
-            alice, address(t3), bigCap, bigPrice, bigPrice, 0, 0, 0, address(0), 0, NO_CREATOR_FEE
+            alice,
+            address(t3),
+            bigCap,
+            bigPrice,
+            bigPrice,
+            0,
+            0,
+            0,
+            address(0),
+            0,
+            0,
+            0,
+            0,
+            NO_CREATOR_FEE
         );
         vm.stopPrank();
 
@@ -1454,6 +1527,280 @@ contract ClassicalCurveSaleTest is Test {
 
         // buy cost == sell proceeds on a no-fee curve (same _cost function)
         assertEq(buyCost, sellProceeds, "buy/sell quote mismatch");
+    }
+
+    // ── Sniper Fee Tests ─────────────────────────────────────────
+
+    function _configureSniper() internal returns (address tkn) {
+        tkn = address(token);
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        sale.configure(
+            alice,
+            tkn,
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            5000, // 50% sniper fee
+            600, // 10 minutes decay
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_SniperFee_ElevatedAtLaunch() public {
+        address tkn = _configureSniper();
+        // Immediately after launch: effective fee should be near sniperFeeBps (50%)
+        uint256 fee = sale.effectiveFee(tkn);
+        assertEq(fee, 5000);
+    }
+
+    function test_SniperFee_DecaysOverTime() public {
+        address tkn = _configureSniper();
+
+        // At 50% of duration (300s): fee should be midpoint between 5000 and 100
+        vm.warp(block.timestamp + 300);
+        uint256 fee = sale.effectiveFee(tkn);
+        // midpoint = 100 + (5000 - 100) * 300 / 600 = 100 + 2450 = 2550
+        assertEq(fee, 2550);
+    }
+
+    function test_SniperFee_ReturnsBaseFeeAfterDecay() public {
+        address tkn = _configureSniper();
+
+        // After full duration: fee should be base feeBps
+        vm.warp(block.timestamp + 600);
+        uint256 fee = sale.effectiveFee(tkn);
+        assertEq(fee, FEE_BPS);
+
+        // Well past duration
+        vm.warp(block.timestamp + 10000);
+        fee = sale.effectiveFee(tkn);
+        assertEq(fee, FEE_BPS);
+    }
+
+    function test_SniperFee_AffectsBuyCost() public {
+        // Configure two curves: one with sniper, one without
+        address sniperTkn = _configureSniper();
+
+        MockToken t2 = new MockToken("T2", "T2", 18);
+        t2.mint(alice, CAP);
+        vm.startPrank(alice);
+        t2.approve(address(sale), CAP);
+        sale.configure(
+            alice,
+            address(t2),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            0,
+            0,
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+
+        // Buy same amount on both — sniper curve should cost more (higher fee)
+        uint256 cost = sale.quote(sniperTkn, 100e18);
+        uint256 sniperFee = (cost * 5000) / 10_000; // 50% at t=0
+        uint256 normalFee = (cost * FEE_BPS) / 10_000;
+
+        uint256 bobBefore = bob.balance;
+        vm.prank(bob);
+        sale.buy{value: cost + sniperFee}(sniperTkn, 100e18, 0);
+        uint256 sniperSpent = bobBefore - bob.balance;
+
+        uint256 carolBefore = carol.balance;
+        vm.prank(carol);
+        sale.buy{value: cost + normalFee}(address(t2), 100e18, 0);
+        uint256 normalSpent = carolBefore - carol.balance;
+
+        assertGt(sniperSpent, normalSpent, "sniper should pay more");
+    }
+
+    function test_SniperFee_AffectsSell() public {
+        address tkn = _configureSniper();
+
+        // Buy at sniper fee
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 sniperFee = (cost * 5000) / 10_000;
+        vm.prank(bob);
+        sale.buy{value: cost + sniperFee}(tkn, 100e18, 0);
+
+        // Sell immediately — should also pay sniper fee
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        uint256 bobBefore = bob.balance;
+        sale.sell(tkn, 100e18, 0);
+        vm.stopPrank();
+
+        uint256 received = bob.balance - bobBefore;
+        uint256 expectedNet = cost - (cost * 5000) / 10_000;
+        assertApproxEqAbs(received, expectedNet, 1);
+    }
+
+    function test_SniperFee_DisabledByDefault() public {
+        address tkn = _configureNoFee();
+        assertEq(sale.effectiveFee(tkn), 0);
+    }
+
+    function test_SniperFee_RevertIf_FeeBelowBase() public {
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(token),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            500,
+            0,
+            0,
+            address(0),
+            0,
+            100, // sniper fee BELOW base fee
+            600,
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_SniperFee_RevertIf_FeeWithoutDuration() public {
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(token),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            5000, // sniper fee set
+            0, // but no duration
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_Fuzz_SniperFee_Decay(uint256 elapsed) public {
+        address tkn = _configureSniper();
+        elapsed = bound(elapsed, 0, 1200); // up to 2x duration
+        vm.warp(block.timestamp + elapsed);
+
+        uint256 fee = sale.effectiveFee(tkn);
+        assertGe(fee, FEE_BPS); // never below base
+        assertLe(fee, 5000); // never above sniper max
+    }
+
+    // ── MaxBuy Tests ─────────────────────────────────────────────
+
+    function _configureMaxBuy(uint16 maxBuyBps) internal returns (address tkn) {
+        tkn = address(token);
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        sale.configure(
+            alice,
+            tkn,
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            0,
+            0,
+            0,
+            address(0),
+            0,
+            0,
+            0,
+            maxBuyBps,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_MaxBuy_CapsAmount() public {
+        address tkn = _configureMaxBuy(1000); // 10% of cap = 100e18
+
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 200e18, 0); // ask for 200, capped to 100
+
+        assertEq(token.balanceOf(bob), 100e18);
+    }
+
+    function test_MaxBuy_AllowsUnder() public {
+        address tkn = _configureMaxBuy(1000); // 10% = 100e18
+
+        uint256 cost = sale.quote(tkn, 50e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 50e18, 50e18);
+
+        assertEq(token.balanceOf(bob), 50e18);
+    }
+
+    function test_MaxBuy_SlippageRevert() public {
+        address tkn = _configureMaxBuy(1000); // 10% = 100e18
+
+        // Ask for 200 with minAmount 200 — capped to 100, fails slippage
+        vm.prank(bob);
+        vm.expectRevert(ClassicalCurveSale.Slippage.selector);
+        sale.buy{value: 50 ether}(tkn, 200e18, 200e18);
+    }
+
+    function test_MaxBuy_BuyExactIn() public {
+        address tkn = _configureMaxBuy(500); // 5% of cap = 50e18
+
+        // Send lots of ETH — should only get 50e18 tokens max
+        vm.prank(bob);
+        sale.buyExactIn{value: 100 ether}(tkn, 0);
+
+        assertLe(token.balanceOf(bob), 50e18);
+        assertGt(token.balanceOf(bob), 0);
+    }
+
+    function test_MaxBuy_MultipleBuys() public {
+        address tkn = _configureMaxBuy(1000); // 10% per tx
+
+        // Can buy 10% multiple times
+        for (uint256 i; i < 5; i++) {
+            uint256 cost = sale.quote(tkn, 100e18);
+            vm.prank(bob);
+            sale.buy{value: cost}(tkn, 100e18, 100e18);
+        }
+
+        assertEq(token.balanceOf(bob), 500e18);
+    }
+
+    function test_MaxBuy_Disabled() public {
+        address tkn = _configureMaxBuy(0); // unlimited
+
+        uint256 cost = sale.quote(tkn, 500e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 500e18, 500e18);
+
+        assertEq(token.balanceOf(bob), 500e18);
     }
 }
 
