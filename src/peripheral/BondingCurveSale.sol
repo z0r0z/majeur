@@ -2,20 +2,25 @@
 pragma solidity ^0.8.30;
 
 /// @title BondingCurveSale
-/// @notice Singleton for selling DAO shares or loot on a linear bonding curve.
+/// @notice Singleton for selling DAO shares or loot on a bonding curve.
 ///         Drop-in alternative to ShareSale — same allowance system, same IShareSale
 ///         interface for LPSeedSwapHook compatibility.
 ///
-///   Price rises linearly from startPrice to endPrice as tokens are sold.
-///   Cost for N tokens = N * averagePrice, where averagePrice is the midpoint
-///   of the price at the current position and the price after buying N tokens.
+///   Three curve shapes are supported:
+///     LINEAR    — price(x) = P₀ + slope · x/cap              (default)
+///     QUADRATIC — price(x) = P₀ + slope · (x/cap)²           (steeper late-stage)
+///     XYK       — price(x) = P₀ · T₀²/(T₀ − x)²            (virtual constant-product, pump.fun-style)
+///
+///   where P₀ = startPrice, slope = endPrice − startPrice, x = tokens already sold,
+///   and T₀ = virtual token reserve computed so that price(cap) = endPrice.
+///   Cost for N tokens is the integral of price(x) over [sold, sold+N], scaled by 1e18.
 ///
 ///   The `sales()` getter returns endPrice as `price` so that LPSeedSwapHook's
 ///   arb protection clamp uses the highest (final) sale price for LP seeding.
 ///
 ///   Setup (via SafeSummoner extraCalls):
 ///     1. dao.setAllowance(bondingCurveSale, address(dao), cap)
-///     2. bondingCurveSale.configure(address(dao), payToken, startPrice, endPrice, cap, deadline)
+///     2. bondingCurveSale.configure(address(dao), payToken, startPrice, endPrice, cap, deadline, curveType)
 ///
 ///   Usage:
 ///     bondingCurveSale.buy{value: cost}(dao, amount)
@@ -28,6 +33,12 @@ contract BondingCurveSale {
     error ZeroPrice();
     error Expired();
 
+    enum CurveType {
+        LINEAR, // price(x) = P₀ + slope · x/cap
+        QUADRATIC, // price(x) = P₀ + slope · (x/cap)²
+        XYK // price(x) = P₀ · T₀²/(T₀ − x)²  (virtual constant-product)
+    }
+
     event Configured(
         address indexed dao,
         address token,
@@ -35,7 +46,8 @@ contract BondingCurveSale {
         uint256 startPrice,
         uint256 endPrice,
         uint256 cap,
-        uint40 deadline
+        uint40 deadline,
+        CurveType curveType
     );
     event Purchase(address indexed dao, address indexed buyer, uint256 amount, uint256 cost);
 
@@ -46,6 +58,8 @@ contract BondingCurveSale {
         uint256 price; // endPrice — for IShareSale compatibility (LPSeedSwapHook reads this)
         uint256 startPrice; // price at 0% sold
         uint256 cap; // total tokens for sale (should match allowance)
+        CurveType curveType; // curve shape (LINEAR, QUADRATIC, XYK)
+        uint256 virtualReserve; // T₀ for XYK curve (0 for LINEAR/QUADRATIC)
     }
 
     /// @dev Keyed by DAO address. Set via configure() called by the DAO itself.
@@ -60,19 +74,32 @@ contract BondingCurveSale {
     /// @param endPrice   Price at 100% sold (1e18 scaled), must be >= startPrice
     /// @param cap        Total tokens for sale (should match the allowance granted)
     /// @param deadline   Unix timestamp after which buys revert (0 = no deadline)
+    /// @param curveType  Curve shape: LINEAR (0), QUADRATIC (1), or XYK (2)
     function configure(
         address token,
         address payToken,
         uint256 startPrice,
         uint256 endPrice,
         uint256 cap,
-        uint40 deadline
+        uint40 deadline,
+        CurveType curveType
     ) public {
         if (startPrice == 0) revert ZeroPrice();
         if (endPrice < startPrice) revert InvalidCurve();
         if (cap == 0) revert ZeroAmount();
-        sales[msg.sender] = Sale(token, payToken, deadline, endPrice, startPrice, cap);
-        emit Configured(msg.sender, token, payToken, startPrice, endPrice, cap, deadline);
+
+        uint256 vr;
+        if (curveType == CurveType.XYK && endPrice > startPrice) {
+            // T₀ = cap · √endPrice / (√endPrice − √startPrice)
+            // so that price(0) = startPrice and price(cap) = endPrice on the 1/(T₀−x)² curve.
+            uint256 sqrtEnd = sqrt(endPrice);
+            uint256 sqrtStart = sqrt(startPrice);
+            vr = cap * sqrtEnd / (sqrtEnd - sqrtStart);
+        }
+
+        sales[msg.sender] =
+            Sale(token, payToken, deadline, endPrice, startPrice, cap, curveType, vr);
+        emit Configured(msg.sender, token, payToken, startPrice, endPrice, cap, deadline, curveType);
     }
 
     /// @notice Compute the cost for buying `amount` tokens from `dao` at current curve position.
@@ -128,7 +155,7 @@ contract BondingCurveSale {
     }
 
     /// @notice Buy shares or loot with exact ETH input on the bonding curve.
-    ///         Computes max amount from msg.value via quadratic formula, caps to remaining, refunds excess.
+    ///         Computes max amount from msg.value, caps to remaining, refunds excess.
     /// @param dao The DAO to buy from
     function buyExactIn(address dao) public payable {
         Sale memory s = sales[dao];
@@ -140,33 +167,39 @@ contract BondingCurveSale {
         uint256 remaining = IMoloch(dao).allowance(s.token, address(this));
         uint256 sold = s.cap - remaining;
 
-        // Compute max amount affordable from msg.value on the curve.
-        // Solve: slope*amount² + (2*cap*startPrice + 2*slope*sold)*amount = 2*cap*1e18*msg.value
-        // Quadratic: amount = (-b + sqrt(b² + 4ac)) / (2a)
-        // where a = slope, b = 2*cap*startPrice + 2*slope*sold, c = 2*cap*1e18*msg.value
-        // When slope == 0 (flat): amount = msg.value * 1e18 / startPrice
-        //
-        // To avoid overflow in b² and 4ac, divide all terms by a common scale factor.
-        // Divide quadratic by (2*cap): amount² * slope/(2*cap) + amount * (startPrice + slope*sold/cap) = 1e18*msg.value
-        // Let a' = slope, b' = 2*cap*startPrice + 2*slope*sold, scale = 2*cap
-        // amount = (-b' + sqrt(b'² + 4*a'*scale*1e18*msg.value)) / (2*a')
-        // Rewrite to avoid b'²: scale everything by 1/scale²
-        // amount = scale * (-b'/scale + sqrt((b'/scale)² + 4*a'*1e18*msg.value/scale)) / (2*a')
         uint256 amount;
         uint256 slope = s.price - s.startPrice;
+
         if (slope == 0) {
+            // Flat curve (all types degenerate): amount = msg.value * 1e18 / price
             amount = msg.value * 1e18 / s.startPrice;
-        } else {
-            // Scale down by dividing by 2*cap to prevent overflow
-            // b_s = b / (2*cap) = startPrice + slope * sold / cap
+        } else if (s.curveType == CurveType.LINEAR) {
+            // Analytical solution via quadratic formula (existing logic).
+            // Solve: slope·a² + (2·cap·P₀ + 2·slope·sold)·a = 2·cap·1e18·msg.value
             uint256 b_s = s.startPrice + slope * sold / s.cap;
-            // disc_s = b_s² + 4 * slope * 1e18 * msg.value / (2*cap)
-            //        = b_s² + 2 * slope * 1e18 * msg.value / cap
             uint256 disc_s = b_s * b_s + 2 * slope * msg.value * 1e18 / s.cap;
-            // amount = (sqrt(disc_s) - b_s) * (2*cap) / (2*slope)
-            //        = (sqrt(disc_s) - b_s) * cap / slope
             uint256 sqrtDisc = sqrt(disc_s);
             amount = sqrtDisc > b_s ? (sqrtDisc - b_s) * s.cap / slope : 0;
+        } else if (s.curveType == CurveType.XYK) {
+            // Analytical: amount = msg.value · R / (A + msg.value)
+            // where R = T₀ − sold, A = startPrice · T₀² / (R · 1e18)
+            uint256 T0 = s.virtualReserve;
+            uint256 R = T0 - sold;
+            uint256 A = s.startPrice * T0 * T0 / R / 1e18;
+            amount = msg.value * R / (A + msg.value);
+        } else {
+            // QUADRATIC: binary search for max amount where _cost ≤ msg.value
+            uint256 lo = 0;
+            uint256 hi = remaining;
+            while (lo < hi) {
+                uint256 mid = (lo + hi + 1) / 2;
+                if (_cost(s, sold, mid) <= msg.value) {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            amount = lo;
         }
 
         // Cap to remaining allowance
@@ -174,7 +207,7 @@ contract BondingCurveSale {
         if (amount == 0) revert ZeroAmount();
 
         uint256 cost = _cost(s, sold, amount);
-        // Clamp: sqrt truncation + ceil in _cost can overshoot by 1 wei
+        // Clamp: sqrt truncation / binary search rounding + ceil in _cost can overshoot
         if (cost > msg.value) cost = msg.value;
 
         // Spend allowance first (CEI: effects before interactions)
@@ -201,7 +234,8 @@ contract BondingCurveSale {
         address payToken,
         uint256 startPrice,
         uint256 endPrice,
-        uint40 deadline
+        uint40 deadline,
+        CurveType curveType
     )
         public
         view
@@ -210,8 +244,9 @@ contract BondingCurveSale {
         target1 = dao;
         data1 = abi.encodeCall(IMoloch.setAllowance, (address(this), token, cap));
         target2 = address(this);
-        data2 =
-            abi.encodeCall(this.configure, (token, payToken, startPrice, endPrice, cap, deadline));
+        data2 = abi.encodeCall(
+            this.configure, (token, payToken, startPrice, endPrice, cap, deadline, curveType)
+        );
     }
 
     /// @dev Resolve allowance token sentinel to actual ERC20 address.
@@ -222,18 +257,44 @@ contract BondingCurveSale {
     }
 
     /// @dev Compute cost for `amount` tokens starting at position `sold` on the curve.
-    ///      Linear curve: price(x) = startPrice + (endPrice - startPrice) * x / cap
-    ///      Cost = amount * avgPrice / 1e18, where avgPrice = (price(sold) + price(sold+amount)) / 2
-    ///      Rounded up to prevent dust.
+    ///      Rounded up to prevent dust purchases.
     function _cost(Sale memory s, uint256 sold, uint256 amount) internal pure returns (uint256) {
-        // avgPrice = startPrice + slope * (2*sold + amount) / 2
-        // where slope = (endPrice - startPrice) / cap
-        // = startPrice + (endPrice - startPrice) * (2*sold + amount) / (2*cap)
-        //
-        // cost = amount * avgPrice / 1e18 (rounded up)
-        // = amount * (startPrice + (endPrice - startPrice) * (2*sold + amount) / (2*cap)) / 1e18
-        // = (amount * (2*cap*startPrice + (endPrice - startPrice) * (2*sold + amount)) + 2*cap*1e18 - 1) / (2*cap*1e18)
         uint256 slope = s.price - s.startPrice; // endPrice - startPrice
+
+        // Flat curve shortcut (works for all curve types when startPrice == endPrice)
+        if (slope == 0) {
+            return (amount * s.startPrice + 1e18 - 1) / 1e18;
+        }
+
+        if (s.curveType == CurveType.QUADRATIC) {
+            // price(x) = P₀ + slope · (x/cap)²
+            // integral from sold to sold+amount = amount·P₀ + slope·(3s²a + 3sa² + a³)/(3·cap²)
+            // where s=sold, a=amount.  Factor out amount:
+            // = amount · (P₀ + slope·(3s² + 3sa + a²)/(3·cap²))
+            // Split division to avoid overflow: slope·term / (3·cap) / cap
+            uint256 term = 3 * sold * sold + 3 * sold * amount + amount * amount;
+            uint256 avgCurvePremium = slope * term / (3 * s.cap) / s.cap;
+            uint256 avgPrice = s.startPrice + avgCurvePremium;
+            return (amount * avgPrice + 1e18 - 1) / 1e18;
+        }
+
+        if (s.curveType == CurveType.XYK) {
+            // price(x) = P₀ · T₀²/(T₀ − x)² where T₀ = virtualReserve
+            // integral = P₀ · T₀² · [1/(T₀−b) − 1/(T₀−a)] where a=sold, b=sold+amount
+            //          = P₀ · T₀² · amount / (rem · remAfter)
+            // cost_wei = integral / 1e18, rounded up
+            uint256 T0 = s.virtualReserve;
+            uint256 rem = T0 - sold;
+            uint256 remAfter = rem - amount;
+            // Compute: startPrice · T₀ · amount / rem, then · T₀ / (remAfter · 1e18)
+            uint256 step = s.startPrice * amount * T0 / rem;
+            uint256 denom = remAfter * 1e18;
+            return (step * T0 + denom - 1) / denom;
+        }
+
+        // LINEAR: price(x) = P₀ + slope · x/cap
+        // avgPrice = P₀ + slope·(2·sold + amount)/(2·cap)
+        // cost = amount · avgPrice / 1e18, rounded up
         uint256 twoCap = 2 * s.cap;
         uint256 numerator = amount * (twoCap * s.startPrice + slope * (2 * sold + amount));
         uint256 denominator = twoCap * 1e18;

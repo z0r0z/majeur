@@ -25,8 +25,27 @@ contract BondingCurveSaleTest is Test {
 
     // ── Helpers ──────────────────────────────────────────────────
 
-    /// @dev Deploy a DAO with a bonding curve sale: startPrice=0.005 ETH, endPrice=0.015 ETH, cap=1000e18
+    /// @dev Deploy a DAO with a linear bonding curve sale: startPrice=0.005 ETH, endPrice=0.015 ETH, cap=1000e18
     function _deployDAO(bytes32 salt) internal returns (address dao) {
+        return
+            _deployDAOWithCurve(
+                salt, 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.LINEAR
+            );
+    }
+
+    /// @dev Deploy a flat-price bonding curve (startPrice == endPrice) for comparison with ShareSale
+    function _deployFlatDAO(bytes32 salt) internal returns (address dao) {
+        return _deployDAOWithCurve(salt, 1e18, 1e18, 1000e18, BondingCurveSale.CurveType.LINEAR);
+    }
+
+    /// @dev Deploy a DAO with a specific curve type
+    function _deployDAOWithCurve(
+        bytes32 salt,
+        uint256 startPrice,
+        uint256 endPrice,
+        uint256 cap,
+        BondingCurveSale.CurveType curveType
+    ) internal returns (address dao) {
         address[] memory h = new address[](1);
         h[0] = alice;
         uint256[] memory s = new uint256[](1);
@@ -34,16 +53,14 @@ contract BondingCurveSaleTest is Test {
 
         dao = safe.predictDAO(salt, h, s);
 
-        uint256 cap = 1000e18;
-        uint256 startPrice = 0.005e18; // 0.005 ETH/share at start
-        uint256 endPrice = 0.015e18; // 0.015 ETH/share at end
-
         Call[] memory extra = new Call[](2);
         extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, cap)));
         extra[1] = Call(
             address(sale),
             0,
-            abi.encodeCall(sale.configure, (dao, address(0), startPrice, endPrice, cap, uint40(0)))
+            abi.encodeCall(
+                sale.configure, (dao, address(0), startPrice, endPrice, cap, uint40(0), curveType)
+            )
         );
 
         SafeSummoner.SafeConfig memory c;
@@ -56,33 +73,7 @@ contract BondingCurveSaleTest is Test {
         assertEq(deployed, dao);
     }
 
-    /// @dev Deploy a flat-price bonding curve (startPrice == endPrice) for comparison with ShareSale
-    function _deployFlatDAO(bytes32 salt) internal returns (address dao) {
-        address[] memory h = new address[](1);
-        h[0] = alice;
-        uint256[] memory s = new uint256[](1);
-        s[0] = 100e18;
-
-        dao = safe.predictDAO(salt, h, s);
-
-        Call[] memory extra = new Call[](2);
-        extra[0] = Call(dao, 0, abi.encodeCall(Moloch.setAllowance, (address(sale), dao, 1000e18)));
-        extra[1] = Call(
-            address(sale),
-            0,
-            abi.encodeCall(sale.configure, (dao, address(0), 1e18, 1e18, 1000e18, uint40(0)))
-        );
-
-        SafeSummoner.SafeConfig memory c;
-        c.proposalThreshold = 1e18;
-        c.proposalTTL = 7 days;
-
-        safe.safeSummon(
-            "FlatDAO", "FLAT", "", 1000, true, address(0), salt, h, s, new uint256[](0), c, extra
-        );
-    }
-
-    // ── Core Buy Tests ──────────────────────────────────────────
+    // ── Core Buy Tests (LINEAR) ──────────────────────────────────
 
     function test_BuyFirstTokens_CheapestPrice() public {
         address dao = _deployDAO(bytes32(uint256(1)));
@@ -254,17 +245,35 @@ contract BondingCurveSaleTest is Test {
 
     function test_RevertIf_ZeroStartPrice() public {
         vm.expectRevert(BondingCurveSale.ZeroPrice.selector);
-        sale.configure(address(0xDA0), address(0), 0, 1e18, 1000e18, uint40(0));
+        sale.configure(
+            address(0xDA0),
+            address(0),
+            0,
+            1e18,
+            1000e18,
+            uint40(0),
+            BondingCurveSale.CurveType.LINEAR
+        );
     }
 
     function test_RevertIf_EndPriceBelowStart() public {
         vm.expectRevert(BondingCurveSale.InvalidCurve.selector);
-        sale.configure(address(0xDA0), address(0), 1e18, 0.5e18, 1000e18, uint40(0));
+        sale.configure(
+            address(0xDA0),
+            address(0),
+            1e18,
+            0.5e18,
+            1000e18,
+            uint40(0),
+            BondingCurveSale.CurveType.LINEAR
+        );
     }
 
     function test_RevertIf_ZeroCap() public {
         vm.expectRevert(BondingCurveSale.ZeroAmount.selector);
-        sale.configure(address(0xDA0), address(0), 1e18, 2e18, 0, uint40(0));
+        sale.configure(
+            address(0xDA0), address(0), 1e18, 2e18, 0, uint40(0), BondingCurveSale.CurveType.LINEAR
+        );
     }
 
     function test_RevertIf_NotConfigured() public {
@@ -306,7 +315,18 @@ contract BondingCurveSaleTest is Test {
         extra[1] = Call(
             address(sale),
             0,
-            abi.encodeCall(sale.configure, (dao, address(0), 0.005e18, 0.015e18, 1000e18, deadline))
+            abi.encodeCall(
+                sale.configure,
+                (
+                    dao,
+                    address(0),
+                    0.005e18,
+                    0.015e18,
+                    1000e18,
+                    deadline,
+                    BondingCurveSale.CurveType.LINEAR
+                )
+            )
         );
 
         SafeSummoner.SafeConfig memory c;
@@ -345,9 +365,6 @@ contract BondingCurveSaleTest is Test {
 
         assertGt(sharesReceived, 0);
         assertLe(ethSpent, 1 ether); // spent at most what was sent
-
-        // Verify cost consistency: quote the same amount should match what was spent
-        // (re-deploy to get fresh state since we already bought)
     }
 
     function test_BuyExactIn_MatchesQuotedCost() public {
@@ -365,8 +382,6 @@ contract BondingCurveSaleTest is Test {
 
         // The exact-in path should have spent exactly the quoted cost for the same amount
         uint256 daoBal = dao.balance;
-        // dao received the ETH payment — should equal quoted cost for amountReceived
-        // (DAO starts with 0 ETH balance from deployment)
         assertEq(daoBal, quotedCost);
     }
 
@@ -418,7 +433,16 @@ contract BondingCurveSaleTest is Test {
             address(sale),
             0,
             abi.encodeCall(
-                sale.configure, (dao, address(payToken), 0.01e18, 0.02e18, 100e18, uint40(0))
+                sale.configure,
+                (
+                    dao,
+                    address(payToken),
+                    0.01e18,
+                    0.02e18,
+                    100e18,
+                    uint40(0),
+                    BondingCurveSale.CurveType.LINEAR
+                )
             )
         );
 
@@ -471,7 +495,7 @@ contract BondingCurveSaleTest is Test {
         address dao = _deployDAO(bytes32(uint256(70)));
 
         // The public getter should return endPrice as the `price` field
-        (address token, address payToken, uint40 deadline, uint256 price,,) = sale.sales(dao);
+        (address token, address payToken, uint40 deadline, uint256 price,,,,) = sale.sales(dao);
 
         assertEq(token, dao); // shares sentinel
         assertEq(payToken, address(0)); // ETH
@@ -498,7 +522,16 @@ contract BondingCurveSaleTest is Test {
             address(sale),
             0,
             abi.encodeCall(
-                sale.configure, (address(1007), address(0), 0.01e18, 0.02e18, 500e18, uint40(0))
+                sale.configure,
+                (
+                    address(1007),
+                    address(0),
+                    0.01e18,
+                    0.02e18,
+                    500e18,
+                    uint40(0),
+                    BondingCurveSale.CurveType.LINEAR
+                )
             )
         );
 
@@ -523,8 +556,9 @@ contract BondingCurveSaleTest is Test {
 
     function test_SaleInitCallsHelper() public view {
         address dao = address(0xDA0);
-        (address t1, bytes memory d1, address t2, bytes memory d2) =
-            sale.saleInitCalls(dao, dao, 1000e18, address(0), 0.005e18, 0.015e18, 0);
+        (address t1, bytes memory d1, address t2, bytes memory d2) = sale.saleInitCalls(
+            dao, dao, 1000e18, address(0), 0.005e18, 0.015e18, 0, BondingCurveSale.CurveType.LINEAR
+        );
 
         assertEq(t1, dao);
         assertEq(t2, address(sale));
@@ -552,7 +586,16 @@ contract BondingCurveSaleTest is Test {
             address(sale),
             0,
             abi.encodeCall(
-                sale.configure, (dao, address(payToken), 0.005e18, 0.015e18, 1000e18, uint40(0))
+                sale.configure,
+                (
+                    dao,
+                    address(payToken),
+                    0.005e18,
+                    0.015e18,
+                    1000e18,
+                    uint40(0),
+                    BondingCurveSale.CurveType.LINEAR
+                )
             )
         );
 
@@ -593,7 +636,16 @@ contract BondingCurveSaleTest is Test {
             address(sale),
             0,
             abi.encodeCall(
-                sale.configure, (dao, address(payToken), 0.01e18, 0.02e18, 100e18, uint40(0))
+                sale.configure,
+                (
+                    dao,
+                    address(payToken),
+                    0.01e18,
+                    0.02e18,
+                    100e18,
+                    uint40(0),
+                    BondingCurveSale.CurveType.LINEAR
+                )
             )
         );
 
@@ -608,6 +660,238 @@ contract BondingCurveSaleTest is Test {
         vm.prank(bob);
         vm.expectRevert(BondingCurveSale.UnexpectedETH.selector);
         sale.buy{value: 1 ether}(dao, 10e18);
+    }
+
+    // ── QUADRATIC Curve Tests ──────────────────────────────────
+
+    function test_Quadratic_PriceIncreases() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(200)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.QUADRATIC
+        );
+
+        // Buy 3 equal blocks and verify each costs more
+        uint256 cost1 = sale.quote(dao, 333e18);
+        vm.prank(bob);
+        sale.buy{value: cost1}(dao, 333e18);
+
+        uint256 cost2 = sale.quote(dao, 333e18);
+        vm.prank(bob);
+        sale.buy{value: cost2}(dao, 333e18);
+
+        uint256 cost3 = sale.quote(dao, 333e18);
+        vm.prank(bob);
+        sale.buy{value: cost3}(dao, 333e18);
+
+        assertGt(cost2, cost1);
+        assertGt(cost3, cost2);
+    }
+
+    function test_Quadratic_SteeperThanLinear() public {
+        // Deploy both a linear and quadratic DAO with same params
+        address linearDAO = _deployDAOWithCurve(
+            bytes32(uint256(201)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.LINEAR
+        );
+        address quadDAO = _deployDAOWithCurve(
+            bytes32(uint256(202)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.QUADRATIC
+        );
+
+        // First 100 tokens on quadratic should be CHEAPER than linear
+        // (quadratic is concave up: low early, steep late)
+        uint256 linearFirst = sale.quote(linearDAO, 100e18);
+        uint256 quadFirst = sale.quote(quadDAO, 100e18);
+        assertLt(quadFirst, linearFirst);
+
+        // Buy 900 on both to advance to end of curve
+        vm.prank(bob);
+        sale.buy{value: sale.quote(linearDAO, 900e18)}(linearDAO, 900e18);
+        vm.prank(bob);
+        sale.buy{value: sale.quote(quadDAO, 900e18)}(quadDAO, 900e18);
+
+        // Last/first price ratio should be HIGHER for quadratic (steeper curve shape)
+        uint256 linearLast = sale.quote(linearDAO, 100e18);
+        uint256 quadLast = sale.quote(quadDAO, 100e18);
+        assertGt(quadLast * linearFirst, linearLast * quadFirst);
+    }
+
+    function test_Quadratic_BuyExactIn() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(203)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.QUADRATIC
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 1 ether}(dao);
+
+        uint256 received = Shares(sharesAddr).balanceOf(bob);
+        assertGt(received, 0);
+
+        // Cost should be <= msg.value
+        uint256 ethSpent = 1000 ether - bob.balance;
+        assertLe(ethSpent, 1 ether);
+    }
+
+    function test_Quadratic_BuyExactIn_CapsToRemaining() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(204)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.QUADRATIC
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        // Buy 900 first
+        vm.prank(bob);
+        sale.buy{value: sale.quote(dao, 900e18)}(dao, 900e18);
+
+        // Send way more ETH than needed
+        vm.prank(carol);
+        sale.buyExactIn{value: 100 ether}(dao);
+
+        assertEq(Shares(sharesAddr).balanceOf(carol), 100e18);
+        assertGt(carol.balance, 900 ether); // big refund
+    }
+
+    function test_Quadratic_FlatCurve() public {
+        // Quadratic with startPrice == endPrice degenerates to flat
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(205)), 1e18, 1e18, 1000e18, BondingCurveSale.CurveType.QUADRATIC
+        );
+
+        uint256 cost = sale.quote(dao, 10e18);
+        assertEq(cost, 10e18); // 10 shares * 1 ETH/share
+    }
+
+    // ── XYK Curve Tests ──────────────────────────────────────────
+
+    function test_XYK_PriceIncreases() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(300)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+
+        // Buy 3 blocks and verify each costs more
+        uint256 cost1 = sale.quote(dao, 333e18);
+        vm.prank(bob);
+        sale.buy{value: cost1}(dao, 333e18);
+
+        uint256 cost2 = sale.quote(dao, 333e18);
+        vm.prank(bob);
+        sale.buy{value: cost2}(dao, 333e18);
+
+        uint256 cost3 = sale.quote(dao, 333e18);
+        vm.prank(bob);
+        sale.buy{value: cost3}(dao, 333e18);
+
+        assertGt(cost2, cost1);
+        assertGt(cost3, cost2);
+    }
+
+    function test_XYK_EndPriceApproachesTarget() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(301)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+
+        // Buy 999e18, then quote the last 1e18 — should be close to endPrice
+        vm.prank(bob);
+        sale.buy{value: sale.quote(dao, 999e18)}(dao, 999e18);
+
+        uint256 lastCost = sale.quote(dao, 1e18);
+        // cost for 1 token near the end ≈ endPrice / 1e18 = 0.015 ETH
+        // Allow 10% tolerance for rounding/curve shape
+        assertGt(lastCost, 0.013e18);
+        assertLt(lastCost, 0.017e18);
+    }
+
+    function test_XYK_BuyExactIn() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(302)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 1 ether}(dao);
+
+        uint256 received = Shares(sharesAddr).balanceOf(bob);
+        assertGt(received, 0);
+
+        uint256 ethSpent = 1000 ether - bob.balance;
+        assertLe(ethSpent, 1 ether);
+    }
+
+    function test_XYK_BuyExactIn_MatchesQuote() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(303)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 3 ether}(dao);
+        uint256 amountReceived = Shares(sharesAddr).balanceOf(bob);
+
+        // Deploy fresh XYK DAO and verify quote matches
+        address dao2 = _deployDAOWithCurve(
+            bytes32(uint256(304)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+        uint256 quotedCost = sale.quote(dao2, amountReceived);
+
+        // dao received ETH ≈ quotedCost (±1 wei from XYK rounding)
+        assertApproxEqAbs(dao.balance, quotedCost, 1);
+    }
+
+    function test_XYK_BuyExactIn_CapsToRemaining() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(305)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        // Buy 900 first
+        vm.prank(bob);
+        sale.buy{value: sale.quote(dao, 900e18)}(dao, 900e18);
+
+        // Overpay for remaining
+        vm.prank(carol);
+        sale.buyExactIn{value: 100 ether}(dao);
+
+        assertEq(Shares(sharesAddr).balanceOf(carol), 100e18);
+        assertGt(carol.balance, 900 ether);
+    }
+
+    function test_XYK_FlatCurve() public {
+        // XYK with startPrice == endPrice degenerates to flat
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(306)), 1e18, 1e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+
+        uint256 cost = sale.quote(dao, 10e18);
+        assertEq(cost, 10e18);
+    }
+
+    function test_XYK_BuyEntireCurve() public {
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(307)), 0.005e18, 0.015e18, 1000e18, BondingCurveSale.CurveType.XYK
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        uint256 cost = sale.quote(dao, 1000e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(dao, 1000e18);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), 1000e18);
+        // XYK total cost should be between linear endpoints
+        assertGt(cost, 5e18); // > 5 ETH (all at startPrice)
+        assertLt(cost, 15e18); // < 15 ETH (all at endPrice)
+    }
+
+    function test_XYK_HighRatio() public {
+        // 10x price increase (larger ratio stress test)
+        address dao = _deployDAOWithCurve(
+            bytes32(uint256(308)), 0.01e18, 0.1e18, 500e18, BondingCurveSale.CurveType.XYK
+        );
+        address sharesAddr = address(Moloch(payable(dao)).shares());
+
+        uint256 cost = sale.quote(dao, 500e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(dao, 500e18);
+
+        assertEq(Shares(sharesAddr).balanceOf(bob), 500e18);
+        assertGt(cost, 5e18); // > 500 * 0.01
+        assertLt(cost, 50e18); // < 500 * 0.1
     }
 }
 

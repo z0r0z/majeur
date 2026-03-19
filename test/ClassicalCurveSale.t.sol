@@ -1,0 +1,1147 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {Test} from "../lib/forge-std/src/Test.sol";
+import {ClassicalCurveSale, IZAMM} from "../src/peripheral/ClassicalCurveSale.sol";
+
+contract ClassicalCurveSaleTest is Test {
+    ClassicalCurveSale internal sale;
+    MockToken internal token;
+
+    address internal alice = address(0xA11CE); // creator
+    address internal bob = address(0x0B0B); // buyer
+    address internal carol = address(0xCA201); // buyer 2
+
+    uint256 constant CAP = 1000e18;
+    uint256 constant LP_TOKENS = 500e18;
+    uint256 constant START_PRICE = 0.005e18;
+    uint256 constant END_PRICE = 0.02e18; // 4x
+    uint16 constant FEE_BPS = 100; // 1%
+    ClassicalCurveSale.CreatorFee internal NO_CREATOR_FEE;
+
+    function setUp() public {
+        vm.deal(alice, 100 ether);
+        vm.deal(bob, 1000 ether);
+        vm.deal(carol, 1000 ether);
+        sale = new ClassicalCurveSale();
+        token = new MockToken("Test", "TST", 18);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────
+
+    function _configure() internal returns (address) {
+        return _configureWith(START_PRICE, END_PRICE, FEE_BPS, 0, LP_TOKENS, alice);
+    }
+
+    function _configureWith(
+        uint256 startPrice,
+        uint256 endPrice,
+        uint16 feeBps,
+        uint256 graduationTarget,
+        uint256 lpTokens,
+        address lpRecipient
+    ) internal returns (address tkn) {
+        tkn = address(token);
+        token.mint(alice, CAP + lpTokens);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP + lpTokens);
+        sale.configure(
+            alice,
+            tkn,
+            CAP,
+            startPrice,
+            endPrice,
+            feeBps,
+            graduationTarget,
+            lpTokens,
+            lpRecipient,
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function _configureFlat() internal returns (address) {
+        return _configureWith(1e18, 1e18, 0, 0, 0, address(0));
+    }
+
+    function _configureNoFee() internal returns (address) {
+        return _configureWith(START_PRICE, END_PRICE, 0, 0, 0, address(0));
+    }
+
+    // ── Configure ───────────────────────────────────────────────
+
+    function test_Configure_StoresState() public {
+        address tkn = _configure();
+        (
+            address creator,
+            uint256 cap,
+            uint256 sold,
+            uint256 virtualReserve,
+            uint256 startPrice,
+            uint256 endPrice,
+            uint16 feeBps,
+            uint16 poolFeeBps,
+            uint256 raisedETH,
+            uint256 graduationTarget,
+            uint256 lpTokens,
+            address lpRecipient,
+            bool graduated,
+            bool seeded
+        ) = sale.curves(tkn);
+
+        assertEq(creator, alice);
+        assertEq(cap, CAP);
+        assertEq(sold, 0);
+        assertGt(virtualReserve, CAP);
+        assertEq(startPrice, START_PRICE);
+        assertEq(endPrice, END_PRICE);
+        assertEq(feeBps, FEE_BPS);
+        assertEq(poolFeeBps, 0);
+        assertEq(raisedETH, 0);
+        assertEq(graduationTarget, 0);
+        assertEq(lpTokens, LP_TOKENS);
+        assertEq(lpRecipient, alice);
+        assertFalse(graduated);
+        assertFalse(seeded);
+    }
+
+    function test_Configure_PullsTokens() public {
+        _configure();
+        assertEq(token.balanceOf(address(sale)), CAP + LP_TOKENS);
+        assertEq(token.balanceOf(alice), 0);
+    }
+
+    function test_Configure_RevertIf_ZeroToken() public {
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(0),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+    }
+
+    function test_Configure_RevertIf_ZeroCap() public {
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(token),
+            0,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+    }
+
+    function test_Configure_RevertIf_ZeroStartPrice() public {
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice, address(token), CAP, 0, END_PRICE, FEE_BPS, 0, 0, address(0), 0, NO_CREATOR_FEE
+        );
+    }
+
+    function test_Configure_RevertIf_EndBelowStart() public {
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(token),
+            CAP,
+            END_PRICE,
+            START_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+    }
+
+    function test_Configure_RevertIf_FeeTooHigh() public {
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(token),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            10_001,
+            0,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_Configure_RevertIf_AlreadyConfigured() public {
+        _configure();
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        vm.expectRevert(ClassicalCurveSale.AlreadyConfigured.selector);
+        sale.configure(
+            alice,
+            address(token),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            0,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_Configure_RevertIf_GraduationTargetUnachievable() public {
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        // Max ETH from full cap is well under 1000 ETH
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.configure(
+            alice,
+            address(token),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            FEE_BPS,
+            1000 ether,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    function test_Configure_GraduationTarget_AtMax() public {
+        // Compute max ETH manually: configure with graduationTarget = quote(full cap)
+        address tkn = _configureNoFee();
+        uint256 maxETH = sale.quote(tkn, CAP);
+
+        // Deploy a new token with that exact target — should succeed
+        MockToken token2 = new MockToken("T2", "T2", 18);
+        token2.mint(alice, CAP);
+        vm.startPrank(alice);
+        token2.approve(address(sale), CAP);
+        sale.configure(
+            alice,
+            address(token2),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            0,
+            maxETH,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+    }
+
+    // ── Quote ───────────────────────────────────────────────────
+
+    function test_Quote_IncreasesWithSold() public {
+        address tkn = _configureNoFee();
+        uint256 q1 = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: q1}(tkn, 100e18, 0);
+
+        uint256 q2 = sale.quote(tkn, 100e18);
+        assertGt(q2, q1);
+    }
+
+    function test_Quote_CapsToRemaining() public {
+        address tkn = _configureNoFee();
+        vm.prank(bob);
+        sale.buy{value: sale.quote(tkn, 900e18)}(tkn, 900e18, 0);
+
+        uint256 q200 = sale.quote(tkn, 200e18);
+        uint256 q100 = sale.quote(tkn, 100e18);
+        assertEq(q200, q100); // both cap to 100 remaining
+    }
+
+    function test_QuoteSell_MatchesBuyReverse() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        uint256 sellProceeds = sale.quoteSell(tkn, 100e18);
+        assertEq(sellProceeds, cost);
+    }
+
+    function test_Quote_RevertIf_NotConfigured() public {
+        vm.expectRevert(ClassicalCurveSale.NotConfigured.selector);
+        sale.quote(address(0xdead), 1e18);
+    }
+
+    function test_Quote_RevertIf_ZeroAmount() public {
+        address tkn = _configureNoFee();
+        // Buy all
+        vm.prank(bob);
+        sale.buy{value: sale.quote(tkn, CAP)}(tkn, CAP, 0);
+
+        vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
+        sale.quote(tkn, 1e18);
+    }
+
+    // ── Buy (exact-out) ─────────────────────────────────────────
+
+    function test_Buy_TransfersTokens() public {
+        address tkn = _configure();
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 fee = (cost * FEE_BPS) / 10_000;
+
+        vm.prank(bob);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0);
+
+        assertEq(token.balanceOf(bob), 100e18);
+    }
+
+    function test_Buy_ChargesFeeToCreator() public {
+        address tkn = _configure();
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 fee = (cost * FEE_BPS) / 10_000;
+        uint256 aliceBefore = alice.balance;
+
+        vm.prank(bob);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0);
+
+        assertEq(alice.balance - aliceBefore, fee);
+    }
+
+    function test_Buy_RefundsExcess() public {
+        address tkn = _configure();
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 fee = (cost * FEE_BPS) / 10_000;
+        uint256 bobBefore = bob.balance;
+
+        vm.prank(bob);
+        sale.buy{value: 10 ether}(tkn, 100e18, 0);
+
+        assertEq(bobBefore - bob.balance, cost + fee);
+    }
+
+    function test_Buy_CapsToRemaining() public {
+        address tkn = _configure();
+        uint256 cost900 = sale.quote(tkn, 900e18);
+        uint256 fee900 = (cost900 * FEE_BPS) / 10_000;
+        vm.prank(bob);
+        sale.buy{value: cost900 + fee900}(tkn, 900e18, 0);
+
+        vm.prank(carol);
+        sale.buy{value: 50 ether}(tkn, 200e18, 0); // only 100 remain
+
+        assertEq(token.balanceOf(carol), 100e18);
+    }
+
+    function test_Buy_UpdatesState() public {
+        address tkn = _configure();
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 fee = (cost * FEE_BPS) / 10_000;
+
+        vm.prank(bob);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0);
+
+        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        assertEq(sold, 100e18);
+        assertEq(raisedETH, cost);
+    }
+
+    function test_Buy_RevertIf_NotConfigured() public {
+        vm.expectRevert(ClassicalCurveSale.NotConfigured.selector);
+        vm.prank(bob);
+        sale.buy{value: 1 ether}(address(0xdead), 1e18, 0);
+    }
+
+    function test_Buy_RevertIf_ZeroAmount() public {
+        address tkn = _configure();
+        vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
+        vm.prank(bob);
+        sale.buy{value: 1 ether}(tkn, 0, 0);
+    }
+
+    function test_Buy_RevertIf_InsufficientPayment() public {
+        address tkn = _configure();
+        uint256 cost = sale.quote(tkn, 100e18);
+        // Don't include fee
+        vm.expectRevert(ClassicalCurveSale.InsufficientPayment.selector);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+    }
+
+    function test_Buy_RevertIf_Graduated() public {
+        address tkn = _configureWith(START_PRICE, END_PRICE, 0, 1 ether, 0, address(0));
+        uint256 cost = sale.quote(tkn, CAP);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, CAP, 0); // triggers graduation
+
+        vm.expectRevert(ClassicalCurveSale.Graduated.selector);
+        vm.prank(carol);
+        sale.buy{value: 1 ether}(tkn, 1e18, 0);
+    }
+
+    function test_Buy_RevertIf_Slippage() public {
+        address tkn = _configure();
+        uint256 cost900 = sale.quote(tkn, 900e18);
+        uint256 fee900 = (cost900 * FEE_BPS) / 10_000;
+        vm.prank(bob);
+        sale.buy{value: cost900 + fee900}(tkn, 900e18, 0);
+
+        // Only 100 remain, but we want at least 200
+        vm.expectRevert(ClassicalCurveSale.Slippage.selector);
+        vm.prank(carol);
+        sale.buy{value: 50 ether}(tkn, 200e18, 200e18);
+    }
+
+    // ── BuyExactIn ──────────────────────────────────────────────
+
+    function test_BuyExactIn_BasicXYK() public {
+        address tkn = _configureNoFee();
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 1 ether}(tkn, 0);
+
+        uint256 received = token.balanceOf(bob);
+        assertGt(received, 0);
+        assertLe(bob.balance, 999 ether);
+    }
+
+    function test_BuyExactIn_MatchesQuote() public {
+        address tkn = _configureNoFee();
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 3 ether}(tkn, 0);
+        uint256 received = token.balanceOf(bob);
+
+        // Quote the same amount on a fresh curve
+        MockToken token2 = new MockToken("T2", "T2", 18);
+        token2.mint(alice, CAP);
+        vm.startPrank(alice);
+        token2.approve(address(sale), CAP);
+        sale.configure(
+            alice,
+            address(token2),
+            CAP,
+            START_PRICE,
+            END_PRICE,
+            0,
+            0,
+            0,
+            address(0),
+            0,
+            NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+
+        uint256 quotedCost = sale.quote(address(token2), received);
+        // Should match within 1 wei (rounding)
+        assertApproxEqAbs(address(sale).balance, quotedCost, 1);
+    }
+
+    function test_BuyExactIn_FlatCurve() public {
+        address tkn = _configureFlat();
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 7 ether}(tkn, 0);
+
+        assertEq(token.balanceOf(bob), 7e18);
+    }
+
+    function test_BuyExactIn_WithFee() public {
+        address tkn = _configure(); // 1% fee
+        uint256 bobBefore = bob.balance;
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 1 ether}(tkn, 0);
+
+        uint256 received = token.balanceOf(bob);
+        assertGt(received, 0);
+        // Bob should spend exactly 1 ETH (no refund expected for exact-in minus dust)
+        assertLe(bobBefore - bob.balance, 1 ether);
+    }
+
+    function test_BuyExactIn_CapsToRemaining() public {
+        address tkn = _configureNoFee();
+        vm.prank(bob);
+        sale.buy{value: sale.quote(tkn, 900e18)}(tkn, 900e18, 0);
+
+        uint256 carolBefore = carol.balance;
+        vm.prank(carol);
+        sale.buyExactIn{value: 100 ether}(tkn, 0);
+
+        assertEq(token.balanceOf(carol), 100e18);
+        assertGt(carol.balance, carolBefore - 10 ether); // large refund
+    }
+
+    function test_BuyExactIn_RevertIf_ZeroValue() public {
+        address tkn = _configure();
+        vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
+        vm.prank(bob);
+        sale.buyExactIn(tkn, 0);
+    }
+
+    function test_BuyExactIn_RevertIf_Slippage() public {
+        address tkn = _configureNoFee();
+
+        // Send small amount but require many tokens
+        vm.expectRevert(ClassicalCurveSale.Slippage.selector);
+        vm.prank(bob);
+        sale.buyExactIn{value: 0.001 ether}(tkn, 1000e18);
+    }
+
+    // ── Sell ────────────────────────────────────────────────────
+
+    function test_Sell_ReturnsETH() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        sale.sell(tkn, 100e18, 0);
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(bob), 0);
+        assertEq(bob.balance - bobBefore, cost); // full proceeds (no fee)
+    }
+
+    function test_Sell_WithFee() public {
+        address tkn = _configure(); // 1% fee
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 buyFee = (cost * FEE_BPS) / 10_000;
+        vm.prank(bob);
+        sale.buy{value: cost + buyFee}(tkn, 100e18, 0);
+
+        // Quote sell proceeds before actually selling
+        uint256 rawProceeds = sale.quoteSell(tkn, 100e18);
+        uint256 sellFee = (rawProceeds * FEE_BPS) / 10_000;
+
+        uint256 aliceBefore = alice.balance;
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        sale.sell(tkn, 100e18, 0);
+        vm.stopPrank();
+
+        uint256 bobGot = bob.balance - bobBefore;
+        uint256 aliceGot = alice.balance - aliceBefore;
+        assertEq(bobGot, rawProceeds - sellFee);
+        assertEq(aliceGot, sellFee);
+    }
+
+    function test_Sell_UpdatesState() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 50e18);
+        sale.sell(tkn, 50e18, 0);
+        vm.stopPrank();
+
+        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        assertEq(sold, 50e18);
+    }
+
+    function test_Sell_RevertIf_Graduated() public {
+        address tkn = _configureWith(START_PRICE, END_PRICE, 0, 1 ether, 0, address(0));
+        uint256 cost = sale.quote(tkn, CAP);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, CAP, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 1e18);
+        vm.expectRevert(ClassicalCurveSale.Graduated.selector);
+        sale.sell(tkn, 1e18, 0);
+        vm.stopPrank();
+    }
+
+    function test_Sell_RevertIf_Slippage() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        vm.expectRevert(ClassicalCurveSale.Slippage.selector);
+        sale.sell(tkn, 100e18, cost + 1); // minProceeds too high
+        vm.stopPrank();
+    }
+
+    function test_Sell_RevertIf_ZeroAmount() public {
+        address tkn = _configure();
+        vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
+        sale.sell(tkn, 0, 0);
+    }
+
+    // ── SellExactOut ────────────────────────────────────────────
+
+    function test_SellExactOut_ExactETH() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 200e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 200e18, 0);
+
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 200e18);
+        sale.sellExactOut(tkn, 0.5 ether, 200e18);
+        vm.stopPrank();
+
+        // Bob gets >= 0.5 ETH (ceil rounding on inverse may yield 1-2 wei extra)
+        assertGe(bob.balance - bobBefore, 0.5 ether);
+        assertLe(bob.balance - bobBefore, 0.5 ether + 2);
+    }
+
+    function test_SellExactOut_WithFee() public {
+        address tkn = _configure(); // 1% fee
+        uint256 cost = sale.quote(tkn, 500e18);
+        uint256 buyFee = (cost * FEE_BPS) / 10_000;
+        vm.prank(bob);
+        sale.buy{value: cost + buyFee}(tkn, 500e18, 0);
+
+        uint256 ethWant = 0.5 ether;
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 500e18);
+        sale.sellExactOut(tkn, ethWant, 500e18);
+        vm.stopPrank();
+
+        // Bob gets >= ethWant (ceil rounding on inverse may yield 1-2 wei extra)
+        assertGe(bob.balance - bobBefore, ethWant);
+        assertLe(bob.balance - bobBefore, ethWant + 3);
+    }
+
+    function test_SellExactOut_RevertIf_Slippage() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        // Ask for small ethOut but with maxTokens = 1
+        vm.expectRevert(ClassicalCurveSale.Slippage.selector);
+        sale.sellExactOut(tkn, 0.1 ether, 1e18);
+        vm.stopPrank();
+    }
+
+    function test_SellExactOut_RevertIf_InsufficientLiquidity() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        // Ask for way more ETH than raisedETH
+        vm.expectRevert(ClassicalCurveSale.InsufficientLiquidity.selector);
+        sale.sellExactOut(tkn, 1000 ether, type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function test_SellExactOut_RevertIf_ZeroEthOut() public {
+        address tkn = _configure();
+        vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
+        sale.sellExactOut(tkn, 0, 0);
+    }
+
+    // ── Buy/Sell Roundtrip ──────────────────────────────────────
+
+    function test_BuySell_Roundtrip_NoFee() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        sale.sell(tkn, 100e18, 0);
+        vm.stopPrank();
+
+        // Full roundtrip with no fee — should get all ETH back
+        assertEq(bob.balance - bobBefore, cost);
+        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        assertEq(sold, 0);
+        assertEq(raisedETH, 0);
+    }
+
+    function test_BuySell_PartialSell() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 50e18);
+        sale.sell(tkn, 50e18, 0);
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(bob), 50e18);
+        (,, uint256 sold,,,,,,,,,,,) = sale.curves(tkn);
+        assertEq(sold, 50e18);
+    }
+
+    // ── Graduation ──────────────────────────────────────────────
+
+    function test_Graduation_ByTarget() public {
+        // Set graduation target to ~50% of full curve ETH
+        address tkn = _configureNoFee();
+        uint256 halfCost = sale.quote(tkn, 500e18);
+
+        // Redeploy with target
+        token = new MockToken("T2", "T2", 18);
+        tkn = address(token);
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        sale.configure(
+            alice, tkn, CAP, START_PRICE, END_PRICE, 0, halfCost, 0, address(0), 0, NO_CREATOR_FEE
+        );
+        vm.stopPrank();
+
+        assertFalse(sale.graduable(tkn));
+
+        // Buy enough to trigger
+        vm.prank(bob);
+        sale.buy{value: 50 ether}(tkn, 500e18, 0);
+
+        assertTrue(sale.graduable(tkn));
+    }
+
+    function test_Graduation_ByFullCap() public {
+        // graduationTarget = 0 means must sell full cap
+        address tkn = _configureWith(START_PRICE, END_PRICE, 0, 0, 0, address(0));
+        uint256 cost = sale.quote(tkn, CAP);
+
+        assertFalse(sale.graduable(tkn));
+
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, CAP, 0);
+
+        assertTrue(sale.graduable(tkn));
+    }
+
+    function test_Graduation_FreezesTrading() public {
+        address tkn = _configureWith(START_PRICE, END_PRICE, 0, 1 ether, 0, address(0));
+        uint256 cost = sale.quote(tkn, CAP);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, CAP, 0);
+
+        vm.expectRevert(ClassicalCurveSale.Graduated.selector);
+        vm.prank(carol);
+        sale.buy{value: 1 ether}(tkn, 1e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 1e18);
+        vm.expectRevert(ClassicalCurveSale.Graduated.selector);
+        sale.sell(tkn, 1e18, 0);
+        vm.stopPrank();
+    }
+
+    function test_Graduable_FalseBeforeGrad() public {
+        address tkn = _configure();
+        assertFalse(sale.graduable(tkn));
+    }
+
+    function test_Graduable_FalseForUnconfigured() public {
+        assertFalse(sale.graduable(address(0xdead)));
+    }
+
+    // ── Flat Curve ──────────────────────────────────────────────
+
+    function test_FlatCurve_ConstantPrice() public {
+        address tkn = _configureFlat();
+
+        uint256 cost1 = sale.quote(tkn, 100e18);
+        assertEq(cost1, 100e18); // 100 tokens * 1 ETH
+
+        vm.prank(bob);
+        sale.buy{value: cost1}(tkn, 100e18, 0);
+
+        uint256 cost2 = sale.quote(tkn, 100e18);
+        assertEq(cost2, 100e18); // same price
+    }
+
+    function test_FlatCurve_BuyExactIn() public {
+        address tkn = _configureFlat();
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 7 ether}(tkn, 0);
+
+        assertEq(token.balanceOf(bob), 7e18);
+    }
+
+    function test_FlatCurve_Sell() public {
+        address tkn = _configureFlat();
+        vm.prank(bob);
+        sale.buy{value: 10 ether}(tkn, 10e18, 0);
+
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 5e18);
+        sale.sell(tkn, 5e18, 0);
+        vm.stopPrank();
+
+        assertEq(bob.balance - bobBefore, 5 ether);
+    }
+
+    function test_FlatCurve_SellExactOut() public {
+        address tkn = _configureFlat();
+        vm.prank(bob);
+        sale.buy{value: 10 ether}(tkn, 10e18, 0);
+
+        uint256 bobBefore = bob.balance;
+        vm.startPrank(bob);
+        token.approve(address(sale), 10e18);
+        sale.sellExactOut(tkn, 3 ether, 10e18);
+        vm.stopPrank();
+
+        assertEq(bob.balance - bobBefore, 3 ether);
+    }
+
+    // ── XYK Curve Math ──────────────────────────────────────────
+
+    function test_XYK_PriceIncreasesMonotonically() public {
+        address tkn = _configureNoFee();
+
+        uint256 prev;
+        for (uint256 i; i < 10; i++) {
+            uint256 cost = sale.quote(tkn, 100e18);
+            assertGt(cost, prev);
+            prev = cost;
+            vm.prank(bob);
+            sale.buy{value: cost}(tkn, 100e18, 0);
+        }
+    }
+
+    function test_XYK_FullCurveCost() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, CAP);
+
+        // Cost should be between cap*startPrice and cap*endPrice
+        uint256 minCost = CAP * START_PRICE / 1e18;
+        uint256 maxCost = CAP * END_PRICE / 1e18;
+        assertGt(cost, minCost);
+        assertLt(cost, maxCost);
+    }
+
+    function test_XYK_EndPriceApproachesTarget() public {
+        address tkn = _configureNoFee();
+        vm.prank(bob);
+        sale.buy{value: sale.quote(tkn, 999e18)}(tkn, 999e18, 0);
+
+        uint256 lastCost = sale.quote(tkn, 1e18);
+        // Should be near END_PRICE / 1e18 = 0.02 ETH
+        assertGt(lastCost, 0.018e18);
+        assertLt(lastCost, 0.022e18);
+    }
+
+    // ── Creator Governance ──────────────────────────────────────
+
+    function test_SetCreatorFee() public {
+        address tkn = _configure();
+        vm.prank(alice);
+        sale.setCreatorFee(tkn, carol, 500, 500, true, false);
+
+        (address ben, uint16 buyBps, uint16 sellBps, bool buyOnInput, bool sellOnInput) =
+            sale.creatorFees(tkn);
+        assertEq(ben, carol);
+        assertEq(buyBps, 500);
+        assertEq(sellBps, 500);
+        assertTrue(buyOnInput);
+        assertFalse(sellOnInput);
+    }
+
+    function test_SetCreatorFee_RevertIf_Unauthorized() public {
+        address tkn = _configure();
+        vm.prank(bob);
+        vm.expectRevert(ClassicalCurveSale.Unauthorized.selector);
+        sale.setCreatorFee(tkn, carol, 100, 100, true, true);
+    }
+
+    function test_SetCreatorFee_RevertIf_TooHigh() public {
+        address tkn = _configure();
+        vm.prank(alice);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.setCreatorFee(tkn, carol, 1001, 100, true, true); // > MAX_CREATOR_FEE_BPS
+    }
+
+    function test_SetCreatorFee_RevertIf_BeneficiaryZeroWithFees() public {
+        address tkn = _configure();
+        vm.prank(alice);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.setCreatorFee(tkn, address(0), 100, 100, true, true);
+    }
+
+    function test_SetCreatorFee_RevertIf_BeneficiarySetNoFees() public {
+        address tkn = _configure();
+        vm.prank(alice);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.setCreatorFee(tkn, carol, 0, 0, true, true);
+    }
+
+    function test_SetCreatorFee_DisableByZeroBeneficiary() public {
+        address tkn = _configure();
+        vm.prank(alice);
+        sale.setCreatorFee(tkn, carol, 100, 100, true, true);
+
+        vm.prank(alice);
+        sale.setCreatorFee(tkn, address(0), 0, 0, false, false);
+
+        (address ben,,,,) = sale.creatorFees(tkn);
+        assertEq(ben, address(0));
+    }
+
+    // ── Hook ────────────────────────────────────────────────────
+
+    function test_HookFeeOrHook() public view {
+        uint256 val = sale.hookFeeOrHook();
+        assertEq(val & (1 << 255), 1 << 255); // FLAG_BEFORE set
+        assertEq(val & ~(uint256(1) << 255), uint256(uint160(address(sale))));
+    }
+
+    function test_PoolKeyOf() public view {
+        address tkn = address(0x1234);
+        (IZAMM.PoolKey memory key, uint256 poolId) = sale.poolKeyOf(tkn);
+        assertEq(key.token0, address(0));
+        assertEq(key.token1, tkn);
+        assertEq(key.feeOrHook, sale.hookFeeOrHook());
+        assertEq(poolId, uint256(keccak256(abi.encode(key))));
+    }
+
+    function test_BeforeAction_RevertIf_NotZAMM() public {
+        vm.expectRevert(ClassicalCurveSale.Unauthorized.selector);
+        sale.beforeAction(bytes4(0), 0, address(0), "");
+    }
+
+    // ── Multicall ───────────────────────────────────────────────
+
+    function test_Multicall_BatchSetFees() public {
+        address tkn = _configure();
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeCall(sale.setCreatorFee, (tkn, carol, 200, 300, true, false));
+
+        vm.prank(alice);
+        sale.multicall(data);
+
+        (address ben, uint16 buyBps, uint16 sellBps,,) = sale.creatorFees(tkn);
+        assertEq(ben, carol);
+        assertEq(buyBps, 200);
+        assertEq(sellBps, 300);
+    }
+
+    // ── Edge Cases ──────────────────────────────────────────────
+
+    function test_SmallBuy() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 1);
+        assertGt(cost, 0);
+
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 1, 0);
+        assertEq(token.balanceOf(bob), 1);
+    }
+
+    function test_LargePriceRatio() public {
+        // 100x price increase
+        address tkn = address(token);
+        token.mint(alice, CAP);
+        vm.startPrank(alice);
+        token.approve(address(sale), CAP);
+        sale.configure(alice, tkn, CAP, 0.001e18, 0.1e18, 0, 0, 0, address(0), 0, NO_CREATOR_FEE);
+        vm.stopPrank();
+
+        uint256 cost = sale.quote(tkn, CAP);
+        assertGt(cost, CAP * 0.001e18 / 1e18);
+        assertLt(cost, CAP * 0.1e18 / 1e18);
+
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, CAP, 0);
+        assertEq(token.balanceOf(bob), CAP);
+    }
+
+    function test_SellInsufficientLiquidity() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 10e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 10e18, 0);
+
+        // Try to sell way more than was bought (sold is only 10e18)
+        // Caps to c.sold, so should work but only sell 10e18
+        vm.startPrank(bob);
+        token.approve(address(sale), 10e18);
+        sale.sell(tkn, 20e18, 0); // caps to 10e18
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(bob), 0);
+    }
+
+    // ── Observations ──────────────────────────────────────────
+
+    function test_Observations_RecordedOnBuyAndSell() public {
+        address tkn = _configureNoFee();
+        assertEq(sale.observationCount(tkn), 0);
+
+        // Buy 100 tokens
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0);
+
+        assertEq(sale.observationCount(tkn), 1);
+
+        // Decode and verify
+        uint256[] memory obs = sale.observe(tkn, 0, 1);
+        (uint128 price, uint80 volume, uint40 ts, bool isSell) = sale.decodeObservation(obs[0]);
+        assertEq(price, uint128(cost * 1e18 / 100e18));
+        assertEq(volume, uint80(cost));
+        assertEq(ts, uint40(block.timestamp));
+        assertFalse(isSell);
+
+        // Sell 50 tokens
+        vm.startPrank(bob);
+        token.approve(address(sale), 50e18);
+        sale.sell(tkn, 50e18, 0);
+        vm.stopPrank();
+
+        assertEq(sale.observationCount(tkn), 2);
+
+        obs = sale.observe(tkn, 1, 2);
+        (,,, isSell) = sale.decodeObservation(obs[0]);
+        assertTrue(isSell);
+    }
+
+    function test_Observations_BuyExactIn() public {
+        address tkn = _configureNoFee();
+
+        vm.prank(bob);
+        sale.buyExactIn{value: 1 ether}(tkn, 0);
+
+        assertEq(sale.observationCount(tkn), 1);
+        uint256[] memory obs = sale.observe(tkn, 0, 1);
+        (,,, bool isSell) = sale.decodeObservation(obs[0]);
+        assertFalse(isSell);
+    }
+
+    function test_Observations_SellExactOut() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 200e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 200e18, 0);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 200e18);
+        sale.sellExactOut(tkn, 0.5 ether, 200e18);
+        vm.stopPrank();
+
+        assertEq(sale.observationCount(tkn), 2); // buy + sell
+        uint256[] memory obs = sale.observe(tkn, 1, 2);
+        (,,, bool isSell) = sale.decodeObservation(obs[0]);
+        assertTrue(isSell);
+    }
+
+    function test_Observations_RangeQuery() public {
+        address tkn = _configureNoFee();
+
+        // Make 5 buys
+        for (uint256 i; i < 5; i++) {
+            uint256 cost = sale.quote(tkn, 100e18);
+            vm.prank(bob);
+            sale.buy{value: cost}(tkn, 100e18, 0);
+        }
+        assertEq(sale.observationCount(tkn), 5);
+
+        // Query subset
+        uint256[] memory obs = sale.observe(tkn, 1, 4);
+        assertEq(obs.length, 3);
+
+        // Prices should be increasing (XYK curve)
+        (uint128 p1,,,) = sale.decodeObservation(obs[0]);
+        (uint128 p2,,,) = sale.decodeObservation(obs[1]);
+        (uint128 p3,,,) = sale.decodeObservation(obs[2]);
+        assertGt(p2, p1);
+        assertGt(p3, p2);
+
+        // Out-of-bounds to is capped
+        uint256[] memory all = sale.observe(tkn, 0, 999);
+        assertEq(all.length, 5);
+
+        // Empty range returns empty
+        uint256[] memory empty = sale.observe(tkn, 3, 2);
+        assertEq(empty.length, 0);
+    }
+
+    function test_ReceiveETH() public {
+        // Contract should accept ETH
+        (bool ok,) = address(sale).call{value: 1 ether}("");
+        assertTrue(ok);
+    }
+}
+
+contract MockToken {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint256 public totalSupply;
+
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}

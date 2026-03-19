@@ -82,8 +82,8 @@ IZAMM constant ZAMM = IZAMM(0x000000000000040470635EB91b7CE4D132D616eD);
 /// @dev Hook encoding flag — only beforeAction is used (afterAction is not registered).
 uint256 constant FLAG_BEFORE = 1 << 255;
 
-/// @dev Default swap fee when none configured (30 bps = 0.30%).
-uint16 constant DEFAULT_FEE_BPS = 30;
+/// @dev Default swap fee when none configured (25 bps = 0.25%).
+uint16 constant DEFAULT_FEE_BPS = 25;
 
 /// @title LPSeedSwapHook
 /// @notice Singleton hook for seeding ZAMM liquidity from DAO treasury tokens.
@@ -111,7 +111,7 @@ uint16 constant DEFAULT_FEE_BPS = 30;
 ///     lpSeed.seedable(dao)          // view: check if conditions are met
 ///
 ///   DAO governance:
-///     lpSeed.cancel()               // cancel seeding, DAO reclaims allowances
+///     lpSeed.cancel()               // cancel seeding (reclaim allowances separately)
 ///     lpSeed.setFee(feeBps)         // update LP swap fee for the pool
 ///     lpSeed.setLaunchFee(bps, t)   // set launch premium that decays to feeBps
 ///     lpSeed.setDaoFee(...)         // set DAO revenue fee on routed swaps
@@ -1064,7 +1064,7 @@ function safeTransferFrom(address token, address to, uint256 amount) {
     }
 }
 
-/// @dev Ensures approval to spender is sufficient (>= type(uint128).max threshold).
+/// @dev Ensures approval to spender is sufficient (> type(uint128).max threshold).
 ///      Works with USDT-style tokens because the first approval starts from 0,
 ///      and subsequent calls skip the branch since allowance stays above threshold.
 function ensureApproval(address token, address spender) {

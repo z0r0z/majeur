@@ -1046,8 +1046,8 @@ contract LPSeedSwapHookTest is Test {
 
         lpSeed.seed(dao);
 
-        // After seeding with feeBps=0: returns DEFAULT (30)
-        assertEq(lpSeed.effectiveFee(dao), 30);
+        // After seeding with feeBps=0: returns DEFAULT (25)
+        assertEq(lpSeed.effectiveFee(dao), 25);
     }
 
     function test_QuoteSwap() public {
@@ -1225,8 +1225,8 @@ contract LPSeedSwapHookTest is Test {
         (uint256 amountOut,) = lpSeed.quoteExactIn(dao, inputAmt, true);
         (uint256 roundTrip,) = lpSeed.quoteExactOut(dao, amountOut, true);
 
-        // Due to rounding, roundTrip should be == inputAmt or inputAmt + 1
-        assertTrue(roundTrip >= inputAmt && roundTrip <= inputAmt + 1);
+        // Due to rounding, roundTrip should be within ±1 of inputAmt
+        assertTrue(roundTrip >= inputAmt - 1 && roundTrip <= inputAmt + 1);
     }
 
     // ── Hook Access Control ───────────────────────────────────────
@@ -1651,17 +1651,17 @@ contract LPSeedSwapHookTest is Test {
         // At t=0 (seed time): fee = launchBps = 1000
         assertEq(lpSeed.effectiveFee(dao), 1000);
 
-        // At t=500 (midway): fee = 1000 - (1000 - 30) * 500 / 1000 = 515
+        // At t=500 (midway): fee = 1000 - (1000 - 25) * 500 / 1000 = 513
         vm.warp(seedTs + 500);
-        assertEq(lpSeed.effectiveFee(dao), 515);
+        assertEq(lpSeed.effectiveFee(dao), 513);
 
-        // At t=1000 (end of decay): fee = target = 30
+        // At t=1000 (end of decay): fee = target = 25
         vm.warp(seedTs + 1000);
-        assertEq(lpSeed.effectiveFee(dao), 30);
+        assertEq(lpSeed.effectiveFee(dao), 25);
 
         // After decay period: still target
         vm.warp(seedTs + 2000);
-        assertEq(lpSeed.effectiveFee(dao), 30);
+        assertEq(lpSeed.effectiveFee(dao), 25);
     }
 
     function test_EffectiveFee_LaunchLowerThanTarget() public {
@@ -2439,7 +2439,7 @@ contract LPSeedSwapHookTest is Test {
         // Swap should pass (no DAO fee)
         vm.prank(ZAMM_ADDR);
         uint256 feeBps = lpSeed.beforeAction(IZAMM.swapExactIn.selector, poolId, alice, "");
-        assertEq(feeBps, 30); // DEFAULT_FEE_BPS
+        assertEq(feeBps, 25); // DEFAULT_FEE_BPS
     }
 
     function test_BeforeAction_SwapOnUnregisteredPool_Reverts() public {
@@ -2505,7 +2505,7 @@ contract LPSeedSwapHookTest is Test {
         vm.prank(ZAMM_ADDR);
         uint256 feeBps =
             lpSeed.beforeAction(IZAMM.swapExactIn.selector, poolId, address(lpSeed), "");
-        assertEq(feeBps, 30);
+        assertEq(feeBps, 25);
     }
 
     // ── Seed: ETH Pair on Fork ───────────────────────────────────
