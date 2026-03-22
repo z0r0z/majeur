@@ -73,7 +73,7 @@ contract ClassicalCurveSaleForkTest is Test {
         uint256 cost = sale.quote(token, cap);
         uint256 fee = (cost * feeBps) / 10_000;
         vm.prank(alice);
-        sale.buy{value: cost + fee}(token, cap, 0);
+        sale.buy{value: cost + fee}(token, cap, 0, block.timestamp);
 
         assertTrue(sale.graduable(token));
 
@@ -89,15 +89,19 @@ contract ClassicalCurveSaleForkTest is Test {
         assertEq(ERC20(token).totalSupply(), 1000e18);
         assertEq(ERC20(token).balanceOf(address(sale)), 1000e18);
 
-        (address c, uint256 cap,,,,,,,,,,,,) = sale.curves(token);
+        (address c, uint256 cap,,,,,,,,,,,,,,,,) = sale.curves(token);
         assertEq(c, creator);
         assertEq(cap, 1000e18);
     }
 
-    function test_Launch_ExcessToCreator() public {
+    function test_Launch_ExcessEscrowed() public {
         address token = _launch(1000e18, 0.01e18, 0.01e18, 0, 0, 0, 500e18);
-        assertEq(ERC20(token).balanceOf(creator), 500e18);
-        assertEq(ERC20(token).balanceOf(address(sale)), 1000e18);
+        // Excess escrowed in contract, not sent to creator
+        assertEq(ERC20(token).balanceOf(creator), 0);
+        assertEq(ERC20(token).balanceOf(address(sale)), 1500e18);
+        // Vesting struct should hold the excess
+        (uint128 total,,,,) = sale.creatorVests(token);
+        assertEq(total, 500e18);
     }
 
     function test_Launch_WithVesting() public {
@@ -225,7 +229,43 @@ contract ClassicalCurveSaleForkTest is Test {
 
     // ── ClaimVested Tests ────────────────────────────────────────
 
-    function test_ClaimVested_CliffOnly() public {
+    /// @dev Launch with excess + vest, buy full cap to graduate, return token and graduation timestamp.
+    function _launchVestAndGraduate(bytes32 salt, uint40 vestCliff, uint40 vestDuration)
+        internal
+        returns (address token, uint256 graduationTime)
+    {
+        token = sale.launch(
+            creator,
+            "V",
+            "V",
+            "",
+            1500e18,
+            salt,
+            1000e18,
+            0.01e18,
+            0.01e18,
+            0,
+            0,
+            0,
+            address(0),
+            0,
+            0,
+            0,
+            0,
+            NO_FEE,
+            vestCliff,
+            vestDuration
+        );
+        // Buy full cap to trigger graduation (no fee, no graduation target = sell full cap)
+        uint256 cost = sale.quote(token, 1000e18);
+        vm.prank(alice);
+        sale.buy{value: cost}(token, 1000e18, 0, block.timestamp);
+        assertTrue(sale.graduable(token));
+        sale.graduate(token);
+        graduationTime = block.timestamp;
+    }
+
+    function test_ClaimVested_Revert_BeforeGraduation() public {
         address token = sale.launch(
             creator,
             "V",
@@ -248,14 +288,23 @@ contract ClassicalCurveSaleForkTest is Test {
             uint40(30 days),
             0
         );
+        // Vesting exists but curve not graduated — should revert
+        vm.prank(creator);
+        vm.expectRevert(ClassicalCurveSale.NotGraduable.selector);
+        sale.claimVested(token);
+    }
 
-        // Before cliff
+    function test_ClaimVested_CliffOnly() public {
+        (address token, uint256 gradTime) =
+            _launchVestAndGraduate(bytes32(uint256(1)), uint40(30 days), 0);
+
+        // Before cliff (relative to graduation)
         vm.prank(creator);
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
         sale.claimVested(token);
 
         // After cliff
-        vm.warp(block.timestamp + 30 days);
+        vm.warp(gradTime + 30 days);
         vm.prank(creator);
         sale.claimVested(token);
         assertEq(ERC20(token).balanceOf(creator), 500e18);
@@ -267,96 +316,57 @@ contract ClassicalCurveSaleForkTest is Test {
     }
 
     function test_ClaimVested_Linear() public {
-        address token = sale.launch(
-            creator,
-            "V",
-            "V",
-            "",
-            1500e18,
-            bytes32(uint256(2)),
-            1000e18,
-            0.01e18,
-            0.01e18,
-            0,
-            0,
-            0,
-            address(0),
-            0,
-            0,
-            0,
-            0,
-            NO_FEE,
-            0,
-            uint40(100 days)
-        );
-
+        (address token,) = _launchVestAndGraduate(bytes32(uint256(2)), 0, uint40(100 days));
+        // Read vest start from storage to avoid compiler CSE of block.timestamp
         (,, uint40 vestStart,,) = sale.creatorVests(token);
+        uint256 gradTime = uint256(vestStart);
 
         // At 25%
-        vm.warp(vestStart + 25 days);
+        vm.warp(gradTime + 25 days);
         vm.prank(creator);
         sale.claimVested(token);
         assertEq(ERC20(token).balanceOf(creator), 125e18);
 
         // At 75%
-        vm.warp(vestStart + 75 days);
+        vm.warp(gradTime + 75 days);
         vm.prank(creator);
         sale.claimVested(token);
         assertEq(ERC20(token).balanceOf(creator), 375e18);
 
         // At 100%
-        vm.warp(vestStart + 100 days);
+        vm.warp(gradTime + 100 days);
         vm.prank(creator);
         sale.claimVested(token);
         assertEq(ERC20(token).balanceOf(creator), 500e18);
     }
 
     function test_ClaimVested_CliffPlusLinear() public {
-        address token = sale.launch(
-            creator,
-            "V",
-            "V",
-            "",
-            1500e18,
-            bytes32(uint256(3)),
-            1000e18,
-            0.01e18,
-            0.01e18,
-            0,
-            0,
-            0,
-            address(0),
-            0,
-            0,
-            0,
-            0,
-            NO_FEE,
-            uint40(30 days),
-            uint40(60 days)
-        );
-
+        (address token,) =
+            _launchVestAndGraduate(bytes32(uint256(3)), uint40(30 days), uint40(60 days));
+        // Read vest start from storage to avoid compiler CSE of block.timestamp
         (,, uint40 vestStart,,) = sale.creatorVests(token);
+        uint256 gradTime = uint256(vestStart);
 
         // During cliff — nothing
-        vm.warp(vestStart + 15 days);
+        vm.warp(gradTime + 15 days);
         vm.prank(creator);
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
         sale.claimVested(token);
 
         // Right after cliff — 0% of linear portion
-        vm.warp(vestStart + 30 days);
+        vm.warp(gradTime + 30 days);
         vm.prank(creator);
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
         sale.claimVested(token);
 
         // Cliff + 30 days (50% linear)
-        vm.warp(vestStart + 30 days + 30 days);
+        vm.warp(gradTime + 30 days + 30 days);
         vm.prank(creator);
         sale.claimVested(token);
         assertEq(ERC20(token).balanceOf(creator), 250e18);
 
         // Cliff + 60 days (100% linear)
-        vm.warp(vestStart + 30 days + 60 days);
+        vm.warp(gradTime + 30 days + 60 days);
         vm.prank(creator);
         sale.claimVested(token);
         assertEq(ERC20(token).balanceOf(creator), 500e18);
@@ -393,7 +403,8 @@ contract ClassicalCurveSaleForkTest is Test {
     }
 
     function test_ClaimVested_Revert_NoVesting() public {
-        address token = _launch(1000e18, 0.01e18, 0.01e18, 0, 0, 0, 0);
+        // Launch with no excess (no vest), graduate it
+        address token = _launchAndGraduate(1000e18, 0.01e18, 0.01e18, 0, 0);
         vm.prank(creator);
         vm.expectRevert(ClassicalCurveSale.NotConfigured.selector);
         sale.claimVested(token);
@@ -407,7 +418,7 @@ contract ClassicalCurveSaleForkTest is Test {
         vm.prank(creator);
         sale.setLpRecipient(token, alice);
 
-        (,,,,,,,,,,, address lpRecipient,,) = sale.curves(token);
+        (,,,,,,,,,,, address lpRecipient,,,,,,) = sale.curves(token);
         assertEq(lpRecipient, alice);
     }
 
@@ -452,14 +463,14 @@ contract ClassicalCurveSaleForkTest is Test {
 
         // Buy entire cap
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         assertTrue(sale.graduable(token));
 
         uint256 liquidity = sale.graduate(token);
         assertGt(liquidity, 0);
 
         // Verify state
-        (,,,,,,,,,,,,, bool seeded) = sale.curves(token);
+        (,,,,,,,,,,,,, bool seeded,,,,) = sale.curves(token);
         assertTrue(seeded);
 
         // Not graduable anymore
@@ -475,7 +486,7 @@ contract ClassicalCurveSaleForkTest is Test {
         address token = _launch(1000e18, 0.01e18, 0.01e18, 0, 5e18, 500e18, 0);
 
         vm.prank(alice);
-        sale.buy{value: 5 ether}(token, 500e18, 500e18);
+        sale.buy{value: 5 ether}(token, 500e18, 500e18, block.timestamp);
         assertTrue(sale.graduable(token));
 
         uint256 deadBefore = ERC20(token).balanceOf(address(0xdead));
@@ -491,10 +502,10 @@ contract ClassicalCurveSaleForkTest is Test {
         address token = _launch(100e18, 0.01e18, 0.01e18, 0, 0, 0, 0);
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
 
         uint256 creatorBefore = creator.balance;
-        (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(token);
+        (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(token);
 
         uint256 liq = sale.graduate(token);
         assertEq(liq, 0);
@@ -558,7 +569,7 @@ contract ClassicalCurveSaleForkTest is Test {
         );
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (, uint256 poolId) = sale.poolKeyOf(token);
@@ -618,7 +629,7 @@ contract ClassicalCurveSaleForkTest is Test {
         );
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (, uint256 poolId) = sale.poolKeyOf(token);
@@ -668,7 +679,7 @@ contract ClassicalCurveSaleForkTest is Test {
         );
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
@@ -713,7 +724,7 @@ contract ClassicalCurveSaleForkTest is Test {
 
         // Buy all, graduate, then buy some on ZAMM to have tokens
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
@@ -788,7 +799,7 @@ contract ClassicalCurveSaleForkTest is Test {
         );
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
@@ -832,7 +843,7 @@ contract ClassicalCurveSaleForkTest is Test {
         );
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
@@ -864,6 +875,239 @@ contract ClassicalCurveSaleForkTest is Test {
         sale.swapExactOut{value: 1 ether}(key, 0.01 ether, 1e18, false, bob, block.timestamp);
     }
 
+    // ── Missing Swap Path Coverage ───────────────────────────────
+
+    // swapExactIn: buy with fee-on-output
+    function test_SwapExactIn_BuyToken_FeeOnOutput() public {
+        ClassicalCurveSale.CreatorFee memory cf =
+            ClassicalCurveSale.CreatorFee(feeBeneficiary, 500, 500, false, false); // fee on output
+        address token = sale.launch(
+            creator, "S", "S", "", 150e18, bytes32(uint256(200)),
+            100e18, 0.01e18, 0.01e18, 0, 0, 50e18, address(0), 0, 0, 0, 0, cf, 0, 0
+        );
+
+        vm.prank(alice);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
+        sale.graduate(token);
+
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        uint256 feeBenTokenBefore = ERC20(token).balanceOf(feeBeneficiary);
+        vm.prank(bob);
+        uint256 amountOut =
+            sale.swapExactIn{value: 0.1 ether}(key, 0.1 ether, 0, true, bob, block.timestamp);
+
+        assertGt(amountOut, 0);
+        assertEq(ERC20(token).balanceOf(bob), amountOut);
+        // Beneficiary got token tax (5% of gross output)
+        uint256 feeBenTokenGot = ERC20(token).balanceOf(feeBeneficiary) - feeBenTokenBefore;
+        assertGt(feeBenTokenGot, 0);
+    }
+
+    // swapExactIn: sell with no creator fee
+    function test_SwapExactIn_SellToken_NoCreatorFee() public {
+        address token = _launchAndGraduate(100e18, 0.01e18, 0.01e18, 0, 50e18);
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        // Buy some tokens first
+        vm.prank(bob);
+        sale.swapExactIn{value: 0.5 ether}(key, 0.5 ether, 0, true, bob, block.timestamp);
+        uint256 bobTokens = ERC20(token).balanceOf(bob);
+        assertGt(bobTokens, 0);
+
+        // Sell tokens back (no creator fee)
+        uint256 sellAmount = bobTokens / 2;
+        vm.startPrank(bob);
+        ERC20(token).approve(address(sale), sellAmount);
+        uint256 bobEthBefore = bob.balance;
+        sale.swapExactIn(key, sellAmount, 0, false, bob, block.timestamp);
+        vm.stopPrank();
+
+        assertGt(bob.balance, bobEthBefore);
+    }
+
+    // swapExactIn: sell with fee-on-output
+    function test_SwapExactIn_SellToken_FeeOnOutput() public {
+        ClassicalCurveSale.CreatorFee memory cf =
+            ClassicalCurveSale.CreatorFee(feeBeneficiary, 500, 500, false, false); // fee on output
+        address token = sale.launch(
+            creator, "S", "S", "", 150e18, bytes32(uint256(201)),
+            100e18, 0.01e18, 0.01e18, 0, 0, 50e18, address(0), 0, 0, 0, 0, cf, 0, 0
+        );
+
+        vm.prank(alice);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
+        sale.graduate(token);
+
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        // Buy some tokens first
+        vm.prank(bob);
+        sale.swapExactIn{value: 0.5 ether}(key, 0.5 ether, 0, true, bob, block.timestamp);
+        uint256 bobTokens = ERC20(token).balanceOf(bob);
+
+        // Sell tokens with fee on output (ETH)
+        uint256 sellAmount = bobTokens / 2;
+        vm.startPrank(bob);
+        ERC20(token).approve(address(sale), sellAmount);
+        uint256 bobEthBefore = bob.balance;
+        uint256 feeBenBefore = feeBeneficiary.balance;
+        sale.swapExactIn(key, sellAmount, 0, false, bob, block.timestamp);
+        vm.stopPrank();
+
+        assertGt(bob.balance, bobEthBefore);
+        // Beneficiary got ETH tax
+        assertGt(feeBeneficiary.balance - feeBenBefore, 0);
+    }
+
+    // swapExactOut: buy with no creator fee
+    function test_SwapExactOut_BuyToken_NoCreatorFee() public {
+        address token = _launchAndGraduate(100e18, 0.01e18, 0.01e18, 0, 50e18);
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        uint256 wantTokens = 1e18;
+        vm.prank(bob);
+        sale.swapExactOut{value: 5 ether}(key, wantTokens, 5 ether, true, bob, block.timestamp);
+
+        assertEq(ERC20(token).balanceOf(bob), wantTokens);
+        // Should have gotten refund (paid less than 5 ETH)
+        assertGt(bob.balance, 995 ether);
+    }
+
+    // swapExactOut: buy with fee-on-input
+    function test_SwapExactOut_BuyToken_FeeOnInput() public {
+        ClassicalCurveSale.CreatorFee memory cf =
+            ClassicalCurveSale.CreatorFee(feeBeneficiary, 500, 500, true, true); // fee on input
+        address token = sale.launch(
+            creator, "S", "S", "", 150e18, bytes32(uint256(202)),
+            100e18, 0.01e18, 0.01e18, 0, 0, 50e18, address(0), 0, 0, 0, 0, cf, 0, 0
+        );
+
+        vm.prank(alice);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
+        sale.graduate(token);
+
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        uint256 wantTokens = 1e18;
+        uint256 feeBenBefore = feeBeneficiary.balance;
+        vm.prank(bob);
+        sale.swapExactOut{value: 5 ether}(key, wantTokens, 5 ether, true, bob, block.timestamp);
+
+        assertEq(ERC20(token).balanceOf(bob), wantTokens);
+        // Beneficiary got ETH tax from input
+        assertGt(feeBeneficiary.balance - feeBenBefore, 0);
+    }
+
+    // swapExactOut: sell with no creator fee
+    function test_SwapExactOut_SellToken_NoCreatorFee() public {
+        address token = _launchAndGraduate(100e18, 0.01e18, 0.01e18, 0, 50e18);
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        // Buy tokens first
+        vm.prank(bob);
+        sale.swapExactIn{value: 0.5 ether}(key, 0.5 ether, 0, true, bob, block.timestamp);
+        uint256 bobTokens = ERC20(token).balanceOf(bob);
+
+        // Sell for exact ETH output
+        uint256 wantETH = 0.01 ether;
+        vm.startPrank(bob);
+        ERC20(token).approve(address(sale), bobTokens);
+        uint256 bobEthBefore = bob.balance;
+        sale.swapExactOut(key, wantETH, bobTokens, false, bob, block.timestamp);
+        vm.stopPrank();
+
+        assertEq(bob.balance - bobEthBefore, wantETH);
+    }
+
+    // swapExactOut: sell with fee-on-input
+    function test_SwapExactOut_SellToken_FeeOnInput() public {
+        ClassicalCurveSale.CreatorFee memory cf =
+            ClassicalCurveSale.CreatorFee(feeBeneficiary, 500, 500, true, true); // fee on input
+        address token = sale.launch(
+            creator, "S", "S", "", 150e18, bytes32(uint256(203)),
+            100e18, 0.01e18, 0.01e18, 0, 0, 50e18, address(0), 0, 0, 0, 0, cf, 0, 0
+        );
+
+        vm.prank(alice);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
+        sale.graduate(token);
+
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        // Buy tokens first
+        vm.prank(bob);
+        sale.swapExactIn{value: 0.5 ether}(key, 0.5 ether, 0, true, bob, block.timestamp);
+        uint256 bobTokens = ERC20(token).balanceOf(bob);
+
+        // Sell with fee on input (token tax)
+        uint256 wantETH = 0.01 ether;
+        vm.startPrank(bob);
+        ERC20(token).approve(address(sale), bobTokens);
+        uint256 feeBenTokenBefore = ERC20(token).balanceOf(feeBeneficiary);
+        sale.swapExactOut(key, wantETH, bobTokens, false, bob, block.timestamp);
+        vm.stopPrank();
+
+        assertEq(bob.balance - (1000 ether - 0.5 ether), wantETH);
+        // Beneficiary got token tax from input
+        assertGt(ERC20(token).balanceOf(feeBeneficiary) - feeBenTokenBefore, 0);
+    }
+
+    // swapExactOut: direct swap block (revert)
+    function test_SwapExactOut_Revert_DirectSwapBlocked() public {
+        ClassicalCurveSale.CreatorFee memory cf =
+            ClassicalCurveSale.CreatorFee(feeBeneficiary, 500, 500, true, true);
+        address token = sale.launch(
+            creator, "S", "S", "", 150e18, bytes32(uint256(204)),
+            100e18, 0.01e18, 0.01e18, 0, 0, 50e18, address(0), 0, 0, 0, 0, cf, 0, 0
+        );
+
+        vm.prank(alice);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
+        sale.graduate(token);
+
+        (, uint256 poolId) = sale.poolKeyOf(token);
+
+        // Direct swapExactOut from non-sale sender should be blocked by hook
+        vm.prank(address(ZAMM));
+        vm.expectRevert(ClassicalCurveSale.Unauthorized.selector);
+        sale.beforeAction(IZAMM.swapExactOut.selector, poolId, alice, "");
+    }
+
+    // ── Deadline on Routed Swaps ───────────────────────────────
+
+    function test_SwapExactIn_RevertIf_DeadlineExpired() public {
+        address token = _launchAndGraduate(100e18, 0.01e18, 0.01e18, 0, 50e18);
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        vm.warp(1000);
+        vm.prank(bob);
+        vm.expectRevert(); // ZAMM enforces deadline
+        sale.swapExactIn{value: 0.1 ether}(key, 0.1 ether, 0, true, bob, 999);
+    }
+
+    function test_SwapExactOut_RevertIf_DeadlineExpired() public {
+        address token = _launchAndGraduate(100e18, 0.01e18, 0.01e18, 0, 50e18);
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+
+        vm.warp(1000);
+        vm.prank(bob);
+        vm.expectRevert(); // ZAMM enforces deadline
+        sale.swapExactOut{value: 5 ether}(key, 1e18, 5 ether, true, bob, 999);
+    }
+
+    // ── SetCreator Positive Test (Fork) ─────────────────────────
+
+    function test_SetCreator_Success() public {
+        address token = _launch(1000e18, 0.01e18, 0.01e18, 0, 0, 0, 0);
+
+        vm.prank(creator);
+        sale.setCreator(token, alice);
+
+        (address newCreator,,,,,,,,,,,,,,,,, ) = sale.curves(token);
+        assertEq(newCreator, alice);
+    }
+
     // ── Slippage on Routed Swaps ─────────────────────────────────
 
     function test_SwapExactIn_FeeOnOutput_SlippageRevert() public {
@@ -893,7 +1137,7 @@ contract ClassicalCurveSaleForkTest is Test {
         );
 
         vm.prank(alice);
-        sale.buy{value: 10 ether}(token, 100e18, 100e18);
+        sale.buy{value: 10 ether}(token, 100e18, 100e18, block.timestamp);
         sale.graduate(token);
 
         (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
@@ -937,24 +1181,24 @@ contract ClassicalCurveSaleForkTest is Test {
 
         // 2. Users buy on curve
         vm.prank(alice);
-        sale.buy{value: 50 ether}(token, 500e18, 0);
+        sale.buy{value: 50 ether}(token, 500e18, 0, block.timestamp);
 
         vm.prank(bob);
-        sale.buyExactIn{value: 50 ether}(token, 0);
+        sale.buyExactIn{value: 50 ether}(token, 0, block.timestamp);
 
         // Verify raisedETH <= balance (contract may hold a bit more due to buyExactIn fee rounding)
-        (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(token);
+        (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(token);
         assertGe(address(sale).balance, raisedETH);
 
         // 3. Buy rest to graduate
         uint256 remaining;
-        (,, uint256 sold,,,,,,,,,,,) = sale.curves(token);
+        (,, uint256 sold,,,,,,,,,,,,,,,) = sale.curves(token);
         remaining = 1000e18 - sold;
         if (remaining > 0) {
             uint256 cost = sale.quote(token, remaining);
             uint256 fee = (cost * 100) / 10_000;
             vm.prank(bob);
-            sale.buy{value: cost + fee}(token, remaining, 0);
+            sale.buy{value: cost + fee}(token, remaining, 0, block.timestamp);
         }
 
         assertTrue(sale.graduable(token));
@@ -982,6 +1226,48 @@ contract ClassicalCurveSaleForkTest is Test {
         assertLt(ERC20(token).balanceOf(creator), 500e18); // partial
     }
 
+    // ── Graduate ETH Reconciliation ──────────────────────────────
+
+    function test_Graduate_ExcessETH_RefundedToCreator() public {
+        // Launch with very small LP token allocation relative to what curve will raise
+        // This forces the tokensForLP cap to bind, creating excess ETH
+        uint256 cap = 100e18;
+        uint256 lpTokens = 1e18; // very small LP allocation
+        address token = _launch(cap, 0.01e18, 0.1e18, 0, 0, lpTokens, 0);
+
+        // Buy entire cap to graduate
+        uint256 cost = sale.quote(token, cap);
+        vm.prank(alice);
+        sale.buy{value: cost}(token, cap, 0, block.timestamp);
+
+        assertTrue(sale.graduable(token));
+
+        uint256 creatorBefore = creator.balance;
+        sale.graduate(token);
+
+        // Creator should have received excess ETH that couldn't be paired at final price
+        uint256 creatorReceived = creator.balance - creatorBefore;
+        // With a large price curve (0.01 → 0.1) and tiny lpTokens, most ETH can't be paired
+        assertGt(creatorReceived, 0, "creator should receive excess ETH");
+    }
+
+    function test_Graduate_PriceContinuity_WhenLPCapped() public {
+        // With small LP tokens, verify pool is seeded at correct final price (not skewed)
+        uint256 cap = 100e18;
+        uint256 lpTokens = 5e18;
+        address token = _launch(cap, 0.01e18, 0.01e18, 0, 0, lpTokens, 0);
+
+        vm.prank(alice);
+        sale.buy{value: 10 ether}(token, cap, cap, block.timestamp);
+        sale.graduate(token);
+
+        // Pool should exist and be tradeable
+        (IZAMM.PoolKey memory key,) = sale.poolKeyOf(token);
+        vm.prank(bob);
+        uint256 out = sale.swapExactIn{value: 0.01 ether}(key, 0.01 ether, 0, true, bob, block.timestamp);
+        assertGt(out, 0);
+    }
+
     // ── Fuzz Tests (fork) ────────────────────────────────────────
 
     function test_Fuzz_Graduate_VaryingLPRatio(uint256 lpPct) public {
@@ -995,14 +1281,14 @@ contract ClassicalCurveSaleForkTest is Test {
         // Buy full cap
         uint256 cost = sale.quote(token, cap);
         vm.prank(alice);
-        sale.buy{value: cost}(token, cap, 0);
+        sale.buy{value: cost}(token, cap, 0, block.timestamp);
 
         assertTrue(sale.graduable(token));
 
         uint256 liq = sale.graduate(token);
         assertGt(liq, 0, "should produce liquidity");
 
-        (,,,,,,,,,,,,, bool seeded) = sale.curves(token);
+        (,,,,,,,,,,,,, bool seeded,,,,) = sale.curves(token);
         assertTrue(seeded);
     }
 
@@ -1044,7 +1330,7 @@ contract ClassicalCurveSaleForkTest is Test {
 
         // Buy until graduated
         vm.prank(alice);
-        sale.buy{value: maxETH}(token, cap, 0);
+        sale.buy{value: maxETH}(token, cap, 0, block.timestamp);
 
         if (sale.graduable(token)) {
             uint256 liq = sale.graduate(token);

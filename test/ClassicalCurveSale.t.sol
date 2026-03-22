@@ -97,7 +97,7 @@ contract ClassicalCurveSaleTest is Test {
             uint256 lpTokens,
             address lpRecipient,
             bool graduated,
-            bool seeded
+            bool seeded,,,,
         ) = sale.curves(tkn);
 
         assertEq(creator, alice);
@@ -311,7 +311,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 q1 = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: q1}(tkn, 100e18, 0);
+        sale.buy{value: q1}(tkn, 100e18, 0, block.timestamp);
 
         uint256 q2 = sale.quote(tkn, 100e18);
         assertGt(q2, q1);
@@ -320,7 +320,7 @@ contract ClassicalCurveSaleTest is Test {
     function test_Quote_CapsToRemaining() public {
         address tkn = _configureNoFee();
         vm.prank(bob);
-        sale.buy{value: sale.quote(tkn, 900e18)}(tkn, 900e18, 0);
+        sale.buy{value: sale.quote(tkn, 900e18)}(tkn, 900e18, 0, block.timestamp);
 
         uint256 q200 = sale.quote(tkn, 200e18);
         uint256 q100 = sale.quote(tkn, 100e18);
@@ -331,7 +331,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         uint256 sellProceeds = sale.quoteSell(tkn, 100e18);
         assertEq(sellProceeds, cost);
@@ -346,7 +346,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         // Buy all
         vm.prank(bob);
-        sale.buy{value: sale.quote(tkn, CAP)}(tkn, CAP, 0);
+        sale.buy{value: sale.quote(tkn, CAP)}(tkn, CAP, 0, block.timestamp);
 
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
         sale.quote(tkn, 1e18);
@@ -360,7 +360,7 @@ contract ClassicalCurveSaleTest is Test {
         uint256 fee = (cost * FEE_BPS) / 10_000;
 
         vm.prank(bob);
-        sale.buy{value: cost + fee}(tkn, 100e18, 0);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0, block.timestamp);
 
         assertEq(token.balanceOf(bob), 100e18);
     }
@@ -372,7 +372,7 @@ contract ClassicalCurveSaleTest is Test {
         uint256 aliceBefore = alice.balance;
 
         vm.prank(bob);
-        sale.buy{value: cost + fee}(tkn, 100e18, 0);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0, block.timestamp);
 
         assertEq(alice.balance - aliceBefore, fee);
     }
@@ -384,7 +384,7 @@ contract ClassicalCurveSaleTest is Test {
         uint256 bobBefore = bob.balance;
 
         vm.prank(bob);
-        sale.buy{value: 10 ether}(tkn, 100e18, 0);
+        sale.buy{value: 10 ether}(tkn, 100e18, 0, block.timestamp);
 
         assertEq(bobBefore - bob.balance, cost + fee);
     }
@@ -394,10 +394,10 @@ contract ClassicalCurveSaleTest is Test {
         uint256 cost900 = sale.quote(tkn, 900e18);
         uint256 fee900 = (cost900 * FEE_BPS) / 10_000;
         vm.prank(bob);
-        sale.buy{value: cost900 + fee900}(tkn, 900e18, 0);
+        sale.buy{value: cost900 + fee900}(tkn, 900e18, 0, block.timestamp);
 
         vm.prank(carol);
-        sale.buy{value: 50 ether}(tkn, 200e18, 0); // only 100 remain
+        sale.buy{value: 50 ether}(tkn, 200e18, 0, block.timestamp); // only 100 remain
 
         assertEq(token.balanceOf(carol), 100e18);
     }
@@ -408,9 +408,9 @@ contract ClassicalCurveSaleTest is Test {
         uint256 fee = (cost * FEE_BPS) / 10_000;
 
         vm.prank(bob);
-        sale.buy{value: cost + fee}(tkn, 100e18, 0);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0, block.timestamp);
 
-        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
         assertEq(sold, 100e18);
         assertEq(raisedETH, cost);
     }
@@ -418,14 +418,14 @@ contract ClassicalCurveSaleTest is Test {
     function test_Buy_RevertIf_NotConfigured() public {
         vm.expectRevert(ClassicalCurveSale.NotConfigured.selector);
         vm.prank(bob);
-        sale.buy{value: 1 ether}(address(0xdead), 1e18, 0);
+        sale.buy{value: 1 ether}(address(0xdead), 1e18, 0, block.timestamp);
     }
 
     function test_Buy_RevertIf_ZeroAmount() public {
         address tkn = _configure();
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
         vm.prank(bob);
-        sale.buy{value: 1 ether}(tkn, 0, 0);
+        sale.buy{value: 1 ether}(tkn, 0, 0, block.timestamp);
     }
 
     function test_Buy_RevertIf_InsufficientPayment() public {
@@ -434,18 +434,18 @@ contract ClassicalCurveSaleTest is Test {
         // Don't include fee
         vm.expectRevert(ClassicalCurveSale.InsufficientPayment.selector);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
     }
 
     function test_Buy_RevertIf_Graduated() public {
         address tkn = _configureWith(START_PRICE, END_PRICE, 0, 1 ether, 0, address(0));
         uint256 cost = sale.quote(tkn, CAP);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, CAP, 0); // triggers graduation
+        sale.buy{value: cost}(tkn, CAP, 0, block.timestamp); // triggers graduation
 
         vm.expectRevert(ClassicalCurveSale.Graduated.selector);
         vm.prank(carol);
-        sale.buy{value: 1 ether}(tkn, 1e18, 0);
+        sale.buy{value: 1 ether}(tkn, 1e18, 0, block.timestamp);
     }
 
     function test_Buy_RevertIf_Slippage() public {
@@ -453,12 +453,12 @@ contract ClassicalCurveSaleTest is Test {
         uint256 cost900 = sale.quote(tkn, 900e18);
         uint256 fee900 = (cost900 * FEE_BPS) / 10_000;
         vm.prank(bob);
-        sale.buy{value: cost900 + fee900}(tkn, 900e18, 0);
+        sale.buy{value: cost900 + fee900}(tkn, 900e18, 0, block.timestamp);
 
         // Only 100 remain, but we want at least 200
         vm.expectRevert(ClassicalCurveSale.Slippage.selector);
         vm.prank(carol);
-        sale.buy{value: 50 ether}(tkn, 200e18, 200e18);
+        sale.buy{value: 50 ether}(tkn, 200e18, 200e18, block.timestamp);
     }
 
     // ── BuyExactIn ──────────────────────────────────────────────
@@ -467,7 +467,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
 
         vm.prank(bob);
-        sale.buyExactIn{value: 1 ether}(tkn, 0);
+        sale.buyExactIn{value: 1 ether}(tkn, 0, block.timestamp);
 
         uint256 received = token.balanceOf(bob);
         assertGt(received, 0);
@@ -478,7 +478,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
 
         vm.prank(bob);
-        sale.buyExactIn{value: 3 ether}(tkn, 0);
+        sale.buyExactIn{value: 3 ether}(tkn, 0, block.timestamp);
         uint256 received = token.balanceOf(bob);
 
         // Quote the same amount on a fresh curve
@@ -513,7 +513,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureFlat();
 
         vm.prank(bob);
-        sale.buyExactIn{value: 7 ether}(tkn, 0);
+        sale.buyExactIn{value: 7 ether}(tkn, 0, block.timestamp);
 
         assertEq(token.balanceOf(bob), 7e18);
     }
@@ -523,7 +523,7 @@ contract ClassicalCurveSaleTest is Test {
         uint256 bobBefore = bob.balance;
 
         vm.prank(bob);
-        sale.buyExactIn{value: 1 ether}(tkn, 0);
+        sale.buyExactIn{value: 1 ether}(tkn, 0, block.timestamp);
 
         uint256 received = token.balanceOf(bob);
         assertGt(received, 0);
@@ -534,11 +534,11 @@ contract ClassicalCurveSaleTest is Test {
     function test_BuyExactIn_CapsToRemaining() public {
         address tkn = _configureNoFee();
         vm.prank(bob);
-        sale.buy{value: sale.quote(tkn, 900e18)}(tkn, 900e18, 0);
+        sale.buy{value: sale.quote(tkn, 900e18)}(tkn, 900e18, 0, block.timestamp);
 
         uint256 carolBefore = carol.balance;
         vm.prank(carol);
-        sale.buyExactIn{value: 100 ether}(tkn, 0);
+        sale.buyExactIn{value: 100 ether}(tkn, 0, block.timestamp);
 
         assertEq(token.balanceOf(carol), 100e18);
         assertGt(carol.balance, carolBefore - 10 ether); // large refund
@@ -548,7 +548,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configure();
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
         vm.prank(bob);
-        sale.buyExactIn(tkn, 0);
+        sale.buyExactIn(tkn, 0, block.timestamp);
     }
 
     function test_BuyExactIn_RevertIf_Slippage() public {
@@ -557,7 +557,7 @@ contract ClassicalCurveSaleTest is Test {
         // Send small amount but require many tokens
         vm.expectRevert(ClassicalCurveSale.Slippage.selector);
         vm.prank(bob);
-        sale.buyExactIn{value: 0.001 ether}(tkn, 1000e18);
+        sale.buyExactIn{value: 0.001 ether}(tkn, 1000e18, block.timestamp);
     }
 
     // ── Sell ────────────────────────────────────────────────────
@@ -566,12 +566,12 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
-        sale.sell(tkn, 100e18, 0);
+        sale.sell(tkn, 100e18, 0, block.timestamp);
         vm.stopPrank();
 
         assertEq(token.balanceOf(bob), 0);
@@ -583,7 +583,7 @@ contract ClassicalCurveSaleTest is Test {
         uint256 cost = sale.quote(tkn, 100e18);
         uint256 buyFee = (cost * FEE_BPS) / 10_000;
         vm.prank(bob);
-        sale.buy{value: cost + buyFee}(tkn, 100e18, 0);
+        sale.buy{value: cost + buyFee}(tkn, 100e18, 0, block.timestamp);
 
         // Quote sell proceeds before actually selling
         uint256 rawProceeds = sale.quoteSell(tkn, 100e18);
@@ -593,7 +593,7 @@ contract ClassicalCurveSaleTest is Test {
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
-        sale.sell(tkn, 100e18, 0);
+        sale.sell(tkn, 100e18, 0, block.timestamp);
         vm.stopPrank();
 
         uint256 bobGot = bob.balance - bobBefore;
@@ -606,14 +606,14 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 50e18);
-        sale.sell(tkn, 50e18, 0);
+        sale.sell(tkn, 50e18, 0, block.timestamp);
         vm.stopPrank();
 
-        (,, uint256 sold,,,,,,,,,,,) = sale.curves(tkn);
+        (,, uint256 sold,,,,,,,,,,,,,,,) = sale.curves(tkn);
         assertEq(sold, 50e18);
     }
 
@@ -621,12 +621,12 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureWith(START_PRICE, END_PRICE, 0, 1 ether, 0, address(0));
         uint256 cost = sale.quote(tkn, CAP);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, CAP, 0);
+        sale.buy{value: cost}(tkn, CAP, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 1e18);
         vm.expectRevert(ClassicalCurveSale.Graduated.selector);
-        sale.sell(tkn, 1e18, 0);
+        sale.sell(tkn, 1e18, 0, block.timestamp);
         vm.stopPrank();
     }
 
@@ -634,19 +634,19 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
         vm.expectRevert(ClassicalCurveSale.Slippage.selector);
-        sale.sell(tkn, 100e18, cost + 1); // minProceeds too high
+        sale.sell(tkn, 100e18, cost + 1, block.timestamp); // minProceeds too high
         vm.stopPrank();
     }
 
     function test_Sell_RevertIf_ZeroAmount() public {
         address tkn = _configure();
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
-        sale.sell(tkn, 0, 0);
+        sale.sell(tkn, 0, 0, block.timestamp);
     }
 
     // ── SellExactOut ────────────────────────────────────────────
@@ -655,12 +655,12 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 200e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 200e18, 0);
+        sale.buy{value: cost}(tkn, 200e18, 0, block.timestamp);
 
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 200e18);
-        sale.sellExactOut(tkn, 0.5 ether, 200e18);
+        sale.sellExactOut(tkn, 0.5 ether, 200e18, block.timestamp);
         vm.stopPrank();
 
         // Bob gets >= 0.5 ETH (ceil rounding on inverse may yield 1-2 wei extra)
@@ -673,13 +673,13 @@ contract ClassicalCurveSaleTest is Test {
         uint256 cost = sale.quote(tkn, 500e18);
         uint256 buyFee = (cost * FEE_BPS) / 10_000;
         vm.prank(bob);
-        sale.buy{value: cost + buyFee}(tkn, 500e18, 0);
+        sale.buy{value: cost + buyFee}(tkn, 500e18, 0, block.timestamp);
 
         uint256 ethWant = 0.5 ether;
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 500e18);
-        sale.sellExactOut(tkn, ethWant, 500e18);
+        sale.sellExactOut(tkn, ethWant, 500e18, block.timestamp);
         vm.stopPrank();
 
         // Bob gets >= ethWant (ceil rounding on inverse may yield 1-2 wei extra)
@@ -691,13 +691,13 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
         // Ask for small ethOut but with maxTokens = 1
         vm.expectRevert(ClassicalCurveSale.Slippage.selector);
-        sale.sellExactOut(tkn, 0.1 ether, 1e18);
+        sale.sellExactOut(tkn, 0.1 ether, 1e18, block.timestamp);
         vm.stopPrank();
     }
 
@@ -705,20 +705,20 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
         // Ask for way more ETH than raisedETH
         vm.expectRevert(ClassicalCurveSale.InsufficientLiquidity.selector);
-        sale.sellExactOut(tkn, 1000 ether, type(uint256).max);
+        sale.sellExactOut(tkn, 1000 ether, type(uint256).max, block.timestamp);
         vm.stopPrank();
     }
 
     function test_SellExactOut_RevertIf_ZeroEthOut() public {
         address tkn = _configure();
         vm.expectRevert(ClassicalCurveSale.ZeroAmount.selector);
-        sale.sellExactOut(tkn, 0, 0);
+        sale.sellExactOut(tkn, 0, 0, block.timestamp);
     }
 
     // ── Buy/Sell Roundtrip ──────────────────────────────────────
@@ -728,17 +728,17 @@ contract ClassicalCurveSaleTest is Test {
         uint256 cost = sale.quote(tkn, 100e18);
 
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
-        sale.sell(tkn, 100e18, 0);
+        sale.sell(tkn, 100e18, 0, block.timestamp);
         vm.stopPrank();
 
         // Full roundtrip with no fee — should get all ETH back
         assertEq(bob.balance - bobBefore, cost);
-        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        (,, uint256 sold,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
         assertEq(sold, 0);
         assertEq(raisedETH, 0);
     }
@@ -747,15 +747,15 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 50e18);
-        sale.sell(tkn, 50e18, 0);
+        sale.sell(tkn, 50e18, 0, block.timestamp);
         vm.stopPrank();
 
         assertEq(token.balanceOf(bob), 50e18);
-        (,, uint256 sold,,,,,,,,,,,) = sale.curves(tkn);
+        (,, uint256 sold,,,,,,,,,,,,,,,) = sale.curves(tkn);
         assertEq(sold, 50e18);
     }
 
@@ -794,7 +794,7 @@ contract ClassicalCurveSaleTest is Test {
 
         // Buy enough to trigger
         vm.prank(bob);
-        sale.buy{value: 50 ether}(tkn, 500e18, 0);
+        sale.buy{value: 50 ether}(tkn, 500e18, 0, block.timestamp);
 
         assertTrue(sale.graduable(tkn));
     }
@@ -807,7 +807,7 @@ contract ClassicalCurveSaleTest is Test {
         assertFalse(sale.graduable(tkn));
 
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, CAP, 0);
+        sale.buy{value: cost}(tkn, CAP, 0, block.timestamp);
 
         assertTrue(sale.graduable(tkn));
     }
@@ -816,16 +816,16 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureWith(START_PRICE, END_PRICE, 0, 1 ether, 0, address(0));
         uint256 cost = sale.quote(tkn, CAP);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, CAP, 0);
+        sale.buy{value: cost}(tkn, CAP, 0, block.timestamp);
 
         vm.expectRevert(ClassicalCurveSale.Graduated.selector);
         vm.prank(carol);
-        sale.buy{value: 1 ether}(tkn, 1e18, 0);
+        sale.buy{value: 1 ether}(tkn, 1e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 1e18);
         vm.expectRevert(ClassicalCurveSale.Graduated.selector);
-        sale.sell(tkn, 1e18, 0);
+        sale.sell(tkn, 1e18, 0, block.timestamp);
         vm.stopPrank();
     }
 
@@ -847,7 +847,7 @@ contract ClassicalCurveSaleTest is Test {
         assertEq(cost1, 100e18); // 100 tokens * 1 ETH
 
         vm.prank(bob);
-        sale.buy{value: cost1}(tkn, 100e18, 0);
+        sale.buy{value: cost1}(tkn, 100e18, 0, block.timestamp);
 
         uint256 cost2 = sale.quote(tkn, 100e18);
         assertEq(cost2, 100e18); // same price
@@ -857,7 +857,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureFlat();
 
         vm.prank(bob);
-        sale.buyExactIn{value: 7 ether}(tkn, 0);
+        sale.buyExactIn{value: 7 ether}(tkn, 0, block.timestamp);
 
         assertEq(token.balanceOf(bob), 7e18);
     }
@@ -865,12 +865,12 @@ contract ClassicalCurveSaleTest is Test {
     function test_FlatCurve_Sell() public {
         address tkn = _configureFlat();
         vm.prank(bob);
-        sale.buy{value: 10 ether}(tkn, 10e18, 0);
+        sale.buy{value: 10 ether}(tkn, 10e18, 0, block.timestamp);
 
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 5e18);
-        sale.sell(tkn, 5e18, 0);
+        sale.sell(tkn, 5e18, 0, block.timestamp);
         vm.stopPrank();
 
         assertEq(bob.balance - bobBefore, 5 ether);
@@ -879,12 +879,12 @@ contract ClassicalCurveSaleTest is Test {
     function test_FlatCurve_SellExactOut() public {
         address tkn = _configureFlat();
         vm.prank(bob);
-        sale.buy{value: 10 ether}(tkn, 10e18, 0);
+        sale.buy{value: 10 ether}(tkn, 10e18, 0, block.timestamp);
 
         uint256 bobBefore = bob.balance;
         vm.startPrank(bob);
         token.approve(address(sale), 10e18);
-        sale.sellExactOut(tkn, 3 ether, 10e18);
+        sale.sellExactOut(tkn, 3 ether, 10e18, block.timestamp);
         vm.stopPrank();
 
         assertEq(bob.balance - bobBefore, 3 ether);
@@ -901,7 +901,7 @@ contract ClassicalCurveSaleTest is Test {
             assertGt(cost, prev);
             prev = cost;
             vm.prank(bob);
-            sale.buy{value: cost}(tkn, 100e18, 0);
+            sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
         }
     }
 
@@ -919,7 +919,7 @@ contract ClassicalCurveSaleTest is Test {
     function test_XYK_EndPriceApproachesTarget() public {
         address tkn = _configureNoFee();
         vm.prank(bob);
-        sale.buy{value: sale.quote(tkn, 999e18)}(tkn, 999e18, 0);
+        sale.buy{value: sale.quote(tkn, 999e18)}(tkn, 999e18, 0, block.timestamp);
 
         uint256 lastCost = sale.quote(tkn, 1e18);
         // Should be near END_PRICE / 1e18 = 0.02 ETH
@@ -1021,6 +1021,109 @@ contract ClassicalCurveSaleTest is Test {
         assertEq(sellBps, 300);
     }
 
+    // ── Deadline Tests ──────────────────────────────────────────
+
+    function test_Buy_RevertIf_DeadlineExpired() public {
+        address tkn = _configure();
+        uint256 cost = sale.quote(tkn, 100e18);
+        uint256 fee = (cost * FEE_BPS) / 10_000;
+
+        vm.warp(1000);
+        vm.prank(bob);
+        vm.expectRevert(ClassicalCurveSale.DeadlineExpired.selector);
+        sale.buy{value: cost + fee}(tkn, 100e18, 0, 999);
+    }
+
+    function test_BuyExactIn_RevertIf_DeadlineExpired() public {
+        address tkn = _configure();
+
+        vm.warp(1000);
+        vm.prank(bob);
+        vm.expectRevert(ClassicalCurveSale.DeadlineExpired.selector);
+        sale.buyExactIn{value: 1 ether}(tkn, 0, 999);
+    }
+
+    function test_Sell_RevertIf_DeadlineExpired() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        vm.warp(1000);
+        vm.expectRevert(ClassicalCurveSale.DeadlineExpired.selector);
+        sale.sell(tkn, 100e18, 0, 999);
+        vm.stopPrank();
+    }
+
+    function test_SellExactOut_RevertIf_DeadlineExpired() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
+
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        vm.warp(1000);
+        vm.expectRevert(ClassicalCurveSale.DeadlineExpired.selector);
+        sale.sellExactOut(tkn, 0.01 ether, 100e18, 999);
+        vm.stopPrank();
+    }
+
+    // ── Multicall Tests ────────────────────────────────────────
+
+    function test_Multicall_BatchMultipleCalls() public {
+        address tkn = _configure();
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeCall(sale.setCreatorFee, (tkn, carol, 200, 300, true, false));
+        data[1] = abi.encodeCall(sale.setLpRecipient, (tkn, carol));
+
+        vm.prank(alice);
+        sale.multicall(data);
+
+        (address ben, uint16 buyBps, uint16 sellBps,,) = sale.creatorFees(tkn);
+        assertEq(ben, carol);
+        assertEq(buyBps, 200);
+        assertEq(sellBps, 300);
+
+        (,,,,,,,,,,, address lpRecipient,,,,,,) = sale.curves(tkn);
+        assertEq(lpRecipient, carol);
+    }
+
+    function test_Multicall_RevertBubblesUp() public {
+        address tkn = _configure();
+        bytes[] memory data = new bytes[](1);
+        // Set creator fee with invalid params (beneficiary + zero fees)
+        data[0] = abi.encodeCall(sale.setCreatorFee, (tkn, carol, 0, 0, false, false));
+
+        vm.prank(alice);
+        vm.expectRevert();
+        sale.multicall(data);
+    }
+
+    // ── SetCreator Positive Test ────────────────────────────────
+
+    function test_SetCreator_TransfersRole() public {
+        address tkn = _configure();
+        vm.prank(alice);
+        sale.setCreator(tkn, carol);
+
+        (address newCreator,,,,,,,,,,,,,,,,, ) = sale.curves(tkn);
+        assertEq(newCreator, carol);
+
+        // Old creator can no longer set
+        vm.prank(alice);
+        vm.expectRevert(ClassicalCurveSale.Unauthorized.selector);
+        sale.setCreator(tkn, bob);
+
+        // New creator can
+        vm.prank(carol);
+        sale.setCreator(tkn, bob);
+        (address finalCreator,,,,,,,,,,,,,,,,, ) = sale.curves(tkn);
+        assertEq(finalCreator, bob);
+    }
+
     // ── Edge Cases ──────────────────────────────────────────────
 
     function test_SmallBuy() public {
@@ -1029,7 +1132,7 @@ contract ClassicalCurveSaleTest is Test {
         assertGt(cost, 0);
 
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 1, 0);
+        sale.buy{value: cost}(tkn, 1, 0, block.timestamp);
         assertEq(token.balanceOf(bob), 1);
     }
 
@@ -1049,7 +1152,7 @@ contract ClassicalCurveSaleTest is Test {
         assertLt(cost, CAP * 0.1e18 / 1e18);
 
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, CAP, 0);
+        sale.buy{value: cost}(tkn, CAP, 0, block.timestamp);
         assertEq(token.balanceOf(bob), CAP);
     }
 
@@ -1057,13 +1160,13 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 10e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 10e18, 0);
+        sale.buy{value: cost}(tkn, 10e18, 0, block.timestamp);
 
         // Try to sell way more than was bought (sold is only 10e18)
         // Caps to c.sold, so should work but only sell 10e18
         vm.startPrank(bob);
         token.approve(address(sale), 10e18);
-        sale.sell(tkn, 20e18, 0); // caps to 10e18
+        sale.sell(tkn, 20e18, 0, block.timestamp); // caps to 10e18
         vm.stopPrank();
 
         assertEq(token.balanceOf(bob), 0);
@@ -1078,7 +1181,7 @@ contract ClassicalCurveSaleTest is Test {
         // Buy 100 tokens
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 100e18, 0);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
 
         assertEq(sale.observationCount(tkn), 1);
 
@@ -1093,7 +1196,7 @@ contract ClassicalCurveSaleTest is Test {
         // Sell 50 tokens
         vm.startPrank(bob);
         token.approve(address(sale), 50e18);
-        sale.sell(tkn, 50e18, 0);
+        sale.sell(tkn, 50e18, 0, block.timestamp);
         vm.stopPrank();
 
         assertEq(sale.observationCount(tkn), 2);
@@ -1107,7 +1210,7 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
 
         vm.prank(bob);
-        sale.buyExactIn{value: 1 ether}(tkn, 0);
+        sale.buyExactIn{value: 1 ether}(tkn, 0, block.timestamp);
 
         assertEq(sale.observationCount(tkn), 1);
         uint256[] memory obs = sale.observe(tkn, 0, 1);
@@ -1119,11 +1222,11 @@ contract ClassicalCurveSaleTest is Test {
         address tkn = _configureNoFee();
         uint256 cost = sale.quote(tkn, 200e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 200e18, 0);
+        sale.buy{value: cost}(tkn, 200e18, 0, block.timestamp);
 
         vm.startPrank(bob);
         token.approve(address(sale), 200e18);
-        sale.sellExactOut(tkn, 0.5 ether, 200e18);
+        sale.sellExactOut(tkn, 0.5 ether, 200e18, block.timestamp);
         vm.stopPrank();
 
         assertEq(sale.observationCount(tkn), 2); // buy + sell
@@ -1139,7 +1242,7 @@ contract ClassicalCurveSaleTest is Test {
         for (uint256 i; i < 5; i++) {
             uint256 cost = sale.quote(tkn, 100e18);
             vm.prank(bob);
-            sale.buy{value: cost}(tkn, 100e18, 0);
+            sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
         }
         assertEq(sale.observationCount(tkn), 5);
 
@@ -1280,11 +1383,11 @@ contract ClassicalCurveSaleTest is Test {
 
         // Advance curve to 25% sold
         vm.prank(bob);
-        sale.buy{value: sale.quote(tkn, 250e18)}(tkn, 250e18, 0);
+        sale.buy{value: sale.quote(tkn, 250e18)}(tkn, 250e18, 0, block.timestamp);
 
         // buyExactIn at this point was the failing case
         vm.prank(carol);
-        sale.buyExactIn{value: 1 ether}(tkn, 0);
+        sale.buyExactIn{value: 1 ether}(tkn, 0, block.timestamp);
         assertGt(token.balanceOf(carol), 0);
     }
 
@@ -1295,11 +1398,11 @@ contract ClassicalCurveSaleTest is Test {
             address buyer = address(uint160(0x3000 + i));
             vm.deal(buyer, 100 ether);
             vm.prank(buyer);
-            try sale.buyExactIn{value: 0.5 ether}(tkn, 0) {
+            try sale.buyExactIn{value: 0.5 ether}(tkn, 0, block.timestamp) {
                 assertGt(token.balanceOf(buyer), 0);
             } catch {
                 // Only acceptable revert: ZeroAmount (fully sold) or Graduated
-                (,,,,,,,,,,,, bool graduated,) = sale.curves(tkn);
+                (,,,,,,,,,,,, bool graduated,,,,,) = sale.curves(tkn);
                 assertTrue(graduated, "unexpected revert before graduation");
                 break;
             }
@@ -1314,13 +1417,13 @@ contract ClassicalCurveSaleTest is Test {
             address buyer = address(uint160(0x4000 + i));
             vm.deal(buyer, 100 ether);
             vm.prank(buyer);
-            try sale.buyExactIn{value: 1 ether}(tkn, 0) {}
+            try sale.buyExactIn{value: 1 ether}(tkn, 0, block.timestamp) {}
             catch {
                 break;
             }
         }
 
-        (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
         assertEq(address(sale).balance, raisedETH);
     }
 
@@ -1340,13 +1443,13 @@ contract ClassicalCurveSaleTest is Test {
             address buyer = address(uint160(0x5000 + i));
             vm.deal(buyer, 100 ether);
             vm.prank(buyer);
-            try sale.buyExactIn{value: 2 ether}(tkn, 0) {}
+            try sale.buyExactIn{value: 2 ether}(tkn, 0, block.timestamp) {}
             catch {
                 break;
             }
         }
 
-        (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
         assertEq(address(sale).balance, raisedETH);
     }
 
@@ -1361,7 +1464,7 @@ contract ClassicalCurveSaleTest is Test {
         if (soldBefore > 0) {
             uint256 advanceCost = sale.quote(tkn, soldBefore);
             vm.prank(bob);
-            sale.buy{value: advanceCost}(tkn, soldBefore, 0);
+            sale.buy{value: advanceCost}(tkn, soldBefore, 0, block.timestamp);
         }
 
         // buyExactIn with random ETH amount
@@ -1369,9 +1472,9 @@ contract ClassicalCurveSaleTest is Test {
         address buyer = address(uint160(0x7000));
         vm.deal(buyer, ethIn);
         vm.prank(buyer);
-        try sale.buyExactIn{value: ethIn}(tkn, 0) {
+        try sale.buyExactIn{value: ethIn}(tkn, 0, block.timestamp) {
             // Must hold: raisedETH == contract balance
-            (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+            (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
             assertEq(address(sale).balance, raisedETH, "raisedETH != balance after buyExactIn");
         } catch {
             // Acceptable reverts: ZeroAmount (fully sold) or Graduated
@@ -1384,8 +1487,8 @@ contract ClassicalCurveSaleTest is Test {
 
         ethIn = bound(ethIn, 0.01 ether, 20 ether);
         vm.prank(bob);
-        try sale.buyExactIn{value: ethIn}(tkn, 0) {
-            (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+        try sale.buyExactIn{value: ethIn}(tkn, 0, block.timestamp) {
+            (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
             // Contract may hold slightly more than raisedETH due to fee rounding
             assertGe(address(sale).balance, raisedETH, "balance < raisedETH");
         } catch {}
@@ -1400,10 +1503,10 @@ contract ClassicalCurveSaleTest is Test {
         uint256 bobBefore = bob.balance;
 
         vm.startPrank(bob);
-        sale.buy{value: cost + fee}(tkn, amount, 0);
+        sale.buy{value: cost + fee}(tkn, amount, 0, block.timestamp);
         uint256 received = token.balanceOf(bob);
         token.approve(address(sale), received);
-        sale.sell(tkn, received, 0);
+        sale.sell(tkn, received, 0, block.timestamp);
         vm.stopPrank();
 
         assertLe(bob.balance, bobBefore, "round-trip should never profit");
@@ -1416,15 +1519,15 @@ contract ClassicalCurveSaleTest is Test {
         buyAmount = bound(buyAmount, 10e18, 500e18);
         uint256 cost = sale.quote(tkn, buyAmount);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, buyAmount, 0);
+        sale.buy{value: cost}(tkn, buyAmount, 0, block.timestamp);
 
         // Try sellExactOut for random ETH amount
         ethOut = bound(ethOut, 0.001 ether, cost);
         vm.startPrank(bob);
         token.approve(address(sale), buyAmount);
-        try sale.sellExactOut(tkn, ethOut, buyAmount) {
+        try sale.sellExactOut(tkn, ethOut, buyAmount, block.timestamp) {
             // raisedETH must match balance
-            (,,,,,,,, uint256 raisedETH,,,,,) = sale.curves(tkn);
+            (,,,,,,,, uint256 raisedETH,,,,,,,,,) = sale.curves(tkn);
             assertEq(address(sale).balance, raisedETH, "raisedETH != balance after sellExactOut");
             // Bob got at least what they asked for
             assertGe(bob.balance, ethOut, "received less than ethOut");
@@ -1466,17 +1569,17 @@ contract ClassicalCurveSaleTest is Test {
         // Buy until graduated
         uint256 bought;
         for (uint256 i; i < 20; i++) {
-            (,,,,,,,,,,,, bool graduated,) = sale.curves(address(t2));
+            (,,,,,,,,,,,, bool graduated,,,,,) = sale.curves(address(t2));
             if (graduated) break;
             uint256 chunk = bound(CAP / 10, 1e18, CAP - bought);
             if (chunk == 0) break;
             uint256 c2 = sale.quote(address(t2), chunk);
             vm.prank(bob);
-            sale.buy{value: c2}(address(t2), chunk, 0);
+            sale.buy{value: c2}(address(t2), chunk, 0, block.timestamp);
             bought += chunk;
         }
 
-        (,,,,,,,,,,,, bool grad,) = sale.curves(address(t2));
+        (,,,,,,,,,,,, bool grad,,,,,) = sale.curves(address(t2));
         if (grad) {
             assertTrue(sale.graduable(address(t2)), "should be graduable");
         }
@@ -1522,7 +1625,7 @@ contract ClassicalCurveSaleTest is Test {
 
         // Buy, then quote the sell for same amount
         vm.prank(bob);
-        sale.buy{value: buyCost}(tkn, amount, 0);
+        sale.buy{value: buyCost}(tkn, amount, 0, block.timestamp);
         uint256 sellProceeds = sale.quoteSell(tkn, amount);
 
         // buy cost == sell proceeds on a no-fee curve (same _cost function)
@@ -1619,12 +1722,12 @@ contract ClassicalCurveSaleTest is Test {
 
         uint256 bobBefore = bob.balance;
         vm.prank(bob);
-        sale.buy{value: cost + sniperFee}(sniperTkn, 100e18, 0);
+        sale.buy{value: cost + sniperFee}(sniperTkn, 100e18, 0, block.timestamp);
         uint256 sniperSpent = bobBefore - bob.balance;
 
         uint256 carolBefore = carol.balance;
         vm.prank(carol);
-        sale.buy{value: cost + normalFee}(address(t2), 100e18, 0);
+        sale.buy{value: cost + normalFee}(address(t2), 100e18, 0, block.timestamp);
         uint256 normalSpent = carolBefore - carol.balance;
 
         assertGt(sniperSpent, normalSpent, "sniper should pay more");
@@ -1637,13 +1740,13 @@ contract ClassicalCurveSaleTest is Test {
         uint256 cost = sale.quote(tkn, 100e18);
         uint256 sniperFee = (cost * 5000) / 10_000;
         vm.prank(bob);
-        sale.buy{value: cost + sniperFee}(tkn, 100e18, 0);
+        sale.buy{value: cost + sniperFee}(tkn, 100e18, 0, block.timestamp);
 
         // Sell immediately — should also pay sniper fee
         vm.startPrank(bob);
         token.approve(address(sale), 100e18);
         uint256 bobBefore = bob.balance;
-        sale.sell(tkn, 100e18, 0);
+        sale.sell(tkn, 100e18, 0, block.timestamp);
         vm.stopPrank();
 
         uint256 received = bob.balance - bobBefore;
@@ -1745,7 +1848,7 @@ contract ClassicalCurveSaleTest is Test {
 
         uint256 cost = sale.quote(tkn, 100e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 200e18, 0); // ask for 200, capped to 100
+        sale.buy{value: cost}(tkn, 200e18, 0, block.timestamp); // ask for 200, capped to 100
 
         assertEq(token.balanceOf(bob), 100e18);
     }
@@ -1755,7 +1858,7 @@ contract ClassicalCurveSaleTest is Test {
 
         uint256 cost = sale.quote(tkn, 50e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 50e18, 50e18);
+        sale.buy{value: cost}(tkn, 50e18, 50e18, block.timestamp);
 
         assertEq(token.balanceOf(bob), 50e18);
     }
@@ -1766,7 +1869,7 @@ contract ClassicalCurveSaleTest is Test {
         // Ask for 200 with minAmount 200 — capped to 100, fails slippage
         vm.prank(bob);
         vm.expectRevert(ClassicalCurveSale.Slippage.selector);
-        sale.buy{value: 50 ether}(tkn, 200e18, 200e18);
+        sale.buy{value: 50 ether}(tkn, 200e18, 200e18, block.timestamp);
     }
 
     function test_MaxBuy_BuyExactIn() public {
@@ -1774,7 +1877,7 @@ contract ClassicalCurveSaleTest is Test {
 
         // Send lots of ETH — should only get 50e18 tokens max
         vm.prank(bob);
-        sale.buyExactIn{value: 100 ether}(tkn, 0);
+        sale.buyExactIn{value: 100 ether}(tkn, 0, block.timestamp);
 
         assertLe(token.balanceOf(bob), 50e18);
         assertGt(token.balanceOf(bob), 0);
@@ -1787,7 +1890,7 @@ contract ClassicalCurveSaleTest is Test {
         for (uint256 i; i < 5; i++) {
             uint256 cost = sale.quote(tkn, 100e18);
             vm.prank(bob);
-            sale.buy{value: cost}(tkn, 100e18, 100e18);
+            sale.buy{value: cost}(tkn, 100e18, 100e18, block.timestamp);
         }
 
         assertEq(token.balanceOf(bob), 500e18);
@@ -1798,7 +1901,7 @@ contract ClassicalCurveSaleTest is Test {
 
         uint256 cost = sale.quote(tkn, 500e18);
         vm.prank(bob);
-        sale.buy{value: cost}(tkn, 500e18, 500e18);
+        sale.buy{value: cost}(tkn, 500e18, 500e18, block.timestamp);
 
         assertEq(token.balanceOf(bob), 500e18);
     }
