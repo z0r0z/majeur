@@ -1109,7 +1109,7 @@ contract ClassicalCurveSaleTest is Test {
         vm.prank(alice);
         sale.setCreator(tkn, carol);
 
-        (address newCreator,,,,,,,,,,,,,,,,, ) = sale.curves(tkn);
+        (address newCreator,,,,,,,,,,,,,,,,,) = sale.curves(tkn);
         assertEq(newCreator, carol);
 
         // Old creator can no longer set
@@ -1120,7 +1120,7 @@ contract ClassicalCurveSaleTest is Test {
         // New creator can
         vm.prank(carol);
         sale.setCreator(tkn, bob);
-        (address finalCreator,,,,,,,,,,,,,,,,, ) = sale.curves(tkn);
+        (address finalCreator,,,,,,,,,,,,,,,,,) = sale.curves(tkn);
         assertEq(finalCreator, bob);
     }
 
@@ -1904,6 +1904,138 @@ contract ClassicalCurveSaleTest is Test {
         sale.buy{value: cost}(tkn, 500e18, 500e18, block.timestamp);
 
         assertEq(token.balanceOf(bob), 500e18);
+    }
+
+    // ── Deadline Boundary Tests ───────────────────────────────
+
+    function test_Buy_Deadline_ExactTimestamp() public {
+        address tkn = _configureNoFee();
+        vm.warp(1000);
+        uint256 cost = sale.quote(tkn, 10e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 10e18, 0, 1000); // deadline == block.timestamp
+        assertEq(token.balanceOf(bob), 10e18);
+    }
+
+    function test_Buy_Deadline_PastByOne() public {
+        address tkn = _configureNoFee();
+        vm.warp(1000);
+        uint256 cost = sale.quote(tkn, 10e18);
+        vm.prank(bob);
+        vm.expectRevert(ClassicalCurveSale.DeadlineExpired.selector);
+        sale.buy{value: cost}(tkn, 10e18, 0, 999);
+    }
+
+    function test_BuyExactIn_Deadline_ExactTimestamp() public {
+        address tkn = _configureNoFee();
+        vm.warp(1000);
+        vm.prank(bob);
+        sale.buyExactIn{value: 1 ether}(tkn, 0, 1000); // deadline == block.timestamp
+        assertTrue(token.balanceOf(bob) > 0);
+    }
+
+    function test_Sell_Deadline_ExactTimestamp() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
+
+        vm.warp(1000);
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        sale.sell(tkn, 100e18, 0, 1000); // deadline == block.timestamp
+        vm.stopPrank();
+    }
+
+    function test_SellExactOut_Deadline_ExactTimestamp() public {
+        address tkn = _configureNoFee();
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
+
+        vm.warp(1000);
+        vm.startPrank(bob);
+        token.approve(address(sale), 100e18);
+        sale.sellExactOut(tkn, 0.001 ether, 100e18, 1000); // deadline == block.timestamp
+        vm.stopPrank();
+    }
+
+    // ── SellExactOut feeBps=10000 Edge Case ───────────────────
+
+    function test_SellExactOut_RevertIf_FeeBps10000() public {
+        // Configure with feeBps=10000 (100% fee, allowed by _configure)
+        address tkn = _configureWith(START_PRICE, END_PRICE, 10_000, 0, LP_TOKENS, alice);
+
+        // Buy works (fee is 100%, but buyer still gets tokens)
+        uint256 cost = sale.quote(tkn, 10e18);
+        uint256 fee = cost; // 100% fee
+        vm.prank(bob);
+        sale.buy{value: cost + fee}(tkn, 10e18, 0, block.timestamp);
+
+        // sell() works with 100% fee (seller gets 0 ETH, but doesn't revert if minProceeds=0)
+        vm.startPrank(bob);
+        token.approve(address(sale), 10e18);
+        sale.sell(tkn, 10e18, 0, block.timestamp);
+        vm.stopPrank();
+
+        // Re-buy for sellExactOut test
+        vm.prank(bob);
+        sale.buy{value: cost + fee}(tkn, 10e18, 0, block.timestamp);
+
+        // sellExactOut reverts with feeBps=10000
+        vm.startPrank(bob);
+        token.approve(address(sale), 10e18);
+        vm.expectRevert(ClassicalCurveSale.InvalidParams.selector);
+        sale.sellExactOut(tkn, 0.001 ether, 10e18, block.timestamp);
+        vm.stopPrank();
+    }
+
+    // ── Reentrancy Tests ──────────────────────────────────────
+
+    function test_Sell_LockBlocksReentrancy() public {
+        address tkn = _configureNoFee();
+        // Buy tokens for the attacker
+        uint256 cost = sale.quote(tkn, 100e18);
+        vm.prank(bob);
+        sale.buy{value: cost}(tkn, 100e18, 0, block.timestamp);
+
+        // Transfer tokens to attacker
+        ReentrancyAttacker attacker = new ReentrancyAttacker(sale, tkn);
+        vm.prank(bob);
+        token.transfer(address(attacker), 100e18);
+
+        // Outer sell succeeds, but inner reentrant sell is blocked
+        attacker.attackSell(100e18);
+        // Attacker's reentrant call was blocked — reentrancyBlocked flag set in receive()
+        assertTrue(attacker.reentrancyBlocked());
+    }
+}
+
+/// @dev Attacker that attempts to reenter sell during ETH receipt
+contract ReentrancyAttacker {
+    ClassicalCurveSale immutable sale;
+    address immutable tkn;
+    bool public reentrancyBlocked;
+
+    constructor(ClassicalCurveSale _sale, address _tkn) {
+        sale = _sale;
+        tkn = _tkn;
+    }
+
+    function attackSell(uint256 amount) external {
+        MockToken(tkn).approve(address(sale), amount);
+        sale.sell(tkn, amount, 0, block.timestamp);
+    }
+
+    receive() external payable {
+        // Attempt reentrant sell on ETH receipt
+        try sale.sell(tkn, 1e18, 0, block.timestamp) {
+        // If we get here, reentrancy was NOT blocked (bad)
+        }
+        catch {
+            // Reentrancy was blocked (good)
+            reentrancyBlocked = true;
+        }
     }
 }
 

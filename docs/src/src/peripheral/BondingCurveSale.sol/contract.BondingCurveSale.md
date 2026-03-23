@@ -1,20 +1,24 @@
 # BondingCurveSale
-[Git Source](https://github.com/z0r0z/majeur/blob/44b014e70c45a531ab7ef5f4e32dcfcda5ea81fa/src/peripheral/BondingCurveSale.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/376bbb9940915c61b80e913ec9f3094c9c5ef7bc/src/peripheral/BondingCurveSale.sol)
 
 **Title:**
 BondingCurveSale
 
-Singleton for selling DAO shares or loot on a linear bonding curve.
+Singleton for selling DAO shares or loot on a bonding curve.
 Drop-in alternative to ShareSale — same allowance system, same IShareSale
 interface for LPSeedSwapHook compatibility.
-Price rises linearly from startPrice to endPrice as tokens are sold.
-Cost for N tokens = N * averagePrice, where averagePrice is the midpoint
-of the price at the current position and the price after buying N tokens.
+Three curve shapes are supported:
+LINEAR    — price(x) = P₀ + slope · x/cap              (default)
+QUADRATIC — price(x) = P₀ + slope · (x/cap)²           (steeper late-stage)
+XYK       — price(x) = P₀ · T₀²/(T₀ − x)²            (virtual constant-product, pump.fun-style)
+where P₀ = startPrice, slope = endPrice − startPrice, x = tokens already sold,
+and T₀ = virtual token reserve computed so that price(cap) = endPrice.
+Cost for N tokens is the integral of price(x) over [sold, sold+N], scaled by 1e18.
 The `sales()` getter returns endPrice as `price` so that LPSeedSwapHook's
 arb protection clamp uses the highest (final) sale price for LP seeding.
 Setup (via SafeSummoner extraCalls):
 1. dao.setAllowance(bondingCurveSale, address(dao), cap)
-2. bondingCurveSale.configure(address(dao), payToken, startPrice, endPrice, cap, deadline)
+2. bondingCurveSale.configure(address(dao), payToken, startPrice, endPrice, cap, deadline, curveType)
 Usage:
 bondingCurveSale.buy{value: cost}(dao, amount)
 
@@ -49,7 +53,8 @@ function configure(
     uint256 startPrice,
     uint256 endPrice,
     uint256 cap,
-    uint40 deadline
+    uint40 deadline,
+    CurveType curveType
 ) public;
 ```
 **Parameters**
@@ -62,6 +67,7 @@ function configure(
 |`endPrice`|`uint256`|  Price at 100% sold (1e18 scaled), must be >= startPrice|
 |`cap`|`uint256`|       Total tokens for sale (should match the allowance granted)|
 |`deadline`|`uint40`|  Unix timestamp after which buys revert (0 = no deadline)|
+|`curveType`|`CurveType`| Curve shape: LINEAR (0), QUADRATIC (1), or XYK (2)|
 
 
 ### quote
@@ -100,7 +106,7 @@ function buy(address dao, uint256 amount) public payable;
 ### buyExactIn
 
 Buy shares or loot with exact ETH input on the bonding curve.
-Computes max amount from msg.value via quadratic formula, caps to remaining, refunds excess.
+Computes max amount from msg.value, caps to remaining, refunds excess.
 
 
 ```solidity
@@ -128,19 +134,27 @@ function saleInitCalls(
     address payToken,
     uint256 startPrice,
     uint256 endPrice,
-    uint40 deadline
+    uint40 deadline,
+    CurveType curveType
 )
     public
     view
     returns (address target1, bytes memory data1, address target2, bytes memory data2);
 ```
 
+### _resolveToken
+
+Resolve allowance token sentinel to actual ERC20 address.
+
+
+```solidity
+function _resolveToken(address dao, address token) internal view returns (address);
+```
+
 ### _cost
 
 Compute cost for `amount` tokens starting at position `sold` on the curve.
-Linear curve: price(x) = startPrice + (endPrice - startPrice) * x / cap
-Cost = amount * avgPrice / 1e18, where avgPrice = (price(sold) + price(sold+amount)) / 2
-Rounded up to prevent dust.
+Rounded up to prevent dust purchases.
 
 
 ```solidity
@@ -158,7 +172,8 @@ event Configured(
     uint256 startPrice,
     uint256 endPrice,
     uint256 cap,
-    uint40 deadline
+    uint40 deadline,
+    CurveType curveType
 );
 ```
 
@@ -187,6 +202,12 @@ error NotConfigured();
 error UnexpectedETH();
 ```
 
+### InvalidCurve
+
+```solidity
+error InvalidCurve();
+```
+
 ### ZeroAmount
 
 ```solidity
@@ -205,12 +226,6 @@ error ZeroPrice();
 error Expired();
 ```
 
-### InvalidCurve
-
-```solidity
-error InvalidCurve();
-```
-
 ## Structs
 ### Sale
 
@@ -222,6 +237,19 @@ struct Sale {
     uint256 price; // endPrice — for IShareSale compatibility (LPSeedSwapHook reads this)
     uint256 startPrice; // price at 0% sold
     uint256 cap; // total tokens for sale (should match allowance)
+    CurveType curveType; // curve shape (LINEAR, QUADRATIC, XYK)
+    uint256 virtualReserve; // T₀ for XYK curve (0 for LINEAR/QUADRATIC)
+}
+```
+
+## Enums
+### CurveType
+
+```solidity
+enum CurveType {
+    LINEAR, // price(x) = P₀ + slope · x/cap
+    QUADRATIC, // price(x) = P₀ + slope · (x/cap)²
+    XYK // price(x) = P₀ · T₀²/(T₀ − x)²  (virtual constant-product)
 }
 ```
 

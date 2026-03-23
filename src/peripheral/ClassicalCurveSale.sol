@@ -14,7 +14,7 @@ pragma solidity ^0.8.30;
 ///     1. Creator calls launch() (deploys ERC20 clone + configures curve atomically)
 ///        — or deploys token separately, approves this contract, calls configure()
 ///     2. Users buy() / sell() on the curve (fee charged both directions)
-///     3. When raisedETH >= graduationTarget (or cap fully sold), trading freezes
+///     3. When raisedETH >= graduationTarget (or cap fully sold if no target), trading freezes
 ///     4. Anyone calls graduate() — seeds ZAMM LP with this contract as hook
 ///
 ///   Post-graduation this contract acts as a ZAMM hook for the graduated pool:
@@ -26,7 +26,9 @@ pragma solidity ^0.8.30;
 contract ClassicalCurveSale {
     error Slippage();
     error Graduated();
+    error NotSeeded();
     error ZeroAmount();
+    error InvalidPool();
     error NotGraduable();
     error Unauthorized();
     error InvalidParams();
@@ -151,7 +153,9 @@ contract ClassicalCurveSale {
     ERC20 public immutable tokenImplementation;
 
     constructor() payable {
-        tokenImplementation = new ERC20{salt: bytes32(0)}();
+        ERC20 impl = new ERC20{salt: bytes32(0)}();
+        impl.init("", "", "", 1, address(0xdead)); // prevent implementation init hijack
+        tokenImplementation = impl;
     }
 
     // ── Configuration ────────────────────────────────────────────
@@ -220,7 +224,7 @@ contract ClassicalCurveSale {
 
         // Mint supply to this contract
         ERC20(token).init(name, symbol, uri, supply, address(this));
-        emit TokenCreated(msg.sender, token);
+        emit TokenCreated(creator, token);
 
         // Creator allocation: always escrow until graduation (start is set in graduate())
         uint256 excess;
@@ -260,9 +264,9 @@ contract ClassicalCurveSale {
     /// @notice Configure a new bonding curve sale. Pulls cap + lpTokens from msg.sender.
     /// @dev    Only use with standard ERC20 tokens. Fee-on-transfer, rebasing, or callback-enabled
     ///         tokens (ERC777, etc.) may cause accounting mismatches or reentrancy issues.
-    ///         WARNING: Any token supply circulating outside this contract can be sold into the curve,
-    ///         redeeming buyer ETH. Only use with tokens whose entire pre-graduation supply is escrowed
-    ///         here (i.e., totalSupply == cap + lpTokens). The launch() path enforces this automatically.
+    ///         WARNING: Any token supply transferable outside this contract before graduation can be sold
+    ///         into the curve, redeeming buyer ETH. Only use with tokens whose entire pre-graduation
+    ///         supply is escrowed here. The launch() path enforces this automatically.
     /// @param creator          Who controls this curve (receives trading fees, LP recipient config, governance)
     /// @param token            ERC20 to sell (must have approved this contract for cap + lpTokens)
     /// @param cap              Tokens available on the curve
@@ -336,7 +340,7 @@ contract ClassicalCurveSale {
         if (creator == address(0)) revert InvalidParams();
         if (cap == 0 || startPrice == 0) revert InvalidParams();
         if (endPrice < startPrice) revert InvalidParams();
-        if (feeBps > 10_000 || poolFeeBps > 10_000) revert InvalidParams();
+        if (feeBps > 10_000 || poolFeeBps > 10_000 || maxBuyBps > 10_000) revert InvalidParams();
         if (sniperFeeBps != 0 || sniperDuration != 0) {
             if (sniperFeeBps > 10_000 || sniperFeeBps < feeBps) revert InvalidParams();
             if (sniperDuration == 0) revert InvalidParams();
@@ -350,7 +354,8 @@ contract ClassicalCurveSale {
             uint256 sqrtEnd = sqrt(endPrice);
             uint256 sqrtStart = sqrt(startPrice);
             if (sqrtEnd == sqrtStart) revert InvalidParams();
-            vr = cap * sqrtEnd / (sqrtEnd - sqrtStart);
+            vr = mulDivUp(cap, sqrtEnd, sqrtEnd - sqrtStart);
+            if (vr <= cap) revert InvalidParams();
         } else {
             // Flat price: T₀ doesn't matter, but set to 2·cap to avoid division issues
             vr = cap * 2;
@@ -698,12 +703,27 @@ contract ClassicalCurveSale {
         if (amount < minAmountOut) revert Slippage();
 
         uint256 cost = _cost(startPrice, endPrice, vr, sold, amount);
-        while (cost > netETH) {
-            // Approximation overshoot — reduce amount until cost fits within netETH
+
+        // Cheap fast path: approximation typically overshoots by 0–2 on normal configs
+        for (uint256 i; cost > netETH && i < 4; ++i) {
             if (amount <= 1) revert ZeroAmount();
             unchecked {
-                amount -= 1;
+                --amount;
             }
+            cost = _cost(startPrice, endPrice, vr, sold, amount);
+        }
+
+        // Bounded fallback: binary search when low-price curves cause large overshoot
+        if (cost > netETH) {
+            uint256 lo;
+            uint256 hi = amount;
+            while (lo + 1 < hi) {
+                uint256 mid = (lo + hi) >> 1;
+                if (_cost(startPrice, endPrice, vr, sold, mid) <= netETH) lo = mid;
+                else hi = mid;
+            }
+            amount = lo;
+            if (amount == 0) revert ZeroAmount();
             cost = _cost(startPrice, endPrice, vr, sold, amount);
         }
         if (amount < minAmountOut) revert Slippage();
@@ -953,7 +973,8 @@ contract ClassicalCurveSale {
         assembly ("memory-safe") {
             tstore(SEEDING_SLOT, add(poolId, 1))
         }
-        (, uint256 used1, uint256 liq) = ZAMM.addLiquidity{value: ethForLP}(
+        // ZAMM first-mint (supply==0) consumes exact desired amounts: used0 == ethForLP
+        (uint256 used0, uint256 used1, uint256 liq) = ZAMM.addLiquidity{value: ethForLP}(
             key, ethForLP, tokensForLP, 0, 0, recipient, block.timestamp
         );
         assembly ("memory-safe") {
@@ -971,7 +992,7 @@ contract ClassicalCurveSale {
         // Return excess ETH to creator (from LP token cap)
         if (excessETH != 0) safeTransferETH(creator, excessETH);
 
-        emit GraduationComplete(token, ethForLP, used1, liquidity);
+        emit GraduationComplete(token, used0, used1, liquidity);
     }
 
     // ── ZAMM Hook ────────────────────────────────────────────────
@@ -1079,7 +1100,7 @@ contract ClassicalCurveSale {
     function claimVested(address token) public {
         CurveConfig storage c = _curves[token];
         if (msg.sender != c.creator) revert Unauthorized();
-        if (!c.seeded) revert NotGraduable();
+        if (!c.seeded) revert NotSeeded();
 
         CreatorVest storage v = creatorVests[token];
         if (v.total == 0) revert NotConfigured();
@@ -1115,6 +1136,16 @@ contract ClassicalCurveSale {
 
     // ── Routed Swaps (creator fee) ───────────────────────────────
 
+    /// @dev Validate that poolKey matches the canonical graduated pool for token1.
+    ///      Prevents arbitrary-pool attacks where a non-ETH pool drains contract ETH.
+    function _validatePool(IZAMM.PoolKey calldata poolKey) internal view returns (address token) {
+        token = poolKey.token1;
+        if (!_curves[token].seeded) revert InvalidPool();
+        if (poolKey.token0 != address(0)) revert InvalidPool();
+        if (poolKey.id0 != 0 || poolKey.id1 != 0) revert InvalidPool();
+        if (poolKey.feeOrHook != hookFeeOrHook()) revert InvalidPool();
+    }
+
     modifier lock() {
         assembly ("memory-safe") {
             if tload(SWAP_LOCK_SLOT) {
@@ -1145,7 +1176,7 @@ contract ClassicalCurveSale {
         address to,
         uint256 deadline
     ) public payable lock returns (uint256 amountOut) {
-        address token = poolKey.token1;
+        address token = _validatePool(poolKey);
         CreatorFee storage fee = creatorFees[token];
         uint256 bps = zeroForOne ? fee.buyBps : fee.sellBps;
         address ben = fee.beneficiary;
@@ -1209,7 +1240,7 @@ contract ClassicalCurveSale {
         address to,
         uint256 deadline
     ) public payable lock returns (uint256 amountIn) {
-        address token = poolKey.token1;
+        address token = _validatePool(poolKey);
         CreatorFee storage fee = creatorFees[token];
         uint256 bps = zeroForOne ? fee.buyBps : fee.sellBps;
         address ben = fee.beneficiary;
@@ -1335,7 +1366,9 @@ contract ClassicalCurveSale {
     // ── Multicall ──────────────────────────────────────────────
 
     /// @notice Batch multiple calls into a single transaction (e.g. graduate + setCreatorFee).
-    ///         Non-payable to prevent msg.value double-spend across delegatecalls.
+    ///         Intentionally non-payable to prevent msg.value double-spend across delegatecalls.
+    ///         Functions guarded by `lock` (buy, sell, swapExactIn, swapExactOut) cannot be
+    ///         batched together — the second call will revert with Reentrancy().
     function multicall(bytes[] calldata data) public {
         for (uint256 i; i != data.length; ++i) {
             (bool ok, bytes memory ret) = address(this).delegatecall(data[i]);

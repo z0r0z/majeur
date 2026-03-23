@@ -101,12 +101,14 @@ sellExactOut(token, ethOut, maxTokens):   [lock modifier]
 
 graduate(token):
   1. c.seeded = true                                                [CEI: state first]
-  2. safeTransfer(token, 0xdead, unsold)                            [burn unsold]
-  3. ensureApproval(token, ZAMM)                                    [approve before registration]
-  4. poolToken[poolId] = token                                      [register pool after approval]
-  5. ZAMM.addLiquidity{value: ethForLP}(...)                        [seed LP via transient bypass]
-  6. safeTransferETH(creator, unusedETH)                            [refund unused]
-  7. safeTransfer(token, creator, unusedTokens)                     [refund unused]
+  2. v.start = block.timestamp                                       [start vesting clock]
+  3. safeTransfer(token, 0xdead, unsold)                            [burn unsold]
+  4. Compute tokensForLP at finalPrice; cap ethForLP if tokens insufficient [price continuity]
+  5. ensureApproval(token, ZAMM)                                    [approve before registration]
+  6. poolToken[poolId] = token                                      [register pool after approval]
+  7. ZAMM.addLiquidity{value: ethForLP}(...)                        [seed LP via transient bypass; first-mint consumes exact amounts]
+  8. safeTransfer(token, 0xdead, excessTokens)                      [burn unused LP tokens]
+  9. safeTransferETH(creator, excessETH)                            [refund ETH from LP token cap]
 
 claimVested(token):
   1. Check msg.sender == creator                                    [auth]
@@ -157,8 +159,9 @@ beforeAction(sig, poolId, sender, ...):   [ZAMM-only]
 | 4 | 2026-03-19 | ChatGPT (post-fix) | Defense + invariant verification | 0 novel, 8/8 defenses verified | [`chatgpt-postfix-20260319.md`](chatgpt-postfix-20260319.md) |
 | 5 | 2026-03-20 | Pashov AI (v2) | Vector scan (4-agent) + manual verification | 0 novel above threshold, 3 below (all known) | [`pashov-20260320.md`](pashov-20260320.md) |
 | 6 | 2026-03-22 | Manual review (external) | Full contract review | 1 High (fixed), 1 Medium (accepted + documented), docs (fixed) | — |
+| 7 | 2026-03-23 | Pashov AI (v3) | 8-agent parallel scan (vector-scan, math-precision, access-control, economic-security, execution-trace, invariant, periphery, first-principles) | 0 above threshold, 5 below (all accepted) | [`pashov-20260323.md`](pashov-20260323.md) |
 
-**Aggregate: 6 audits, 8 unique findings. 0 Critical, 0 High open, 4 Medium (fixed), 1 Medium (accepted), 1 High (fixed), 1 Low (fixed), 1 Low (accepted).**
+**Aggregate: 7 audits, 13 unique findings. 0 Critical, 0 High open, 4 Medium (fixed), 2 Medium (accepted), 1 High (fixed), 1 Low (fixed), 2 Low (accepted), 3 Informational (accepted).**
 
 ---
 
@@ -174,12 +177,17 @@ beforeAction(sig, poolId, sender, ...):   [ZAMM-only]
 | 6 | Unchecked uint128 downcasts — `cap`, `startPrice`, `endPrice`, `graduationTarget`, `lpTokens` silently truncate | Low | Fixed | ChatGPT #3 | — |
 | 7 | `graduate()` sends all `raisedETH` to ZAMM even when LP token cap forces lower ratio — strands ETH or breaks price continuity | High | Fixed | External review #6 | — |
 | 8 | `configure()` allows external circulating supply to be sold into curve, redeeming buyer ETH | Medium | Accepted (documented) | External review #6 | — |
+| 9 | Intermediate truncation in `_cost` underprices buyers near curve exhaustion | Informational | Accepted | Pashov v3 #1 | — |
+| 10 | `sellExactOut` blocked for curves with `feeBps=10000` | Low | Accepted | Pashov v3 #2 | — |
+| 11 | ZAMM first-mint exact consumption assumption unasserted | Informational | Accepted | Pashov v3 #3 | — |
+| 12 | Hardcoded zrouter perpetual allowance exemption in ERC20 clone | Informational | Accepted | Pashov v3 #4 | — |
+| 13 | Integer sqrt rounding in virtual reserve computation | Informational | Accepted | Pashov v3 #5 | Pashov v2 (below threshold) |
 
 ### Finding 1 — Assessment
 
 **Severity: Medium. Status: Fixed.**
 
-`buyExactIn()` uses an approximation to compute token `amount` from ETH input, then verifies with `_cost()`. The approximation can overshoot by multiple tokens on steep curves, causing the function to revert or understate `raisedETH`. Fixed with a `while` loop that decrements `amount` until `cost <= netETH`. Additionally, the underlying `mulDiv` free function was replaced with Solady's `fullMulDiv` to fix a missing 6th Newton-Raphson iteration (128-bit → 256-bit precision).
+`buyExactIn()` uses an approximation to compute token `amount` from ETH input, then verifies with `_cost()`. The approximation can overshoot by multiple tokens on steep curves, causing the function to revert or understate `raisedETH`. **Correctness fix**: a `while` loop decrements `amount` until `cost <= netETH`. **Precision upgrade**: `mulDiv` uses 512-bit intermediate precision with 5 Newton-Raphson iterations (160-bit convergence), sufficient for uint128 inputs. **Residual info-level concern**: on pathological configs (extreme low-price / tiny-reserve), the decrement loop could iterate many times, increasing gas. Not exploitable on standard pump.fun-style parameters where the approximation overshoots by 0–2 tokens.
 
 ### Finding 2 — Assessment
 
@@ -191,7 +199,7 @@ beforeAction(sig, poolId, sender, ...):   [ZAMM-only]
 
 **Severity: Low. Status: Accepted (self-inflicted).**
 
-If a creator calls `setCreator()` to set the creator address to a contract that reverts on ETH receipt, and `feeBps > 0`, all `buy()` and `buyExactIn()` calls permanently revert. This is self-inflicted by the creator against their own token's buyers.
+If a creator calls `setCreator()` to set the creator address to a contract that reverts on ETH receipt, and `feeBps > 0`, all `buy()` and `buyExactIn()` calls permanently revert. This is self-inflicted by the creator against their own token's buyers. The same applies to `graduate()`: push-payment refund paths (lines 900, 934, 974) send ETH to `creator`, so a non-payable creator also freezes graduation.
 
 ### Finding 4 — Assessment
 
@@ -215,13 +223,43 @@ If a creator calls `setCreator()` to set the creator address to a contract that 
 
 **Severity: High. Status: Fixed.**
 
-`graduate()` sent all `raisedETH` to `ZAMM.addLiquidity()` even when `tokensForLP` was capped to `maxTokensForLP`. For first-pool creation (supply==0), ZAMM uses both desired amounts exactly, so the pool would be created at `ethForLP/tokensForLP` instead of the intended `finalPrice` ratio — breaking price continuity between curve and pool. Fixed by capping `ethForLP` to `mulDiv(maxTokensForLP, finalPrice, 1e18)` when the token cap binds, and refunding the excess ETH to the creator after seeding. The event now reports actual ETH seeded.
+`graduate()` sent all `raisedETH` to `ZAMM.addLiquidity()` even when `tokensForLP` was capped to `maxTokensForLP`. For first-pool creation (supply==0), ZAMM uses both desired amounts exactly (ZAMM.sol:528-529), so the pool would be created at `ethForLP/tokensForLP` instead of the intended `finalPrice` ratio — breaking price continuity between curve and pool. Fixed by capping `ethForLP` to `mulDiv(maxTokensForLP, finalPrice, 1e18)` when the token cap binds, and refunding the excess ETH to the creator after seeding. The event now reports actual ETH seeded via `used0` (verified: equals `ethForLP` on first-mint). ZAMM first-mint guarantee verified: `(amount0, amount1) = (amount0Desired, amount1Desired)` when `supply == 0`.
 
 ### Finding 8 — Assessment
 
 **Severity: Medium. Status: Accepted (documented).**
 
 `configure()` only escrows `cap + lpTokens` from the caller. If the token has additional circulating supply outside the contract, those holders can sell into the curve via `sell()` and redeem buyer ETH. This is the same underlying issue as the original critical finding, but scoped to the `configure()` path only — `launch()` mints the entire supply to this contract and is immune. Accepted because `configure()` is an expert-only path where the caller assumes token compatibility responsibility. NatSpec now explicitly warns that only tokens with full pre-graduation supply escrowed are safe.
+
+### Finding 9 — Assessment
+
+**Severity: Informational. Status: Accepted.**
+
+`_cost()` uses two chained `mulDiv` calls: `step = mulDiv(P₀·N, T₀, rem)` (floor) then `mulDivUp(step, T₀, remAfter·1e18)`. The intermediate floor truncation in `step` is magnified by the second division, causing a buyer-favorable undercharge of up to `ceil(T₀/(remAfter·1e18))` wei. For realistic curves (T₀ ~ 1e24), the error is dust (~1 wei). The pathological maximum (T₀ ≈ uint128.max, remAfter=1) is unreachable in practice — it requires maximum virtual reserve with a single token remaining. No fix needed.
+
+### Finding 10 — Assessment
+
+**Severity: Low. Status: Accepted.**
+
+`_configure()` validates `feeBps > 10_000` (strictly greater), allowing `feeBps = 10_000` (100% fee) as a valid configuration. `sell()` handles this correctly (net proceeds = 0). However, `sellExactOut()` guards with `feeBps >= 10_000` (line 809), permanently blocking `sellExactOut()` for 100% fee curves while `sell()` remains functional. This is an inconsistency, but 100% fee curves have no practical use case — sellers receive zero ETH regardless. The `sell()` path remains available. No fix needed.
+
+### Finding 11 — Assessment
+
+**Severity: Informational. Status: Accepted.**
+
+`graduate()` pre-computes `excessETH = c.raisedETH - ethForLP` before calling `ZAMM.addLiquidity()`, relying on the assumption that ZAMM first-mint (supply=0) consumes exact desired amounts. The code documents this assumption in a comment (line 957) but does not assert `used0 == ethForLP` on-chain. ZAMM is an immutable hardcoded singleton and this behavior is guaranteed for supply=0 pools. Adding an assertion would increase gas for no practical benefit. The `GraduationComplete` event emits `used0` for off-chain verification.
+
+### Finding 12 — Assessment
+
+**Severity: Informational. Status: Accepted.**
+
+The ERC20 clone's `transferFrom` exempts `zrouter` (hardcoded address) from allowance checks. If zrouter were compromised, it could execute arbitrary `transferFrom` calls on all tokens launched via `launch()`. However, zrouter is an immutable hardcoded address within the ZAMM ecosystem trust boundary — the same trust model as `zamm` and `hook` (this contract). All three addresses are equally trusted and equally hardcoded. A zrouter compromise would require a vulnerability in a verified, immutable contract.
+
+### Finding 13 — Assessment
+
+**Severity: Informational. Status: Accepted.**
+
+The virtual reserve `T₀ = cap · √endPrice / (√endPrice − √startPrice)` uses floor-truncated integer square roots. This means `price(cap)` does not exactly equal `endPrice`. The deviation is sub-wei for realistic price parameters. For extreme cases where `√endPrice − √startPrice` is small, the `sqrtEnd == sqrtStart` guard (line 353) prevents zero denominators. The error is symmetric across all participants and has no exploitable impact.
 
 ---
 
@@ -247,7 +285,7 @@ If a creator calls `setCreator()` to set the creator address to a contract that 
 |---------|---------------|-----------|
 | Reentrancy lock | Transient storage `SWAP_LOCK_SLOT` via `lock` modifier on all buy/sell/swap functions | `:1101-1112` |
 | CEI pattern | State updates (sold, raisedETH) before all external calls in buy/sell paths | buy `:544-551`, sell `:779-782` |
-| Graduation state guard | `c.seeded = true` set before any external calls in `graduate()`; `setLpRecipient` frozen once `c.graduated` is true | `:880`, `:849-855` |
+| Graduation state guard | `c.seeded = true` set before any external calls in `graduate()` (marks graduation finalized — does not imply a pool was created); `setLpRecipient` frozen once `c.graduated` is true | `:880`, `:849-855` |
 | Hook caller check | `msg.sender != address(ZAMM)` in `beforeAction()` | `:794-800` |
 | Creator fee routing enforcement | `beforeAction` blocks direct `ZAMM.swap()` when creator fee is active; only `swapExactIn`/`swapExactOut` routed through this contract are allowed | `:823-826` |
 | CREATE2 salt binding | Salt includes `msg.sender` to prevent address squatting | `:189-196` |
@@ -264,7 +302,7 @@ If a creator calls `setCreator()` to set the creator address to a contract that 
 | I-1 | During the active bonding-curve phase (before `graduate()` executes), `raisedETH` tracks net curve-accounted ETH (buy costs minus sell proceeds) | buy `:547-548`, sell `:781` |
 | I-2 | `sold <= cap` at all times | buy `:601`, sell `:761` |
 | I-3 | Once `graduated == true`, no further buys or sells on the bonding curve are possible | `:592`, `:659`, `:759`, `:806` |
-| I-4 | Once `seeded == true`, `graduate()` cannot be called again | `:878`, `:880` |
+| I-4 | Once `seeded == true`, `graduate()` cannot be called again. Note: `seeded` means "graduation finalized", not "pool exists" — no-pool early-return paths (lines 898-903, 932-937) also set `seeded = true`. Use `poolToken[poolId] != address(0)` to check whether a ZAMM pool was actually registered. | `:878`, `:880` |
 | I-5 | A curve can only be configured once per token address (`AlreadyConfigured` guard) | `:345` |
 | I-6 | Only ZAMM can call `beforeAction()` | `:794-800` |
 | I-7 | Pre-seed LP operations are blocked unless called from within `graduate()` via transient bypass (pool registered after `ensureApproval` to close reentrancy window) | `:934-935`, `:940-948` |
@@ -405,6 +443,12 @@ Optional cliff + linear vesting for creator token allocation. Only available via
 | "ETH trapped when tokensForLP cap limits ZAMM seeding" | ZAMM `addLiquidity` for new pools (supply=0) uses both desired amounts directly — no ratio adjustment, no leftover. `beforeAction` hook guarantees pool is fresh at graduation. Pashov v2 invalidated. |
 | "Max-allowance approve reverts on UNI/COMP-style tokens" | Only affects `configure()` path — `launch()` clones are allowance-exempt (line 934). Caller assumes token compatibility responsibility. Pashov v2 downgraded to informational. |
 | "`safeTransfer` assembly corrupts free memory pointer" | Standard Solady `safeTransfer` pattern. `mstore(0x34, 0)` cleanup is intentional; Solidity codegen uses `log` opcodes with scratch-space encoding, not the FMP allocator. Battle-tested. Pashov v2 invalidated. |
+| "`swapExactOut` amountInMax overwritten by msg.value" | Documented behavior — NatSpec says "for ETH input, send as msg.value". Self-harm only. Pashov v3 invalidated. |
+| "`swapExactIn` amountIn overwritten by msg.value" | Same as above. Pashov v3 invalidated. |
+| "`configure()` front-runnable creator assignment" | Attacker must hold `cap + lpTokens` of the target token. For `launch()` (atomic), not applicable. For `configure()`, caller controls distribution. Pashov v3 invalidated. |
+| "`setCreatorFee` missing seeded guard" | No swaps occur between graduation trigger and seeding — all buy/sell revert with `Graduated()`. Fee change in this window has no effect. Pashov v3 invalidated. |
+| "`buyExactIn` correction loop unbounded" | Algebraic inverse is exact for XYK (0–2 iterations typical). Pathological configs cause self-DoS only (caller bears gas). No profitable attack vector. Pashov v3 lead. |
+| "`graduate()` stale storage re-read in no-pool early-exit" | `c.raisedETH` and `ethForLP` are identical in reachable paths. Latent inconsistency only — no current divergence. Pashov v3 lead. |
 
 ---
 
@@ -413,10 +457,11 @@ Optional cliff + linear vesting for creator token allocation. Only available via
 Recommended checks for any UI or backend integrating with ClassicalCurveSale:
 
 - **Warn on nonstandard tokens with `configure()`** — Fee-on-transfer, rebasing, and callback-enabled tokens (ERC777) cause accounting mismatches. `launch()` is safe (deploys its own ERC20 clone). If `configure()` is exposed, validate the token contract before allowing submission.
-- **Warn if creator address cannot receive ETH** — If the creator is a contract without a `receive()`/`fallback()`, all fee-bearing buys/sells will revert permanently. Check `creator.code.length > 0` and warn if the address looks like a contract that may reject ETH.
+- **Warn if creator address cannot receive ETH** — If the creator is a contract without a `receive()`/`fallback()`, all fee-bearing buys/sells and graduation refund paths will revert permanently. Check `creator.code.length > 0` and warn if the address looks like a contract that may reject ETH.
 - **Distinguish `configure()` curves from `launch()` curves** — Curves created via `launch()` use audited ERC20 clones with no callbacks. Curves created via `configure()` use arbitrary external tokens and carry additional risk (Finding #2, #4). Label or flag these differently in the UI so users can assess trust.
 - **Display creator fee config prominently** — Creator can set up to 10% fee on post-graduation swaps via `setCreatorFee()`. Show current fee parameters and warn users if fees are nonzero before they trade.
 - **Show graduation status clearly** — Once graduated, bonding curve trading stops and LP is seeded. Users need to understand the lifecycle transition and that post-graduation trading happens through ZAMM (possibly with creator fees).
+- **Disclose `lpTokens` cap effect on post-graduation liquidity** — When `lpTokens` is undersized relative to raised ETH, graduation seeds only enough ETH to preserve the final marginal price and returns excess ETH to the creator. Buyers may otherwise assume all raised ETH enters LP. Display the configured `lpTokens` and warn when it would cap the seeded amount.
 
 ---
 

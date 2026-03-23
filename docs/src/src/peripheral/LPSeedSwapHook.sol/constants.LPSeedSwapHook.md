@@ -1,5 +1,5 @@
 # Constants
-[Git Source](https://github.com/z0r0z/majeur/blob/44b014e70c45a531ab7ef5f4e32dcfcda5ea81fa/src/peripheral/LPSeedSwapHook.sol)
+[Git Source](https://github.com/z0r0z/majeur/blob/376bbb9940915c61b80e913ec9f3094c9c5ef7bc/src/peripheral/LPSeedSwapHook.sol)
 
 ### ZAMM
 ZAMM singleton address.
@@ -18,10 +18,10 @@ uint256 constant FLAG_BEFORE = 1 << 255
 ```
 
 ### DEFAULT_FEE_BPS
-Default swap fee when none configured (30 bps = 0.30%).
+Default swap fee when none configured (25 bps = 0.25%).
 
 
 ```solidity
-uint16 constant DEFAULT_FEE_BPS = 30
+uint16 constant DEFAULT_FEE_BPS = 25
 ```
 
